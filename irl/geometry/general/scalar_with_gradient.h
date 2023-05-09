@@ -23,8 +23,11 @@ class ScalarWithGradientBase {
  public:
   using value_type = FloatType;
   using gradient_type = GradientType;
-  using converted_to_double = ScalarWithGradientBase<double, GradientType>;
-  using converted_to_quad = ScalarWithGradientBase<Quad_t, GradientType>;
+  using converted_to_double =
+      ScalarWithGradientBase<double,
+                             typename GradientType::converted_to_double>;
+  using converted_to_quad =
+      ScalarWithGradientBase<Quad_t, typename GradientType::converted_to_quad>;
 
   ScalarWithGradientBase(void)
       : scalar_m(static_cast<FloatType>(0)),

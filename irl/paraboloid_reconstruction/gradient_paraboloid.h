@@ -64,36 +64,45 @@ ParaboloidGradientLocalZ operator-(const ParaboloidGradientLocalZ& a_gradient1,
                                    const ParaboloidGradientLocalZ& a_gradient2);
 ParaboloidGradientLocalZ operator-(const ParaboloidGradientLocalZ& a_gradient);
 
-class ParaboloidGradientLocal {
+template <class ScalarType>
+class ParaboloidGradientLocalBase {
  public:
+  using converted_to_double = ParaboloidGradientLocalBase<double>;
+  using converted_to_quad = ParaboloidGradientLocalBase<Quad_t>;
+
   static constexpr UnsignedIndex_t NParameters = 8;
   static constexpr bool has_hessian = false;
-  ParaboloidGradientLocal(void);
-  ParaboloidGradientLocal(const double a_value);
-  ParaboloidGradientLocal(const ParaboloidGradientLocal& a_gradient);
-  ParaboloidGradientLocal& operator+=(
-      const ParaboloidGradientLocal& a_gradient);
-  ParaboloidGradientLocal& operator=(const ParaboloidGradientLocal& a_gradient);
-  Eigen::Matrix<double, 8, 1>& getGrad(void);
-  const Eigen::Matrix<double, 8, 1>& getGrad(void) const;
-  void setGrad(const ParaboloidGradientLocal& a_rhs);
-  double getGradA(void) const;
-  double getGradB(void) const;
-  double getGradTx(void) const;
-  double getGradTy(void) const;
-  double getGradTz(void) const;
-  double getGradRx(void) const;
-  double getGradRy(void) const;
-  double getGradRz(void) const;
-  void setGradA(const double a_rhs);
-  void setGradB(const double a_rhs);
-  void setGradTx(const double a_rhs);
-  void setGradTy(const double a_rhs);
-  void setGradTz(const double a_rhs);
-  void setGradRx(const double a_rhs);
-  void setGradRy(const double a_rhs);
-  void setGradRz(const double a_rhs);
-  ~ParaboloidGradientLocal(void) = default;
+
+  ParaboloidGradientLocalBase(void);
+  ParaboloidGradientLocalBase(const ScalarType a_value);
+  ParaboloidGradientLocalBase(
+      const ParaboloidGradientLocalBase<double>& a_gradient);
+  ParaboloidGradientLocalBase(
+      const ParaboloidGradientLocalBase<Quad_t>& a_gradient);
+  ParaboloidGradientLocalBase& operator+=(
+      const ParaboloidGradientLocalBase<ScalarType>& a_gradient);
+  ParaboloidGradientLocalBase& operator=(
+      const ParaboloidGradientLocalBase<ScalarType>& a_gradient);
+  Eigen::Matrix<ScalarType, 8, 1>& getGrad(void);
+  const Eigen::Matrix<ScalarType, 8, 1>& getGrad(void) const;
+  void setGrad(const ParaboloidGradientLocalBase& a_rhs);
+  ScalarType getGradA(void) const;
+  ScalarType getGradB(void) const;
+  ScalarType getGradTx(void) const;
+  ScalarType getGradTy(void) const;
+  ScalarType getGradTz(void) const;
+  ScalarType getGradRx(void) const;
+  ScalarType getGradRy(void) const;
+  ScalarType getGradRz(void) const;
+  void setGradA(const ScalarType a_rhs);
+  void setGradB(const ScalarType a_rhs);
+  void setGradTx(const ScalarType a_rhs);
+  void setGradTy(const ScalarType a_rhs);
+  void setGradTz(const ScalarType a_rhs);
+  void setGradRx(const ScalarType a_rhs);
+  void setGradRy(const ScalarType a_rhs);
+  void setGradRz(const ScalarType a_rhs);
+  ~ParaboloidGradientLocalBase(void) = default;
 
  private:
   // The array contains:
@@ -105,20 +114,34 @@ class ParaboloidGradientLocal {
   // 5 - gradRx
   // 6 - gradRy
   // 7 - gradRz
-  Eigen::Matrix<double, 8, 1> gradient_m;
+  Eigen::Matrix<ScalarType, 8, 1> gradient_m;
 };
 
-ParaboloidGradientLocal operator*(const ParaboloidGradientLocal& a_gradient,
-                                  const double a_rhs);
-ParaboloidGradientLocal operator*(const double a_rhs,
-                                  const ParaboloidGradientLocal& a_gradient);
-ParaboloidGradientLocal operator/(const ParaboloidGradientLocal& a_gradient,
-                                  const double a_rhs);
-ParaboloidGradientLocal operator+(const ParaboloidGradientLocal& a_gradient1,
-                                  const ParaboloidGradientLocal& a_gradient2);
-ParaboloidGradientLocal operator-(const ParaboloidGradientLocal& a_gradient1,
-                                  const ParaboloidGradientLocal& a_gradient2);
-ParaboloidGradientLocal operator-(const ParaboloidGradientLocal& a_gradient);
+using ParaboloidGradientLocal = ParaboloidGradientLocalBase<double>;
+
+template <class ScalarType>
+ParaboloidGradientLocalBase<ScalarType> operator*(
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient,
+    const ScalarType a_rhs);
+template <class ScalarType>
+ParaboloidGradientLocalBase<ScalarType> operator*(
+    const ScalarType a_rhs,
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient);
+template <class ScalarType>
+ParaboloidGradientLocalBase<ScalarType> operator/(
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient,
+    const ScalarType a_rhs);
+template <class ScalarType>
+ParaboloidGradientLocalBase<ScalarType> operator+(
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient1,
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient2);
+template <class ScalarType>
+ParaboloidGradientLocalBase<ScalarType> operator-(
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient1,
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient2);
+template <class ScalarType>
+ParaboloidGradientLocalBase<ScalarType> operator-(
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient);
 
 }  // namespace IRL
 

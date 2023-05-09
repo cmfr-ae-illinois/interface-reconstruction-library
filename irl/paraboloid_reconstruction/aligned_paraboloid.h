@@ -52,46 +52,49 @@ class AlignedParaboloidBase {
   template <class OtherScalarType>
   constexpr AlignedParaboloidBase(
       const AlignedParaboloidBase<OtherScalarType>& a_aligned_paraboloid) {
-    if constexpr (has_embedded_gradient<OtherScalarType>::value) {
-      if constexpr (has_embedded_gradient<ScalarType>::value) {
-        using FloatType = float_type<ScalarType>;
-        auto new_a = ScalarType(
-            static_cast<FloatType>(a_aligned_paraboloid.a().value()));
-        auto new_b = ScalarType(
-            static_cast<FloatType>(a_aligned_paraboloid.b().value()));
-        auto& old_a_grad = a_aligned_paraboloid.a().gradient().getGrad();
-        auto& old_b_grad = a_aligned_paraboloid.b().gradient().getGrad();
-        auto& new_a_grad = new_a.gradient().getGrad();
-        auto& new_b_grad = new_b.gradient().getGrad();
-        assert(old_a_grad.rows() == new_a_grad.rows() &&
-               old_b_grad.rows() == new_b_grad.rows());
-        assert(old_a_grad.cols() == new_a_grad.cols() &&
-               old_b_grad.cols() == new_b_grad.cols());
-        for (UnsignedIndex_t i = 0; i < new_a_grad.rows(); ++i) {
-          for (UnsignedIndex_t j = 0; j < new_a_grad.cols(); ++j) {
-            new_a_grad(i, j) = static_cast<FloatType>(old_a_grad(i, j));
-            new_b_grad(i, j) = static_cast<FloatType>(old_b_grad(i, j));
-          }
-        }
-        coefficients_m[0] = new_a;
-        coefficients_m[1] = new_b;
-      } else {
-        coefficients_m[0] =
-            static_cast<ScalarType>(a_aligned_paraboloid.a().value());
-        coefficients_m[1] =
-            static_cast<ScalarType>(a_aligned_paraboloid.b().value());
-      }
-    } else {
-      if constexpr (has_embedded_gradient<OtherScalarType>::value) {
-        coefficients_m[0] =
-            static_cast<ScalarType>(a_aligned_paraboloid.a().value());
-        coefficients_m[1] =
-            static_cast<ScalarType>(a_aligned_paraboloid.b().value());
-      } else {
-        coefficients_m[0] = static_cast<ScalarType>(a_aligned_paraboloid.a());
-        coefficients_m[1] = static_cast<ScalarType>(a_aligned_paraboloid.b());
-      }
-    }
+    coefficients_m[0] = ScalarType(a_aligned_paraboloid.a());
+    coefficients_m[1] = ScalarType(a_aligned_paraboloid.b());
+    // if constexpr (has_embedded_gradient<OtherScalarType>::value) {
+    //   if constexpr (has_embedded_gradient<ScalarType>::value) {
+    //     using FloatType = float_type<ScalarType>;
+    //     auto new_a = ScalarType(
+    //         static_cast<FloatType>(a_aligned_paraboloid.a().value()));
+    //     auto new_b = ScalarType(
+    //         static_cast<FloatType>(a_aligned_paraboloid.b().value()));
+    //     auto& old_a_grad = a_aligned_paraboloid.a().gradient().getGrad();
+    //     auto& old_b_grad = a_aligned_paraboloid.b().gradient().getGrad();
+    //     auto& new_a_grad = new_a.gradient().getGrad();
+    //     auto& new_b_grad = new_b.gradient().getGrad();
+    //     assert(old_a_grad.rows() == new_a_grad.rows() &&
+    //            old_b_grad.rows() == new_b_grad.rows());
+    //     assert(old_a_grad.cols() == new_a_grad.cols() &&
+    //            old_b_grad.cols() == new_b_grad.cols());
+    //     for (UnsignedIndex_t i = 0; i < new_a_grad.rows(); ++i) {
+    //       for (UnsignedIndex_t j = 0; j < new_a_grad.cols(); ++j) {
+    //         new_a_grad(i, j) = static_cast<FloatType>(old_a_grad(i, j));
+    //         new_b_grad(i, j) = static_cast<FloatType>(old_b_grad(i, j));
+    //       }
+    //     }
+    //     coefficients_m[0] = new_a;
+    //     coefficients_m[1] = new_b;
+    //   } else {
+    //     coefficients_m[0] =
+    //         static_cast<ScalarType>(a_aligned_paraboloid.a().value());
+    //     coefficients_m[1] =
+    //         static_cast<ScalarType>(a_aligned_paraboloid.b().value());
+    //   }
+    // } else {
+    //   if constexpr (has_embedded_gradient<OtherScalarType>::value) {
+    //     coefficients_m[0] =
+    //         static_cast<ScalarType>(a_aligned_paraboloid.a().value());
+    //     coefficients_m[1] =
+    //         static_cast<ScalarType>(a_aligned_paraboloid.b().value());
+    //   } else {
+    //     coefficients_m[0] =
+    //     static_cast<ScalarType>(a_aligned_paraboloid.a()); coefficients_m[1]
+    //     = static_cast<ScalarType>(a_aligned_paraboloid.b());
+    //   }
+    // }
   };
 
   AlignedParaboloidBase flipParaboloid(void) const {
