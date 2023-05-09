@@ -12,6 +12,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <ostream>
+#include "quadmath.h"
 
 namespace IRL {
 using UnsignedIndex_t = uint32_t;
@@ -19,6 +21,17 @@ using LargeOffsetIndex_t = std::size_t;
 using LookupIndex_t = uint8_t;
 using Byte_t = unsigned char;
 using Quad_t = __float128;
+
+inline std::ostream& operator<<(std::ostream& out, const Quad_t a_scalar) {
+#ifndef NDEBUG
+  char* scalar_to_char = new char[30];
+  quadmath_snprintf(scalar_to_char, 30, "%+.20Qe", a_scalar);
+  out << "\033[44m(__float128) " << scalar_to_char << "\033[0m";
+#else
+  out << static_cast<double>(a_scalar);
+#endif
+  return out;
+}
 }  // namespace IRL
 
 #endif  // IRL_DEFINED_TYPES_H_

@@ -40,7 +40,7 @@ inline MathVector<kNumberOfElements, ScalarType>::MathVector(
     const Expr<E>& a_expr) {
   const E& expr(a_expr);
   for (UnsignedIndex_t n = 0; n < kNumberOfElements; ++n) {
-    elements_m[n] = expr[n];
+    elements_m[n] = ScalarType(expr[n]);
   }
 }
 
@@ -49,7 +49,7 @@ template <class E>
 inline MathVector<kNumberOfElements, ScalarType>::MathVector(Expr<E>&& a_expr) {
   const E& expr(a_expr);
   for (UnsignedIndex_t n = 0; n < kNumberOfElements; ++n) {
-    elements_m[n] = expr[n];
+    elements_m[n] = ScalarType(expr[n]);
   }
 }
 
@@ -59,7 +59,7 @@ inline MathVector<kNumberOfElements, ScalarType>&
 MathVector<kNumberOfElements, ScalarType>::operator=(const Expr<E>& a_expr) {
   const E& expr(a_expr);
   for (UnsignedIndex_t n = 0; n < kNumberOfElements; ++n) {
-    elements_m[n] = expr[n];
+    elements_m[n] = ScalarType(expr[n]);
   }
   return (*this);
 }
@@ -70,7 +70,7 @@ inline MathVector<kNumberOfElements, ScalarType>&
 MathVector<kNumberOfElements, ScalarType>::operator=(Expr<E>&& a_expr) {
   const E& expr(a_expr);
   for (UnsignedIndex_t n = 0; n < kNumberOfElements; ++n) {
-    elements_m[n] = expr[n];
+    elements_m[n] = ScalarType(expr[n]);
   }
   return (*this);
 }

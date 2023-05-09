@@ -14,14 +14,11 @@ namespace IRL {
 
 template <class ScalarType>
 inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(void)
-    : weight_m{static_cast<ScalarType>(0)},
-      start_point_m{static_cast<ScalarType>(0), static_cast<ScalarType>(0),
-                    static_cast<ScalarType>(0)},
-      start_point_id_m{static_cast<ScalarType>(0)},
-      control_point_m{static_cast<ScalarType>(0), static_cast<ScalarType>(0),
-                      static_cast<ScalarType>(0)},
-      end_point_m{static_cast<ScalarType>(0), static_cast<ScalarType>(0),
-                  static_cast<ScalarType>(0)},
+    : weight_m{ScalarType(0)},
+      start_point_m{ScalarType(0), ScalarType(0), ScalarType(0)},
+      start_point_id_m{ScalarType(0)},
+      control_point_m{ScalarType(0), ScalarType(0), ScalarType(0)},
+      end_point_m{ScalarType(0), ScalarType(0), ScalarType(0)},
       end_point_id_m{0} {}
 
 template <class ScalarType>
@@ -58,12 +55,12 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid) {
   // Defining constants and types
   const ScalarType EPSILON = machine_epsilon<ScalarType>();
-  const ScalarType ZERO = static_cast<ScalarType>(0);
-  const ScalarType ONE = static_cast<ScalarType>(1);
-  const ScalarType HALF = static_cast<ScalarType>(0.5);
-  const ScalarType ONEHUNDRED = static_cast<ScalarType>(100);
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType HALF = ScalarType(0.5);
+  const ScalarType ONEHUNDRED = ScalarType(100);
   const ScalarType DISTANCE_EPSILON = ONEHUNDRED * EPSILON;
-  const ScalarType DEFAULT_WEIGHT = static_cast<ScalarType>(DBL_MAX);
+  const ScalarType DEFAULT_WEIGHT = ScalarType(DBL_MAX);
 
   // Set what can already be set
   start_point_m = a_start_pt;
@@ -101,9 +98,9 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
   }
 
   // Clip weight to avoid variable overflows
-  if (a_paraboloid.a() * a_paraboloid.b() < 0.0) {
+  if (a_paraboloid.a() * a_paraboloid.b() < ZERO) {
     if (weight_m >= ZERO) {
-      weight_m = minimum(weight_m, static_cast<ScalarType>(1.0 / DBL_EPSILON));
+      weight_m = minimum(weight_m, ScalarType(1.0 / DBL_EPSILON));
       weight_m = maximum(weight_m, ONE);
     }
   } else {
@@ -121,14 +118,14 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid) {
   // Defining constants and types
   const ScalarType EPSILON = machine_epsilon<ScalarType>();
-  const ScalarType ZERO = static_cast<ScalarType>(0);
-  const ScalarType ONE = static_cast<ScalarType>(1);
-  const ScalarType TWO = static_cast<ScalarType>(2);
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
   const ScalarType HALF = ONE / TWO;
   const ScalarType ONEANDHALF = ONE + HALF;
-  const ScalarType ONEHUNDRED = static_cast<ScalarType>(100);
+  const ScalarType ONEHUNDRED = ScalarType(100);
   const ScalarType DISTANCE_EPSILON = ONEHUNDRED * EPSILON;
-  const ScalarType DEFAULT_WEIGHT = static_cast<ScalarType>(DBL_MAX);
+  const ScalarType DEFAULT_WEIGHT = ScalarType(DBL_MAX);
 
   // Set what can already be set
   start_point_m = a_start_pt;
@@ -190,7 +187,7 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
     auto mid_to_control = NormalBase<ScalarType>(control_point_m -
     average_pt); if (squaredMagnitude(mid_to_control) <
         ONEHUNDRED * ONEHUNDRED * EPSILON * EPSILON) {
-      weight_m = static_cast<ScalarType>(DBL_MAX);
+      weight_m = ScalarType(DBL_MAX);
     } else {
       const ScalarType crude_invmag =
           ONE / (fabs(mid_to_control[0]) + fabs(mid_to_control[1]) +
@@ -205,14 +202,14 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
       weight_m = ONE;
       if (squaredMagnitude(projected_pt - control_point_m) <
           ONEHUNDRED * ONEHUNDRED * EPSILON * EPSILON) {
-        weight_m = static_cast<ScalarType>(DBL_MAX);
-      } else if (projected_pt[0] == static_cast<ScalarType>(DBL_MAX)) {
+        weight_m = ScalarType(DBL_MAX);
+      } else if (projected_pt[0] == ScalarType(DBL_MAX)) {
         if (fabs(a_paraboloid.a() * average_pt[0] * average_pt[0] +
                  a_paraboloid.b() * average_pt[1] * average_pt[1] +
                  average_pt[2]) < ONEHUNDRED * EPSILON) {
           weight_m = ZERO;
         } else {
-          weight_m = -static_cast<ScalarType>(DBL_MAX);
+          weight_m = -ScalarType(DBL_MAX);
         }
       } else {
         ScalarType previous_best = ZERO;
@@ -227,7 +224,7 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
           }
         }
         if (previous_best < EPSILON) {
-          weight_m = static_cast<ScalarType>(DBL_MAX);
+          weight_m = ScalarType(DBL_MAX);
         }
         weight_m = maximum(weight_m, ZERO);
       }
@@ -235,9 +232,9 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
 #endif
   }
   // Clip weight to avoid variable overflows
-  if (a_paraboloid.a() * a_paraboloid.b() < 0.0) {
+  if (a_paraboloid.a() * a_paraboloid.b() < ZERO) {
     if (weight_m >= ZERO) {
-      weight_m = minimum(weight_m, static_cast<ScalarType>(1.0 / DBL_EPSILON));
+      weight_m = minimum(weight_m, ScalarType(1.0 / DBL_EPSILON));
       weight_m = maximum(weight_m, ONE);
     }
   } else {
@@ -295,13 +292,13 @@ template <class ScalarType>
 inline PtBase<ScalarType> RationalBezierArcBase<ScalarType>::derivative(
     const ScalarType t) const {
   /* Defining constants and types */
-  const ScalarType ZERO = static_cast<ScalarType>(0);
-  const ScalarType ONE = static_cast<ScalarType>(1);
-  const ScalarType TWO = static_cast<ScalarType>(2);
-  const ScalarType FOUR = static_cast<ScalarType>(4);
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
+  const ScalarType FOUR = ScalarType(4);
 
   assert(t >= ZERO && t <= ONE);
-  if (weight_m > static_cast<ScalarType>(1.0e15)) {
+  if (weight_m > ScalarType(1.0e15)) {
     if (t < ONE / TWO) {
       return PtBase<ScalarType>(TWO * (control_point_m - start_point_m));
     } else {
@@ -323,13 +320,13 @@ inline PtBase<ScalarType> RationalBezierArcBase<ScalarType>::derivative(
 template <class ScalarType>
 inline ScalarType RationalBezierArcBase<ScalarType>::arc_length(void) const {
   /* Defining constants and types */
-  const ScalarType ZERO = static_cast<ScalarType>(0);
-  const ScalarType ONE = static_cast<ScalarType>(1);
-  const ScalarType TWO = static_cast<ScalarType>(2);
-  const ScalarType THREE = static_cast<ScalarType>(3);
-  const ScalarType FIVE = static_cast<ScalarType>(5);
-  const ScalarType EIGHT = static_cast<ScalarType>(8);
-  const ScalarType EIGHTEEN = static_cast<ScalarType>(18);
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
+  const ScalarType THREE = ScalarType(3);
+  const ScalarType FIVE = ScalarType(5);
+  const ScalarType EIGHT = ScalarType(8);
+  const ScalarType EIGHTEEN = ScalarType(18);
 
   // 3-point quadrature rule for arc_length calculation
   const ScalarType t0 = (ONE - sqrt(THREE / FIVE)) / TWO;
@@ -428,7 +425,7 @@ inline RationalBezierArcWithGradientBase<
   start_point_m = PtTypeWithGradient();
   control_point_m = PtTypeWithGradient();
   end_point_m = PtTypeWithGradient();
-  weight_m = static_cast<ScalarType>(0);
+  weight_m = ScalarType(0);
   weight_gradient_m = PtTypeWithGradient::gradient_type();
 }
 
@@ -444,11 +441,11 @@ inline RationalBezierArcWithGradientBase<PtTypeWithGradient, ScalarType>::
   /* Defining constants and types */
   using gradient_type = typename PtTypeWithGradient::gradient_type;
   const ScalarType EPSILON = machine_epsilon<ScalarType>();
-  const ScalarType ZERO = static_cast<ScalarType>(0);
-  const ScalarType ONE = static_cast<ScalarType>(1);
-  const ScalarType TWO = static_cast<ScalarType>(2);
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
   const ScalarType HALF = ONE / TWO;
-  const ScalarType ONEHUNDRED = static_cast<ScalarType>(100);
+  const ScalarType ONEHUNDRED = ScalarType(100);
 
   /* Function */
   start_point_m = a_start_pt;
@@ -533,10 +530,10 @@ inline RationalBezierArcWithGradientBase<PtTypeWithGradient, ScalarType>::
   const auto& projected_pt_grad = projected_pt_withgrad.getData();
   weight_m = ONE;
   if (squaredMagnitude(projected_pt - control_point) < EPSILON * EPSILON) {
-    weight_m = static_cast<ScalarType>(DBL_MAX);
+    weight_m = ScalarType(DBL_MAX);
     weight_gradient_m = gradient_type();
   } else {
-    ScalarType previous_best = -static_cast<ScalarType>(DBL_MAX);
+    ScalarType previous_best = -ScalarType(DBL_MAX);
     UnsignedIndex_t chosen_id = 0;
     for (UnsignedIndex_t d = 0; d < 3; ++d) {
       const ScalarType denominator = projected_pt[d] - control_point[d];

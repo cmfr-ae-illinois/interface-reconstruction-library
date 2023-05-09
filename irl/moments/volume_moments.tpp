@@ -14,9 +14,8 @@ namespace IRL {
 
 template <class ScalarType>
 inline VolumeMomentsBase<ScalarType>::VolumeMomentsBase(void)
-    : volume_m{static_cast<ScalarType>(0)},
-      centroid_m{static_cast<ScalarType>(0), static_cast<ScalarType>(0),
-                 static_cast<ScalarType>(0)} {}
+    : volume_m{ScalarType(0)},
+      centroid_m{ScalarType(0), ScalarType(0), ScalarType(0)} {}
 
 template <class ScalarType>
 inline constexpr VolumeMomentsBase<ScalarType>::VolumeMomentsBase(
@@ -26,18 +25,18 @@ inline constexpr VolumeMomentsBase<ScalarType>::VolumeMomentsBase(
 template <class ScalarType>
 inline constexpr VolumeMomentsBase<ScalarType>::VolumeMomentsBase(
     const VolumeMomentsBase<double>& a_moments)
-    : volume_m{static_cast<ScalarType>(a_moments.volume())},
-      centroid_m{static_cast<ScalarType>(a_moments.centroid()[0]),
-                 static_cast<ScalarType>(a_moments.centroid()[1]),
-                 static_cast<ScalarType>(a_moments.centroid()[2])} {}
+    : volume_m{ScalarType(a_moments.volume())},
+      centroid_m{ScalarType(a_moments.centroid()[0]),
+                 ScalarType(a_moments.centroid()[1]),
+                 ScalarType(a_moments.centroid()[2])} {}
 
 template <class ScalarType>
 inline constexpr VolumeMomentsBase<ScalarType>::VolumeMomentsBase(
     const VolumeMomentsBase<Quad_t>& a_moments)
-    : volume_m{static_cast<ScalarType>(a_moments.volume())},
-      centroid_m{static_cast<ScalarType>(a_moments.centroid()[0]),
-                 static_cast<ScalarType>(a_moments.centroid()[1]),
-                 static_cast<ScalarType>(a_moments.centroid()[2])} {}
+    : volume_m{ScalarType(a_moments.volume())},
+      centroid_m{ScalarType(a_moments.centroid()[0]),
+                 ScalarType(a_moments.centroid()[1]),
+                 ScalarType(a_moments.centroid()[2])} {}
 
 template <class ScalarType>
 inline constexpr VolumeMomentsBase<ScalarType>
@@ -82,7 +81,7 @@ inline const PtBase<ScalarType>& VolumeMomentsBase<ScalarType>::centroid(
 
 template <class ScalarType>
 inline void VolumeMomentsBase<ScalarType>::normalizeByVolume(void) {
-  if (this->volume() != static_cast<ScalarType>(0)) {
+  if (this->volume() != ScalarType(0)) {
     this->centroid() /= this->volume();
   }
 }

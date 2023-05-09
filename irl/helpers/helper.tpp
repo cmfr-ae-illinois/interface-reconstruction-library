@@ -28,6 +28,34 @@ inline Quad_t safelyTiny(const Quad_t a_value) {
   }
 }
 
+template <class GradientType>
+inline ScalarWithGradientBase<double, GradientType> safelyTiny(
+    ScalarWithGradientBase<double, GradientType> a_value) {
+  if (fabs(a_value.value()) < DBL_MIN) {
+    if (a_value.value() > 0.0) {
+      return ScalarWithGradientBase<double, GradientType>(DBL_MIN);
+    } else {
+      return -ScalarWithGradientBase<double, GradientType>(DBL_MIN);
+    }
+  } else {
+    return a_value;
+  }
+}
+
+template <class GradientType>
+inline ScalarWithGradientBase<Quad_t, GradientType> safelyTiny(
+    ScalarWithGradientBase<Quad_t, GradientType> a_value) {
+  if (fabsq(a_value.value()) < FLT128_MIN) {
+    if (a_value.value() > 0.0q) {
+      return ScalarWithGradientBase<Quad_t, GradientType>(FLT128_MIN);
+    } else {
+      return -ScalarWithGradientBase<Quad_t, GradientType>(FLT128_MIN);
+    }
+  } else {
+    return a_value;
+  }
+}
+
 inline double safelyEpsilon(const double a_value) {
   return std::copysign(std::max(std::fabs(a_value), DBL_EPSILON), a_value);
 }
@@ -38,6 +66,34 @@ inline Quad_t safelyEpsilon(const Quad_t a_value) {
       return FLT128_EPSILON;
     } else {
       return -FLT128_EPSILON;
+    }
+  } else {
+    return a_value;
+  }
+}
+
+template <class GradientType>
+inline ScalarWithGradientBase<double, GradientType> safelyEpsilon(
+    ScalarWithGradientBase<double, GradientType> a_value) {
+  if (fabs(a_value.value()) < DBL_EPSILON) {
+    if (a_value.value() > 0.0) {
+      return ScalarWithGradientBase<double, GradientType>(DBL_EPSILON);
+    } else {
+      return -ScalarWithGradientBase<double, GradientType>(DBL_EPSILON);
+    }
+  } else {
+    return a_value;
+  }
+}
+
+template <class GradientType>
+inline ScalarWithGradientBase<Quad_t, GradientType> safelyEpsilon(
+    ScalarWithGradientBase<Quad_t, GradientType> a_value) {
+  if (fabsq(a_value.value()) < FLT128_EPSILON) {
+    if (a_value.value() > 0.0q) {
+      return ScalarWithGradientBase<Quad_t, GradientType>(FLT128_EPSILON);
+    } else {
+      return -ScalarWithGradientBase<Quad_t, GradientType>(FLT128_EPSILON);
     }
   } else {
     return a_value;

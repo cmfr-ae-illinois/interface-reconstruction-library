@@ -13,12 +13,12 @@
 namespace IRL {
 
 inline ParaboloidGradientLocalZ::ParaboloidGradientLocalZ(void) {
-  gradient_m.setZero();
+  gradient_m = Eigen::Matrix<double, 1, 1>::Zero();
 }
 
 inline ParaboloidGradientLocalZ::ParaboloidGradientLocalZ(
     const double a_value) {
-  gradient_m.setConstant(a_value);
+  gradient_m = Eigen::Matrix<double, 1, 1>::Constant(a_value);
 }
 
 inline ParaboloidGradientLocalZ::ParaboloidGradientLocalZ(

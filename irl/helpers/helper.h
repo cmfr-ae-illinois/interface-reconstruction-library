@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cmath>
 
+#include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/helpers/SFINAE_boiler_plate.h"
 #include "irl/helpers/expression_templates.h"
 #include "irl/parameters/constants.h"
@@ -38,11 +39,23 @@ namespace IRL {
 /// \brief Takes max between abs(`a_value`) and DBL_MIN while preserving sign.
 inline double safelyTiny(const double a_value);
 inline Quad_t safelyTiny(const Quad_t a_value);
+template <class GradientType>
+inline ScalarWithGradientBase<double, GradientType> safelyTiny(
+    ScalarWithGradientBase<double, GradientType> a_value);
+template <class GradientType>
+inline ScalarWithGradientBase<Quad_t, GradientType> safelyTiny(
+    ScalarWithGradientBase<Quad_t, GradientType> a_value);
 
 /// \brief Takes max between abs(`a_value`) and DBL_EPSILON while preserving
 /// sign.
 inline double safelyEpsilon(const double a_value);
 inline Quad_t safelyEpsilon(const Quad_t a_value);
+template <class GradientType>
+inline ScalarWithGradientBase<double, GradientType> safelyEpsilon(
+    ScalarWithGradientBase<double, GradientType> a_value);
+template <class GradientType>
+inline ScalarWithGradientBase<Quad_t, GradientType> safelyEpsilon(
+    ScalarWithGradientBase<Quad_t, GradientType> a_value);
 
 /// \brief Takes max between abs(`a_value`) and `the_smallest_value` while
 /// preserving sign.
