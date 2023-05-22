@@ -174,7 +174,8 @@ inline ScalarType sqrt(const ScalarType a_scalar) {
     }
     if constexpr (ScalarType::gradient_type::has_hessian) {
       new_scalar.gradient().getGrad() =
-          a_scalar.gradient().getGrad() / (FloatType(2) * new_scalar.value());
+          a_scalar.gradient() /
+          (FloatType(2) * safelyEpsilon(new_scalar.value()));
       new_scalar.gradient().getHessian() =
           a_scalar.gradient().getHessian() /
               (FloatType(2) * new_scalar.value()) -
@@ -184,7 +185,7 @@ inline ScalarType sqrt(const ScalarType a_scalar) {
     } else {
       new_scalar.gradient() =
           a_scalar.gradient() /
-          (FloatType(2) * safelyEpsilon(sqrt(a_scalar.value())));
+          (FloatType(2) * safelyEpsilon(new_scalar.value()));
     }
     return new_scalar;
   } else {
