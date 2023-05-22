@@ -12,6 +12,7 @@
 
 #include <ostream>
 
+#include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/parameters/defined_types.h"
 
 namespace IRL {
