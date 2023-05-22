@@ -48,11 +48,12 @@ template <class ReturnType, class ScalarType>
 ReturnType computeType1Contribution(const PtBase<ScalarType>& a_ref_pt,
                                     const PtBase<ScalarType>& a_pt_0,
                                     const PtBase<ScalarType>& a_pt_1) {
+  using ReturnScalarType = typename ReturnType::value_type;
   if constexpr (is_moments_volume<ReturnType>::value) {
-    return ReturnType::fromScalarConstant(
+    return ReturnType::fromScalarConstant(ReturnScalarType(
         (a_ref_pt[2] + a_pt_0[2] + a_pt_1[2]) / ScalarType(6.0) *
         ((a_pt_0[0] - a_ref_pt[0]) * (a_pt_1[1] - a_ref_pt[1]) -
-         (a_pt_1[0] - a_ref_pt[0]) * (a_pt_0[1] - a_ref_pt[1])));
+         (a_pt_1[0] - a_ref_pt[0]) * (a_pt_0[1] - a_ref_pt[1]))));
   } else {
     /* Defining constants and types */
     const ScalarType ZERO = ScalarType(0);
@@ -62,31 +63,31 @@ ReturnType computeType1Contribution(const PtBase<ScalarType>& a_ref_pt,
     const ScalarType ONETWELVTH = ONE / ScalarType(12);
 
     /* Function */
-    auto moments = ReturnType::fromScalarConstant(ZERO);
+    auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     const ScalarType triangle_area =
         ((a_pt_0[0] - a_ref_pt[0]) * (a_pt_1[1] - a_ref_pt[1]) -
          (a_pt_1[0] - a_ref_pt[0]) * (a_pt_0[1] - a_ref_pt[1])) /
         TWO;
-    moments.volume() =
-        triangle_area * (a_ref_pt[2] + a_pt_0[2] + a_pt_1[2]) / THREE;
-    moments.centroid()[0] =
+    moments.volume() = ReturnScalarType(
+        triangle_area * (a_ref_pt[2] + a_pt_0[2] + a_pt_1[2]) / THREE);
+    moments.centroid()[0] = ReturnScalarType(
         triangle_area *
         (a_pt_0[0] * (TWO * a_pt_0[2] + a_pt_1[2] + a_ref_pt[2]) +
          a_pt_1[0] * (a_pt_0[2] + TWO * a_pt_1[2] + a_ref_pt[2]) +
          a_ref_pt[0] * (a_pt_0[2] + a_pt_1[2] + TWO * a_ref_pt[2])) *
-        ONETWELVTH;
-    moments.centroid()[1] =
+        ONETWELVTH);
+    moments.centroid()[1] = ReturnScalarType(
         triangle_area *
         (a_pt_0[1] * (TWO * a_pt_0[2] + a_pt_1[2] + a_ref_pt[2]) +
          a_pt_1[1] * (a_pt_0[2] + TWO * a_pt_1[2] + a_ref_pt[2]) +
          a_ref_pt[1] * (a_pt_0[2] + a_pt_1[2] + TWO * a_ref_pt[2])) *
-        ONETWELVTH;
+        ONETWELVTH);
     moments.centroid()[2] =
-        triangle_area *
-        (a_pt_0[2] * a_pt_0[2] + a_pt_1[2] * a_pt_1[2] +
-         a_ref_pt[2] * a_ref_pt[2] + a_pt_1[2] * a_ref_pt[2] +
-         a_pt_0[2] * a_pt_1[2] + a_pt_0[2] * a_ref_pt[2]) *
-        ONETWELVTH;
+        ReturnScalarType(triangle_area *
+                         (a_pt_0[2] * a_pt_0[2] + a_pt_1[2] * a_pt_1[2] +
+                          a_ref_pt[2] * a_ref_pt[2] + a_pt_1[2] * a_ref_pt[2] +
+                          a_pt_0[2] * a_pt_1[2] + a_pt_0[2] * a_ref_pt[2]) *
+                         ONETWELVTH);
     return moments;
   }
 }
@@ -95,13 +96,14 @@ template <class ReturnType, class ScalarType>
 ReturnType computeType2Contribution(
     const AlignedParaboloidBase<ScalarType>& a_aligned_paraboloid,
     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1) {
+  using ReturnScalarType = typename ReturnType::value_type;
   if constexpr (is_moments_volume<ReturnType>::value) {
     const ScalarType ONETWELVTH = ScalarType(1) / ScalarType(12);
-    return ReturnType::fromScalarConstant(
+    return ReturnType::fromScalarConstant(ReturnScalarType(
         ONETWELVTH * (a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) *
         (-a_pt_0[2] - a_pt_1[2] +
          a_aligned_paraboloid.a() * a_pt_0[0] * a_pt_1[0] +
-         a_aligned_paraboloid.b() * a_pt_0[1] * a_pt_1[1]));
+         a_aligned_paraboloid.b() * a_pt_0[1] * a_pt_1[1])));
   } else {
     /* Defining constants and types */
     const ScalarType ZERO = ScalarType(0);
@@ -113,25 +115,25 @@ ReturnType computeType2Contribution(
     const ScalarType ONE180TH = ONE / ScalarType(180);
 
     /* Function */
-    auto moments = ReturnType::fromScalarConstant(ZERO);
-    moments.volume() = (a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) *
-                       ONETWELVTH *
-                       (-a_pt_0[2] - a_pt_1[2] +
-                        a_aligned_paraboloid.a() * a_pt_0[0] * a_pt_1[0] +
-                        a_aligned_paraboloid.b() * a_pt_0[1] * a_pt_1[1]);
-    moments.centroid()[0] =
+    auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+    moments.volume() = ReturnScalarType(
+        (a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) * ONETWELVTH *
+        (-a_pt_0[2] - a_pt_1[2] +
+         a_aligned_paraboloid.a() * a_pt_0[0] * a_pt_1[0] +
+         a_aligned_paraboloid.b() * a_pt_0[1] * a_pt_1[1]));
+    moments.centroid()[0] = ReturnScalarType(
         (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) *
         (TWO * a_aligned_paraboloid.b() * (a_pt_0[1] - a_pt_1[1]) *
              (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) +
          THREE * (a_pt_0[0] + a_pt_1[0]) * (a_pt_0[2] + a_pt_1[2])) *
-        ONE60TH;
-    moments.centroid()[1] =
+        ONE60TH);
+    moments.centroid()[1] = ReturnScalarType(
         (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) *
         (TWO * a_aligned_paraboloid.a() * (a_pt_0[0] - a_pt_1[0]) *
              (a_pt_1[1] * a_pt_0[0] - a_pt_0[1] * a_pt_1[0]) +
          THREE * (a_pt_0[1] + a_pt_1[1]) * (a_pt_0[2] + a_pt_1[2])) *
-        ONE60TH;
-    moments.centroid()[2] =
+        ONE60TH);
+    moments.centroid()[2] = ReturnScalarType(
         ((a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) *
          (TWO * a_aligned_paraboloid.a() * a_aligned_paraboloid.b() *
               ((a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) *
@@ -142,7 +144,7 @@ ReturnType computeType2Contribution(
               (a_pt_0[2] + a_pt_1[2]) -
           THREE * (a_pt_0[2] * a_pt_0[2] + a_pt_0[2] * a_pt_1[2] +
                    a_pt_1[2] * a_pt_1[2]))) *
-        ONE180TH;
+        ONE180TH);
     return moments;
   }
 }
@@ -346,6 +348,7 @@ template <class ReturnType, class ScalarType>
 ReturnType computeType3Contribution(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const RationalBezierArcBase<ScalarType>& a_arc) {
+  using ReturnScalarType = typename ReturnType::value_type;
   if constexpr (is_moments_volume<ReturnType>::value) {
     /* Defining constants and types */
     const ScalarType ZERO = ScalarType(0);
@@ -378,13 +381,13 @@ ReturnType computeType3Contribution(
     else  // This is within EPSILON of the actual value
       coeffs = std::array<ScalarType, 3>({ONE / SIX, TWO / THREE, ZERO});
 
-    return ReturnType::fromScalarConstant(
+    return ReturnType::fromScalarConstant(ReturnScalarType(
         area_proj_triangle *
         (coeffs[0] *
              signedDistance<ScalarType>(HALF * (pt_0 + pt_1), a_paraboloid) +
          coeffs[1] * signedDistance<ScalarType>(
                          QUARTER * (pt_0 + pt_1) + HALF * cp, a_paraboloid) +
-         coeffs[2] * signedDistance<ScalarType>(cp, a_paraboloid)));
+         coeffs[2] * signedDistance<ScalarType>(cp, a_paraboloid))));
   } else {
     /* Defining constants and types */
     const ScalarType ZERO = ScalarType(0);
@@ -398,7 +401,7 @@ ReturnType computeType3Contribution(
     const ScalarType QUARTER = ONE / FOUR;
 
     /* Function */
-    auto moments = ReturnType::fromScalarConstant(ZERO);
+    auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     const auto& pt_0 = a_arc.start_point();
     const auto& cp = a_arc.control_point();
     const auto& pt_1 = a_arc.end_point();
@@ -610,19 +613,19 @@ ReturnType computeType3Contribution(
              ScalarType(7) * Z1p1p - FIVE * Z1p2,
          -(AA * X1111) - TWO * AB * X11 * Y11 - BB * Y1111 + Z1p1p});
     for (size_t i = 0; i < 3; ++i) {
-      moments.volume() += coeffs[i] * m0_basis[i];
+      moments.volume() += ReturnScalarType(coeffs[i] * m0_basis[i]);
     }
     for (size_t i = 0; i < 4; ++i) {
-      moments.centroid()[0] += coeffs[3 + i] * m1x_basis[i];
-      moments.centroid()[1] += coeffs[3 + i] * m1y_basis[i];
+      moments.centroid()[0] += ReturnScalarType(coeffs[3 + i] * m1x_basis[i]);
+      moments.centroid()[1] += ReturnScalarType(coeffs[3 + i] * m1y_basis[i]);
     }
     for (size_t i = 0; i < 5; ++i) {
-      moments.centroid()[2] += coeffs[7 + i] * m1z_basis[i];
+      moments.centroid()[2] += ReturnScalarType(coeffs[7 + i] * m1z_basis[i]);
     }
-    moments.volume() *= area_proj_triangle;
-    moments.centroid()[0] *= area_proj_triangle;
-    moments.centroid()[1] *= area_proj_triangle;
-    moments.centroid()[2] *= area_proj_triangle;
+    moments.volume() *= ReturnScalarType(area_proj_triangle);
+    moments.centroid()[0] *= ReturnScalarType(area_proj_triangle);
+    moments.centroid()[1] *= ReturnScalarType(area_proj_triangle);
+    moments.centroid()[2] *= ReturnScalarType(area_proj_triangle);
     return moments;
   }
 }
@@ -632,6 +635,7 @@ ReturnType computeFaceOnlyContribution(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const PlaneBase<ScalarType>& a_face_plane,
     const PtBase<ScalarType>& a_pt_ref) {
+  using ReturnScalarType = typename ReturnType::value_type;
   if constexpr (is_moments_volume<ReturnType>::value) {
     /* Defining constants and types */
     const ScalarType EPSILON = machine_epsilon<ScalarType>();
@@ -650,11 +654,11 @@ ReturnType computeFaceOnlyContribution(
     const ScalarType factor = FOUR * a_paraboloid.a() * a_paraboloid.b() * c -
                               a_paraboloid.a() * b * b -
                               a_paraboloid.b() * a * a;
-    return ReturnType::fromScalarConstant(copysign(
+    return ReturnType::fromScalarConstant(ReturnScalarType(copysign(
         machine_pi<ScalarType>() * factor * factor /
             (ScalarType(32) *
              pow(a_paraboloid.a() * a_paraboloid.b(), ScalarType(2.5))),
-        -a_face_plane.normal()[2]));
+        -a_face_plane.normal()[2])));
   } else {
     /* Defining constants and types */
     const ScalarType EPSILON = machine_epsilon<ScalarType>();
@@ -669,25 +673,25 @@ ReturnType computeFaceOnlyContribution(
     const ScalarType b = -a_face_plane.normal()[1] / a_face_plane.normal()[2];
     const ScalarType c = a_face_plane.distance() / a_face_plane.normal()[2];
     const auto A = a_paraboloid.a(), B = a_paraboloid.b();
-    auto moments = ReturnType::fromScalarConstant(ZERO);
+    auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     const ScalarType factor = (a * a * B + A * (b * b - FOUR * B * c)) *
                               (a * a * B + A * (b * b - FOUR * B * c)) *
                               machine_pi<ScalarType>();
-    moments.volume() =
+    moments.volume() = ReturnScalarType(
         copysign(factor / (ScalarType(32) * pow(A * B, ScalarType(2.5))),
-                 -a_face_plane.normal()[2]);
-    moments.centroid()[0] =
+                 -a_face_plane.normal()[2]));
+    moments.centroid()[0] = ReturnScalarType(
         a * B *
         copysign(factor / (ScalarType(64) * pow(A * B, ScalarType(3.5))),
-                 a_face_plane.normal()[2]);
-    moments.centroid()[1] =
+                 a_face_plane.normal()[2]));
+    moments.centroid()[1] = ReturnScalarType(
         b * A *
         copysign(factor / (ScalarType(64) * pow(A * B, ScalarType(3.5))),
-                 a_face_plane.normal()[2]);
-    moments.centroid()[2] =
+                 a_face_plane.normal()[2]));
+    moments.centroid()[2] = ReturnScalarType(
         (FIVE * A * (b * b) + FIVE * (a * a) * B - ScalarType(8) * A * B * c) *
         copysign(factor / (ScalarType(384) * pow(A * B, ScalarType(3.5))),
-                 a_face_plane.normal()[2]);
+                 a_face_plane.normal()[2]));
     return moments;
   }
 }
@@ -697,15 +701,16 @@ ReturnType computeTriangleCorrection(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
     const PtBase<ScalarType>& a_pt_2) {
+  using ReturnScalarType = typename ReturnType::value_type;
   if constexpr (is_moments_volume<ReturnType>::value) {
-    return ReturnType::fromScalarConstant(
+    return ReturnType::fromScalarConstant(ReturnScalarType(
         (-a_paraboloid.a() * (a_pt_0[0] + a_pt_1[0]) * (a_pt_1[0] + a_pt_2[0]) +
          -a_paraboloid.b() * (a_pt_0[1] + a_pt_1[1]) * (a_pt_1[1] + a_pt_2[1]) -
          a_pt_0[2] - ScalarType(2) * a_pt_1[2] - a_pt_2[2]) /
         ScalarType(12) *
         ((a_pt_1[1] - a_pt_2[1]) * a_pt_0[0] +
          (a_pt_2[1] - a_pt_0[1]) * a_pt_1[0] +
-         (a_pt_0[1] - a_pt_1[1]) * a_pt_2[0]));
+         (a_pt_0[1] - a_pt_1[1]) * a_pt_2[0])));
   } else {
     /* Defining constants and types */
     const ScalarType ZERO = ScalarType(0);
@@ -718,7 +723,7 @@ ReturnType computeTriangleCorrection(
     const ScalarType HALF = ONE / TWO;
 
     /* Function */
-    auto moments = ReturnType::fromScalarConstant(ZERO);
+    auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     const ScalarType A = a_paraboloid.a(), B = a_paraboloid.b();
     const ScalarType X0 = a_pt_0[0], X1 = a_pt_1[0], X2 = a_pt_2[0];
     const ScalarType Y0 = a_pt_0[1], Y1 = a_pt_1[1], Y2 = a_pt_2[1];
@@ -727,12 +732,12 @@ ReturnType computeTriangleCorrection(
         HALF * ((a_pt_1[1] - a_pt_2[1]) * a_pt_0[0] +
                 (a_pt_2[1] - a_pt_0[1]) * a_pt_1[0] +
                 (a_pt_0[1] - a_pt_1[1]) * a_pt_2[0]);
-    moments.volume() =
+    moments.volume() = ReturnScalarType(
         (-a_paraboloid.a() * (a_pt_0[0] + a_pt_1[0]) * (a_pt_1[0] + a_pt_2[0]) +
          -a_paraboloid.b() * (a_pt_0[1] + a_pt_1[1]) * (a_pt_1[1] + a_pt_2[1]) -
          a_pt_0[2] - TWO * a_pt_1[2] - a_pt_2[2]) *
-        triangle_area / SIX;
-    moments.centroid()[0] =
+        triangle_area / SIX);
+    moments.centroid()[0] = ReturnScalarType(
         triangle_area *
         ((A * (-(X0 * X0 * X0) - X1 * X1 * X1 - X1 * X1 * X2 - X1 * (X2 * X2) -
                X2 * X2 * X2 - X0 * X0 * (X1 + X2) -
@@ -747,8 +752,8 @@ ReturnType computeTriangleCorrection(
              ScalarType(30) +
          (-(X0 * (TWO * Z0 + Z1 + Z2)) - X1 * (Z0 + TWO * Z1 + Z2) -
           X2 * (Z0 + Z1 + TWO * Z2)) /
-             ScalarType(12));
-    moments.centroid()[1] =
+             ScalarType(12)));
+    moments.centroid()[1] = ReturnScalarType(
         -triangle_area *
         ((B * (Y0 * Y0 * Y0 + Y1 * Y1 * Y1 + Y1 * Y1 * Y2 + Y1 * (Y2 * Y2) +
                Y2 * Y2 * Y2 + Y0 * Y0 * (Y1 + Y2) +
@@ -762,8 +767,8 @@ ReturnType computeTriangleCorrection(
              ScalarType(30) +
          (Y0 * (TWO * Z0 + Z1 + Z2) + Y1 * (Z0 + TWO * Z1 + Z2) +
           Y2 * (Z0 + Z1 + TWO * Z2)) /
-             ScalarType(12));
-    moments.centroid()[2] =
+             ScalarType(12)));
+    moments.centroid()[2] = ReturnScalarType(
         triangle_area *
         ((A * A *
           (X0 * X0 * X0 * X0 + X1 * X1 * X1 * X1 + X1 * X1 * X1 * X2 +
@@ -798,7 +803,7 @@ ReturnType computeTriangleCorrection(
                        FOUR * Y0 * Y2 + TWO * Y1 * Y2 + THREE * (Y2 * Y2))))) /
              ScalarType(90) +
          (-(Z0 * Z0) - Z1 * Z1 - Z1 * Z2 - Z2 * Z2 - Z0 * (Z1 + Z2)) /
-             ScalarType(12));
+             ScalarType(12)));
     return moments;
   }
 }

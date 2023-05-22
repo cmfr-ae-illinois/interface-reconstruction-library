@@ -126,6 +126,7 @@ ReturnType computeType3ContributionWithSplit(
     const NormalBase<ScalarType>& a_tangent_1, bool* a_requires_nudge,
     UnsignedIndex_t* a_split_counter, SurfaceOutputType* a_surface) {
   // Defining constants and types
+  using ReturnScalarType = typename ReturnType::value_type;
   using Pt = PtBase<ScalarType>;
   using Normal = NormalBase<ScalarType>;
   using Plane = PlaneBase<ScalarType>;
@@ -175,7 +176,7 @@ ReturnType computeType3ContributionWithSplit(
       surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
       a_surface->addArc(surface_arc);
     }
-    return ReturnType::fromScalarConstant(ZERO);
+    return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
   }
 
   // We split the Bezier arc if:
@@ -198,7 +199,7 @@ ReturnType computeType3ContributionWithSplit(
     // tangents are aligned), then we switch to QP and shake the polytope
     if (squaredMagnitude(average_tangent) < DISTANCE_EPSILON) {
       *a_requires_nudge = true;
-      return ReturnType::fromScalarConstant(ZERO);
+      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
     // Let's make sure the average tangent belongs to the plane of the face
     const ScalarType normal_correction = average_tangent * a_plane_normal;
@@ -212,19 +213,19 @@ ReturnType computeType3ContributionWithSplit(
     // If this point could not be found, switch to QP and shake the polytope
     if (projected_pt[0] == ScalarType(DBL_MAX)) {
       *a_requires_nudge = true;
-      return ReturnType::fromScalarConstant(ZERO);
+      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
     // If we have had to split more than N times, something is wrong: switch
     // to QP and shake the polytope
     if constexpr (std::is_same_v<FloatType, double>) {
       if (*a_split_counter > 5) {
         *a_requires_nudge = true;
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     } else {
       if (*a_split_counter > 10) {
         *a_requires_nudge = true;
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     }
     // Compute the tangent at the new projected point
@@ -248,7 +249,7 @@ ReturnType computeType3ContributionWithSplit(
         surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
         a_surface->addArc(surface_arc);
       }
-      return ReturnType::fromScalarConstant(ZERO);
+      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
 
     // If we want to output the surface:
@@ -298,7 +299,7 @@ ReturnType computeType3ContributionWithSplit(
     // the polytope
     if (arc.weight() < ZERO) {
       *a_requires_nudge = true;
-      return ReturnType::fromScalarConstant(ZERO);
+      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
     // Calculate type 3 contribution of arc
     auto moments =
@@ -321,10 +322,11 @@ ReturnType computeUnclippedSegmentType1Contribution(
     const PtType& a_ref_pt, const HalfEdgeType a_entry_half_edge,
     HalfEdgeType& a_exit_half_edge, const bool skip_first) {
   // Defining constants and types
+  using ReturnScalarType = typename ReturnType::value_type;
   const ScalarType ZERO = ScalarType(0);
 
   // Initialise moments to 0
-  ReturnType full_moments = ReturnType::fromScalarConstant(ZERO);
+  ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
 
   assert(a_entry_half_edge->getPreviousVertex()->isClipped() ||
          a_entry_half_edge->getPreviousVertex()->doesNotNeedToSeek());
@@ -371,7 +373,8 @@ ReturnType computeNewEdgeSegmentContribution(
     const HalfEdgeType a_exit_half_edge, const bool skip_first,
     const bool a_ignore_type3, bool* a_requires_nudge,
     SurfaceOutputType* a_surface) {
-  ReturnType full_moments = ReturnType::fromScalarConstant(ScalarType(0.0));
+  using ReturnScalarType = typename ReturnType::value_type;
+  ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
   // Handle new edge on exit->entry
   if (!skip_first) {
     full_moments += computeType1Contribution<ReturnType, ScalarType>(
@@ -841,6 +844,7 @@ ReturnType orientAndApplyType3Correction(
     HalfEdgeType* a_start, HalfEdgeType* a_end, bool* a_requires_nudge,
     SurfaceOutputType* a_surface) {
   // Defining constants and types
+  using ReturnScalarType = typename ReturnType::value_type;
   using FloatType = float_type<ScalarType>;
   using Pt = PtBase<ScalarType>;
   using Normal = NormalBase<ScalarType>;
@@ -878,14 +882,14 @@ ReturnType orientAndApplyType3Correction(
   if ((tgt_0[0] == ZERO && tgt_0[1] == ZERO && tgt_0[2] == ZERO) ||
       (tgt_1[0] == ZERO && tgt_1[1] == ZERO && tgt_1[2] == ZERO)) {
     *a_requires_nudge = true;
-    return ReturnType::fromScalarConstant(ZERO);
+    return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
   }
 
   // If the start and end points almost coincide, switch to QP
   if constexpr (std::is_same_v<ScalarType, double>) {
     if (squaredMagnitude(edge_vector) < DISTANCE_EPSILON * DISTANCE_EPSILON) {
       *a_requires_nudge = true;
-      return ReturnType::fromScalarConstant(ZERO);
+      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
   }
 
@@ -907,7 +911,7 @@ ReturnType orientAndApplyType3Correction(
               reinterpret_cast<std::uintptr_t>(&pt_0));
           a_surface->addArc(surface_arc);
         }
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     }
 
@@ -926,7 +930,7 @@ ReturnType orientAndApplyType3Correction(
         surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_0));
         a_surface->addArc(surface_arc);
       }
-      return ReturnType::fromScalarConstant(ZERO);
+      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     } else {  // The tangents are NOT parallel
       // Compute control point
       const ScalarType lambda_1 = -(n_cross_t0 * edge_vector) / triple_prod;
@@ -953,7 +957,7 @@ ReturnType orientAndApplyType3Correction(
 
       if (arc.weight() < ZERO) {
         *a_requires_nudge = true;
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
       return computeType3Contribution<ReturnType, ScalarType>(a_paraboloid,
                                                               arc);
@@ -992,7 +996,7 @@ ReturnType orientAndApplyType3Correction(
       // If we are in DP, we directly switch to QP
       if constexpr (std::is_same_v<ScalarType, double>) {
         *a_requires_nudge = true;
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
       // Compute the center of the ellipse
       const Pt conic_center = conicCenter<ScalarType>(face_plane, a_paraboloid);
@@ -1002,14 +1006,14 @@ ReturnType orientAndApplyType3Correction(
               DISTANCE_EPSILON * DISTANCE_EPSILON ||
           squaredMagnitude(pt_1 - conic_center) <
               DISTANCE_EPSILON * DISTANCE_EPSILON) {
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
       // If the start/end points are both the origin and the plane of the
       // face contains the origin, the contribution is 0
       if (squaredMagnitude(pt_0) < DISTANCE_EPSILON * DISTANCE_EPSILON &&
           squaredMagnitude(pt_1) < DISTANCE_EPSILON * DISTANCE_EPSILON &&
           face_plane.distance() < DISTANCE_EPSILON) {
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
       // Use ellipse center to orient the tangents so as to intersect. They
       // may still both point in the wrong direction
@@ -1039,7 +1043,7 @@ ReturnType orientAndApplyType3Correction(
         }
       } else {
         *a_requires_nudge = true;
-        return ReturnType::fromScalarConstant(ZERO);
+        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
         // if (a_paraboloid.a() < ZERO) {
         //   tgt_0 = -tgt_0;
         //   tgt_1 = -tgt_1;
@@ -1052,7 +1056,7 @@ ReturnType orientAndApplyType3Correction(
         a_requires_nudge, &split_counter, a_surface);
   }
 
-  return ReturnType::fromScalarConstant(ZERO);
+  return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
 }  // namespace IRL
 
 // Note: This essentially abandons the half edges and vertices
@@ -1658,6 +1662,7 @@ formParaboloidIntersectionBases(
   // Defining type aliases (needed to ensure precision is consistent)
   using ScalarType = typename pt_type::value_type;
   using FloatType = float_type<ScalarType>;
+  using ReturnScalarType = typename ReturnType::value_type;
   static_assert(std::is_same_v<typename pt_type::value_type, ScalarType>);
   static_assert(
       std::is_same_v<typename half_edge_type::value_type, ScalarType>);
@@ -1683,7 +1688,7 @@ formParaboloidIntersectionBases(
            std::is_same<SurfaceOutputType, NoSurfaceOutput>::value));
 
   // Initialize moments to 0
-  ReturnType full_moments = ReturnType::fromScalarConstant(ZERO);
+  ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
 
   // Initialising variables for handling degenerate cases
   bool requires_nudge = false;
@@ -1702,7 +1707,7 @@ formParaboloidIntersectionBases(
         myfile << *a_polytope;
         myfile.close();
       }
-      return ReturnType::fromScalarConstant(-ScalarType(DBL_MAX));
+      return ReturnType::fromScalarConstant(-ReturnScalarType(DBL_MAX));
     }
   }
   // Identify elliptic case
