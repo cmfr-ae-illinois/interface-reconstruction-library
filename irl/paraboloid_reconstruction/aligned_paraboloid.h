@@ -134,6 +134,13 @@ class AlignedParaboloidBase {
     return ellipse_to_return;
   }
 
+  void serialize(ByteBuffer* a_buffer) const {
+    a_buffer->pack(coefficients_m.data(), 2);
+  }
+  void unpackSerialized(ByteBuffer* a_buffer) {
+    a_buffer->unpack(coefficients_m.data(), 2);
+  }
+
  private:
   std::array<ScalarType, 2> coefficients_m;
 };
