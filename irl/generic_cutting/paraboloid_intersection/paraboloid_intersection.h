@@ -24,8 +24,6 @@
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
-#include "irl/moments/volume_moments_with_gradient.h"
-#include "irl/moments/volume_with_gradient.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/paraboloid_reconstruction/parametrized_surface.h"
 #include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
@@ -41,12 +39,13 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AlignedParaboloidType,
-          class SurfaceOutputType = NoSurfaceOutput>
+          class ScalarType, class SurfaceOutputType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
 intersectPolyhedronWithAlignedParaboloid(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
-    const AlignedParaboloidType& a_paraboloid, const double a_inv_volume_scale,
+    const AlignedParaboloidType& a_paraboloid,
+    const ScalarType a_inv_volume_scale,
     SurfaceOutputType* a_surface = nullptr);
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
@@ -64,11 +63,6 @@ inline NormalBase<ScalarType> computeTangentVectorAtPoint(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const NormalBase<ScalarType>& a_plane_normal,
     const PtBase<ScalarType>& a_pt);
-
-template <class ScalarType, class PtWithGradientType>
-inline PtWithGradientType computeTangentVectorAndGradientAtPoint(
-    const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-    const PtWithGradientType& a_plane_normal, const PtWithGradientType& a_pt);
 
 template <class ScalarType>
 inline NormalBase<ScalarType> computeAndCorrectTangentVectorAtPt(
@@ -203,23 +197,6 @@ ReturnType reformParaboloidIntersectionBases(
     HalfEdgePolytopeType* a_complete_polytope,
     const AligneParaboloidType& a_aligned_paraboloid,
     const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface);
-
-template <class C>
-struct has_embedded_gradient : std::false_type {};
-
-template <class C>
-struct has_embedded_gradient<const C> : has_embedded_gradient<C> {};
-
-template <class GradientType>
-struct has_embedded_gradient<PtWithGradient<GradientType>> : std::true_type {};
-
-template <class GradientType>
-struct has_embedded_gradient<VolumeWithGradient<GradientType>>
-    : std::true_type {};
-
-template <class GradientType>
-struct has_embedded_gradient<VolumeMomentsWithGradient<GradientType>>
-    : std::true_type {};
 
 }  // namespace IRL
 

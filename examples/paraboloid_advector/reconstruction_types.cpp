@@ -16,8 +16,6 @@
 #include "irl/interface_reconstruction_methods/plvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
-#include "irl/moments/volume_moments_with_gradient.h"
-#include "irl/moments/volume_with_gradient.h"
 #include "irl/optimization/constrained_levenberg_marquardt.h"
 #include "irl/paraboloid_reconstruction/gradient_paraboloid.h"
 #include "irl/paraboloid_reconstruction/hessian_paraboloid.h"

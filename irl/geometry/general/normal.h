@@ -78,16 +78,9 @@ class NormalBase : public Expr<NormalBase<ScalarType>> {
   /// \brief Default constructor with zero normal.
   constexpr NormalBase(void);
 
-  /// \brief Constructor for normal given 3 different values.
-  constexpr NormalBase(const UnsignedIndex_t a_normal_x,
-                       const UnsignedIndex_t a_normal_y,
-                       const UnsignedIndex_t a_normal_z);
-  constexpr NormalBase(const int a_normal_x, const int a_normal_y,
-                       const int a_normal_z);
-  constexpr NormalBase(const double a_normal_x, const double a_normal_y,
-                       const double a_normal_z);
-  constexpr NormalBase(const Quad_t a_normal_x, const Quad_t a_normal_y,
-                       const Quad_t a_normal_z);
+  // /// \brief Constructor for normal given 3 different values.
+  constexpr NormalBase(const ScalarType a_normal_x, const ScalarType a_normal_y,
+                       const ScalarType a_normal_z);
 
   static NormalBase normalized(const ScalarType a_normal_x,
                                const ScalarType a_normal_y,
@@ -140,16 +133,13 @@ class NormalBase : public Expr<NormalBase<ScalarType>> {
   NormalBase& operator+=(const NormalBase<ScalarType>& a_rhs);
 
   /// \brief Overload /= operator to divide all components by scalar.
-  NormalBase& operator/=(const double a_value);
-  NormalBase& operator/=(const Quad_t a_value);
+  NormalBase& operator/=(const ScalarType a_value);
 
   /// \brief Overload *= operator to multiply all components by scalar.
-  NormalBase& operator*=(const double a_value);
-  NormalBase& operator*=(const Quad_t a_value);
+  NormalBase& operator*=(const ScalarType a_value);
 
   /// \brief Assign all elements in NormalBase the a value.
-  NormalBase& operator=(const double a_value);
-  NormalBase& operator=(const Quad_t a_value);
+  NormalBase& operator=(const ScalarType a_value);
 
   /// \brief Comparison operator to return if two normals are the same
   bool operator==(const NormalBase& a_normal) const;
@@ -190,15 +180,13 @@ class NormalBase : public Expr<NormalBase<ScalarType>> {
 
  private:
   /// \brief Constructor for normal given an array containing 3 values.
-  explicit constexpr NormalBase(const double* a_normal);
-  explicit constexpr NormalBase(const Quad_t* a_normal);
+  explicit constexpr NormalBase(const ScalarType* a_normal);
 
   /// \brief Set a pt as a normal and normalize. Usually occurs
   /// from subtraction of two points.
   explicit NormalBase(const PtBase<ScalarType>& a_pt);
 
-  explicit NormalBase(const double a_constant);
-  explicit NormalBase(const Quad_t a_constant);
+  explicit NormalBase(const ScalarType a_constant);
 
   /// \brief N_x, N_y, N_z values of normal.
   Vec3<ScalarType> normal_m;

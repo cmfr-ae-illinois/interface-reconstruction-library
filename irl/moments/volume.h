@@ -12,6 +12,7 @@
 
 #include <ostream>
 
+#include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/parameters/defined_types.h"
 
 namespace IRL {
@@ -70,6 +71,9 @@ class VolumeBase {
   /// \brief Overload assignment to assign constant value to moments.
   VolumeBase& operator=(const ScalarType a_value);
 
+  // Unary - operator
+  VolumeBase operator-(void) const;
+
   /// \brief Default destructor.
   ~VolumeBase(void) = default;
 
@@ -77,11 +81,29 @@ class VolumeBase {
   ScalarType volume_m;  ///< \brief Volume of something
 };
 
-using Volume = VolumeBase<double>;
-
 template <class ScalarType>
 std::ostream& operator<<(std::ostream& out,
                          const VolumeBase<ScalarType>& a_volume);
+
+/// \brief Overload + operator to add two geometric moments together
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator+(const VolumeBase<ScalarType>& a_vm1,
+                                        const VolumeBase<ScalarType>& a_vm2);
+/// \brief Overload - operator to subtract one
+/// geometric moment object from another.
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator-(const VolumeBase<ScalarType>& a_vm1,
+                                        const VolumeBase<ScalarType>& a_vm2);
+/// \brief Overload * operator to multiply volume/centroid
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator*(const ScalarType a_multiplier,
+                                        const VolumeBase<ScalarType>& a_vm);
+/// \brief Overload * operator to multiply volume/centroid
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator*(const VolumeBase<ScalarType>& a_vm,
+                                        const ScalarType a_multiplier);
+
+using Volume = VolumeBase<double>;
 
 }  // namespace IRL
 

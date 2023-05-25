@@ -38,23 +38,21 @@ template <class ScalarType>
 class PtBase : public Expr<PtBase<ScalarType>> {
  public:
   using value_type = ScalarType;
+
   /// \brief The default constructor, performs NO INITIALIZATION.
   constexpr PtBase(void);
 
   /// \brief A constructor that initializes the point given the x,y, and z
   /// locations.
-  constexpr PtBase(const UnsignedIndex_t a_x, const UnsignedIndex_t a_y,
-                   const UnsignedIndex_t a_z);
-  constexpr PtBase(const int a_x, const int a_y, const int a_z);
-  constexpr PtBase(const double a_x, const double a_y, const double a_z);
-  constexpr PtBase(const Quad_t a_x, const Quad_t a_y, const Quad_t a_z);
+  constexpr PtBase(const ScalarType a_x, const ScalarType a_y,
+                   const ScalarType a_z);
 
   /// \brief Performs the interpolation on an edge between points with known
   /// distances to the plane to calculate the intersection point.
   ///
-  /// This function takes two vertices of an edge and the corresponding signed
-  /// distances to an intersecting plane. The point of intersection (where
-  /// dist=0) is then calculated and returned.
+  /// This function takes two vertices of an edge and the corresponding
+  /// signed distances to an intersecting plane. The point of intersection
+  /// (where dist=0) is then calculated and returned.
   ///
   /// \param[in] a_point_1 First point on the edge.
   /// \param[in] a_dist_1 Corresponding signed distance from intersecting

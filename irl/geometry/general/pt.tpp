@@ -14,36 +14,13 @@ namespace IRL {
 
 template <class ScalarType>
 inline constexpr PtBase<ScalarType>::PtBase(void)
-    : loc_m{static_cast<ScalarType>(0), static_cast<ScalarType>(0),
-            static_cast<ScalarType>(0)} {}
+    : loc_m{ScalarType(0), ScalarType(0), ScalarType(0)} {}
 
 template <class ScalarType>
-inline constexpr PtBase<ScalarType>::PtBase(const UnsignedIndex_t a_x,
-                                            const UnsignedIndex_t a_y,
-                                            const UnsignedIndex_t a_z)
-    : loc_m{static_cast<ScalarType>(a_x), static_cast<ScalarType>(a_y),
-            static_cast<ScalarType>(a_z)} {}
-
-template <class ScalarType>
-inline constexpr PtBase<ScalarType>::PtBase(const int a_x, const int a_y,
-                                            const int a_z)
-    : loc_m{static_cast<ScalarType>(a_x), static_cast<ScalarType>(a_y),
-            static_cast<ScalarType>(a_z)} {}
-
-template <class ScalarType>
-inline constexpr PtBase<ScalarType>::PtBase(const double a_x, const double a_y,
-                                            const double a_z)
-    : loc_m{a_x, a_y, a_z} {
-  static_assert(std::is_same<ScalarType, double>::value,
-                "Trying to construct Pt in quad precision with doubles. This "
-                "is forbidden to avoid loosing quad precision.");
-}
-
-template <class ScalarType>
-inline constexpr PtBase<ScalarType>::PtBase(const Quad_t a_x, const Quad_t a_y,
-                                            const Quad_t a_z)
-    : loc_m{static_cast<ScalarType>(a_x), static_cast<ScalarType>(a_y),
-            static_cast<ScalarType>(a_z)} {}
+inline constexpr PtBase<ScalarType>::PtBase(const ScalarType a_x,
+                                            const ScalarType a_y,
+                                            const ScalarType a_z)
+    : loc_m{a_x, a_y, a_z} {}
 
 template <class ScalarType>
 inline PtBase<ScalarType> PtBase<ScalarType>::fromEdgeIntersection(
@@ -115,10 +92,14 @@ template <class ScalarType>
 inline const PtBase<double> PtBase<ScalarType>::toDoublePt(void) const {
   if constexpr (std::is_same<ScalarType, double>::value) {
     return (*this);
-  } else {
+  } else if constexpr (std::is_same<ScalarType, Quad_t>::value) {
     return PtBase<double>(static_cast<double>(loc_m[0]),
                           static_cast<double>(loc_m[1]),
                           static_cast<double>(loc_m[2]));
+  } else {
+    return PtBase<double>(static_cast<double>(loc_m[0].value()),
+                          static_cast<double>(loc_m[1].value()),
+                          static_cast<double>(loc_m[2].value()));
   }
 }
 
@@ -126,10 +107,14 @@ template <class ScalarType>
 inline const PtBase<Quad_t> PtBase<ScalarType>::toQuadPt(void) const {
   if constexpr (std::is_same<ScalarType, Quad_t>::value) {
     return (*this);
-  } else {
+  } else if constexpr (std::is_same<ScalarType, double>::value) {
     return PtBase<Quad_t>(static_cast<Quad_t>(loc_m[0]),
                           static_cast<Quad_t>(loc_m[1]),
                           static_cast<Quad_t>(loc_m[2]));
+  } else {
+    return PtBase<Quad_t>(static_cast<Quad_t>(loc_m[0].value()),
+                          static_cast<Quad_t>(loc_m[1].value()),
+                          static_cast<Quad_t>(loc_m[2].value()));
   }
 }
 
@@ -266,18 +251,18 @@ template <class ScalarType>
 template <class E>
 inline PtBase<ScalarType>::PtBase(const Expr<E>& a_expr) {
   const E& expr(a_expr);
-  loc_m[0] = expr[0];
-  loc_m[1] = expr[1];
-  loc_m[2] = expr[2];
+  loc_m[0] = ScalarType(expr[0]);
+  loc_m[1] = ScalarType(expr[1]);
+  loc_m[2] = ScalarType(expr[2]);
 }
 
 template <class ScalarType>
 template <class E>
 inline PtBase<ScalarType>::PtBase(Expr<E>&& a_expr) {
   const E& expr(a_expr);
-  loc_m[0] = expr[0];
-  loc_m[1] = expr[1];
-  loc_m[2] = expr[2];
+  loc_m[0] = ScalarType(expr[0]);
+  loc_m[1] = ScalarType(expr[1]);
+  loc_m[2] = ScalarType(expr[2]);
 }
 
 template <class ScalarType>
@@ -285,9 +270,9 @@ template <class E>
 inline PtBase<ScalarType>& PtBase<ScalarType>::operator=(
     const Expr<E>& a_expr) {
   const E& expr(a_expr);
-  loc_m[0] = expr[0];
-  loc_m[1] = expr[1];
-  loc_m[2] = expr[2];
+  loc_m[0] = ScalarType(expr[0]);
+  loc_m[1] = ScalarType(expr[1]);
+  loc_m[2] = ScalarType(expr[2]);
   return (*this);
 }
 
@@ -295,35 +280,15 @@ template <class ScalarType>
 template <class E>
 inline PtBase<ScalarType>& PtBase<ScalarType>::operator=(Expr<E>&& a_expr) {
   const E& expr(a_expr);
-  loc_m[0] = expr[0];
-  loc_m[1] = expr[1];
-  loc_m[2] = expr[2];
+  loc_m[0] = ScalarType(expr[0]);
+  loc_m[1] = ScalarType(expr[1]);
+  loc_m[2] = ScalarType(expr[2]);
   return (*this);
 }
 
-template <>
-inline std::ostream& operator<<(std::ostream& out, const PtBase<double>& a_pt) {
-#ifndef NDEBUG
-  char* scalar_to_char = new char[30];
-  sprintf(scalar_to_char, "%+.20e", a_pt[0]);
-  out << "( \033[46m(double) " << scalar_to_char << "\033[0m";
-  sprintf(scalar_to_char, "%+.20e", a_pt[1]);
-  out << ", \033[46m(double) " << scalar_to_char << "\033[0m";
-  sprintf(scalar_to_char, "%+.20e", a_pt[2]);
-  out << ", \033[46m(double) " << scalar_to_char << "\033[0m";
-  out << " )";
-#else
-  out << std::setprecision(15);
-  out << "( " << a_pt[0];
-  out << ", " << a_pt[1];
-  out << ", " << a_pt[2];
-  out << " )";
-#endif
-  return out;
-}
-
-template <>
-inline std::ostream& operator<<(std::ostream& out, const PtBase<Quad_t>& a_pt) {
+template <class ScalarType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const PtBase<ScalarType>& a_pt) {
   out << std::setprecision(15);
   out << "( " << a_pt[0];
   out << ", " << a_pt[1];

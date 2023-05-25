@@ -14,43 +14,13 @@ namespace IRL {
 
 template <class ScalarType>
 inline constexpr NormalBase<ScalarType>::NormalBase(void)
-    : normal_m{static_cast<ScalarType>(0), static_cast<ScalarType>(0),
-               static_cast<ScalarType>(0)} {}
+    : normal_m{ScalarType(0), ScalarType(0), ScalarType(0)} {}
 
 template <class ScalarType>
-inline constexpr NormalBase<ScalarType>::NormalBase(
-    const UnsignedIndex_t a_normal_x, const UnsignedIndex_t a_normal_y,
-    const UnsignedIndex_t a_normal_z)
-    : normal_m{static_cast<ScalarType>(a_normal_x),
-               static_cast<ScalarType>(a_normal_y),
-               static_cast<ScalarType>(a_normal_z)} {}
-
-template <class ScalarType>
-inline constexpr NormalBase<ScalarType>::NormalBase(const int a_normal_x,
-                                                    const int a_normal_y,
-                                                    const int a_normal_z)
-    : normal_m{static_cast<ScalarType>(a_normal_x),
-               static_cast<ScalarType>(a_normal_y),
-               static_cast<ScalarType>(a_normal_z)} {}
-
-template <class ScalarType>
-inline constexpr NormalBase<ScalarType>::NormalBase(const double a_normal_x,
-                                                    const double a_normal_y,
-                                                    const double a_normal_z)
-    : normal_m{a_normal_x, a_normal_y, a_normal_z} {
-  static_assert(
-      std::is_same<ScalarType, double>::value,
-      "Trying to construct Normal in quad precision with doubles. This "
-      "is forbidden to avoid loosing quad precision.");
-}
-
-template <class ScalarType>
-inline constexpr NormalBase<ScalarType>::NormalBase(const Quad_t a_normal_x,
-                                                    const Quad_t a_normal_y,
-                                                    const Quad_t a_normal_z)
-    : normal_m{static_cast<ScalarType>(a_normal_x),
-               static_cast<ScalarType>(a_normal_y),
-               static_cast<ScalarType>(a_normal_z)} {}
+inline constexpr NormalBase<ScalarType>::NormalBase(const ScalarType a_normal_x,
+                                                    const ScalarType a_normal_y,
+                                                    const ScalarType a_normal_z)
+    : normal_m{a_normal_x, a_normal_y, a_normal_z} {}
 
 template <class ScalarType>
 inline NormalBase<ScalarType> NormalBase<ScalarType>::normalized(
@@ -102,10 +72,14 @@ inline const NormalBase<double> NormalBase<ScalarType>::toDoubleNormal(
     void) const {
   if constexpr (std::is_same<ScalarType, double>::value) {
     return (*this);
-  } else {
+  } else if constexpr (std::is_same<ScalarType, Quad_t>::value) {
     return NormalBase<double>(static_cast<double>(normal_m[0]),
                               static_cast<double>(normal_m[1]),
                               static_cast<double>(normal_m[2]));
+  } else {
+    return NormalBase<double>(static_cast<double>(normal_m[0].value()),
+                              static_cast<double>(normal_m[1].value()),
+                              static_cast<double>(normal_m[2].value()));
   }
 }
 
@@ -114,10 +88,14 @@ inline const NormalBase<Quad_t> NormalBase<ScalarType>::toQuadNormal(
     void) const {
   if constexpr (std::is_same<ScalarType, Quad_t>::value) {
     return (*this);
-  } else {
+  } else if constexpr (std::is_same<ScalarType, double>::value) {
     return NormalBase<Quad_t>(static_cast<Quad_t>(normal_m[0]),
                               static_cast<Quad_t>(normal_m[1]),
                               static_cast<Quad_t>(normal_m[2]));
+  } else {
+    return NormalBase<Quad_t>(static_cast<Quad_t>(normal_m[0].value()),
+                              static_cast<Quad_t>(normal_m[1].value()),
+                              static_cast<Quad_t>(normal_m[2].value()));
   }
 }
 
@@ -188,11 +166,8 @@ inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator+=(
 
 template <class ScalarType>
 inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator/=(
-    const double a_value) {
-  static_assert(std::is_same<ScalarType, double>::value,
-                "Trying to divide Normal in quad precision with double. This "
-                "is forbidden to avoid loosing quad precision.");
-  assert(a_value != 0.0);
+    const ScalarType a_value) {
+  assert(a_value != ScalarType(0));
   for (auto& elem : normal_m) {
     elem /= a_value;
   }
@@ -200,21 +175,8 @@ inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator/=(
 }
 
 template <class ScalarType>
-inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator/=(
-    const Quad_t a_value) {
-  assert(a_value != 0.0q);
-  for (auto& elem : normal_m) {
-    elem /= static_cast<ScalarType>(a_value);
-  }
-  return (*this);
-}
-
-template <class ScalarType>
 inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator*=(
-    const double a_value) {
-  static_assert(std::is_same<ScalarType, double>::value,
-                "Trying to multiply Normal in quad precision with double. This "
-                "is forbidden to avoid loosing quad precision.");
+    const ScalarType a_value) {
   for (auto& elem : normal_m) {
     elem *= a_value;
   }
@@ -222,20 +184,8 @@ inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator*=(
 }
 
 template <class ScalarType>
-inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator*=(
-    const Quad_t a_value) {
-  for (auto& elem : normal_m) {
-    elem *= static_cast<ScalarType>(a_value);
-  }
-  return (*this);
-}
-
-template <class ScalarType>
 inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator=(
-    const double a_value) {
-  static_assert(std::is_same<ScalarType, double>::value,
-                "Trying to equate Normal in quad precision with double. This "
-                "is forbidden to avoid loosing quad precision.");
+    const ScalarType a_value) {
   for (auto& elem : normal_m) {
     elem = a_value;
   }
@@ -243,26 +193,15 @@ inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator=(
 }
 
 template <class ScalarType>
-inline NormalBase<ScalarType>& NormalBase<ScalarType>::operator=(
-    const Quad_t a_value) {
-  for (auto& elem : normal_m) {
-    elem = static_cast<ScalarType>(a_value);
-  }
-  return (*this);
-}
-
-template <class ScalarType>
 inline bool NormalBase<ScalarType>::operator==(
     const NormalBase<ScalarType>& a_normal) const {
-  return (*this) * a_normal >
-         static_cast<ScalarType>(global_constants::SAME_VEC);
+  return (*this) * a_normal > ScalarType(global_constants::SAME_VEC);
 }
 
 template <class ScalarType>
 inline bool NormalBase<ScalarType>::operator!=(
     const NormalBase<ScalarType>& a_normal) const {
-  return (*this) * a_normal <
-         static_cast<ScalarType>(global_constants::SAME_VEC);
+  return (*this) * a_normal < ScalarType(global_constants::SAME_VEC);
 }
 
 template <class ScalarType>
@@ -284,49 +223,23 @@ inline ScalarType NormalBase<ScalarType>::calculateSquaredMagnitude(
   return squaredMagnitude((*this));
 }
 
-template <>
-inline void NormalBase<double>::normalize(void) {
+template <class ScalarType>
+inline void NormalBase<ScalarType>::normalize(void) {
   // const double inv_magnitude = 1.0 / safelyTiny(this->calculateMagnitude());
-  const double inv_magnitude =
+  const ScalarType inv_magnitude =
       invsqrt(safelyTiny(this->calculateSquaredMagnitude()));
   for (auto& elem : normal_m) {
     elem *= inv_magnitude;
   }
 }
 
-template <>
-inline void NormalBase<Quad_t>::normalize(void) {
-  const Quad_t inv_magnitude = 1.0q / safelyTiny(this->calculateMagnitude());
-  for (auto& elem : normal_m) {
-    elem *= inv_magnitude;
-  }
-}
-
-template <>
-inline void NormalBase<double>::approximatelyNormalize(void) {
-  const double cude_inv_magnitude =
-      1.0 /
+template <class ScalarType>
+inline void NormalBase<ScalarType>::approximatelyNormalize(void) {
+  const ScalarType cude_inv_magnitude =
+      ScalarType(1) /
       safelyTiny(fabs(normal_m[0]) + fabs(normal_m[1]) + fabs(normal_m[2]));
   for (auto& elem : normal_m) {
     elem *= cude_inv_magnitude;
-  }
-  // const double inv_magnitude =
-  //     approxinvsqrt(safelyTiny(this->calculateSquaredMagnitude()));
-  // for (auto& elem : normal_m) {
-  //   elem *= inv_magnitude;
-  // }
-}
-
-template <>
-inline void NormalBase<Quad_t>::approximatelyNormalize(void) {
-  // const Quad_t inv_magnitude =
-  //     1.0q /
-  //     safelyTiny(fabsq(normal_m[0]) + fabsq(normal_m[1]) +
-  //     fabsq(normal_m[2]));
-  const Quad_t inv_magnitude =
-      invsqrt(safelyTiny(this->calculateSquaredMagnitude()));
-  for (auto& elem : normal_m) {
-    elem *= inv_magnitude;
   }
 }
 
@@ -378,38 +291,16 @@ inline void NormalBase<ScalarType>::unpackSerialized(ByteBuffer* a_buffer) {
 }
 
 template <class ScalarType>
-inline constexpr NormalBase<ScalarType>::NormalBase(const double* a_normal)
-    : normal_m{a_normal[0], a_normal[1], a_normal[2]} {
-  static_assert(
-      std::is_same<ScalarType, double>::value,
-      "Trying to construct Normal in quad precision with doubles. This "
-      "is forbidden to avoid loosing quad precision.");
-}
-
-template <class ScalarType>
-inline constexpr NormalBase<ScalarType>::NormalBase(const Quad_t* a_normal)
-    : normal_m{static_cast<ScalarType>(a_normal[0]),
-               static_cast<ScalarType>(a_normal[1]),
-               static_cast<ScalarType>(a_normal[2])} {}
+inline constexpr NormalBase<ScalarType>::NormalBase(const ScalarType* a_normal)
+    : normal_m{a_normal[0], a_normal[1], a_normal[2]} {}
 
 template <class ScalarType>
 inline NormalBase<ScalarType>::NormalBase(const PtBase<ScalarType>& a_pt)
     : normal_m{a_pt[0], a_pt[1], a_pt[2]} {}
 
 template <class ScalarType>
-inline NormalBase<ScalarType>::NormalBase(const double a_constant)
-    : normal_m{a_constant, a_constant, a_constant} {
-  static_assert(
-      std::is_same<ScalarType, double>::value,
-      "Trying to construct Normal in quad precision with double. This "
-      "is forbidden to avoid loosing quad precision.");
-}
-
-template <class ScalarType>
-inline NormalBase<ScalarType>::NormalBase(const Quad_t a_constant)
-    : normal_m{static_cast<ScalarType>(a_constant),
-               static_cast<ScalarType>(a_constant),
-               static_cast<ScalarType>(a_constant)} {}
+inline NormalBase<ScalarType>::NormalBase(const ScalarType a_constant)
+    : normal_m{a_constant, a_constant, a_constant} {}
 
 template <class ScalarType>
 __attribute__((const)) inline ScalarType operator*(

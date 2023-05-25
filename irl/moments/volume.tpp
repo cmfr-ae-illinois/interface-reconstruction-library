@@ -13,8 +13,7 @@
 namespace IRL {
 
 template <class ScalarType>
-inline VolumeBase<ScalarType>::VolumeBase(void)
-    : volume_m{static_cast<ScalarType>(0)} {}
+inline VolumeBase<ScalarType>::VolumeBase(void) : volume_m{ScalarType(0)} {}
 
 template <class ScalarType>
 inline constexpr VolumeBase<ScalarType>::VolumeBase(const ScalarType a_value)
@@ -23,12 +22,12 @@ inline constexpr VolumeBase<ScalarType>::VolumeBase(const ScalarType a_value)
 template <class ScalarType>
 inline constexpr VolumeBase<ScalarType>::VolumeBase(
     const VolumeBase<double>& a_value)
-    : volume_m{static_cast<ScalarType>(a_value.volume())} {}
+    : volume_m{ScalarType(a_value.volume())} {}
 
 template <class ScalarType>
 inline constexpr VolumeBase<ScalarType>::VolumeBase(
     const VolumeBase<Quad_t>& a_value)
-    : volume_m{static_cast<ScalarType>(a_value.volume())} {}
+    : volume_m{ScalarType(a_value.volume())} {}
 
 template <class ScalarType>
 inline VolumeBase<ScalarType> VolumeBase<ScalarType>::fromScalarConstant(
@@ -93,10 +92,44 @@ inline VolumeBase<ScalarType>& VolumeBase<ScalarType>::operator=(
 }
 
 template <class ScalarType>
+inline VolumeBase<ScalarType> VolumeBase<ScalarType>::operator-(void) const {
+  return VolumeBase<ScalarType>(-volume_m);
+}
+
+template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const VolumeBase<ScalarType>& a_volume) {
-  out << static_cast<ScalarType>(a_volume);
+  if constexpr (has_embedded_gradient<ScalarType>::value) {
+    out << a_volume.volume().value() << "\nAuto-gradient = \n"
+        << a_volume.volume().gradient().getGrad();
+  } else {
+    out << static_cast<ScalarType>(a_volume);
+  }
   return out;
+}
+
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator+(const VolumeBase<ScalarType>& a_vm1,
+                                        const VolumeBase<ScalarType>& a_vm2) {
+  return VolumeBase<ScalarType>(a_vm1.volume() + a_vm2.volume());
+}
+
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator-(const VolumeBase<ScalarType>& a_vm1,
+                                        const VolumeBase<ScalarType>& a_vm2) {
+  return VolumeBase<ScalarType>(a_vm1.volume() - a_vm2.volume());
+}
+
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator*(const ScalarType a_multiplier,
+                                        const VolumeBase<ScalarType>& a_vm) {
+  return VolumeBase<ScalarType>(a_multiplier * a_vm.volume());
+}
+
+template <class ScalarType>
+inline VolumeBase<ScalarType> operator*(const VolumeBase<ScalarType>& a_vm,
+                                        const ScalarType a_multiplier) {
+  return a_multiplier * a_vm;
 }
 
 }  // namespace IRL

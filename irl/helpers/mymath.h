@@ -14,9 +14,11 @@
 #include <cmath>
 #include <ostream>
 #include <string>
+#include <type_traits>
 
 #include "quadmath.h"
 
+#include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/helpers/helper.h"
 #include "irl/parameters/defined_types.h"
 
@@ -105,9 +107,6 @@ template <class DataType>
 inline typename DataType::value_type scalarTripleProduct(
     const DataType& a_vector_0, const DataType& a_vector_1,
     const DataType& a_vector_2);
-
-////////// Overloading math functions to allow for quad precision
-inline std::ostream& operator<<(std::ostream& out, const Quad_t a_scalar);
 
 template <class ScalarType>
 inline bool isnan(ScalarType a_scalar);
