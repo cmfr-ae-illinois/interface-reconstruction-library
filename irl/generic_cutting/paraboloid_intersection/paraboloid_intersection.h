@@ -39,7 +39,7 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AlignedParaboloidType,
-          class ScalarType, class SurfaceOutputType>
+          class ScalarType, class SurfaceOutputType = NoSurfaceOutput>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
 intersectPolyhedronWithAlignedParaboloid(
     SegmentedHalfEdgePolyhedronType* a_polytope,
@@ -89,14 +89,6 @@ ReturnType computeType3ContributionWithSplit(
     const NormalBase<ScalarType>& a_tangent_0,
     const NormalBase<ScalarType>& a_tangent_1, bool* a_requires_nudge,
     UnsignedIndex_t* a_split_counter, SurfaceOutputType* a_surface = nullptr);
-
-template <class ReturnType, class ScalarType, class SurfaceOutputType,
-          class PtType>
-ReturnType computeType3ContributionWithGradientWithSplit(
-    const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-    const PtType& a_plane_normal, const PtType& a_pt_ref, const PtType& a_pt_0,
-    const PtType& a_pt_1, const PtType& a_tangent_0, const PtType& a_tangent_1,
-    SurfaceOutputType* a_surface);
 
 template <class ReturnType, class ScalarType, class HalfEdgeType, class PtType>
 ReturnType computeUnclippedSegmentType1Contribution(
