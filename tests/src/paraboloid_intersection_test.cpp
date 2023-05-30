@@ -402,13 +402,15 @@ TEST(ParaboloidIntersection, Dodecahedron) {
     auto poly_vol = dodeca.calculateVolume();
 
     // Calculate volume of unclipped dodecahedron using AMR
-    auto amr_volume = intersectPolyhedronWithParaboloidAMR<Volume>(
-        &seg_half_edge, &half_edge, aligned_paraboloid, AMR_levels);
+    auto amr_volume_moments =
+        intersectPolyhedronWithParaboloidAMR<VolumeMoments>(
+            &seg_half_edge, &half_edge, aligned_paraboloid, AMR_levels);
 
     // Calculate volume of unclipped dodecahedron using IRL
     const auto paraboloid = Paraboloid(datum, frame, aligned_paraboloid.a(),
                                        aligned_paraboloid.b());
-    auto our_volume = getVolumeMoments<Volume>(dodeca, paraboloid);
+    auto our_volume_moments =
+        getVolumeMoments<VolumeMoments>(dodeca, paraboloid);
     std::cout << "-------------------------------------------------------------"
                  "---------------------------------------------------------"
               << std::endl;
@@ -419,21 +421,30 @@ TEST(ParaboloidIntersection, Dodecahedron) {
       std::cout << "HYPERBOLIC" << std::endl;
     else
       std::cout << "PARABOLIC" << std::endl;
-    std::cout << std::setprecision(20)
-              << "Vfrac unclipped IRL = " << our_volume / poly_vol << std::endl;
-    std::cout << std::setprecision(20)
-              << "Vfrac unclipped AMR = " << amr_volume / poly_vol << std::endl;
+    std::cout << std::setprecision(20) << "Vfrac unclipped IRL = "
+              << our_volume_moments.volume() / poly_vol << std::endl;
+    std::cout << std::setprecision(20) << "Vfrac unclipped AMR = "
+              << amr_volume_moments.volume() / poly_vol << std::endl;
     std::cout << "Diff AMR/IRL = "
-              << std::fabs(our_volume - amr_volume) / poly_vol << std::endl;
+              << std::fabs(our_volume_moments.volume() -
+                           amr_volume_moments.volume()) /
+                     poly_vol
+              << std::endl;
     std::cout << "-------------------------------------------------------------"
                  "---------------------------------------------------------"
               << std::endl;
 
-    max_error = max_error > std::fabs(our_volume - amr_volume) / poly_vol
+    max_error = max_error > std::fabs(our_volume_moments.volume() -
+                                      amr_volume_moments.volume()) /
+                                poly_vol
                     ? max_error
-                    : std::fabs(our_volume - amr_volume) / poly_vol;
-    rms_error += std::fabs(our_volume - amr_volume) *
-                 std::fabs(our_volume - amr_volume) / poly_vol / poly_vol;
+                    : std::fabs(our_volume_moments.volume() -
+                                amr_volume_moments.volume()) /
+                          poly_vol;
+    rms_error +=
+        std::fabs(our_volume_moments.volume() - amr_volume_moments.volume()) *
+        std::fabs(our_volume_moments.volume() - amr_volume_moments.volume()) /
+        poly_vol / poly_vol;
   }
   rms_error = sqrt(rms_error / static_cast<double>(Ntests));
 
