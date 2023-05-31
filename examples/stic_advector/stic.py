@@ -776,7 +776,132 @@ def stic_advect2(N,h,guess_norm,guess_dist,old_vf,guess_vf,t,dt):
 
     return vf
 
-N = 25
+def cost_hlvira3(hyperplane,N,h,old_vf,guess_vf,t,dt):
+    E = 0.0
+    for i in range(1,N-1):
+        for j in range(1,N-1):
+            x0 = i / N; x1 = x0 + h
+            y0 = j / N; y1 = y0 + h
+            # Old time
+            plane = np.zeros(3)
+            plane[0] = hyperplane[(i+N*j)*4 + 0]
+            plane[1] = hyperplane[(i+N*j)*4 + 1]
+            plane[2] = hyperplane[(i+N*j)*4 + 3]-t*hyperplane[(i+N*j)*4 + 2]
+            for l in range(-1,2):
+                for n in range(-1,2):
+                    x00 = x0+l*h; y00 = y0+n*h
+                    tmp_vf = forward(x00,y00,h,h,plane[0],plane[1],plane[2])
+                    E += (tmp_vf - old_vf[i+l][j+n])**2
+            # New time
+            plane[2] = hyperplane[(i+N*j)*4 + 3]-(t+dt)*hyperplane[(i+N*j)*4 + 2]
+            for l in range(-1,2):
+                for n in range(-1,2):
+                    x00 = x0+l*h; y00 = y0+n*h
+                    tmp_vf = forward(x00,y00,h,h,plane[0],plane[1],plane[2])
+                    E += (tmp_vf - guess_vf[i+l][j+n])**2
+    return E
+
+def stic_advect3(N,h,guess_norm,guess_dist,old_vf,guess_vf,t,dt):
+    hyperplane = np.zeros(N*N*4)
+    vf = np.copy(old_vf)
+    for i in range(N):
+        for j in range(N):
+            hyperplane[(i+N*j)*4 + 0] = guess_norm[i][j][0]
+            hyperplane[(i+N*j)*4 + 1] = guess_norm[i][j][1]
+            hyperplane[(i+N*j)*4 + 2] = 0.0
+            hyperplane[(i+N*j)*4 + 3] = guess_dist[i][j]
+
+    hyperplane_guess = np.copy(hyperplane)
+
+    def constraint_hlvira3(hyperplane):
+        C = np.zeros(N*N)
+        for i in range(1,N-1):
+            for j in range(1,N-1):
+                x0 = i / N; x1 = x0 + h; x = 0.5*(x0+x1)
+                y0 = j / N; y1 = y0 + h; y = 0.5*(y0+y1)
+                ul = U(x0,y,t)
+                ur = U(x1,y,t)
+                vb = V(x,y0,t)
+                vt = V(x,y1,t)
+                Fl=0; Fr=0; Fb=0; Ft=0
+                # UPWIND
+                if (ul > 0):
+                    Fl += forward(y0,t,h,dt,hyperplane[(i-1+N*j)*4+1],hyperplane[(i-1+N*j)*4 + 2],hyperplane[(i-1+N*j)*4 + 3]-x0*hyperplane[(i-1+N*j)*4 + 0])*abs(ul)*dt/h
+                else:
+                    Fl -= forward(y0,t,h,dt,hyperplane[(i+N*j)*4 + 1],hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 3]-x0*hyperplane[(i+N*j)*4 + 0])*abs(ul)*dt/h
+                if (ur > 0):
+                    Fr -= forward(y0,t,h,dt,hyperplane[(i+N*j)*4 + 1],hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 3]-x1*hyperplane[(i+N*j)*4 + 0])*abs(ur)*dt/h
+                else:
+                    Fr += forward(y0,t,h,dt,hyperplane[(i+1+N*j)*4 + 1],hyperplane[(i+1+N*j)*4 + 2],hyperplane[(i+1+N*j)*4 + 3]-x1*hyperplane[(i+1+N*j)*4 + 0])*abs(ur)*dt/h
+
+                if (vb > 0):
+                    Fb += forward(t,x0,dt,h,hyperplane[(i+N*(j-1))*4 + 2],hyperplane[(i+N*(j-1))*4 + 0],hyperplane[(i+N*(j-1))*4 + 3]-y0*hyperplane[(i+N*(j-1))*4 + 1])*abs(vb)*dt/h
+                else:
+                    Fb -= forward(t,x0,dt,h,hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 0],hyperplane[(i+N*j)*4 + 3]-y0*hyperplane[(i+N*j)*4 + 1])*abs(vb)*dt/h
+                if (vt > 0): 
+                    Ft -= forward(t,x0,dt,h,hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 0],hyperplane[(i+N*j)*4 + 3]-y1*hyperplane[(i+N*j)*4 + 1])*abs(vt)*dt/h
+                else:
+                    Ft += forward(t,x0,dt,h,hyperplane[(i+N*(j+1))*4 + 2],hyperplane[(i+N*(j+1))*4 + 0],hyperplane[(i+N*(j+1))*4 + 3]-y1*hyperplane[(i+N*(j+1))*4 + 1])*abs(vt)*dt/h
+                
+                tmp_new_vf = old_vf[i][j] + Fl + Fr + Fb + Ft
+                if (tmp_new_vf < 0.0): 
+                    C[(i+N*j)] -= tmp_new_vf
+                elif (tmp_new_vf > 1.0):
+                    C[(i+N*j)] += (tmp_new_vf - 1.0)
+        return C
+    
+    A = np.zeros((4*(2*N+2*(N-1)),N*N*4))
+    lb = -VFTOL*np.ones(4*(2*N+2*(N-1)))
+    ub = VFTOL*np.ones(4*(2*N+2*(N-1)))
+    for i in range(N):
+        for k in range(4):
+            A[i][(i+N*0)*4+k] = 1
+            A[N+i][(i+N*(N-1))*4+k] = 1
+    for j in range(N-2):
+        for k in range(4):
+            A[2*N+j][(0+N*(1+j))*4+k] = 1
+            A[2*N+N-1+j][(N-1+N*(1+j))*4+k] = 1
+
+    boundary_constraint = LinearConstraint(A,lb,ub)
+    boundedness_constraint = NonlinearConstraint(constraint_hlvira3,-VFTOL*np.ones(N*N),VFTOL*np.ones(N*N))
+
+    res = minimize(cost_hlvira3,hyperplane_guess,args=(N,h,old_vf,guess_vf,t,dt),constraints=[boundedness_constraint],options={'maxiter':100},tol=VFTOL)
+    hyperplane = res.x
+    print(res)
+
+    for i in range(1,N-1):
+        for j in range(1,N-1):
+            x0 = i / N; x1 = x0 + h; x = 0.5*(x0+x1)
+            y0 = j / N; y1 = y0 + h; y = 0.5*(y0+y1)
+            ul = U(x0,y,t)
+            ur = U(x1,y,t)
+            vb = V(x,y0,t)
+            vt = V(x,y1,t)
+            Fl=0; Fr=0; Fb=0; Ft=0
+            # UPWIND
+            if (ul > 0):
+                Fl += forward(y0,t,h,dt,hyperplane[(i-1+N*j)*4+1],hyperplane[(i-1+N*j)*4 + 2],hyperplane[(i-1+N*j)*4 + 3]-x0*hyperplane[(i-1+N*j)*4 + 0])*abs(ul)*dt/h
+            else:
+                Fl -= forward(y0,t,h,dt,hyperplane[(i+N*j)*4 + 1],hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 3]-x0*hyperplane[(i+N*j)*4 + 0])*abs(ul)*dt/h
+            if (ur > 0):
+                Fr -= forward(y0,t,h,dt,hyperplane[(i+N*j)*4 + 1],hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 3]-x1*hyperplane[(i+N*j)*4 + 0])*abs(ur)*dt/h
+            else:
+                Fr += forward(y0,t,h,dt,hyperplane[(i+1+N*j)*4 + 1],hyperplane[(i+1+N*j)*4 + 2],hyperplane[(i+1+N*j)*4 + 3]-x1*hyperplane[(i+1+N*j)*4 + 0])*abs(ur)*dt/h
+
+            if (vb > 0):
+                Fb += forward(t,x0,dt,h,hyperplane[(i+N*(j-1))*4 + 2],hyperplane[(i+N*(j-1))*4 + 0],hyperplane[(i+N*(j-1))*4 + 3]-y0*hyperplane[(i+N*(j-1))*4 + 1])*abs(vb)*dt/h
+            else:
+                Fb -= forward(t,x0,dt,h,hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 0],hyperplane[(i+N*j)*4 + 3]-y0*hyperplane[(i+N*j)*4 + 1])*abs(vb)*dt/h
+            if (vt > 0): 
+                Ft -= forward(t,x0,dt,h,hyperplane[(i+N*j)*4 + 2],hyperplane[(i+N*j)*4 + 0],hyperplane[(i+N*j)*4 + 3]-y1*hyperplane[(i+N*j)*4 + 1])*abs(vt)*dt/h
+            else:
+                Ft += forward(t,x0,dt,h,hyperplane[(i+N*(j+1))*4 + 2],hyperplane[(i+N*(j+1))*4 + 0],hyperplane[(i+N*(j+1))*4 + 3]-y1*hyperplane[(i+N*(j+1))*4 + 1])*abs(vt)*dt/h
+            
+            vf[i][j] = old_vf[i][j] + Fl + Fr + Fb + Ft
+
+    return vf
+
+N = 12
 h = 1/N
 dt = 0.01
 Nt = int(1/dt)
@@ -814,7 +939,7 @@ for it in range(Nt):
     old_vf = np.copy(vf)
     guess_vf, norm, dist = split_advect(N,h,old_vf,t,dt)
     # vf = guess_vf
-    vf = stic_advect(N,h,norm,dist,old_vf,guess_vf,t,dt)
+    vf = stic_advect3(N,h,norm,dist,old_vf,guess_vf,t,dt)
     # guess_vf = np.copy(vf)
     # vf = stic_advect(N,h,norm,dist,old_vf,guess_vf,t,dt)
     # vf = stic_advect2(N,h,norm,dist,old_vf,guess_vf,t,dt)
