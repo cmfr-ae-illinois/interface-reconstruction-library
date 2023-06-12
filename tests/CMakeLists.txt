@@ -51,10 +51,10 @@ target_include_directories(irl_test SYSTEM PRIVATE "${EIGEN_INCLUDE_DIR}")
 include(GoogleTest)
 gtest_discover_tests(irl_test)
 set_target_properties(irl_test
-  PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/bin"
-  COMPILE_FLAGS "${IRL_CXX_FLAGS}"
-  CXX_STANDARD 17
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/bin"
+    COMPILE_FLAGS "${IRL_CXX_FLAGS}"
+    CXX_STANDARD 17
 )
 
 if(IRL_USE_ABSL)

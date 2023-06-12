@@ -141,11 +141,11 @@ template <class CuttingMethod, class EncompassingType, class ReconstructionType>
 inline double getVolumeFraction(
     const EncompassingType& a_encompassing_polyhedron,
     const ReconstructionType& a_reconstruction) {
-  double volume_fraction =
+  const double volume_fraction =
       getVolumeMoments<Volume, CuttingMethod>(a_encompassing_polyhedron,
                                               a_reconstruction) /
       safelyTiny(getVolumeMoments<Volume>(a_encompassing_polyhedron));
-  return a_reconstruction.isFlipped() ? 1.0 - volume_fraction : volume_fraction;
+  return volume_fraction;
 }
 
 namespace generic_cutting_details {
@@ -280,8 +280,23 @@ inline ReturnType getVolumeMomentsProvidedStorage<
                                    const ReconstructionType& a_reconstruction) {
   ReturnType volume_moments;
   assert(a_polytope->checkValidHalfEdgeStructure());
-  getVolumeMomentsForPolytope(a_polytope, a_complete_polytope, a_reconstruction,
-                              &volume_moments);
+  if constexpr (IsPlanarSeparator<ReconstructionType>::value) {
+    if (a_reconstruction.isFlipped()) {
+      const auto encompassing_moments =
+          ReturnType::calculateMoments(a_polytope);
+      getVolumeMomentsForPolytope(a_polytope, a_complete_polytope,
+                                  a_reconstruction, &volume_moments);
+      volume_moments = SeparatedMoments<ReturnType>::fillWithComplementMoments(
+          volume_moments, encompassing_moments,
+          a_reconstruction.isFlipped())[0];
+    } else {
+      getVolumeMomentsForPolytope(a_polytope, a_complete_polytope,
+                                  a_reconstruction, &volume_moments);
+    }
+  } else {
+    getVolumeMomentsForPolytope(a_polytope, a_complete_polytope,
+                                a_reconstruction, &volume_moments);
+  }
   return volume_moments;
 }
 
@@ -301,13 +316,28 @@ inline ReturnType getVolumeMomentsProvidedStorage<
                                    HalfEdgePolytopeType* a_complete_polytope,
                                    const ReconstructionType& a_reconstruction) {
   ReturnType volume_moments;
-  getVolumeMomentsForDecomposedPolytope(a_polytope, a_complete_polytope,
-                                        a_reconstruction, &volume_moments);
+  if constexpr (IsPlanarSeparator<ReconstructionType>::value) {
+    if (a_reconstruction.isFlipped()) {
+      const auto encompassing_moments =
+          ReturnType::calculateMoments(a_polytope);
+      getVolumeMomentsForDecomposedPolytope(a_polytope, a_complete_polytope,
+                                            a_reconstruction, &volume_moments);
+      volume_moments = SeparatedMoments<ReturnType>::fillWithComplementMoments(
+          volume_moments, encompassing_moments,
+          a_reconstruction.isFlipped())[0];
+    } else {
+      getVolumeMomentsForDecomposedPolytope(a_polytope, a_complete_polytope,
+                                            a_reconstruction, &volume_moments);
+    }
+  } else {
+    getVolumeMomentsForDecomposedPolytope(a_polytope, a_complete_polytope,
+                                          a_reconstruction, &volume_moments);
+  }
   return volume_moments;
 }
 
 //******************************************************************* //
-//     Getting the un-normalized SeparatedVolumeMomentsfor a
+//     Getting the un-normalized SeparatedVolumeMoments for a
 //     polyhedron that is separated.
 //******************************************************************* //
 template <class ReturnType, class CuttingMethod, class EncompassingType>
@@ -321,8 +351,7 @@ getVolumeMoments<ReturnType, CuttingMethod, EncompassingType, PlanarSeparator,
       IRL::getVolumeMoments<typename ReturnType::moments_type, CuttingMethod>(
           a_encompassing_polyhedron, a_separating_reconstruction);
   auto separated_volume_moments = ReturnType::fillWithComplementMoments(
-      volume_moments, a_encompassing_polyhedron,
-      a_separating_reconstruction.isFlipped());
+      volume_moments, a_encompassing_polyhedron, false);
   return separated_volume_moments;
 }
 
@@ -342,7 +371,7 @@ inline ReturnType getVolumeMomentsProvidedStorage<
       IRL::getVolumeMoments<typename ReturnType::moments_type, HalfEdgeCutting>(
           a_polytope, a_complete_polytope, a_reconstruction);
   auto separated_volume_moments = ReturnType::fillWithComplementMoments(
-      volume_moments, encompassing_moments, a_reconstruction.isFlipped());
+      volume_moments, encompassing_moments, false);
   return separated_volume_moments;
 }
 
@@ -423,7 +452,7 @@ inline ReturnType getVolumeMomentsProvidedStorage<
       IRL::getVolumeMoments<typename ReturnType::moments_type, SimplexCutting>(
           a_polytope, a_complete_polytope, a_reconstruction);
   auto separated_volume_moments = ReturnType::fillWithComplementMoments(
-      volume_moments, encompassing_moments, a_reconstruction.isFlipped());
+      volume_moments, encompassing_moments, false);
   return separated_volume_moments;
 }
 

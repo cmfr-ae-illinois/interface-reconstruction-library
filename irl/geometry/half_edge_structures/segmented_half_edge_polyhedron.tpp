@@ -127,6 +127,16 @@ VolumeMoments SegmentedHalfEdgePolyhedronCommon<
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
+template <std::size_t ORDER>
+GeneralMoments3D<ORDER>
+SegmentedHalfEdgePolyhedronCommon<FaceType, VertexType, kMaxFaces,
+                                  kMaxVertices>::calculateGeneralMoments(void) {
+  return segmented_half_edge_polyhedron_detail::calculateMoments(
+      this, GeneralMoments3D_Functor<ORDER>());
+}
+
+template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
+          UnsignedIndex_t kMaxVertices>
 bool SegmentedHalfEdgePolyhedronCommon<
     FaceType, VertexType, kMaxFaces,
     kMaxVertices>::checkValidHalfEdgeStructure(void) {
