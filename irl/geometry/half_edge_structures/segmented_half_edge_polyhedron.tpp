@@ -147,6 +147,7 @@ bool SegmentedHalfEdgePolyhedronCommon<
   for (auto& face : (*this)) {
     bool valid_face = face->checkValidFace();
     if (!valid_face) {
+      std::cout << "Face not valid. \n" << std::endl;
       return false;
     }
     this->markFacesTouchedByOpposite(face, &face_found_through_opposite);
@@ -224,14 +225,15 @@ bool SegmentedHalfEdgePolyhedronCommon<
         for (const auto& face : (*this)) {
           std::cout << face << std::endl;
         }
-        std::cout << "Vertex being cycle " << this->getVertex(v)->getLocation()
-                  << std::endl;
+        std::cout << "Vertex being cycle "
+                  << this->getVertex(v)->getLocation().getPt() << std::endl;
         std::cout << "Half edges on this vertex come from: " << std::endl;
         const HalfEdgeType* error_half_edge_cycling = current_half_edge;
         do {
-          std::cout
-              << error_half_edge_cycling->getPreviousVertex()->getLocation()
-              << std::endl;
+          std::cout << error_half_edge_cycling->getPreviousVertex()
+                           ->getLocation()
+                           .getPt()
+                    << std::endl;
           error_half_edge_cycling =
               error_half_edge_cycling->getOppositeHalfEdge()
                   ->getPreviousHalfEdge();

@@ -12,53 +12,59 @@
 
 namespace IRL {
 
-template <class Derived, class AttachedDataType>
-Derived& PtWithDataCommon<Derived, AttachedDataType>::getDerived(void) {
+template <class Derived, class AttachedDataType, class ScalarType>
+Derived& PtWithDataCommon<Derived, AttachedDataType, ScalarType>::getDerived(
+    void) {
   return static_cast<Derived&>(*this);
 }
-template <class Derived, class AttachedDataType>
-const Derived& PtWithDataCommon<Derived, AttachedDataType>::getDerived(
-    void) const {
+template <class Derived, class AttachedDataType, class ScalarType>
+const Derived& PtWithDataCommon<Derived, AttachedDataType,
+                                ScalarType>::getDerived(void) const {
   return static_cast<const Derived&>(*this);
 }
 
-template <class Derived, class AttachedDataType>
-PtWithDataCommon<Derived, AttachedDataType>::PtWithDataCommon(
-    const Pt& a_pt, const AttachedDataType& a_data)
+template <class Derived, class AttachedDataType, class ScalarType>
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::PtWithDataCommon(
+    const PtBase<ScalarType>& a_pt, const AttachedDataType& a_data)
     : base_pt_m(a_pt), data_m(a_data) {}
 
-template <class Derived, class AttachedDataType>
-PtWithDataCommon<Derived, AttachedDataType>::PtWithDataCommon(const Pt& a_pt)
+template <class Derived, class AttachedDataType, class ScalarType>
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::PtWithDataCommon(
+    const PtBase<ScalarType>& a_pt)
     : base_pt_m(a_pt) {}
 
-template <class Derived, class AttachedDataType>
-double& PtWithDataCommon<Derived, AttachedDataType>::operator[](
+template <class Derived, class AttachedDataType, class ScalarType>
+ScalarType& PtWithDataCommon<Derived, AttachedDataType, ScalarType>::operator[](
     const UnsignedIndex_t a_index) {
   return base_pt_m[a_index];
 }
-template <class Derived, class AttachedDataType>
-const double& PtWithDataCommon<Derived, AttachedDataType>::operator[](
+template <class Derived, class AttachedDataType, class ScalarType>
+const ScalarType&
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::operator[](
     const UnsignedIndex_t a_index) const {
   return base_pt_m[a_index];
 }
 
-template <class Derived, class AttachedDataType>
-Pt& PtWithDataCommon<Derived, AttachedDataType>::getPt(void) {
+template <class Derived, class AttachedDataType, class ScalarType>
+PtBase<ScalarType>&
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::getPt(void) {
   return base_pt_m;
 }
 
-template <class Derived, class AttachedDataType>
-const Pt& PtWithDataCommon<Derived, AttachedDataType>::getPt(void) const {
+template <class Derived, class AttachedDataType, class ScalarType>
+const PtBase<ScalarType>&
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::getPt(void) const {
   return base_pt_m;
 }
 
-template <class Derived, class AttachedDataType>
-AttachedDataType& PtWithDataCommon<Derived, AttachedDataType>::getData(void) {
+template <class Derived, class AttachedDataType, class ScalarType>
+AttachedDataType&
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::getData(void) {
   return data_m;
 }
-template <class Derived, class AttachedDataType>
-const AttachedDataType& PtWithDataCommon<Derived, AttachedDataType>::getData(
-    void) const {
+template <class Derived, class AttachedDataType, class ScalarType>
+const AttachedDataType&
+PtWithDataCommon<Derived, AttachedDataType, ScalarType>::getData(void) const {
   return data_m;
 }
 
@@ -66,7 +72,7 @@ template <class FunctorType, UnsignedIndex_t kArrayLength>
 PtWithDoublesStatelessFunctor<
     FunctorType, kArrayLength>::PtWithDoublesStatelessFunctor(const Pt& a_pt)
     : PtWithDataCommon<PtWithDoublesStatelessFunctor<FunctorType, kArrayLength>,
-                       std::array<double, kArrayLength>>(a_pt) {
+                       std::array<double, kArrayLength>, double>(a_pt) {
   this->getData().fill(0.0);
 }
 
@@ -129,4 +135,4 @@ std::ostream& operator<<(
 
 }  // namespace IRL
 
-#endif // IRL_GEOMETRY_GENERAL_PT_WITH_DATA_TPP_
+#endif  // IRL_GEOMETRY_GENERAL_PT_WITH_DATA_TPP_
