@@ -482,7 +482,7 @@ void ProgressiveDistanceSolverParaboloid<CellType>::solveForDistance(
   //           << moments.getMoments().volume() / cell_volume -
   //                  target_volume_fraction_m
   //           << std::endl;
-  distances_m = -DBL_MAX;
+  distances_m = bounding_values[1];
 
   return;
 }  // namespace IRL

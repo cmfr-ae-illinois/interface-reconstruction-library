@@ -32,6 +32,7 @@
 #include "irl/geometry/polyhedrons/general_polyhedron.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
+#include "irl/moments/general_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/paraboloid_reconstruction/parametrized_surface.h"
 #include "irl/planar_reconstruction/planar_separator.h"
@@ -327,7 +328,7 @@ TEST(ParaboloidIntersection, Dodecahedron) {
   HalfEdgePolyhedronParaboloid<Pt> half_edge;
   // Create random number generator and seed it with entropy
   std::random_device rd;
-  std::mt19937_64 eng(rd());
+  std::mt19937_64 eng(0);  // rd());
 
   // Bounds of paraboloid parameters
   std::uniform_real_distribution<double> random_rotation(-0.5 * M_PI,
@@ -409,8 +410,9 @@ TEST(ParaboloidIntersection, Dodecahedron) {
     // Calculate volume of unclipped dodecahedron using IRL
     const auto paraboloid = Paraboloid(datum, frame, aligned_paraboloid.a(),
                                        aligned_paraboloid.b());
+
     auto our_volume_moments =
-        getVolumeMoments<VolumeMoments>(dodeca, paraboloid);
+        getVolumeMoments<GeneralMoments3D<2>>(dodeca, paraboloid);
     std::cout << "-------------------------------------------------------------"
                  "---------------------------------------------------------"
               << std::endl;
@@ -421,29 +423,54 @@ TEST(ParaboloidIntersection, Dodecahedron) {
       std::cout << "HYPERBOLIC" << std::endl;
     else
       std::cout << "PARABOLIC" << std::endl;
-    std::cout << std::setprecision(20) << "Vfrac unclipped IRL = "
-              << our_volume_moments.volume() / poly_vol << std::endl;
-    std::cout << std::setprecision(20) << "Vfrac unclipped AMR = "
-              << amr_volume_moments.volume() / poly_vol << std::endl;
+    std::cout << std::setprecision(20)
+              << "M0 unclipped IRL = " << our_volume_moments[0] / poly_vol
+              << std::endl;
+    std::cout << std::setprecision(20)
+              << "M0 unclipped AMR = " << amr_volume_moments.volume() / poly_vol
+              << std::endl;
     std::cout << "Diff AMR/IRL = "
-              << std::fabs(our_volume_moments.volume() -
+              << std::fabs(our_volume_moments[0] -
                            amr_volume_moments.volume()) /
+                     poly_vol
+              << std::endl;
+
+    auto pt = Pt(0, 0, 0);
+    for (UnsignedIndex_t d = 0; d < 3; ++d) {
+      for (UnsignedIndex_t n = 0; n < 3; ++n) {
+        pt[n] += frame[d][n] * amr_volume_moments.centroid().getPt()[d];
+      }
+    }
+    pt += amr_volume_moments.volume() * datum;
+    amr_volume_moments.centroid().getPt() = pt;
+
+    std::cout << std::setprecision(20) << "M1 unclipped IRL = "
+              << Pt(our_volume_moments[1], our_volume_moments[2],
+                    our_volume_moments[3]) /
+                     poly_vol
+              << std::endl;
+    std::cout << std::setprecision(20) << "M1 unclipped AMR = "
+              << amr_volume_moments.centroid() / poly_vol << std::endl;
+    std::cout << "Diff AMR/IRL = "
+              << Pt(Pt(our_volume_moments[1], our_volume_moments[2],
+                       our_volume_moments[3]) -
+                    amr_volume_moments.centroid()) /
                      poly_vol
               << std::endl;
     std::cout << "-------------------------------------------------------------"
                  "---------------------------------------------------------"
               << std::endl;
 
-    max_error = max_error > std::fabs(our_volume_moments.volume() -
-                                      amr_volume_moments.volume()) /
-                                poly_vol
-                    ? max_error
-                    : std::fabs(our_volume_moments.volume() -
-                                amr_volume_moments.volume()) /
-                          poly_vol;
+    max_error =
+        max_error >
+                std::fabs(our_volume_moments[0] - amr_volume_moments.volume()) /
+                    poly_vol
+            ? max_error
+            : std::fabs(our_volume_moments[0] - amr_volume_moments.volume()) /
+                  poly_vol;
     rms_error +=
-        std::fabs(our_volume_moments.volume() - amr_volume_moments.volume()) *
-        std::fabs(our_volume_moments.volume() - amr_volume_moments.volume()) /
+        std::fabs(our_volume_moments[0] - amr_volume_moments.volume()) *
+        std::fabs(our_volume_moments[0] - amr_volume_moments.volume()) /
         poly_vol / poly_vol;
   }
   rms_error = sqrt(rms_error / static_cast<double>(Ntests));
@@ -485,7 +512,7 @@ TEST(ParaboloidIntersection, SISCPaperFig5) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], paraboloid);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
-    auto temp_tri_surface = temp_param_surface.triangulate(0.025);
+    auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
   }
 
@@ -1215,6 +1242,43 @@ TEST(ParaboloidIntersection, AutoDiff) {
                     first_moments.volume().value()) /
                        epsilon
             << std::endl;
+}
+
+TEST(ParaboloidIntersection, AutoDiffM2) {
+  using MyGradientType = ParaboloidGradientLocalBase<double>;
+  using MyScalarType = ScalarWithGradientBase<double, MyGradientType>;
+  using MyPtType = PtBase<MyScalarType>;
+  using MyMomentType = GeneralMomentsBase<2, 3, MyScalarType>;
+
+  auto ZERO = MyScalarType(0);
+  auto ONE = MyScalarType(1);
+
+  auto frame = ReferenceFrameBase<MyScalarType>(
+      NormalBase<MyScalarType>(ONE, ZERO, ZERO),
+      NormalBase<MyScalarType>(ZERO, ONE, ZERO),
+      NormalBase<MyScalarType>(ZERO, ZERO, ONE));
+  auto datum = PtBase<MyScalarType>(ZERO, ZERO, ZERO);
+  auto paraboloid = ParaboloidBase<MyScalarType>(datum, frame, ONE, ONE);
+
+  std::array<double, 3> angles({0.21423, 9.534252345, 3.463454});
+  UnitQuaternion x_rot(angles[0], Normal(1, 0, 0));
+  UnitQuaternion y_rot(angles[1], Normal(0, 1, 0));
+  UnitQuaternion z_rot(angles[2], Normal(0, 0, 1));
+  auto rotated_frame =
+      x_rot * y_rot * z_rot *
+      ReferenceFrame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  auto unit_cube = unit_cell;
+  // for (auto& vertex : unit_cube) {
+  //   Pt tmp_pt = vertex;
+  //   for (UnsignedIndex_t d = 0; d < 3; ++d) {
+  //     vertex[d] = rotated_frame[d] * tmp_pt;
+  //   }
+  // }
+
+  auto cube = StoredRectangularCuboid<MyPtType>::fromOtherPolytope(unit_cube);
+
+  const auto moments = getVolumeMoments<MyMomentType>(cube, paraboloid);
+  std::cout << "Moments = " << moments << std::endl;
 }
 
 }  // namespace

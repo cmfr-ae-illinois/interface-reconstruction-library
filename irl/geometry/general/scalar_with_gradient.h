@@ -59,7 +59,6 @@ class ScalarWithGradientBase {
     for (UnsignedIndex_t i = 0; i < new_grad.rows(); ++i) {
       for (UnsignedIndex_t j = 0; j < new_grad.cols(); ++j) {
         new_grad(i, j) = static_cast<FloatType>(other_grad(i, j));
-        new_grad(i, j) = static_cast<FloatType>(other_grad(i, j));
       }
     }
   }
@@ -581,7 +580,9 @@ template <class FloatType, class GradientType>
 inline std::ostream& operator<<(
     std::ostream& out,
     const ScalarWithGradientBase<FloatType, GradientType>& a_scalar) {
-  out << a_scalar.value();
+  out << std::scientific << std::setprecision(6) << std::showpos
+      << a_scalar.value() << std::setprecision(3)
+      << " (grad = " << a_scalar.gradient() << ")";
   return out;
 }
 

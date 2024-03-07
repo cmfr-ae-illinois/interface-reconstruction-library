@@ -33,6 +33,12 @@ inline ScalarType signedDistance(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid);
 
 template <class ReturnType, class ScalarType>
+ReturnType computeType1ContributionQuadrature(
+    const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
+    const NormalBase<ScalarType>& a_face_normal,
+    const UnsignedIndex_t a_max_normal_index);
+
+template <class ReturnType, class ScalarType>
 ReturnType computeType1Contribution(const PtBase<ScalarType>& a_ref_pt,
                                     const PtBase<ScalarType>& a_pt_0,
                                     const PtBase<ScalarType>& a_pt_1);

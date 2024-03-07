@@ -116,7 +116,7 @@ inline void ParaboloidGradientLocalZ::setGradRz(const double a_rhs) {}
 template <class ScalarType>
 inline ParaboloidGradientLocalBase<ScalarType>::ParaboloidGradientLocalBase(
     void) {
-  gradient_m.setZero();
+  gradient_m.setConstant(static_cast<ScalarType>(0));
 }
 
 template <class ScalarType>

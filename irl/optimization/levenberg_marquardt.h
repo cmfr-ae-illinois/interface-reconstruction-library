@@ -184,8 +184,69 @@ class LevenbergMarquardt<OptimizingClass, -1, kColumns> {
   Eigen::Matrix<double, kColumns, 1> rhs_precond_m;
 };
 
+template <class OptimizingClass, int kRows, int kColumns>
+class LevenbergMarquardtNew {
+ public:
+  /// \brief Default construction
+  LevenbergMarquardtNew(void);
+
+  /// \brief Assigns otype_m to a new pointer and then solves.
+  void solve(OptimizingClass* a_setup_otype,
+             const Eigen::Matrix<double, kColumns, 1>& a_jacobian_delta);
+
+  /// \brief Return reason for exiting by integer
+  int getReason(void);
+
+  /// \brief Return the number of iterations it took until exit.
+  UnsignedIndex_t getIterationCount(void);
+
+  /// \brief Default dedstructor
+  ~LevenbergMarquardtNew(void) = default;
+
+ private:
+  /// \brief Perform non-linear optimization.
+  void solve(const Eigen::Matrix<double, kColumns, 1>& a_jacobian_delta);
+
+  /// \brief Calculate jacobian using first-order finite difference.
+  void calculateJacobian(
+      const Eigen::Matrix<double, kColumns, 1>& a_delta,
+      Eigen::Matrix<double, kColumns, kRows>* a_jacobian_tranpose,
+      Eigen::Matrix<double, kColumns, kColumns>* a_jacTjac);
+
+  /// \brief Pointer to object of class `OptimizingClass`
+  /// that is being optimized.
+  OptimizingClass* otype_m;
+  /// \brief Iterations of Levenberg-Marquardt algorithm.
+  UnsignedIndex_t iteration_m;
+  /// \brief Integer indicating reason for Levenberg-Marquardt exiting.
+  ///
+  /// Reasons:
+  /// - >= 0 : Number of iterations taken reduce error to acceptable level.
+  /// - -1 : Exited due to exceeding maximum number of iterations.
+  /// - -2 : Exited due to minimum reached (largest magnitude in delta
+  /// less than set amount).
+  int reason_for_exit_m;
+  /// \brief Transpose of Jacobian for guess vector.
+  Eigen::Matrix<double, kColumns, kRows> jacobian_transpose_m;
+  /// \brief Matrix `jacTJac_m` =  `jacobian_transpose_m` *
+  /// tranpose(jacobian_transpose_m).
+  Eigen::Matrix<double, kColumns, kColumns> jacTjac_m;
+  /// \brief Change in parameters being fit.
+  Eigen::Matrix<double, kColumns, 1> delta_m;
+  /// \brief (JacTJac_m + lambda*I), and preconditioned with Jacobi
+  /// pre-conditioner.
+  Eigen::Matrix<double, kColumns, kColumns> A_m;
+  /// \brief Error vector of correct - guess
+  Eigen::Matrix<double, kRows, 1> vector_error_m;
+  /// \brief RHS of (JacTJac_m + lambda*I)*delta =
+  /// `jacobian_transpose_m`*(`vector_error_m`)
+  Eigen::Matrix<double, kColumns, 1> rhs_m;
+  /// \brief `rhs_m` with Jacobi preconditioner applied.
+  Eigen::Matrix<double, kColumns, 1> rhs_precond_m;
+};
+
 }  // namespace IRL
 
 #include "irl/optimization/levenberg_marquardt.tpp"
 
-#endif // IRL_OPTIMIZATION_LEVENBERG_MARQUARDT_H_
+#endif  // IRL_OPTIMIZATION_LEVENBERG_MARQUARDT_H_

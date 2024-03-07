@@ -16,7 +16,7 @@ template <class ScalarType>
 inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(void)
     : weight_m{ScalarType(0)},
       start_point_m{ScalarType(0), ScalarType(0), ScalarType(0)},
-      start_point_id_m{ScalarType(0)},
+      start_point_id_m{0},
       control_point_m{ScalarType(0), ScalarType(0), ScalarType(0)},
       end_point_m{ScalarType(0), ScalarType(0), ScalarType(0)},
       end_point_id_m{0} {}
@@ -266,30 +266,34 @@ inline const PtBase<ScalarType>& RationalBezierArcBase<ScalarType>::end_point(
 }
 
 template <class ScalarType>
-inline PtBase<ScalarType> RationalBezierArcBase<ScalarType>::point(
+inline const PtBase<ScalarType> RationalBezierArcBase<ScalarType>::point(
     const ScalarType t) const {
-  assert(t >= 0.0 && t <= 1.0);
-  if (weight_m > 1.0e15) {
-    if (t < 0.5) {
-      return PtBase<ScalarType>((1.0 - 2.0 * t) * start_point_m +
-                                2.0 * t * control_point_m);
+  /* Defining constants and types */
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
+
+  assert(t >= ZERO && t <= ONE);
+  if (weight_m > ScalarType(1.0e15)) {
+    if (t < ONE / TWO) {
+      return PtBase<ScalarType>((ONE - TWO * t) * start_point_m +
+                                TWO * t * control_point_m);
     } else {
-      return PtBase<ScalarType>((2.0 - 2.0 * t) * control_point_m +
-                                (2.0 * t - 1.0) * end_point_m);
+      return PtBase<ScalarType>((TWO - TWO * t) * control_point_m +
+                                (TWO * t - ONE) * end_point_m);
     }
   } else {
     const ScalarType denominator =
-        (1.0 - t) * (1.0 - t) + 2.0 * weight_m * t * (1.0 - t) + t * t;
-    PtBase<ScalarType> derivative =
-        ((1.0 - t) * (1.0 - t) * start_point_m +
-         2.0 * weight_m * t * (1.0 - t) * control_point_m +
-         t * t * end_point_m);
-    return derivative / denominator;
+        (ONE - t) * (ONE - t) + TWO * weight_m * t * (ONE - t) + t * t;
+    auto numerator = PtBase<ScalarType>(
+        (ONE - t) * (ONE - t) * start_point_m +
+        TWO * weight_m * t * (ONE - t) * control_point_m + t * t * end_point_m);
+    return numerator / denominator;
   }
 }
 
 template <class ScalarType>
-inline PtBase<ScalarType> RationalBezierArcBase<ScalarType>::derivative(
+inline const PtBase<ScalarType> RationalBezierArcBase<ScalarType>::derivative(
     const ScalarType t) const {
   /* Defining constants and types */
   const ScalarType ZERO = ScalarType(0);
@@ -308,11 +312,11 @@ inline PtBase<ScalarType> RationalBezierArcBase<ScalarType>::derivative(
     ScalarType denominator =
         (ONE - t) * (ONE - t) + TWO * weight_m * t * (ONE - t) + t * t;
     denominator *= denominator;
-    PtBase<ScalarType> derivative =
-        (TWO * (start_point_m - end_point_m) * (ONE - weight_m) * t * t +
-         FOUR * (start_point_m - control_point_m) * weight_m * t -
-         TWO * (start_point_m - end_point_m) * t -
-         TWO * weight_m * (start_point_m - control_point_m));
+    auto derivative = PtBase<ScalarType>(
+        TWO * (start_point_m - end_point_m) * (ONE - weight_m) * t * t +
+        FOUR * (start_point_m - control_point_m) * weight_m * t -
+        TWO * (start_point_m - end_point_m) * t -
+        TWO * weight_m * (start_point_m - control_point_m));
     return derivative / denominator;
   }
 }

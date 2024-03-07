@@ -27,8 +27,11 @@
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/geometry/half_edge_structures/brep_to_half_edge.h"
 #include "irl/helpers/mymath.h"
+#include "irl/moments/general_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
+
+#define NUMERICAL_INTEGRATION
 
 namespace IRL {
 
@@ -302,8 +305,8 @@ ReturnType computeType3ContributionWithSplit(
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
     // Calculate type 3 contribution of arc
-    auto moments =
-        computeType3Contribution<ReturnType, ScalarType>(a_paraboloid, arc);
+    auto moments = computeType3Contribution<ReturnType, ScalarType>(
+        a_paraboloid, arc, a_plane_normal);
     // If the arc was split, then we need to add the contribution of the
     // space between the splitted arcs and the orignial arc
     if (!(&a_pt_ref == &a_pt_0 || &a_pt_ref == &a_pt_1)) {
@@ -316,11 +319,13 @@ ReturnType computeType3ContributionWithSplit(
 
 /**************** Calculate line contribution ******************/
 // Starts from an entry, returns the exit that is reached.
-template <class ReturnType, class ScalarType, class HalfEdgeType, class PtType>
+template <class ReturnType, class ScalarType, class HalfEdgeType, class PtType,
+          class NormalType>
 ReturnType computeUnclippedSegmentType1Contribution(
     const AlignedParaboloidBase<ScalarType>& a_aligned_paraboloid,
     const PtType& a_ref_pt, const HalfEdgeType a_entry_half_edge,
-    HalfEdgeType& a_exit_half_edge, const bool skip_first) {
+    HalfEdgeType& a_exit_half_edge, bool* skip_first,
+    const NormalType& a_face_normal, const UnsignedIndex_t a_proj_dir) {
   // Defining constants and types
   using ReturnScalarType = typename ReturnType::value_type;
   const ScalarType ZERO = ScalarType(0);
@@ -335,28 +340,23 @@ ReturnType computeUnclippedSegmentType1Contribution(
   // Traverse face and add type 1 moment contribution of unclipped edge
   auto current_half_edge = a_entry_half_edge->getNextHalfEdge();
   auto vertex = current_half_edge->getVertex();
-  if (skip_first && vertex->needsToSeek()) {
-    current_half_edge = current_half_edge->getNextHalfEdge();
-  }
   auto prev_pt = current_half_edge->getPreviousVertex()->getLocation();
 
-  if (!(skip_first && vertex->doesNotNeedToSeek())) {
-    while (true) {
-      vertex = current_half_edge->getVertex();
-      const auto& curr_pt = vertex->getLocation();
-      full_moments += computeType1Contribution<ReturnType, ScalarType>(
-          a_ref_pt, prev_pt, curr_pt);
-      if (vertex->needsToSeek()) {
-        prev_pt = curr_pt;
-        current_half_edge = current_half_edge->getNextHalfEdge();
-      } else {
-        assert(!(current_half_edge->getPreviousVertex()->isClipped() ||
-                 (current_half_edge->getPreviousVertex()->doesNotNeedToSeek() &&
-                  current_half_edge->getNextHalfEdge()
-                      ->getVertex()
-                      ->isNotClipped())));
-        break;
-      }
+  while (true) {
+    vertex = current_half_edge->getVertex();
+    const auto& curr_pt = vertex->getLocation();
+    full_moments += computeType1Contribution<ReturnType, ScalarType>(
+        a_ref_pt, prev_pt, curr_pt, skip_first, false, a_face_normal,
+        a_proj_dir);
+    if (vertex->needsToSeek()) {
+      prev_pt = curr_pt;
+      current_half_edge = current_half_edge->getNextHalfEdge();
+    } else {
+      assert(!(
+          current_half_edge->getPreviousVertex()->isClipped() ||
+          (current_half_edge->getPreviousVertex()->doesNotNeedToSeek() &&
+           current_half_edge->getNextHalfEdge()->getVertex()->isNotClipped())));
+      break;
     }
   }
   // Return the last exit intersection encounrtered
@@ -366,21 +366,21 @@ ReturnType computeUnclippedSegmentType1Contribution(
 
 /**************** Calculate all arc contributions ******************/
 template <class ReturnType, class ScalarType, class HalfEdgeType,
-          class SurfaceOutputType, class PtType>
+          class SurfaceOutputType, class PtType, class NormalType>
 ReturnType computeNewEdgeSegmentContribution(
     const AlignedParaboloidBase<ScalarType>& a_aligned_paraboloid,
     const PtType& a_ref_pt, const HalfEdgeType a_entry_half_edge,
-    const HalfEdgeType a_exit_half_edge, const bool skip_first,
+    const HalfEdgeType a_exit_half_edge, bool* skip_first,
+    const NormalType& a_face_normal, const UnsignedIndex_t a_proj_dir,
     const bool a_ignore_type3, bool* a_requires_nudge,
     SurfaceOutputType* a_surface) {
   using ReturnScalarType = typename ReturnType::value_type;
   ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
   // Handle new edge on exit->entry
-  if (!skip_first) {
-    full_moments += computeType1Contribution<ReturnType, ScalarType>(
-        a_ref_pt, a_exit_half_edge->getVertex()->getLocation(),
-        a_entry_half_edge->getVertex()->getLocation());
-  }
+  full_moments += computeType1Contribution<ReturnType, ScalarType>(
+      a_ref_pt, a_exit_half_edge->getVertex()->getLocation(),
+      a_entry_half_edge->getVertex()->getLocation(), skip_first, true,
+      a_face_normal, a_proj_dir);
   full_moments += computeType2Contribution<ReturnType, ScalarType>(
       a_aligned_paraboloid, a_exit_half_edge->getVertex()->getLocation(),
       a_entry_half_edge->getVertex()->getLocation());
@@ -509,7 +509,7 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
   // Define scale so that the polyhedron's volume is O(1)
   const ScalarType inv_scale =
       maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
-  const ScalarType inv_volume_scale = inv_scale * max_dist_sq;
+  const ScalarType inv_volume_scale = inv_scale * inv_scale * inv_scale;
   const ScalarType scale = ScalarType(ONE) / inv_scale;
   const ScalarType volume_scale = scale * scale * scale;
 
@@ -523,32 +523,6 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
   auto scaled_aligned_paraboloid = AlignedParaboloid(std::array<ScalarType, 2>{
       paraboloid.getAlignedParaboloid().a() * inv_scale,
       paraboloid.getAlignedParaboloid().b() * inv_scale});
-
-  // if constexpr (has_embedded_gradient<ScalarType>::value) {
-  //   scaled_aligned_paraboloid.a().gradient().setGradA(inv_scale.value());
-  //   scaled_aligned_paraboloid.b().gradient().setGradB(inv_scale.value());
-  //   for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
-  //     auto& pt = a_polytope->getVertex(v)->getLocation().getPt();
-  //     pt[0].gradient().setGradTx(-scale.value());
-  //     pt[1].gradient().setGradTx(FloatType(0));
-  //     pt[2].gradient().setGradTx(FloatType(0));
-  //     pt[0].gradient().setGradTy(FloatType(0));
-  //     pt[1].gradient().setGradTy(-scale.value());
-  //     pt[2].gradient().setGradTy(FloatType(0));
-  //     pt[0].gradient().setGradTz(FloatType(0));
-  //     pt[1].gradient().setGradTz(FloatType(0));
-  //     pt[2].gradient().setGradTz(-scale.value());
-  //     pt[0].gradient().setGradRx(FloatType(0));
-  //     pt[1].gradient().setGradRx(scale.value() * pt[2].value());
-  //     pt[2].gradient().setGradRx(-scale.value() * pt[1].value());
-  //     pt[0].gradient().setGradRy(-scale.value() * pt[2].value());
-  //     pt[1].gradient().setGradRy(FloatType(0));
-  //     pt[2].gradient().setGradRy(scale.value() * pt[0].value());
-  //     pt[0].gradient().setGradRz(scale.value() * pt[1].value());
-  //     pt[1].gradient().setGradRz(-scale.value() * pt[0].value());
-  //     pt[2].gradient().setGradRz(FloatType(0));
-  //   }
-  // }
 
   // Compute moments of intersection
   if constexpr (has_paraboloid_surface<ReturnType>::value) {
@@ -578,9 +552,22 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
       arc_list[i].control_point() *= static_cast<double>(inv_scale);
       arc_list[i].end_point() *= static_cast<double>(inv_scale);
     }
-  } else if constexpr (!is_moments_volume<ReturnType>::value) {
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeMomentsBase<ScalarType>>) {
     moments.centroid().getPt() *= inv_volume_scale * inv_scale;
     moments.volume() *= inv_volume_scale;
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      GeneralMomentsBase<2, 3, ScalarType>>) {
+    moments[0] *= inv_volume_scale;
+    moments[1] *= inv_volume_scale * inv_scale;
+    moments[2] *= inv_volume_scale * inv_scale;
+    moments[3] *= inv_volume_scale * inv_scale;
+    moments[4] *= inv_volume_scale * inv_scale * inv_scale;
+    moments[5] *= inv_volume_scale * inv_scale * inv_scale;
+    moments[6] *= inv_volume_scale * inv_scale * inv_scale;
+    moments[7] *= inv_volume_scale * inv_scale * inv_scale;
+    moments[8] *= inv_volume_scale * inv_scale * inv_scale;
+    moments[9] *= inv_volume_scale * inv_scale * inv_scale;
   } else {
     moments.volume() *= inv_volume_scale;
   }
@@ -597,17 +584,44 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
       pt += moments.getMoments().volume() * datum;
       moments.getMoments().centroid().getPt() = pt;
     }
-  }
-  if constexpr (!has_paraboloid_surface<ReturnType>::value &&
-                (!is_moments_volume<ReturnType>::value)) {
-    auto pt = Pt(ZERO, ZERO, ZERO);
-    for (UnsignedIndex_t d = 0; d < 3; ++d) {
-      for (UnsignedIndex_t n = 0; n < 3; ++n) {
-        pt[n] += ref_frame[d][n] * moments.centroid().getPt()[d];
+  } else {
+    if constexpr (std::is_same_v<ReturnType, VolumeMomentsBase<ScalarType>>) {
+      auto pt = Pt(ZERO, ZERO, ZERO);
+      for (UnsignedIndex_t d = 0; d < 3; ++d) {
+        for (UnsignedIndex_t n = 0; n < 3; ++n) {
+          pt[n] += ref_frame[d][n] * moments.centroid().getPt()[d];
+        }
       }
+      pt += moments.volume() * datum;
+      moments.centroid().getPt() = pt;
+    } else if constexpr (std::is_same_v<ReturnType,
+                                        GeneralMomentsBase<2, 3, ScalarType>>) {
+      const Eigen::Matrix<ScalarType, 3, 1> D{datum[0], datum[1], datum[2]};
+      const Eigen::Matrix<ScalarType, 3, 3> R{
+          {ref_frame[0][0], ref_frame[1][0], ref_frame[2][0]},
+          {ref_frame[0][1], ref_frame[1][1], ref_frame[2][1]},
+          {ref_frame[0][2], ref_frame[1][2], ref_frame[2][2]}};
+      const ScalarType M0 = moments[0];
+      const Eigen::Matrix<ScalarType, 3, 1> M1prime{moments[1], moments[2],
+                                                    moments[3]};
+      const Eigen::Matrix<ScalarType, 3, 3> M2prime{
+          {moments[4], moments[5], moments[6]},
+          {moments[5], moments[7], moments[8]},
+          {moments[6], moments[8], moments[9]}};
+      const Eigen::Matrix<ScalarType, 3, 1> M1 = R * M1prime + M0 * D;
+      const Eigen::Matrix<ScalarType, 3, 3> M2 =
+          R * M2prime * R.transpose() + R * (M1prime * D.transpose()) +
+          (D * M1prime.transpose()) * R.transpose() + M0 * (D * D.transpose());
+      moments[1] = M1(0);
+      moments[2] = M1(1);
+      moments[3] = M1(2);
+      moments[4] = M2(0, 0);
+      moments[5] = M2(0, 1);
+      moments[6] = M2(0, 2);
+      moments[7] = M2(1, 1);
+      moments[8] = M2(1, 2);
+      moments[9] = M2(2, 2);
     }
-    pt += moments.volume() * datum;
-    moments.centroid().getPt() = pt;
   }
 
   return moments;
@@ -959,8 +973,8 @@ ReturnType orientAndApplyType3Correction(
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
-      return computeType3Contribution<ReturnType, ScalarType>(a_paraboloid,
-                                                              arc);
+      return computeType3Contribution<ReturnType, ScalarType>(a_paraboloid, arc,
+                                                              face_normal);
     }
   }  // CASE: The arc is from an ellipse
   else {
@@ -2141,7 +2155,7 @@ formParaboloidIntersectionBases(
     // gradient will stay 0 and minimization algorithms will get "stuck")
     if constexpr (has_embedded_gradient<ScalarType>::value) {
       // If volume == 0, then there are no face-only intersections
-      if (ScalarType(full_moments.volume()) == ZERO) {
+      if (ReturnScalarType(full_moments.volume()) == ReturnScalarType(0)) {
         // Find vertex closest to the paraboloid
         ScalarType min_dist = ScalarType(DBL_MAX);
         pt_type closest_pt;
@@ -2205,6 +2219,63 @@ formParaboloidIntersectionBases(
       break;
     }
 
+    // Find main normal direction
+    UnsignedIndex_t max_component_index = 0;
+    ScalarType max_component = fabs(face_normal[0]);
+    for (UnsignedIndex_t d = 1; d < 3; ++d) {
+      if (fabs(face_normal[d]) > max_component) {
+        max_component_index = d;
+        max_component = fabs(face_normal[d]);
+      }
+    }
+    // #ifdef NUMERICAL_INTEGRATION
+    //     // Find main normal direction
+    //     UnsignedIndex_t max_component_index = 0;
+    //     ScalarType max_component = fabs(face_normal[0]);
+    //     for (UnsignedIndex_t d = 1; d < 3; ++d) {
+    //       if (fabs(face_normal[d]) > max_component) {
+    //         max_component_index = d;
+    //         max_component = fabs(face_normal[d]);
+    //       }
+    //     }
+
+    //     if (intersection_size == 0) {
+    //       if (starting_half_edge->getVertex()->isNotClipped()) {
+    //         auto type1_m = full_moments;
+    //         auto current_half_edge = starting_half_edge;
+    //         auto prev_pt =
+    //         current_half_edge->getPreviousVertex()->getLocation(); do {
+    //           const auto& curr_pt =
+    //           current_half_edge->getVertex()->getLocation(); full_moments +=
+    //               computeType1ContributionQuadrature<ReturnType, ScalarType>(
+    //                   prev_pt, curr_pt, face_normal, max_component_index);
+    //           prev_pt = curr_pt;
+    //           current_half_edge = current_half_edge->getNextHalfEdge();
+    //         } while (current_half_edge != starting_half_edge);
+    //         type1_m = full_moments - type1_m;
+
+    //         auto exact_m =
+    //         ReturnType::fromScalarConstant(ReturnScalarType(0)); const auto&
+    //         ref_pt = starting_half_edge->getVertex()->getLocation();
+    //         current_half_edge =
+    //             starting_half_edge->getNextHalfEdge()->getNextHalfEdge();
+    //         prev_pt = current_half_edge->getPreviousVertex()->getLocation();
+    //         do {
+    //           const auto& curr_pt =
+    //           current_half_edge->getVertex()->getLocation(); exact_m +=
+    //           computeType1Contribution<ReturnType, ScalarType>(
+    //               ref_pt, prev_pt, curr_pt);
+    //           prev_pt = curr_pt;
+    //           current_half_edge = current_half_edge->getNextHalfEdge();
+    //         } while (current_half_edge != starting_half_edge);
+
+    //         std::cout << "        Max normal = " << max_component_index
+    //                   << std::endl;
+    //         std::cout << "Type 1 total exact = " << exact_m << std::endl;
+    //         std::cout << "Type 1 total       = " << type1_m << std::endl;
+    //       }
+    //     }
+    // #else
     // This face has not intersections so the moment contribution is only of
     // type 1
     if (intersection_size == 0) {
@@ -2212,18 +2283,20 @@ formParaboloidIntersectionBases(
       if (starting_half_edge->getVertex()->isNotClipped()) {
         // We need a reference point for the type 1 moment contribution
         const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
-        auto current_half_edge =
-            starting_half_edge->getNextHalfEdge()->getNextHalfEdge();
+        auto current_half_edge = starting_half_edge;
         auto prev_pt = current_half_edge->getPreviousVertex()->getLocation();
+        bool skip_first = true;  // This avoid calculating a type 1 equal to 0
         do {
           const auto& curr_pt = current_half_edge->getVertex()->getLocation();
           full_moments += computeType1Contribution<ReturnType, ScalarType>(
-              ref_pt, prev_pt, curr_pt);
+              ref_pt, prev_pt, curr_pt, &skip_first, false, face_normal,
+              max_component_index);
           prev_pt = curr_pt;
           current_half_edge = current_half_edge->getNextHalfEdge();
         } while (current_half_edge != starting_half_edge);
       }
     }
+    // #endif
     // The face has 2 intersections (i.e. 1 arc): we start from the entry
     else if (intersection_size == 2) {
       // We need a reference point for the type 1 moment contribution
@@ -2231,14 +2304,16 @@ formParaboloidIntersectionBases(
       // We first traverse straight boundary arcs and return the second
       // intersection (i.e. the exit)
       half_edge_type* exit_half_edge;
+      bool skip_first = true;  // This avoid calculating a type 1 equal to 0
       full_moments +=
           computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
               a_aligned_paraboloid, ref_pt, starting_half_edge, exit_half_edge,
-              true);
+              &skip_first, face_normal, max_component_index);
       // We can now compute the type 2 and 3 moment contributions
       full_moments += computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
           a_aligned_paraboloid, ref_pt, starting_half_edge, exit_half_edge,
-          true, false, &requires_nudge, a_surface);
+          &skip_first, face_normal, max_component_index, false, &requires_nudge,
+          a_surface);
     }
     // The face has more than 2 intersections (i.e. more than 1 arc). We
     // need to discriminate elliptic/hyperbolic/parabolic cases
@@ -2274,15 +2349,17 @@ formParaboloidIntersectionBases(
                 computeUnclippedSegmentType1Contribution<ReturnType,
                                                          ScalarType>(
                     a_aligned_paraboloid, ref_pt, current_edge, exit_half_edge,
-                    skip_first);
+                    &skip_first, face_normal, max_component_index);
 
             // From the exit intersection, we move to the next entry and
             // compute type 2 and 3 moment contributions
+            skip_first = false;
             if (reverse) {
               full_moments +=
                   computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                       a_aligned_paraboloid, ref_pt, current_edge,
-                      exit_half_edge, false, false, &requires_nudge, a_surface);
+                      exit_half_edge, &skip_first, face_normal,
+                      max_component_index, false, &requires_nudge, a_surface);
               current_edge = exit_half_edge->getNextHalfEdge();
               while (current_edge->getVertex()->needsToSeek()) {
                 current_edge = current_edge->getNextHalfEdge();
@@ -2295,9 +2372,9 @@ formParaboloidIntersectionBases(
               full_moments +=
                   computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                       a_aligned_paraboloid, ref_pt, current_edge,
-                      exit_half_edge, false, false, &requires_nudge, a_surface);
+                      exit_half_edge, &skip_first, face_normal,
+                      max_component_index, false, &requires_nudge, a_surface);
             }
-            skip_first = false;
             found_intersections += 2;
           } while (found_intersections != intersection_size);
         }
@@ -2320,7 +2397,7 @@ formParaboloidIntersectionBases(
                 computeUnclippedSegmentType1Contribution<ReturnType,
                                                          ScalarType>(
                     a_aligned_paraboloid, ref_pt, current_edge, exit_half_edge,
-                    skip_first);
+                    &skip_first, face_normal, max_component_index);
             intersections.push_back(current_edge);
             intersections.push_back(exit_half_edge);
             current_edge = exit_half_edge->getNextHalfEdge();
@@ -2421,8 +2498,8 @@ formParaboloidIntersectionBases(
             full_moments +=
                 computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                     a_aligned_paraboloid, ref_pt, entry_half_edge,
-                    exit_half_edge, first_entry, false, &requires_nudge,
-                    a_surface);
+                    exit_half_edge, &first_entry, face_normal,
+                    max_component_index, false, &requires_nudge, a_surface);
             first_entry = false;
           }
           // Clear list of intersections
@@ -2451,7 +2528,7 @@ formParaboloidIntersectionBases(
           full_moments +=
               computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
                   a_aligned_paraboloid, ref_pt, current_edge, exit_half_edge,
-                  skip_first);
+                  &skip_first, face_normal, max_component_index);
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {current_edge, ScalarType(0)}));
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
@@ -2849,11 +2926,12 @@ formParaboloidIntersectionBases(
         // traversed
         auto prev_vertex = intersections[0].first->getPreviousVertex();
         auto entry_half_edge = intersections[0].first;
-        const bool entry_first =
+        bool entry_first =
             (prev_vertex->isClipped() ||
              (prev_vertex->doesNotNeedToSeek() &&
               entry_half_edge->getNextHalfEdge()->getVertex()->isNotClipped()));
         std::size_t start_id = entry_first ? 0 : 1;
+        entry_first = false;
         for (std::size_t i = start_id; i < intersection_size; i += 2) {
           // Identify entry vertex
           const auto entry_half_edge = intersections[i].first;
@@ -2864,13 +2942,14 @@ formParaboloidIntersectionBases(
           full_moments +=
               computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                   a_aligned_paraboloid, ref_pt, entry_half_edge, exit_half_edge,
-                  false, ignore_type3_contributions, &requires_nudge,
-                  a_surface);
+                  &entry_first, face_normal, max_component_index,
+                  ignore_type3_contributions, &requires_nudge, a_surface);
         }
         // Clear list of intersections
         intersections.clear();
       }
     }
+    // #endif
     // If some ambiguous configuration has been detected, switch to QP and
     // shake things up
     if (requires_nudge) {
