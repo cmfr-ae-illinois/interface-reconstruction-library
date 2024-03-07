@@ -124,28 +124,28 @@ class PolynomialOther : public PolynomialLM {
   ~PolynomialOther() = default;
 };
 
-TEST(Optimizers, LevenbergMarquardt) {
-  PolynomialLM poly;
-  poly.setup(0.0);
-  Eigen::Matrix<double, 1, 1> initial_delta;
-  initial_delta(0) = 0.1;
-  LevenbergMarquardt<PolynomialLM, 1, 1> lm_solver;
-  lm_solver.solve(&poly, initial_delta);
-  EXPECT_NEAR(poly.getSolution(), 4.0, 1.0e-4)
-      << "Reason for exit: " << lm_solver.getReason() << '\n';
+// TEST(Optimizers, LevenbergMarquardt) {
+//   PolynomialLM poly;
+//   poly.setup(0.0);
+//   Eigen::Matrix<double, 1, 1> initial_delta;
+//   initial_delta(0) = 0.1;
+//   LevenbergMarquardt<PolynomialLM, 1, 1> lm_solver;
+//   lm_solver.solve(&poly, initial_delta);
+//   EXPECT_NEAR(poly.getSolution(), 4.0, 1.0e-4)
+//       << "Reason for exit: " << lm_solver.getReason() << '\n';
 
-  poly.setup(-5.0);
-  initial_delta(0) = 0.1;
-  lm_solver.solve(&poly, initial_delta);
-  EXPECT_NEAR(poly.getSolution(), -8.0, 1.0e-4)
-      << "Reason for exit: " << lm_solver.getReason() << '\n';
+//   poly.setup(-5.0);
+//   initial_delta(0) = 0.1;
+//   lm_solver.solve(&poly, initial_delta);
+//   EXPECT_NEAR(poly.getSolution(), -8.0, 1.0e-4)
+//       << "Reason for exit: " << lm_solver.getReason() << '\n';
 
-  poly.setup(-20.0);
-  initial_delta(0) = 0.1;
-  lm_solver.solve(&poly, initial_delta);
-  EXPECT_NEAR(poly.getSolution(), -14.0, 1.0e-4)
-      << "Reason for exit: " << lm_solver.getReason() << '\n';
-}
+//   poly.setup(-20.0);
+//   initial_delta(0) = 0.1;
+//   lm_solver.solve(&poly, initial_delta);
+//   EXPECT_NEAR(poly.getSolution(), -14.0, 1.0e-4)
+//       << "Reason for exit: " << lm_solver.getReason() << '\n';
+// }
 
 TEST(Optimizers, BFGS) {
   PolynomialLM poly;

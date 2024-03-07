@@ -64,9 +64,9 @@ class RationalBezierArcBase {
   /// \brief Return const reference to stored end point.
   const PtBase<ScalarType>& end_point(void) const;
   /// \brief Return point evaluated at parameter a_t.
-  PtBase<ScalarType> point(const ScalarType a_t) const;
+  const PtBase<ScalarType> point(const ScalarType a_t) const;
   /// \brief Return derivative of the curve with respect to a_t.
-  PtBase<ScalarType> derivative(const ScalarType a_t) const;
+  const PtBase<ScalarType> derivative(const ScalarType a_t) const;
   /// \brief Return const approximation of arc_length.
   ScalarType arc_length(void) const;
   /// \brief Return const reference to stored start point address.
@@ -95,12 +95,12 @@ class RationalBezierArcBase {
   /// \brief Default destructor.
   ~RationalBezierArcBase(void) = default;
 
- private:
   /// \brief Return reference to stored start point address.
   std::uintptr_t start_point_id(void);
   /// \brief Return reference to stored end point address.
   std::uintptr_t end_point_id(void);
 
+ private:
   PtBase<ScalarType> start_point_m;    // Start point.
   PtBase<ScalarType> control_point_m;  // Control point.
   PtBase<ScalarType> end_point_m;      // End point.

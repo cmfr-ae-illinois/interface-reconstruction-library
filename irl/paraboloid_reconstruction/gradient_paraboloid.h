@@ -143,6 +143,17 @@ template <class ScalarType>
 ParaboloidGradientLocalBase<ScalarType> operator-(
     const ParaboloidGradientLocalBase<ScalarType>& a_gradient);
 
+template <class ScalarType>
+inline std::ostream& operator<<(
+    std::ostream& out,
+    const ParaboloidGradientLocalBase<ScalarType>& a_gradient) {
+  out << a_gradient.getGradA() << ", " << a_gradient.getGradB() << ", "
+      << a_gradient.getGradTx() << ", " << a_gradient.getGradTy() << ", "
+      << a_gradient.getGradTz() << ", " << a_gradient.getGradRx() << ", "
+      << a_gradient.getGradRy() << ", " << a_gradient.getGradRz();
+  return out;
+}
+
 }  // namespace IRL
 
 #include "irl/paraboloid_reconstruction/gradient_paraboloid.tpp"

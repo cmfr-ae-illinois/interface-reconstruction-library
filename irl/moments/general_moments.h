@@ -24,23 +24,27 @@ namespace IRL {
 /// 1, x, y, z, x^2, xy, xz, y^2, yz, z^2, x^3, x^2 y, ...
 /// For 2D, this is
 /// 1, x, y, x^2, xy, y^2, x^3, x^2 y, ...
-template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM>
-class GeneralMoments {
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+class GeneralMomentsBase {
  public:
+  using value_type = ScalarType;
   static constexpr std::size_t linear_length =
       DIM == 3 ? (ORDER + 1) * (ORDER + 2) * (ORDER + 3) / 6
                : (ORDER + 1) * (ORDER + 2) / 2;
-  using storage = std::array<double, linear_length>;
+  using storage = std::array<ScalarType, linear_length>;
 
   /// \brief Default constructor.
-  GeneralMoments(void);
+  GeneralMomentsBase(void);
+
+  /// \brief Constructor from DP general moment.
+  GeneralMomentsBase(const GeneralMomentsBase<ORDER, DIM, double>& a_moments);
 
   /// @brief  \breif Fill all moments with `a_value`
-  static GeneralMoments fromScalarConstant(const double a_value);
+  static GeneralMomentsBase fromScalarConstant(const ScalarType a_value);
 
   /// \brief Obtain GeneralMoments from the supplied geometry.
   template <class GeometryType>
-  static GeneralMoments calculateMoments(GeometryType* a_geometry);
+  static GeneralMomentsBase calculateMoments(GeometryType* a_geometry);
 
   /// \brief Return array of central moments.
   storage calculateCentralMoments(void) const;
@@ -54,10 +58,16 @@ class GeneralMoments {
   void normalizeAsInvariant(void);
 
   /// \brief Return reference to stored volume.
-  double& volume(void);
+  ScalarType& volume(void);
 
   /// \brief Return const reference to stored volume.
-  const Volume volume(void) const;
+  const ScalarType volume(void) const;
+
+  //   /// \brief Return reference to stored volume.
+  //   VolumeBase<ScalarType>& volume(void);
+
+  //   /// \brief Return const reference to stored volume.
+  //   const VolumeBase<ScalarType> volume(void) const;
 
   /// \brief Multiply all moments by the volume (zeroeth moments)
   void multiplyByVolume(void);
@@ -66,56 +76,66 @@ class GeneralMoments {
   void normalizeByVolume(void);
 
   /// \brief Overload += operator to update moments.
-  GeneralMoments& operator+=(const GeneralMoments& a_rhs);
+  GeneralMomentsBase& operator+=(const GeneralMomentsBase& a_rhs);
 
   /// \brief Overload *= operator to multiply by constant double
-  GeneralMoments& operator*=(const double a_rhs);
+  GeneralMomentsBase& operator*=(const ScalarType a_rhs);
 
   /// \brief Overload /= operator to divide by constant double
-  GeneralMoments& operator/=(const double a_rhs);
+  GeneralMomentsBase& operator/=(const ScalarType a_rhs);
 
   /// \brief Overload assignment to assign constant value to moments.
-  GeneralMoments& operator=(const double a_value);
+  GeneralMomentsBase& operator=(const ScalarType a_value);
+
+  /// \brief Overload assignment to assign DP moments to moments.
+  GeneralMomentsBase& operator=(
+      const GeneralMomentsBase<ORDER, DIM, double>& a_rhs);
 
   /// \brief Total number of moments.
   UnsignedIndex_t size(void) const;
 
   /// \brief Provide mutable access to underlying moments
-  double& operator[](const UnsignedIndex_t index);
+  ScalarType& operator[](const UnsignedIndex_t index);
 
   /// \brief Provide const access to underlying moments
-  double operator[](const UnsignedIndex_t index) const;
+  ScalarType operator[](const UnsignedIndex_t index) const;
 
   /// \brief Default destructor.
-  ~GeneralMoments(void) = default;
+  ~GeneralMomentsBase(void) = default;
 
  private:
   storage moments_m;  // Stored moments in row-major order
 };
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM>
-std::ostream& operator<<(std::ostream& out,
-                         const GeneralMoments<ORDER, DIM>& a_volume);
+using GeneralMoments = GeneralMomentsBase<ORDER, DIM, double>;
+
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+std::ostream& operator<<(
+    std::ostream& out,
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_volume);
 
 /// \brief Overload + operator to add two geometric moments together
-template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM>
-inline GeneralMoments<ORDER, DIM> operator+(
-    const GeneralMoments<ORDER, DIM>& a_vm1,
-    const GeneralMoments<ORDER, DIM>& a_vm2);
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator+(
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm1,
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm2);
 /// \brief Overload - operator to subtract one
 /// geometric moment object from another.
-template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM>
-inline GeneralMoments<ORDER, DIM> operator-(
-    const GeneralMoments<ORDER, DIM>& a_vm1,
-    const GeneralMoments<ORDER, DIM>& a_vm2);
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator-(
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm1,
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm2);
 /// \brief Overload * operator to multiply moments
-template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM>
-inline GeneralMoments<ORDER, DIM> operator*(
-    const double a_multiplier, const GeneralMoments<ORDER, DIM>& a_vm);
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator*(
+    const ScalarType a_multiplier,
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm);
 /// \brief Overload * operator to multiply moments
-template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM>
-inline GeneralMoments<ORDER, DIM> operator*(
-    const GeneralMoments<ORDER, DIM>& a_vm, const double a_multiplier);
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator*(
+    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm,
+    const ScalarType a_multiplier);
 
 template <UnsignedIndex_t ORDER>
 using GeneralMoments3D = GeneralMoments<ORDER, 3>;

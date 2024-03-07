@@ -16,6 +16,7 @@
 #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
 // #define IRL_USE_CGAL
+// #define IRL_USE_GEOGRAM
 
 #include "external/NumericalIntegration/NumericalIntegration.h"
 
@@ -2218,7 +2219,7 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
     }
 
 #elif defined IRL_USE_CGAL
-    typedef CGAL::Exact_predicates_exact_constructions_kernel K;
+    typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
     typedef CGAL::Exact_predicates_exact_constructions_kernel Kexact;
     typedef CGAL::Delaunay_mesh_vertex_base_2<K> Vb;
     typedef CGAL::Delaunay_mesh_face_base_2<K> Fb;
@@ -2234,11 +2235,11 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
 
     CDT cdt;
 
-    std::ofstream myfile;
-    myfile.open("triangulation_log.txt");
-    myfile << "Starting triangulating surface.\n";
-    myfile << std::setprecision(16) << std::scientific
-           << "Paraboloid: " << aligned_paraboloid << "\n";
+    // std::ofstream myfile;
+    // myfile.open("triangulation_log.txt");
+    // myfile << "Starting triangulating surface.\n";
+    // myfile << std::setprecision(16) << std::scientific
+    //        << "Paraboloid: " << aligned_paraboloid << "\n";
 
     // Create boundaries
     std::vector<Point> points;
@@ -2261,8 +2262,8 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
         // Compute approximate arc length
         const RationalBezierArc& arc = list_of_closed_curves[i][j];
         const double arc_length = arc.arc_length();
-        myfile << std::setprecision(16) << std::scientific << "Curve " << i
-               << " has arc: " << arc << "\n";
+        // myfile << std::setprecision(16) << std::scientific << "Curve " << i
+        //        << " has arc: " << arc << "\n";
         // Split arc
         UnsignedIndex_t nSplit = a_nsplit <= 0 ? 1 : a_nsplit;
         if (length_scale_ref > 0.0) {
@@ -2276,8 +2277,10 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
         for (UnsignedIndex_t k = 1; k <= nSplit; ++k) {
           const double t = static_cast<double>(k) * step;
           const auto pt = arc.point(t);
-          myfile << std::setprecision(16) << std::scientific << "Adding vertex "
-                 << vertex_count++ << " at " << pt[0] << ", " << pt[1] << ".\n";
+          // myfile << std::setprecision(16) << std::scientific << "Adding
+          // vertex "
+          //        << vertex_count++ << " at " << pt[0] << ", " << pt[1] <<
+          //        ".\n";
           points.push_back(Point(pt[0], pt[1]));
           signed_area +=
               0.5 * (previous_pt[0] * pt[1] - pt[0] * previous_pt[1]);
@@ -2294,10 +2297,11 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
                 (points[id1].y() - points[id0].y()) *
                     (points[id1].y() - points[id0].y()) <
             1.0e12 * DBL_EPSILON * DBL_EPSILON) {
-          myfile << std::setprecision(16) << std::scientific
-                 << "Removing duplicate " << id1 << " at " << points[id1].x()
-                 << ", " << points[id1].y() << " too close to " << id0 << " at "
-                 << points[id0].x() << ", " << points[id0].y() << ".\n";
+          // myfile << std::setprecision(16) << std::scientific
+          //        << "Removing duplicate " << id1 << " at " << points[id1].x()
+          //        << ", " << points[id1].y() << " too close to " << id0 << "
+          //        at "
+          //        << points[id0].x() << ", " << points[id0].y() << ".\n";
           points.erase(points.begin() + id1);
           continue;
         } else {
@@ -2332,23 +2336,24 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
                 {0.5 * (p1x + p2x), 0.5 * (p1y + p2y)}};
             Normal shift_dir = Normal(p2y - p1y, p1x - p2x, 0.0);
             shift_dir.normalize();
-            myfile << std::setprecision(16) << std::scientific << "Adding hole "
-                   << hole_location[0] + (1.0e3 * DBL_EPSILON) * shift_dir[0]
-                   << ", "
-                   << hole_location[1] + (1.0e3 * DBL_EPSILON) * shift_dir[1]
-                   << ".\n";
+            // myfile << std::setprecision(16) << std::scientific << "Adding
+            // hole "
+            //        << hole_location[0] + (1.0e3 * DBL_EPSILON) * shift_dir[0]
+            //        << ", "
+            //        << hole_location[1] + (1.0e3 * DBL_EPSILON) * shift_dir[1]
+            //        << ".\n";
             list_of_seeds.push_back(
                 Point(hole_location[0] + (1.0e3 * DBL_EPSILON) * shift_dir[0],
                       hole_location[1] + (1.0e3 * DBL_EPSILON) * shift_dir[1]));
           }
 
           // Create segments
-          myfile << "Adding constraint " << points.size() - 1 << " -- " << 0
-                 << ".\n";
+          // myfile << "Adding constraint " << points.size() - 1 << " -- " << 0
+          //        << ".\n";
           cdt.insert_constraint(points[points.size() - 1], points[0]);
 
           for (UnsignedIndex_t j = 0; j < points.size() - 1; ++j) {
-            myfile << "Adding constraint " << j << " -- " << j + 1 << ".\n";
+            // myfile << "Adding constraint " << j << " -- " << j + 1 << ".\n";
             cdt.insert_constraint(points[j], points[j + 1]);
           }
         }
@@ -2357,14 +2362,16 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
       }
     }
 
-    myfile << "Mesh has " << cdt.number_of_vertices() << " vertices.\n";
-    myfile << "Refining with length-scale " << length_scale << ".\n";
+    // myfile << "Surface has area " << total_signed_area << "\n";
+    // myfile << "Mesh has " << cdt.number_of_vertices() << " vertices.\n";
+    // myfile << "Refining with length-scale " << length_scale << ".\n";
     // sleep(1.0e-4);
-    CGAL::refine_Delaunay_mesh_2(cdt, list_of_seeds.begin(),
-                                 list_of_seeds.end(),
-                                 Criteria(0.15, length_scale), false);
-    myfile << "Mesh has " << cdt.number_of_vertices() << " vertices.\n";
-    myfile << "Mesh has " << cdt.number_of_faces() << " faces.\n";
+    CGAL::refine_Delaunay_mesh_2(cdt,
+                                 CGAL::parameters::seeds(list_of_seeds)
+                                     .criteria(Criteria(0.15, length_scale)));
+    // , CGAL::parameters::seeds_are_in_domain(false));
+    // myfile << "Mesh has " << cdt.number_of_vertices() << " vertices.\n";
+    // myfile << "Mesh has " << cdt.number_of_faces() << " faces.\n";
     // CGAL::lloyd_optimize_mesh_2(cdt,
     //                             CGAL::parameters::max_iteration_number
     //                             = 20);
@@ -2372,7 +2379,7 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
     auto& tlist = returned_surface->getTriangleList();
     UnsignedIndex_t count = 0;
     CDT::Finite_faces_iterator face;
-    myfile << "Counting faces.\n";
+    // myfile << "Counting faces.\n";
     for (face = cdt.finite_faces_begin(); face != cdt.finite_faces_end();
          face++) {
       if (face->is_in_domain()) {
@@ -2383,11 +2390,11 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
     tlist.resize(count, TriangulatedSurfaceOutput::TriangleStorage::value_type::
                             fromNoExistencePlane(vlist, {0, 0, 0}));
     count = 0;
-    myfile << "Adding faces and vertices.\n";
+    // myfile << "Adding faces and vertices.\n";
     for (face = cdt.finite_faces_begin(); face != cdt.finite_faces_end();
          face++) {
       if (face->is_in_domain()) {
-        myfile << "Adding face " << count << ".\n";
+        // myfile << "Adding face " << count << ".\n";
         tlist[count] = TriangulatedSurfaceOutput::TriangleStorage::value_type::
             fromNoExistencePlane(vlist,
                                  {3 * count, 3 * count + 1, 3 * count + 2});
@@ -2408,7 +2415,7 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
     }
 
     // Translate and rotate triangulated surface vertices
-    myfile << "Moving vertices in canonical frame.\n";
+    // myfile << "Moving vertices in canonical frame.\n";
     const auto& datum = paraboloid_m.getDatum();
     const auto& ref_frame = paraboloid_m.getReferenceFrame();
     for (auto& vertex : vlist) {
@@ -2422,8 +2429,8 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
       vertex += datum;
     }
 
-    myfile << "Finished triangulating surface.\n";
-    myfile.close();
+    // myfile << "Finished triangulating surface.\n";
+    // myfile.close();
 #elif defined IRL_USE_TRIANGLE
     // Second, we approximate the arc length of the arc, so as
     // to know how many times it needs to be split
@@ -2726,6 +2733,105 @@ inline void ParametrizedSurfaceOutput::triangulate_fromPtr(
         }
       }
     }
+#elif defined IRL_USE_GEOGRAM
+    GEO::initialize();
+    auto cdt = GEO::CDT2d();
+    cdt.clear();
+    cdt.create_enclosing_quad(GEO::vec2(-0.5, -1.5), GEO::vec2(1.5, -0.5),
+                              GEO::vec2(1.5, 1.5), GEO::vec2(-0.5, 1.5));
+
+    // Loop over curves
+    const UnsignedIndex_t nCurves =
+        static_cast<UnsignedIndex_t>(list_of_closed_curves.size());
+    UnsignedIndex_t start_points = 0;
+    std::vector<double> points;
+    for (UnsignedIndex_t i = 0; i < nCurves; ++i) {
+      UnsignedIndex_t added_points = 0;
+      const UnsignedIndex_t nLocalArcs = list_of_closed_curves[i].size();
+      // Loop over arcs of curve
+      for (UnsignedIndex_t j = 0; j < nLocalArcs; ++j) {
+        // Compute approximate arc length
+        const RationalBezierArc& arc = list_of_closed_curves[i][j];
+        const double arc_length = arc.arc_length();
+
+        // Split arc
+        UnsignedIndex_t nSplit = a_nsplit <= 0 ? 1 : a_nsplit;
+        if (length_scale_ref > 0.0) {
+          nSplit = static_cast<UnsignedIndex_t>(arc_length / length_scale_ref);
+          nSplit = nSplit < a_nsplit ? a_nsplit : nSplit;
+        }
+        const double step = 1.0 / static_cast<double>(nSplit);
+        length_scale = std::min(length_scale, step * arc_length);
+        if (length_scale_ref > 0.0) length_scale = length_scale_ref;
+        for (UnsignedIndex_t k = 1; k <= nSplit; ++k) {
+          const double t = static_cast<double>(k) * step;
+          const auto pt = arc.point(t);
+          points.push_back(pt[0]);
+          points.push_back(pt[1]);
+          added_points++;
+        }
+      }
+      std::cout << "Inserting " << added_points << " points " << std::endl;
+      cdt.insert(static_cast<GEO::index_t>(added_points), points.data());
+
+      if (added_points >= 3) {
+        std::cout << "Inserting constraint (" << start_points + added_points - 1
+                  << ", " << start_points << ")" << std::endl;
+        cdt.insert_constraint(
+            static_cast<GEO::index_t>(4 + start_points + added_points - 1),
+            static_cast<GEO::index_t>(4 + start_points));
+        for (UnsignedIndex_t j = start_points;
+             j < start_points + added_points - 1; ++j) {
+          std::cout << "Inserting constraint (" << j << ", " << j + 1 << ")"
+                    << std::endl;
+          cdt.insert_constraint(static_cast<GEO::index_t>(4 + j),
+                                static_cast<GEO::index_t>(4 + j + 1));
+        }
+        start_points += added_points;
+      }
+    }
+
+    cdt.remove_external_triangles();
+    cdt.refine(18.0 * M_PI / 180.0, 0.00025);
+    // cdt.remove_external_triangles();
+    // cdt.remove_holes();
+
+    auto& vlist = returned_surface->getVertexList();
+    vlist.resize(cdt.nv());
+    for (UnsignedIndex_t i = 0; i < cdt.nv(); ++i) {
+      const double x = cdt.point(i).x;
+      const double y = cdt.point(i).y;
+      const double z =
+          -aligned_paraboloid.a() * x * x - aligned_paraboloid.b() * y * y;
+      vlist[i] = Pt(x, y, z);
+    }
+
+    // Translate and rotate triangulated surface vertices
+    const auto& datum = paraboloid_m.getDatum();
+    const auto& ref_frame = paraboloid_m.getReferenceFrame();
+    for (auto& vertex : vlist) {
+      const Pt base_pt = vertex;
+      vertex = Pt(0, 0, 0);
+      for (UnsignedIndex_t d = 0; d < 3; ++d) {
+        for (UnsignedIndex_t n = 0; n < 3; ++n) {
+          vertex[n] += ref_frame[d][n] * base_pt[d];
+        }
+      }
+      vertex += datum;
+    }
+
+    auto& tlist = returned_surface->getTriangleList();
+    tlist.resize(cdt.nT(),
+                 TriangulatedSurfaceOutput::TriangleStorage::value_type::
+                     fromNoExistencePlane(vlist, {0, 0, 0}));
+    for (UnsignedIndex_t i = 0; i < cdt.nT(); ++i) {
+      tlist[i] = TriangulatedSurfaceOutput::TriangleStorage::value_type::
+          fromNoExistencePlane(vlist,
+                               {static_cast<UnsignedIndex_t>(cdt.Tv(i, 0)),
+                                static_cast<UnsignedIndex_t>(cdt.Tv(i, 1)),
+                                static_cast<UnsignedIndex_t>(cdt.Tv(i, 2))});
+    }
+
 #endif
   }
 }

@@ -30,11 +30,12 @@ auto calculateMoments(const GeometryType& a_geometry,
 template <UnsignedIndex_t ORDER>
 template <class SimplexType>
 void GeneralMoments3D_Functor<ORDER>::operator()(const SimplexType& a_simplex) {
-  const auto& datum = a_simplex[3];
-  datum_m = datum.getPt();
-  const double sixv = scalarTripleProduct(a_simplex[0].getPt() - datum.getPt(),
-                                          a_simplex[1].getPt() - datum.getPt(),
-                                          a_simplex[2].getPt() - datum.getPt());
+  const auto& datum = a_simplex[3].getPt().toDoublePt();
+  datum_m = datum.getPt().toDoublePt();
+  const double sixv = scalarTripleProduct(
+      a_simplex[0].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[1].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum.getPt().toDoublePt());
 
   UnsignedIndex_t prev_layer = 0;
   UnsignedIndex_t curr_layer = 1;
@@ -44,9 +45,9 @@ void GeneralMoments3D_Functor<ORDER>::operator()(const SimplexType& a_simplex) {
   C_m[0][0][prev_layer] = 1.0;
   moments_m[0] += sixv;
 
-  const auto& v0 = a_simplex[0].getPt();
-  const auto& v1 = a_simplex[1].getPt();
-  const auto& v2 = a_simplex[2].getPt();
+  const auto& v0 = a_simplex[0].getPt().toDoublePt();
+  const auto& v1 = a_simplex[1].getPt().toDoublePt();
+  const auto& v2 = a_simplex[2].getPt().toDoublePt();
 
   // build up successive polynomial orders
   for (int corder = 1, m = 1; corder <= ORDER; ++corder) {

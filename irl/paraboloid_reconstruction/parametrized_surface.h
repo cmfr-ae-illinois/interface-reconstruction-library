@@ -15,6 +15,7 @@
 #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
 // #define IRL_USE_CGAL
+// #define IRL_USE_GEOGRAM
 
 #ifdef IRL_USE_EARCUT
 #include "external/earcut.hpp/include/mapbox/earcut.hpp"
@@ -31,6 +32,8 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_sweep_2_algorithms.h>
 #include <CGAL/lloyd_optimize_mesh_2.h>
+#elif defined IRL_USE_GEOGRAM
+#include "external/geogram.psm.Delaunay/Delaunay_psm.h"
 #endif
 
 #include "irl/geometry/general/normal.h"

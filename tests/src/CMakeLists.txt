@@ -1,4 +1,4 @@
-#List of files from this directory and its subdirectores.
+# List of files from this directory and its subdirectores.
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/capped_dodecahedron_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/recursive_tri_generation_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/recursive_tet_generation_test.cpp)
@@ -46,5 +46,6 @@ target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/helper_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/brep_to_half_edge_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/paraboloid_intersection_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/paraboloid_lvira_test.cpp)
+target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/paraboloid_mof_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/basic_mesh.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/vtk.cpp)
