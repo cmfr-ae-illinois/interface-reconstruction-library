@@ -351,6 +351,8 @@ class BasicMesh {
   double dy(void) const { return dy_m; }
   double dz(void) const { return dz_m; }
 
+  double cell_volume(void) const { return dx_m * dy_m * dz_m; }
+
   double lx(void) const {
     return this->dx() * static_cast<double>(this->getNx());
   }

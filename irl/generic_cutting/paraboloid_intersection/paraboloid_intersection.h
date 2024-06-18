@@ -50,13 +50,14 @@ intersectPolyhedronWithAlignedParaboloid(
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneParaboloidType,
-          class SurfaceOutputType = NoSurfaceOutput>
+          class ScalarType, class SurfaceOutputType = NoSurfaceOutput>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
 formParaboloidIntersectionBases(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
     const AligneParaboloidType& a_aligned_paraboloid,
-    const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface = nullptr);
+    const UnsignedIndex_t a_nudge_iter, const ScalarType a_inv_volume_scale,
+    SurfaceOutputType* a_surface = nullptr);
 
 template <class ScalarType>
 inline NormalBase<ScalarType> computeTangentVectorAtPoint(

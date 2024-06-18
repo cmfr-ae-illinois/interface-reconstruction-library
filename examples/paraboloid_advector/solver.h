@@ -21,14 +21,18 @@
 
 #include "examples/paraboloid_advector/basic_mesh.h"
 #include "examples/paraboloid_advector/data.h"
+#include "examples/paraboloid_advector/deformation_3d.h"
 #include "examples/paraboloid_advector/reconstruction_types.h"
+#include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/paraboloid_advector/translation_3d.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 #include "examples/paraboloid_advector/vtk.h"
 
 /// \brief Handles running and advancing the solution according to provided
 /// static functions in structs.
 template <class SimulationType>
-int runSimulation(const std::string& a_advection_method,
+int runSimulation(const std::string& a_simulation_type,
+                  const std::string& a_advection_method,
                   const std::string& a_reconstruction_method, const double a_dt,
                   const double a_end_time, const int a_visualization_frequency);
 
@@ -43,9 +47,8 @@ void initializeLocalizedParaboloids(
 
 /// \brief Set phase quantities according to the given
 void setPhaseQuantities(const Data<IRL::Paraboloid>& a_interface,
-                        Data<double>* a_liquid_volume_fraction,
-                        Data<IRL::Pt>* a_liquid_centroid,
-                        Data<IRL::Pt>* a_gas_centroid);
+                        Data<IRL::GeneralMoments3D<2>>* a_liquid_moments,
+                        Data<IRL::GeneralMoments3D<2>>* a_gas_moments);
 
 /// \brief Write out the header for the diagnostics.
 void writeDiagnosticsHeader(void);
@@ -55,39 +58,44 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          const double a_simulation_time,
                          const Data<double>& a_U, const Data<double>& a_V,
                          const Data<double>& a_W,
-                         const Data<double>& a_liquid_volume_fraction,
+                         const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
                          const Data<IRL::Paraboloid>& a_interface,
                          std::chrono::duration<double> a_VOF_duration,
                          std::chrono::duration<double> a_recon_duration,
                          std::chrono::duration<double> a_write_duration);
 
 /// \brief Generates triangulated surface and writes to provided VTK file
-void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
-                          const Data<IRL::Paraboloid>& a_liquid_gas_interface,
-                          const double a_time, VTKOutput* a_output);
+void writeInterfaceToFile(
+    const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
+    const Data<IRL::Paraboloid>& a_liquid_gas_interface, const double a_time,
+    VTKOutput* a_output, const bool print);
+
+void printError(const BasicMesh& mesh,
+                const Data<IRL::GeneralMoments3D<2>>& liquid_moments,
+                const Data<IRL::GeneralMoments3D<2>>& starting_liquid_moments);
 
 //******************************************************************* //
 //     Template function definitions placed below this.
 //******************************************************************* //
 template <class SimulationType>
-int runSimulation(const std::string& a_advection_method,
+int runSimulation(const std::string& a_simulation_type,
+                  const std::string& a_advection_method,
                   const std::string& a_reconstruction_method, const double a_dt,
-                  const double a_end_time,
-                  const int a_visualization_frequency) {
+                  const double a_end_time, const int a_visualization_frequency,
+                  const int a_nx) {
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   // Set mesh
-  BasicMesh cc_mesh = SimulationType::setMesh();
+  BasicMesh cc_mesh = SimulationType::setMesh(a_nx);
 
   // Allocate local data
   Data<double> velU(&cc_mesh);
   Data<double> velV(&cc_mesh);
   Data<double> velW(&cc_mesh);
-  Data<double> liquid_volume_fraction(&cc_mesh);
-  Data<IRL::Pt> liquid_centroid(&cc_mesh);
-  Data<IRL::Pt> gas_centroid(&cc_mesh);
+  Data<IRL::GeneralMoments3D<2>> liquid_moments(&cc_mesh);
+  Data<IRL::GeneralMoments3D<2>> gas_moments(&cc_mesh);
 
   // Allocate
   Data<IRL::PlanarLocalizer> cell_localizers(&cc_mesh);
@@ -101,8 +109,8 @@ int runSimulation(const std::string& a_advection_method,
   // Set constants in IRL
   IRL::setMinimumVolumeToTrack(10.0 * DBL_EPSILON * cc_mesh.dx() *
                                cc_mesh.dy() * cc_mesh.dz());
-  IRL::setVolumeFractionBounds(1.0e-14);
-  IRL::setVolumeFractionTolerance(1.0e-13);
+  IRL::setVolumeFractionBounds(1.0e-13);
+  IRL::setVolumeFractionTolerance(1.0e-12);
 
   if (rank == 0) {
     std::cout << "VolumeFractionBounds = " << IRL::global_constants::VF_LOW
@@ -110,13 +118,11 @@ int runSimulation(const std::string& a_advection_method,
   }
 
   // Initialize data
-  SimulationType::initialize(&velU, &velV, &velW, &interface);
-  setPhaseQuantities(interface, &liquid_volume_fraction, &liquid_centroid,
-                     &gas_centroid);
-  const auto starting_liquid_volume_fraction = liquid_volume_fraction;
+  SimulationType::initialize(&velU, &velV, &velW, &interface, 0.0);
+  setPhaseQuantities(interface, &liquid_moments, &gas_moments);
+  const auto starting_liquid_moments = liquid_moments;
 
   VTKOutput vtk_io("viz_out", "viz", cc_mesh);
-  vtk_io.addData("VOF", liquid_volume_fraction);
   vtk_io.addData("VelocityX", velU);
   vtk_io.addData("VelocityY", velV);
   vtk_io.addData("VelocityZ", velW);
@@ -126,12 +132,13 @@ int runSimulation(const std::string& a_advection_method,
   if (rank == 0) {
     vtk_io.writeVTKFile(simulation_time);
   }
-  getReconstruction(a_reconstruction_method, liquid_volume_fraction,
-                    liquid_centroid, gas_centroid, link_localized_paraboloids,
-                    0.0, velU, velV, velW, &interface);
+  getReconstruction(a_reconstruction_method, liquid_moments, gas_moments,
+                    &link_localized_paraboloids, 0.0, velU, velV, velW,
+                    &interface);
+  resetMoments(link_localized_paraboloids, &liquid_moments, &gas_moments);
 
-  writeInterfaceToFile(liquid_volume_fraction, interface, simulation_time,
-                       &vtk_io);
+  writeInterfaceToFile(liquid_moments, interface, simulation_time, &vtk_io,
+                       true);
   if (rank == 0) {
     writeDiagnosticsHeader();
   }
@@ -142,8 +149,9 @@ int runSimulation(const std::string& a_advection_method,
   std::chrono::duration<double> write_time(0.0);
   if (rank == 0) {
     writeOutDiagnostics(iteration, a_dt, simulation_time, velU, velV, velW,
-                        liquid_volume_fraction, interface, advect_VOF_time,
-                        recon_time, write_time);
+                        liquid_moments, interface, advect_VOF_time, recon_time,
+                        write_time);
+    printError(cc_mesh, liquid_moments, starting_liquid_moments);
   }
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
@@ -152,15 +160,33 @@ int runSimulation(const std::string& a_advection_method,
                                 &velV, &velW);
 
     auto start = std::chrono::system_clock::now();
-    advectVOF(a_advection_method, a_reconstruction_method, time_step_to_use,
-              velU, velV, velW, &link_localized_paraboloids,
-              &liquid_volume_fraction, &liquid_centroid, &gas_centroid,
+    advectVOF(a_simulation_type, a_advection_method, a_reconstruction_method,
+              time_step_to_use, simulation_time, velU, velV, velW,
+              &link_localized_paraboloids, &liquid_moments, &gas_moments,
               &interface);
+
+    if (rank == 0) {
+      writeOutDiagnostics(iteration + 1, time_step_to_use,
+                          simulation_time + time_step_to_use, velU, velV, velW,
+                          liquid_moments, interface, advect_VOF_time,
+                          recon_time, write_time);
+      if (simulation_time + time_step_to_use >= a_end_time) {
+        Data<IRL::Paraboloid> ref_interface(&cc_mesh);
+        Data<IRL::GeneralMoments3D<2>> ref_liquid_moments(&cc_mesh);
+        Data<IRL::GeneralMoments3D<2>> ref_gas_moments(&cc_mesh);
+        SimulationType::initialize(&velU, &velV, &velW, &ref_interface,
+                                   simulation_time + time_step_to_use);
+        setPhaseQuantities(ref_interface, &ref_liquid_moments,
+                           &ref_gas_moments);
+        printError(cc_mesh, liquid_moments, ref_liquid_moments);
+      }
+    }
+
     auto advect_end = std::chrono::system_clock::now();
     advect_VOF_time = advect_end - start;
-    getReconstruction(a_reconstruction_method, liquid_volume_fraction,
-                      liquid_centroid, gas_centroid, link_localized_paraboloids,
-                      time_step_to_use, velU, velV, velW, &interface);
+    getReconstruction(a_reconstruction_method, liquid_moments, gas_moments,
+                      &link_localized_paraboloids, time_step_to_use, velU, velV,
+                      velW, &interface);
     auto recon_end = std::chrono::system_clock::now();
     recon_time = recon_end - advect_end;
 
@@ -169,37 +195,15 @@ int runSimulation(const std::string& a_advection_method,
       if (rank == 0) {
         vtk_io.writeVTKFile(simulation_time);
       }
-      writeInterfaceToFile(liquid_volume_fraction, interface, simulation_time,
-                           &vtk_io);
+      writeInterfaceToFile(liquid_moments, interface, simulation_time, &vtk_io,
+                           simulation_time + time_step_to_use >= a_end_time);
     }
     auto write_end = std::chrono::system_clock::now();
     write_time = write_end - recon_end;
 
     simulation_time += time_step_to_use;
-    if (rank == 0) {
-      writeOutDiagnostics(iteration + 1, time_step_to_use, simulation_time,
-                          velU, velV, velW, liquid_volume_fraction, interface,
-                          advect_VOF_time, recon_time, write_time);
-    }
     ++iteration;
-  }
-
-  // L1 Difference between Starting VOF and ending VOF
-  if (rank == 0) {
-    double l1_error = 0.0;
-    const BasicMesh& mesh = cc_mesh;
-    for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-        for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-          l1_error += std::fabs(liquid_volume_fraction(i, j, k) -
-                                starting_liquid_volume_fraction(i, j, k));
-        }
-      }
-    }
-    l1_error /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    std::cout << "L1 Difference between start and end: " << l1_error
-              << std::endl;
+    // }
   }
 
   return 0;

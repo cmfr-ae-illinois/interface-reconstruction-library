@@ -30,15 +30,12 @@
 #include "examples/paraboloid_advector/solver.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 
-constexpr int NX = 64;
-constexpr int NY = 64;
-constexpr int NZ = 64;
-constexpr int GC = 4;
+constexpr int GC = 3;
 constexpr IRL::Pt lower_domain(0.0, 0.0, 0.0);
 constexpr IRL::Pt upper_domain(1.0, 1.0, 1.0);
 
-BasicMesh Deformation3D::setMesh(void) {
-  BasicMesh mesh(NX, NY, NZ, GC);
+BasicMesh Deformation3D::setMesh(const int a_nx) {
+  BasicMesh mesh(a_nx, a_nx, a_nx, GC);
   IRL::Pt my_lower_domain = lower_domain;
   IRL::Pt my_upper_domain = upper_domain;
   mesh.setCellBoundaries(my_lower_domain, my_upper_domain);
@@ -47,7 +44,8 @@ BasicMesh Deformation3D::setMesh(void) {
 
 void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V,
                                Data<double>* a_W,
-                               Data<IRL::Paraboloid>* a_interface) {
+                               Data<IRL::Paraboloid>* a_interface,
+                               const double a_time) {
   Deformation3D::setVelocity(0.0, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
   const IRL::Pt sphere_center(0.35, 0.35, 0.35);
@@ -103,4 +101,65 @@ void Deformation3D::setVelocity(const double a_time, Data<double>* a_U,
       }
     }
   }
+}
+
+const std::array<double, 3> Deformation3D::getExactVelocity(
+    const IRL::Pt& a_location, const double a_time) {
+  return {2.0 * std::pow(std::sin(M_PI * a_location[0]), 2) *
+              std::sin(2.0 * M_PI * a_location[1]) *
+              std::sin(2.0 * M_PI * a_location[2]) *
+              std::cos(M_PI * (a_time) / 3.0),
+          -std::pow(std::sin(M_PI * a_location[1]), 2) *
+              std::sin(2.0 * M_PI * a_location[0]) *
+              std::sin(2.0 * M_PI * a_location[2]) *
+              std::cos(M_PI * (a_time) / 3.0),
+          -std::pow(std::sin(M_PI * a_location[2]), 2) *
+              std::sin(2.0 * M_PI * a_location[0]) *
+              std::sin(2.0 * M_PI * a_location[1]) *
+              std::cos(M_PI * (a_time) / 3.0)};
+}
+
+const std::array<std::array<double, 3>, 3>
+Deformation3D::getExactVelocityGradient(const IRL::Pt& a_location,
+                                        const double a_time) {
+  return std::array<std::array<double, 3>, 3>(
+      {{{4.0 * M_PI * std::cos(M_PI * a_location[0]) *
+             std::sin(M_PI * a_location[0]) *
+             std::sin(2.0 * M_PI * a_location[1]) *
+             std::sin(2.0 * M_PI * a_location[2]) *
+             std::cos(M_PI * (a_time) / 3.0),
+         4.0 * M_PI * std::pow(std::sin(M_PI * a_location[0]), 2) *
+             std::cos(2.0 * M_PI * a_location[1]) *
+             std::sin(2.0 * M_PI * a_location[2]) *
+             std::cos(M_PI * (a_time) / 3.0),
+         4.0 * M_PI * std::pow(std::sin(M_PI * a_location[0]), 2) *
+             std::sin(2.0 * M_PI * a_location[1]) *
+             std::cos(2.0 * M_PI * a_location[2]) *
+             std::cos(M_PI * (a_time) / 3.0)},
+        {-2.0 * M_PI * std::pow(std::sin(M_PI * a_location[1]), 2) *
+             std::cos(2.0 * M_PI * a_location[0]) *
+             std::sin(2.0 * M_PI * a_location[2]) *
+             std::cos(M_PI * (a_time) / 3.0),
+         -2.0 * M_PI * std::cos(M_PI * a_location[1]) *
+             std::sin(M_PI * a_location[1]) *
+             std::sin(2.0 * M_PI * a_location[0]) *
+             std::sin(2.0 * M_PI * a_location[2]) *
+             std::cos(M_PI * (a_time) / 3.0),
+         -2.0 * M_PI * std::pow(std::sin(M_PI * a_location[1]), 2) *
+             std::sin(2.0 * M_PI * a_location[0]) *
+             std::cos(2.0 * M_PI * a_location[2]) *
+             std::cos(M_PI * (a_time) / 3.0)},
+        {-2.0 * M_PI * std::pow(std::sin(M_PI * a_location[2]), 2) *
+             std::cos(2.0 * M_PI * a_location[0]) *
+             std::sin(2.0 * M_PI * a_location[1]) *
+             std::cos(M_PI * (a_time) / 3.0),
+         -2.0 * M_PI * std::pow(std::sin(M_PI * a_location[2]), 2) *
+             std::sin(2.0 * M_PI * a_location[0]) *
+             std::cos(2.0 * M_PI * a_location[1]) *
+             std::cos(M_PI * (a_time) / 3.0),
+         -2.0 * M_PI * std::cos(M_PI * a_location[2]) *
+             std::sin(M_PI * a_location[2]) *
+             std::sin(2.0 * M_PI * a_location[0]) *
+             std::sin(2.0 * M_PI * a_location[1]) *
+             std::cos(M_PI * (a_time) / 3.0)}}});
 }

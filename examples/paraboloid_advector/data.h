@@ -224,29 +224,70 @@ void Data<ContainedType>::updateUpperZ(void) {
 }
 
 template <class ContainedType>
+ContainedType cubicInterpolate(const ContainedType p[4], const double x) {
+  return p[1] + 0.5 * x *
+                    (p[2] - p[0] +
+                     x * (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3] +
+                          x * (3.0 * (p[1] - p[2]) + p[3] - p[0])));
+}
+
+template <class ContainedType>
+ContainedType bicubicInterpolate(const ContainedType p[4][4], const double x,
+                                 const double y) {
+  ContainedType arr[4];
+  arr[0] = cubicInterpolate(p[0], y);
+  arr[1] = cubicInterpolate(p[1], y);
+  arr[2] = cubicInterpolate(p[2], y);
+  arr[3] = cubicInterpolate(p[3], y);
+  return cubicInterpolate(arr, x);
+}
+
+template <class ContainedType>
+ContainedType tricubicInterpolate(const ContainedType p[4][4][4],
+                                  const double x, const double y,
+                                  const double z) {
+  ContainedType arr[4];
+  arr[0] = bicubicInterpolate(p[0], y, z);
+  arr[1] = bicubicInterpolate(p[1], y, z);
+  arr[2] = bicubicInterpolate(p[2], y, z);
+  arr[3] = bicubicInterpolate(p[3], y, z);
+  return cubicInterpolate(arr, x);
+}
+
+template <class ContainedType>
 ContainedType Data<ContainedType>::interpolate(const IRL::Pt& a_location) {
   const BasicMesh& mesh = this->getMesh();
   static int indices[3];
   mesh.getIndices(a_location, indices);
-  int i = std::max(this->getMesh().imino(),
-                   std::min(indices[0], this->getMesh().imaxo() - 1));
-  int j = std::max(this->getMesh().jmino(),
-                   std::min(indices[1], this->getMesh().jmaxo() - 1));
-  int k = std::max(this->getMesh().kmino(),
-                   std::min(indices[2], this->getMesh().kmaxo() - 1));
+  int i = std::max(this->getMesh().imino() + 1,
+                   std::min(indices[0], this->getMesh().imaxo() - 2));
+  int j = std::max(this->getMesh().jmino() + 1,
+                   std::min(indices[1], this->getMesh().jmaxo() - 2));
+  int k = std::max(this->getMesh().kmino() + 1,
+                   std::min(indices[2], this->getMesh().kmaxo() - 2));
   double wx1 = (a_location[0] - mesh.xm(i)) / (mesh.xm(i + 1) - mesh.xm(i));
   double wy1 = (a_location[1] - mesh.ym(j)) / (mesh.ym(j + 1) - mesh.ym(j));
   double wz1 = (a_location[2] - mesh.zm(k)) / (mesh.zm(k + 1) - mesh.zm(k));
-  double wx2 = 1.0 - wx1;
-  double wy2 = 1.0 - wy1;
-  double wz2 = 1.0 - wz1;
-  return wz1 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k + 1) +
-                       wx2 * (*this)(i, j + 1, k + 1)) +
-                wy2 * (wx1 * (*this)(i + 1, j, k + 1) +
-                       wx2 * (*this)(i, j, k + 1))) +
-         wz2 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k) +
-                       wx2 * (*this)(i, j + 1, k)) +
-                wy2 * (wx1 * (*this)(i + 1, j, k) + wx2 * (*this)(i, j, k)));
+
+  ContainedType data[4][4][4];
+  for (int ii = 0; ii < 4; ii++) {
+    for (int jj = 0; jj < 4; jj++) {
+      for (int kk = 0; kk < 4; kk++) {
+        data[ii][jj][kk] = (*this)(i + ii, j + kk, k + kk);
+      }
+    }
+  }
+  return tricubicInterpolate(data, wx1, wy1, wz1);
+  // double wx2 = 1.0 - wx1;
+  // double wy2 = 1.0 - wy1;
+  // double wz2 = 1.0 - wz1;
+  // return wz1 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k + 1) +
+  //                      wx2 * (*this)(i, j + 1, k + 1)) +
+  //               wy2 * (wx1 * (*this)(i + 1, j, k + 1) +
+  //                      wx2 * (*this)(i, j, k + 1))) +
+  //        wz2 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k) +
+  //                      wx2 * (*this)(i, j + 1, k)) +
+  //               wy2 * (wx1 * (*this)(i + 1, j, k) + wx2 * (*this)(i, j, k)));
 }
 
 template <class ContainedType>

@@ -31,15 +31,12 @@
 #include "examples/paraboloid_advector/solver.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 
-constexpr int NX = 10;
-constexpr int NY = 10;
-constexpr int NZ = 10;
-constexpr int GC = 2;
+constexpr int GC = 3;
 constexpr IRL::Pt lower_domain(0.0, 0.0, 0.0);
 constexpr IRL::Pt upper_domain(1.0, 1.0, 1.0);
 
-BasicMesh Translation3D::setMesh(void) {
-  BasicMesh mesh(NX, NY, NZ, GC);
+BasicMesh Translation3D::setMesh(const int a_nx) {
+  BasicMesh mesh(a_nx, a_nx, a_nx, GC);
   IRL::Pt my_lower_domain = lower_domain;
   IRL::Pt my_upper_domain = upper_domain;
   mesh.setCellBoundaries(my_lower_domain, my_upper_domain);
@@ -48,11 +45,13 @@ BasicMesh Translation3D::setMesh(void) {
 
 void Translation3D::initialize(Data<double>* a_U, Data<double>* a_V,
                                Data<double>* a_W,
-                               Data<IRL::Paraboloid>* a_interface) {
-  Translation3D::setVelocity(0.0, a_U, a_V, a_W);
+                               Data<IRL::Paraboloid>* a_interface,
+                               const double a_time) {
+  Translation3D::setVelocity(a_time, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
-  const IRL::Pt sphere_center(0.5 + 0.0 * mesh.dx(), 0.5 + 0.0 * mesh.dx(),
-                              0.5 + 0.0 * mesh.dx());
+  const IRL::Pt sphere_center(std::fmod(0.5 + a_time * 1.0, 1.0),
+                              std::fmod(0.5 + a_time * 1.0 / 1.5, 1.0),
+                              std::fmod(0.5 + a_time * 1.0 / 3.0, 1.0));
   const double sphere_radius = 0.25;
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
@@ -96,4 +95,16 @@ void Translation3D::setVelocity(const double a_time, Data<double>* a_U,
       }
     }
   }
+}
+
+const std::array<double, 3> Translation3D::getExactVelocity(
+    const IRL::Pt& a_location, const double a_time) {
+  return {1.0, 1.0 / 1.5, 1.0 / 3.0};
+}
+
+const std::array<std::array<double, 3>, 3>
+Translation3D::getExactVelocityGradient(const IRL::Pt& a_location,
+                                        const double a_time) {
+  return std::array<std::array<double, 3>, 3>(
+      {{{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}}});
 }

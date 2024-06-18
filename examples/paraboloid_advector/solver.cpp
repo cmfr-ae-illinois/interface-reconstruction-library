@@ -21,6 +21,9 @@
 
 #include "examples/paraboloid_advector/basic_mesh.h"
 #include "examples/paraboloid_advector/data.h"
+#include "examples/paraboloid_advector/deformation_3d.h"
+#include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/paraboloid_advector/translation_3d.h"
 
 // Convert and store the mesh cells into localizers.
 void initializeLocalizers(Data<IRL::PlanarLocalizer>* a_localizers) {
@@ -58,9 +61,8 @@ void initializeLocalizedParaboloids(
 }
 
 void setPhaseQuantities(const Data<IRL::Paraboloid>& a_interface,
-                        Data<double>* a_liquid_volume_fraction,
-                        Data<IRL::Pt>* a_liquid_centroid,
-                        Data<IRL::Pt>* a_gas_centroid) {
+                        Data<IRL::GeneralMoments3D<2>>* a_liquid_moments,
+                        Data<IRL::GeneralMoments3D<2>>* a_gas_moments) {
   const BasicMesh& mesh = a_interface.getMesh();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
@@ -68,17 +70,16 @@ void setPhaseQuantities(const Data<IRL::Paraboloid>& a_interface,
         auto cell = IRL::RectangularCuboid::fromBoundingPts(
             IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
             IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
-        auto moments = IRL::getNormalizedVolumeMoments<IRL::VolumeMoments>(
+        const auto moments = IRL::getVolumeMoments<
+            IRL::SeparatedMoments<IRL::GeneralMoments3D<2>>>(
             cell, a_interface(i, j, k));
-        (*a_liquid_volume_fraction)(i, j, k) =
-            moments.volume() / cell.calculateVolume();
-        (*a_liquid_centroid)(i, j, k) = moments.centroid();
+        (*a_liquid_moments)(i, j, k) = moments[0];
+        (*a_gas_moments)(i, j, k) = moments[1];
       }
     }
   }
-  a_liquid_volume_fraction->updateBorder();
-  a_liquid_centroid->updateBorder();
-  a_gas_centroid->updateBorder();
+  a_liquid_moments->updateBorder();
+  a_gas_moments->updateBorder();
 }
 
 void writeDiagnosticsHeader(void) {
@@ -92,7 +93,7 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          const double a_simulation_time,
                          const Data<double>& a_U, const Data<double>& a_V,
                          const Data<double>& a_W,
-                         const Data<double>& a_liquid_volume_fraction,
+                         const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
                          const Data<IRL::Paraboloid>& a_interface,
                          std::chrono::duration<double> a_VOF_duration,
                          std::chrono::duration<double> a_recon_duration,
@@ -119,13 +120,12 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        liquid_volume_fraction_sum += a_liquid_volume_fraction(i, j, k);
-        liquid_volume_sum += a_liquid_volume_fraction(i, j, k) * mesh.dx() *
-                             mesh.dy() * mesh.dz();
-        if (a_liquid_volume_fraction(i, j, k) >=
-                IRL::global_constants::VF_LOW &&
-            a_liquid_volume_fraction(i, j, k) <=
-                IRL::global_constants::VF_HIGH) {
+        const double liquid_volume_fraction =
+            a_liquid_moments(i, j, k)[0] / mesh.cell_volume();
+        liquid_volume_fraction_sum += liquid_volume_fraction;
+        liquid_volume_sum += a_liquid_moments(i, j, k)[0];
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
           ++number_of_interface_cells;
         }
       }
@@ -147,17 +147,18 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
       number_of_interface_cells);
 }
 
-void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
-                          const Data<IRL::Paraboloid>& a_liquid_gas_interface,
-                          const double a_time, VTKOutput* a_output) {
-  const BasicMesh& mesh = a_liquid_volume_fraction.getMesh();
+void writeInterfaceToFile(
+    const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
+    const Data<IRL::Paraboloid>& a_liquid_gas_interface, const double a_time,
+    VTKOutput* a_output, const bool print) {
+  const BasicMesh& mesh = a_liquid_moments.getMesh();
 
   std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
   double radius = 0.25;
   double total_surface = 0.0, avg_mean_curv = 0.0;
   double exact_curv = 2.0 / radius;
   double max_mean_curv_error = 0.0;
-  double l2_mean_curv_error = 0.0, l2_counter = 0.0;
+  double l2_mean_curv_error = 0.0, l1_mean_curv_error = 0.0, l2_counter = 0.0;
 
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -202,10 +203,10 @@ void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
   for (int i = imin; i < imin + nx; ++i) {
     for (int j = jmin; j < jmin + ny; ++j) {
       for (int k = kmin; k < kmin + nz; ++k) {
-        if (a_liquid_volume_fraction(i, j, k) >=
-                IRL::global_constants::VF_LOW &&
-            a_liquid_volume_fraction(i, j, k) <=
-                IRL::global_constants::VF_HIGH) {
+        const double liquid_volume_fraction =
+            a_liquid_moments(i, j, k)[0] / mesh.cell_volume();
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
           const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
                                       mesh.z(k + 1));
@@ -229,6 +230,8 @@ void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
                 max_mean_curv_error,
                 std::abs(surface.getAverageMeanCurvature() - exact_curv));
             // }
+            l1_mean_curv_error +=
+                std::abs(surface.getAverageMeanCurvature() - exact_curv);
             l2_mean_curv_error +=
                 (surface.getAverageMeanCurvature() - exact_curv) *
                 (surface.getAverageMeanCurvature() - exact_curv);
@@ -239,9 +242,134 @@ void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
     }
   }
 
-  l2_mean_curv_error /= l2_counter;
-  l2_mean_curv_error = std::sqrt(l2_mean_curv_error);
-  avg_mean_curv /= total_surface;
-  total_surface = std::sqrt(total_surface);
+  double max_mean_curv_error_global = 0.0;
+  double l2_mean_curv_error_global = 0.0, l1_mean_curv_error_global = 1.0,
+         l2_counter_global = 0.0;
+  double total_surface_global = 0.0, avg_mean_curv_global = 0.0;
+
+  MPI_Allreduce(&l2_counter, &l2_counter_global, 1, MPI_DOUBLE, MPI_SUM,
+                MPI_COMM_WORLD);
+  MPI_Allreduce(&l2_mean_curv_error, &l2_mean_curv_error_global, 1, MPI_DOUBLE,
+                MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&l1_mean_curv_error, &l1_mean_curv_error_global, 1, MPI_DOUBLE,
+                MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&avg_mean_curv, &avg_mean_curv_global, 1, MPI_DOUBLE, MPI_SUM,
+                MPI_COMM_WORLD);
+  MPI_Allreduce(&total_surface, &total_surface_global, 1, MPI_DOUBLE, MPI_SUM,
+                MPI_COMM_WORLD);
+  MPI_Allreduce(&max_mean_curv_error, &max_mean_curv_error_global, 1,
+                MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  l1_mean_curv_error_global /= l2_counter_global;
+  l2_mean_curv_error_global /= l2_counter_global;
+  l2_mean_curv_error_global = std::sqrt(l2_mean_curv_error_global);
+  avg_mean_curv_global /= total_surface_global;
+  total_surface_global = std::sqrt(total_surface_global);
+
+  if (rank == 0 && print) {
+    std::cout << "Linf  K = " << std::scientific << std::setprecision(2)
+              << max_mean_curv_error / exact_curv << std::endl;
+    std::cout << "L1    K = " << l1_mean_curv_error_global / exact_curv
+              << std::endl;
+    std::cout << "L2    K = " << l2_mean_curv_error_global / exact_curv
+              << std::endl;
+  }
   a_output->writeParametrizedInterface(a_time, surfaces);
+}
+
+void printError(const BasicMesh& mesh,
+                const Data<IRL::GeneralMoments3D<2>>& liquid_moments,
+                const Data<IRL::GeneralMoments3D<2>>& starting_liquid_moments) {
+  int rank, size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  if (rank == 0) {
+    double linf_error_m0 = 0.0;
+    double linf_error_m1 = 0.0;
+    double linf_error_m2 = 0.0;
+    double l1_error_m0 = 0.0;
+    double l1_error_m1 = 0.0;
+    double l1_error_m2 = 0.0;
+    double l2_error_m0 = 0.0;
+    double l2_error_m1 = 0.0;
+    double l2_error_m2 = 0.0;
+    double scale_m0 = 1.0 / std::pow(mesh.dx(), 3.0);
+    double scale_m1 = 1.0 / std::pow(mesh.dx(), 4.0);
+    double scale_m2 = 1.0 / std::pow(mesh.dx(), 5.0);
+    for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+        for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+          const double liquid_volume_fraction =
+              liquid_moments(i, j, k)[0] / mesh.cell_volume();
+          if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+              liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+            auto mom_err =
+                (liquid_moments(i, j, k) - starting_liquid_moments(i, j, k));
+            linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err[0]));
+            linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err[1]));
+            linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err[2]));
+            linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err[3]));
+            linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err[4]));
+            linf_error_m2 = std::max(linf_error_m2, std::abs(2.0 * mom_err[5]));
+            linf_error_m2 = std::max(linf_error_m2, std::abs(2.0 * mom_err[6]));
+            linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err[7]));
+            linf_error_m2 = std::max(linf_error_m2, std::abs(2.0 * mom_err[8]));
+            linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err[9]));
+            l1_error_m0 += std::abs(mom_err[0]);
+            l1_error_m1 += std::abs(mom_err[1]);
+            l1_error_m1 += std::abs(mom_err[2]);
+            l1_error_m1 += std::abs(mom_err[3]);
+            l1_error_m2 += std::abs(mom_err[4]);
+            l1_error_m2 += std::abs(2.0 * mom_err[5]);
+            l1_error_m2 += std::abs(2.0 * mom_err[6]);
+            l1_error_m2 += std::abs(mom_err[7]);
+            l1_error_m2 += std::abs(2.0 * mom_err[8]);
+            l1_error_m2 += std::abs(mom_err[9]);
+            l2_error_m0 += mom_err[0] * mom_err[0];
+            l2_error_m1 += mom_err[1] * mom_err[1];
+            l2_error_m1 += mom_err[2] * mom_err[2];
+            l2_error_m1 += mom_err[3] * mom_err[3];
+            l2_error_m2 += mom_err[4] * mom_err[4];
+            l2_error_m2 += 4.0 * mom_err[5] * mom_err[5];
+            l2_error_m2 += 4.0 * mom_err[6] * mom_err[6];
+            l2_error_m2 += mom_err[7] * mom_err[7];
+            l2_error_m2 += 4.0 * mom_err[8] * mom_err[8];
+            l2_error_m2 += mom_err[9] * mom_err[9];
+          }
+        }
+      }
+    }
+    l1_error_m0 /=
+        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+    l1_error_m1 /=
+        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+    l1_error_m2 /=
+        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+    l2_error_m0 /=
+        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+    l2_error_m1 /=
+        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+    l2_error_m2 /=
+        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+    linf_error_m0 *= scale_m0;
+    linf_error_m1 *= scale_m1;
+    linf_error_m2 *= scale_m2;
+    l1_error_m0 *= scale_m0;
+    l1_error_m1 *= scale_m1;
+    l1_error_m2 *= scale_m2;
+    l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
+    l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
+    l2_error_m2 = std::sqrt(l2_error_m2) * scale_m2;
+    std::cout << std::scientific << std::setprecision(2)
+              << "Linf M0 = " << linf_error_m0 << std::endl;
+    std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
+    std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
+    std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
+    std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
+    std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
+    std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
+    std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
+    std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
+  }
 }

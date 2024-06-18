@@ -106,8 +106,8 @@ endif()
 # target_sources(irl PRIVATE "external/triangle/triangle.h")
 # target_sources(irl PRIVATE "external/triangle/triangle.cpp")
 # endif()
-target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.h")
-target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.cpp")
+# target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.h")
+# target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.cpp")
 
 # C++ IRL Base
 target_include_directories(irl PUBLIC "${PROJECT_SOURCE_DIR}")

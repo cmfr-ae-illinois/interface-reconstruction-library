@@ -1714,8 +1714,9 @@ formParaboloidIntersectionBases(
     // (i.e. when a_nudge_iter > 0)
     if (a_nudge_iter >= 100) {
       std::cout << "ERROR: Nudged more than 100 times. Moments returned "
-                   "are wrong."
-                << std::endl;
+                   "are wrong -> Context: a = "
+                << a_aligned_paraboloid.a()
+                << ", b = " << a_aligned_paraboloid.b() << std::endl;
       std::ofstream myfile("failed_nudge_comparison_cell.vtu");
       if (myfile.is_open()) {
         myfile << *a_polytope;
