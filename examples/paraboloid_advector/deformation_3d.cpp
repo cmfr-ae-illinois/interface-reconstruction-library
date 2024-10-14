@@ -30,6 +30,7 @@
 #include "examples/paraboloid_advector/solver.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 
+constexpr double T = 0.1;
 constexpr int GC = 3;
 constexpr IRL::Pt lower_domain(0.0, 0.0, 0.0);
 constexpr IRL::Pt upper_domain(1.0, 1.0, 1.0);
@@ -45,7 +46,7 @@ BasicMesh Deformation3D::setMesh(const int a_nx) {
 void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V,
                                Data<double>* a_W,
                                Data<IRL::Paraboloid>* a_interface,
-                               const double a_time) {
+                               const double a_time, const double final_time) {
   Deformation3D::setVelocity(0.0, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
   const IRL::Pt sphere_center(0.35, 0.35, 0.35);
@@ -86,80 +87,142 @@ void Deformation3D::setVelocity(const double a_time, Data<double>* a_U,
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        (*a_U)(i, j, k) = 2.0 * std::pow(sin(M_PI * mesh.xm(i)), 2) *
-                          sin(2.0 * M_PI * mesh.ym(j)) *
-                          sin(2.0 * M_PI * mesh.zm(k)) *
-                          cos(M_PI * (a_time) / 3.0);
-        (*a_V)(i, j, k) = -std::pow(sin(M_PI * mesh.ym(j)), 2) *
-                          sin(2.0 * M_PI * mesh.xm(i)) *
-                          sin(2.0 * M_PI * mesh.zm(k)) *
-                          cos(M_PI * (a_time) / 3.0);
-        (*a_W)(i, j, k) = -std::pow(sin(M_PI * mesh.zm(k)), 2) *
-                          sin(2.0 * M_PI * mesh.xm(i)) *
-                          sin(2.0 * M_PI * mesh.ym(j)) *
-                          cos(M_PI * (a_time) / 3.0);
+        const double sinpix = std::sin(M_PI * mesh.xm(i)),
+                     sinpiy = std::sin(M_PI * mesh.ym(j)),
+                     sinpiz = std::sin(M_PI * mesh.zm(k));
+        const double sin2pix = std::sin(2.0 * M_PI * mesh.xm(i)),
+                     sin2piy = std::sin(2.0 * M_PI * mesh.ym(j)),
+                     sin2piz = std::sin(2.0 * M_PI * mesh.zm(k));
+        const double cospit = std::cos(M_PI * (a_time) / T);
+        (*a_U)(i, j, k) = 2.0 * sinpix * sinpix * sin2piy * sin2piz * cospit;
+        (*a_V)(i, j, k) = -sinpiy * sinpiy * sin2pix * sin2piz * cospit;
+        (*a_W)(i, j, k) = -sinpiz * sinpiz * sin2pix * sin2piy * cospit;
       }
     }
   }
 }
 
-const std::array<double, 3> Deformation3D::getExactVelocity(
-    const IRL::Pt& a_location, const double a_time) {
-  return {2.0 * std::pow(std::sin(M_PI * a_location[0]), 2) *
-              std::sin(2.0 * M_PI * a_location[1]) *
-              std::sin(2.0 * M_PI * a_location[2]) *
-              std::cos(M_PI * (a_time) / 3.0),
-          -std::pow(std::sin(M_PI * a_location[1]), 2) *
-              std::sin(2.0 * M_PI * a_location[0]) *
-              std::sin(2.0 * M_PI * a_location[2]) *
-              std::cos(M_PI * (a_time) / 3.0),
-          -std::pow(std::sin(M_PI * a_location[2]), 2) *
-              std::sin(2.0 * M_PI * a_location[0]) *
-              std::sin(2.0 * M_PI * a_location[1]) *
-              std::cos(M_PI * (a_time) / 3.0)};
+const Eigen::Vector3d Deformation3D::getExactVelocity(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const double sinpix = std::sin(M_PI * a_location[0]),
+               sinpiy = std::sin(M_PI * a_location[1]),
+               sinpiz = std::sin(M_PI * a_location[2]);
+  const double sin2pix = std::sin(2.0 * M_PI * a_location[0]),
+               sin2piy = std::sin(2.0 * M_PI * a_location[1]),
+               sin2piz = std::sin(2.0 * M_PI * a_location[2]);
+  const double cospit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Vector3d({2.0 * sinpix * sinpix * sin2piy * sin2piz * cospit,
+                          -sinpiy * sinpiy * sin2pix * sin2piz * cospit,
+                          -sinpiz * sinpiz * sin2pix * sin2piy * cospit});
 }
 
-const std::array<std::array<double, 3>, 3>
-Deformation3D::getExactVelocityGradient(const IRL::Pt& a_location,
-                                        const double a_time) {
-  return std::array<std::array<double, 3>, 3>(
-      {{{4.0 * M_PI * std::cos(M_PI * a_location[0]) *
-             std::sin(M_PI * a_location[0]) *
-             std::sin(2.0 * M_PI * a_location[1]) *
-             std::sin(2.0 * M_PI * a_location[2]) *
-             std::cos(M_PI * (a_time) / 3.0),
-         4.0 * M_PI * std::pow(std::sin(M_PI * a_location[0]), 2) *
-             std::cos(2.0 * M_PI * a_location[1]) *
-             std::sin(2.0 * M_PI * a_location[2]) *
-             std::cos(M_PI * (a_time) / 3.0),
-         4.0 * M_PI * std::pow(std::sin(M_PI * a_location[0]), 2) *
-             std::sin(2.0 * M_PI * a_location[1]) *
-             std::cos(2.0 * M_PI * a_location[2]) *
-             std::cos(M_PI * (a_time) / 3.0)},
-        {-2.0 * M_PI * std::pow(std::sin(M_PI * a_location[1]), 2) *
-             std::cos(2.0 * M_PI * a_location[0]) *
-             std::sin(2.0 * M_PI * a_location[2]) *
-             std::cos(M_PI * (a_time) / 3.0),
-         -2.0 * M_PI * std::cos(M_PI * a_location[1]) *
-             std::sin(M_PI * a_location[1]) *
-             std::sin(2.0 * M_PI * a_location[0]) *
-             std::sin(2.0 * M_PI * a_location[2]) *
-             std::cos(M_PI * (a_time) / 3.0),
-         -2.0 * M_PI * std::pow(std::sin(M_PI * a_location[1]), 2) *
-             std::sin(2.0 * M_PI * a_location[0]) *
-             std::cos(2.0 * M_PI * a_location[2]) *
-             std::cos(M_PI * (a_time) / 3.0)},
-        {-2.0 * M_PI * std::pow(std::sin(M_PI * a_location[2]), 2) *
-             std::cos(2.0 * M_PI * a_location[0]) *
-             std::sin(2.0 * M_PI * a_location[1]) *
-             std::cos(M_PI * (a_time) / 3.0),
-         -2.0 * M_PI * std::pow(std::sin(M_PI * a_location[2]), 2) *
-             std::sin(2.0 * M_PI * a_location[0]) *
-             std::cos(2.0 * M_PI * a_location[1]) *
-             std::cos(M_PI * (a_time) / 3.0),
-         -2.0 * M_PI * std::cos(M_PI * a_location[2]) *
-             std::sin(M_PI * a_location[2]) *
-             std::sin(2.0 * M_PI * a_location[0]) *
-             std::sin(2.0 * M_PI * a_location[1]) *
-             std::cos(M_PI * (a_time) / 3.0)}}});
+const Eigen::Matrix3d Deformation3D::getExactVelocityGradient(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const double sinpix = std::sin(M_PI * a_location[0]),
+               sinpiy = std::sin(M_PI * a_location[1]),
+               sinpiz = std::sin(M_PI * a_location[2]);
+  const double cospix = std::cos(M_PI * a_location[0]),
+               cospiy = std::cos(M_PI * a_location[1]),
+               cospiz = std::cos(M_PI * a_location[2]);
+  const double sin2pix = std::sin(2.0 * M_PI * a_location[0]),
+               sin2piy = std::sin(2.0 * M_PI * a_location[1]),
+               sin2piz = std::sin(2.0 * M_PI * a_location[2]);
+  const double cos2pix = std::cos(2.0 * M_PI * a_location[0]),
+               cos2piy = std::cos(2.0 * M_PI * a_location[1]),
+               cos2piz = std::cos(2.0 * M_PI * a_location[2]);
+  const double cospit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Matrix3d(
+      {{4.0 * M_PI * cospix * sinpix * sin2piy * sin2piz * cospit,
+        4.0 * M_PI * sinpix * sinpix * cos2piy * sin2piz * cospit,
+        4.0 * M_PI * sinpix * sinpix * sin2piy * cos2piz * cospit},
+       {-2.0 * M_PI * sinpiy * sinpiy * cos2pix * sin2piz * cospit,
+        -2.0 * M_PI * cospiy * sinpiy * sin2pix * sin2piz * cospit,
+        -2.0 * M_PI * sinpiy * sinpiy * sin2pix * cos2piz * cospit},
+       {-2.0 * M_PI * sinpiz * sinpiz * cos2pix * sin2piy * cospit,
+        -2.0 * M_PI * cospiz * sinpiz * sin2pix * sin2piy * cospit,
+        -2.0 * M_PI * sinpiz * sinpiz * sin2pix * cos2piy * cospit}});
+}
+
+const Eigen::Matrix3d Deformation3D::getExactVelocityHessianX(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const double sinpix = std::sin(M_PI * a_location[0]),
+               sinpiy = std::sin(M_PI * a_location[1]),
+               sinpiz = std::sin(M_PI * a_location[2]);
+  const double cospix = std::cos(M_PI * a_location[0]),
+               cospiy = std::cos(M_PI * a_location[1]),
+               cospiz = std::cos(M_PI * a_location[2]);
+  const double sin2pix = std::sin(2.0 * M_PI * a_location[0]),
+               sin2piy = std::sin(2.0 * M_PI * a_location[1]),
+               sin2piz = std::sin(2.0 * M_PI * a_location[2]);
+  const double cos2pix = std::cos(2.0 * M_PI * a_location[0]),
+               cos2piy = std::cos(2.0 * M_PI * a_location[1]),
+               cos2piz = std::cos(2.0 * M_PI * a_location[2]);
+  const double cospit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Matrix3d(
+      {{4.0 * M_PI * M_PI * (-sinpix * sinpix + cospix * cospix) * sin2piy *
+            sin2piz * cospit,
+        8.0 * M_PI * M_PI * cospix * sinpix * cos2piy * sin2piz * cospit,
+        8.0 * M_PI * M_PI * cospix * sinpix * sin2piy * cos2piz * cospit},
+       {8.0 * M_PI * M_PI * cospix * sinpix * cos2piy * sin2piz * cospit,
+        -8.0 * M_PI * M_PI * sinpix * sinpix * sin2piy * sin2piz * cospit,
+        8.0 * M_PI * M_PI * sinpix * sinpix * cos2piy * cos2piz * cospit},
+       {8.0 * M_PI * M_PI * cospix * sinpix * sin2piy * cos2piz * cospit,
+        8.0 * M_PI * M_PI * sinpix * sinpix * cos2piy * cos2piz * cospit,
+        -8.0 * M_PI * M_PI * sinpix * sinpix * sin2piy * sin2piz * cospit}});
+}
+
+const Eigen::Matrix3d Deformation3D::getExactVelocityHessianY(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const double sinpix = std::sin(M_PI * a_location[0]),
+               sinpiy = std::sin(M_PI * a_location[1]),
+               sinpiz = std::sin(M_PI * a_location[2]);
+  const double cospix = std::cos(M_PI * a_location[0]),
+               cospiy = std::cos(M_PI * a_location[1]),
+               cospiz = std::cos(M_PI * a_location[2]);
+  const double sin2pix = std::sin(2.0 * M_PI * a_location[0]),
+               sin2piy = std::sin(2.0 * M_PI * a_location[1]),
+               sin2piz = std::sin(2.0 * M_PI * a_location[2]);
+  const double cos2pix = std::cos(2.0 * M_PI * a_location[0]),
+               cos2piy = std::cos(2.0 * M_PI * a_location[1]),
+               cos2piz = std::cos(2.0 * M_PI * a_location[2]);
+  const double cospit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Matrix3d(
+      {{4.0 * M_PI * M_PI * sinpiy * sinpiy * sin2pix * sin2piz * cospit,
+        -4.0 * M_PI * M_PI * cospiy * sinpiy * cos2pix * sin2piz * cospit,
+        -4.0 * M_PI * M_PI * sinpiy * sinpiy * cos2pix * cos2piz * cospit},
+       {-4.0 * M_PI * M_PI * cospiy * sinpiy * cos2pix * sin2piz * cospit,
+        -2.0 * M_PI * M_PI * (-sinpiy * sinpiy + cospiy * cospiy) * sin2pix *
+            sin2piz * cospit,
+        -4.0 * M_PI * M_PI * cospiy * sinpiy * sin2pix * cos2piz * cospit},
+       {-4.0 * M_PI * M_PI * sinpiy * sinpiy * cos2pix * cos2piz * cospit,
+        -4.0 * M_PI * M_PI * cospiy * sinpiy * sin2pix * cos2piz * cospit,
+        4.0 * M_PI * M_PI * sinpiy * sinpiy * sin2pix * sin2piz * cospit}});
+}
+
+const Eigen::Matrix3d Deformation3D::getExactVelocityHessianZ(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const double sinpix = std::sin(M_PI * a_location[0]),
+               sinpiy = std::sin(M_PI * a_location[1]),
+               sinpiz = std::sin(M_PI * a_location[2]);
+  const double cospix = std::cos(M_PI * a_location[0]),
+               cospiy = std::cos(M_PI * a_location[1]),
+               cospiz = std::cos(M_PI * a_location[2]);
+  const double sin2pix = std::sin(2.0 * M_PI * a_location[0]),
+               sin2piy = std::sin(2.0 * M_PI * a_location[1]),
+               sin2piz = std::sin(2.0 * M_PI * a_location[2]);
+  const double cos2pix = std::cos(2.0 * M_PI * a_location[0]),
+               cos2piy = std::cos(2.0 * M_PI * a_location[1]),
+               cos2piz = std::cos(2.0 * M_PI * a_location[2]);
+  const double cospit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Matrix3d(
+      {{4.0 * M_PI * M_PI * sinpiz * sinpiz * sin2pix * sin2piy * cospit,
+        -4.0 * M_PI * M_PI * sinpiz * sinpiz * cos2pix * cos2piy * cospit,
+        -4.0 * M_PI * M_PI * cospiz * sinpiz * cos2pix * sin2piy * cospit},
+       {-4.0 * M_PI * M_PI * sinpiz * sinpiz * cos2pix * cos2piy * cospit,
+        4.0 * M_PI * M_PI * sinpiz * sinpiz * sin2pix * sin2piy * cospit,
+        -4.0 * M_PI * M_PI * cospiz * sinpiz * sin2pix * cos2piy * cospit},
+       {-4.0 * M_PI * M_PI * cospiz * sinpiz * cos2pix * sin2piy * cospit,
+        -4.0 * M_PI * M_PI * cospiz * sinpiz * sin2pix * cos2piy * cospit,
+        -2.0 * M_PI * M_PI * (-sinpiz * sinpiz + cospiz * cospiz) * sin2pix *
+            sin2piy * cospit}});
 }

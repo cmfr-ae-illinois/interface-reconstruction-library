@@ -24,6 +24,7 @@
 #include "examples/paraboloid_advector/deformation_3d.h"
 #include "examples/paraboloid_advector/reconstruction_types.h"
 #include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/paraboloid_advector/stagnation_3d.h"
 #include "examples/paraboloid_advector/translation_3d.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 #include "examples/paraboloid_advector/vtk.h"
@@ -118,7 +119,7 @@ int runSimulation(const std::string& a_simulation_type,
   }
 
   // Initialize data
-  SimulationType::initialize(&velU, &velV, &velW, &interface, 0.0);
+  SimulationType::initialize(&velU, &velV, &velW, &interface, 0.0, a_end_time);
   setPhaseQuantities(interface, &liquid_moments, &gas_moments);
   const auto starting_liquid_moments = liquid_moments;
 
@@ -175,7 +176,8 @@ int runSimulation(const std::string& a_simulation_type,
         Data<IRL::GeneralMoments3D<2>> ref_liquid_moments(&cc_mesh);
         Data<IRL::GeneralMoments3D<2>> ref_gas_moments(&cc_mesh);
         SimulationType::initialize(&velU, &velV, &velW, &ref_interface,
-                                   simulation_time + time_step_to_use);
+                                   simulation_time + time_step_to_use,
+                                   a_end_time);
         setPhaseQuantities(ref_interface, &ref_liquid_moments,
                            &ref_gas_moments);
         printError(cc_mesh, liquid_moments, ref_liquid_moments);

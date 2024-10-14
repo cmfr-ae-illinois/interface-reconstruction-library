@@ -14,6 +14,7 @@
 
 #include "examples/paraboloid_advector/deformation_3d.h"
 #include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/paraboloid_advector/stagnation_3d.h"
 #include "examples/paraboloid_advector/translation_3d.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
@@ -125,35 +126,26 @@ inline IRL::Pt back_project_vertex(const IRL::Pt& a_initial_pt,
          IRL::Pt::fromVec3(a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
 }
 
-inline IRL::Pt back_project_vertex(const IRL::Pt& a_initial_pt,
+inline IRL::Pt back_project_vertex(const IRL::Pt& a_loc,
                                    const std::string& a_simulation_type,
                                    const double a_dt, const double a_time) {
-  const std::array<double, 3> (*getExactVelocity)(const IRL::Pt& a_location,
-                                                  const double a_time);
-  if (a_simulation_type == "Deformation3D") {
+  const Eigen::Vector3d (*getExactVelocity)(const Eigen::Vector3d&,
+                                            const double);
+  if (a_simulation_type == "Deformation3D")
     getExactVelocity = Deformation3D::getExactVelocity;
-  } else if (a_simulation_type == "Translation3D") {
+  else if (a_simulation_type == "Translation3D")
     getExactVelocity = Translation3D::getExactVelocity;
-  } else if (a_simulation_type == "Rotation3D") {
+  else if (a_simulation_type == "Rotation3D")
     getExactVelocity = Rotation3D::getExactVelocity;
-  }
-
-  auto v1 = IRL::Vec3<double>::fromRawDoublePointer(
-      getExactVelocity(a_initial_pt, a_time).data());
-  auto v2 = IRL::Vec3<double>::fromRawDoublePointer(
-      getExactVelocity(a_initial_pt + IRL::Pt::fromVec3(0.5 * a_dt * v1),
-                       a_time + 0.5 * a_dt)
-          .data());
-  auto v3 = IRL::Vec3<double>::fromRawDoublePointer(
-      getExactVelocity(a_initial_pt + IRL::Pt::fromVec3(0.5 * a_dt * v2),
-                       a_time + 0.5 * a_dt)
-          .data());
-  auto v4 = IRL::Vec3<double>::fromRawDoublePointer(
-      getExactVelocity(a_initial_pt + IRL::Pt::fromVec3(a_dt * v3),
-                       a_time + a_dt)
-          .data());
-  return a_initial_pt +
-         IRL::Pt::fromVec3(a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
+  else if (a_simulation_type == "Stagnation3D")
+    getExactVelocity = Stagnation3D::getExactVelocity;
+  const Eigen::Vector3d loc{a_loc[0], a_loc[1], a_loc[2]};
+  const auto v1 = getExactVelocity(loc, a_time);
+  const auto v2 = getExactVelocity(loc + 0.5 * a_dt * v1, a_time + 0.5 * a_dt);
+  const auto v3 = getExactVelocity(loc + 0.5 * a_dt * v2, a_time + 0.5 * a_dt);
+  const auto v4 = getExactVelocity(loc + a_dt * v3, a_time + a_dt);
+  const auto f = a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0;
+  return IRL::Pt(a_loc[0] + f[0], a_loc[1] + f[1], a_loc[2] + f[2]);
 }
 
 inline IRL::Vec3<double> getVelocity(const IRL::Pt& a_location,
