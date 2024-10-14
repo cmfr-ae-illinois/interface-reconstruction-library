@@ -623,13 +623,35 @@ TEST(ParaboloidMOF, MOF) {
           Paraboloid_MOF_Object<20, 8> mof_object(
               cell, Pt(lower_cell_pt - cell_centroid),
               Pt(upper_cell_pt - cell_centroid), moments, paraboloid_guess);
-          LevenbergMarquardtNew<Paraboloid_MOF_Object<20, 8>, 20, 8> solver;
+          // LevenbergMarquardtNew<Paraboloid_MOF_Object<20, 8>, 20, 8> solver;
           // std::cout << "Solving... " << std::endl;
-          solver.solve(&mof_object, mof_object.getDefaultInitialDelta());
+          // solver.solve(&mof_object, mof_object.getDefaultInitialDelta());
           // std::cout << "Solved in   : " << solver.getIterationCount()
           //           << " iterations with error = "
           //           << sqrt(mof_object.calculateScalarError()) <<
           // std::endl;
+
+          {
+            // Eigen::VectorXf x(1);
+            // x(0) = 2;
+            // std::cout << "x: " << x << std::endl;
+
+            // MyFunctor myFunctor;
+            // Eigen::NumericalDiff<MyFunctor>
+            // numericalDiffMyFunctor(myFunctor);
+            // Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MyFunctor>, float>
+            //     levenbergMarquardt(numericalDiffMyFunctor);
+
+            // levenbergMarquardt.parameters.ftol = 1e-6;
+            // levenbergMarquardt.parameters.xtol = 1e-6;
+            // levenbergMarquardt.parameters.maxfev = 10;  // Max iterations
+
+            // Eigen::VectorXf xmin = x;  // initialize
+            // levenbergMarquardt.minimize(xmin);
+
+            // std::cout << "x that minimizes the function: " << xmin <<
+            // std::endl;
+          }
 
           Paraboloid paraboloid = mof_object.getBestReconstruction();
           auto aligned_paraboloid = paraboloid.getAlignedParaboloid();

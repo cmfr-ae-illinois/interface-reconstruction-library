@@ -7,6 +7,7 @@
 #include "examples/paraboloid_advector/reconstruction_types.h"
 #include "examples/paraboloid_advector/rotation_3d.h"
 #include "examples/paraboloid_advector/solver.h"
+#include "examples/paraboloid_advector/stagnation_3d.h"
 #include "examples/paraboloid_advector/translation_3d.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 
@@ -79,10 +80,14 @@ static int startSimulation(const std::string& a_simulation_type,
     return runSimulation<Rotation3D>(a_simulation_type, a_advection_method,
                                      a_reconstruction_method, a_time_step_size,
                                      a_time_duration, a_viz_frequency, a_nx);
+  } else if (a_simulation_type == "Stagnation3D") {
+    return runSimulation<Stagnation3D>(
+        a_simulation_type, a_advection_method, a_reconstruction_method,
+        a_time_step_size, a_time_duration, a_viz_frequency, a_nx);
   } else {
     std::cout << "Unknown simulation type of : " << a_simulation_type << '\n';
-    std::cout
-        << "Value entries are: Deformation3D, Translation3D, Rotation3D. \n";
+    std::cout << "Value entries are: Deformation3D, Translation3D, Rotation3D, "
+                 "Stagnation3D. \n";
     std::exit(-1);
   }
   return -1;

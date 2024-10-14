@@ -7,7 +7,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/paraboloid_advector/translation_3d.h"
+#include "examples/paraboloid_advector/stagnation_3d.h"
 
 #include <float.h>
 #include <chrono>
@@ -21,7 +21,6 @@
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/polygons/polygon.h"
-#include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
 #include "irl/moments/volume_moments.h"
 #include "irl/parameters/constants.h"
 #include "irl/planar_reconstruction/localized_separator_link.h"
@@ -31,11 +30,12 @@
 #include "examples/paraboloid_advector/solver.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 
+constexpr double T = 0.5;
 constexpr int GC = 3;
-constexpr IRL::Pt lower_domain(0.0, 0.0, 0.0);
-constexpr IRL::Pt upper_domain(1.0, 1.0, 1.0);
+constexpr IRL::Pt lower_domain(-0.5, -0.5, -0.5);
+constexpr IRL::Pt upper_domain(0.5, 0.5, 0.5);
 
-BasicMesh Translation3D::setMesh(const int a_nx) {
+BasicMesh Stagnation3D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, a_nx, GC);
   IRL::Pt my_lower_domain = lower_domain;
   IRL::Pt my_upper_domain = upper_domain;
@@ -43,15 +43,13 @@ BasicMesh Translation3D::setMesh(const int a_nx) {
   return mesh;
 }
 
-void Translation3D::initialize(Data<double>* a_U, Data<double>* a_V,
-                               Data<double>* a_W,
-                               Data<IRL::Paraboloid>* a_interface,
-                               const double a_time, const double final_time) {
-  Translation3D::setVelocity(a_time, a_U, a_V, a_W);
+void Stagnation3D::initialize(Data<double>* a_U, Data<double>* a_V,
+                              Data<double>* a_W,
+                              Data<IRL::Paraboloid>* a_interface,
+                              const double a_time, const double final_time) {
+  Stagnation3D::setVelocity(a_time, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
-  const IRL::Pt sphere_center(std::fmod(0.5 + a_time * 1.0, 1.0),
-                              std::fmod(0.5 + a_time * 1.0 / 1.5, 1.0),
-                              std::fmod(0.5 + a_time * 1.0 / 3.0, 1.0));
+  const IRL::Pt sphere_center(0.0, 0.0, 0.0);
   const double sphere_radius = 0.25;
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
@@ -83,41 +81,53 @@ void Translation3D::initialize(Data<double>* a_U, Data<double>* a_V,
   correctInterfacePlaneBorders(a_interface);
 }
 
-void Translation3D::setVelocity(const double a_time, Data<double>* a_U,
-                                Data<double>* a_V, Data<double>* a_W) {
+void Stagnation3D::setVelocity(const double a_time, Data<double>* a_U,
+                               Data<double>* a_V, Data<double>* a_W) {
   const BasicMesh& mesh = a_U->getMesh();
+  const IRL::Pt sphere_center(0.0, 0.0, 0.0);
+  const double cos2pit = std::cos(M_PI * (a_time) / T);
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        (*a_U)(i, j, k) = 1.0;
-        (*a_V)(i, j, k) = 1.0 / 1.5;
-        (*a_W)(i, j, k) = 1.0 / 3.0;
+        const double x = mesh.xm(i) - sphere_center[0],
+                     y = mesh.ym(j) - sphere_center[1],
+                     z = mesh.zm(k) - sphere_center[2];
+        (*a_U)(i, j, k) = 2.0 * x * cos2pit;
+        (*a_V)(i, j, k) = -y * cos2pit;
+        (*a_W)(i, j, k) = -z * cos2pit;
       }
     }
   }
 }
 
-const Eigen::Vector3d Translation3D::getExactVelocity(
+const Eigen::Vector3d Stagnation3D::getExactVelocity(
     const Eigen::Vector3d& a_location, const double a_time) {
-  return Eigen::Vector3d({1.0, 1.0 / 1.5, 1.0 / 3.0});
+  const IRL::Pt sphere_center(0.0, 0.0, 0.0);
+  const double x = a_location[0] - sphere_center[0],
+               y = a_location[1] - sphere_center[1],
+               z = a_location[2] - sphere_center[2];
+  const double cos2pit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Vector3d({2.0 * x * cos2pit, -y * cos2pit, -z * cos2pit});
 }
 
-const Eigen::Matrix3d Translation3D::getExactVelocityGradient(
+const Eigen::Matrix3d Stagnation3D::getExactVelocityGradient(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const double cos2pit = std::cos(M_PI * (a_time) / T);
+  return Eigen::Matrix3d(
+      {{2.0 * cos2pit, 0.0, 0.0}, {0.0, -cos2pit, 0.0}, {0.0, 0.0, -cos2pit}});
+}
+
+const Eigen::Matrix3d Stagnation3D::getExactVelocityHessianX(
     const Eigen::Vector3d& a_location, const double a_time) {
   return Eigen::Matrix3d::Zero();
 }
 
-const Eigen::Matrix3d Translation3D::getExactVelocityHessianX(
+const Eigen::Matrix3d Stagnation3D::getExactVelocityHessianY(
     const Eigen::Vector3d& a_location, const double a_time) {
   return Eigen::Matrix3d::Zero();
 }
 
-const Eigen::Matrix3d Translation3D::getExactVelocityHessianY(
-    const Eigen::Vector3d& a_location, const double a_time) {
-  return Eigen::Matrix3d::Zero();
-}
-
-const Eigen::Matrix3d Translation3D::getExactVelocityHessianZ(
+const Eigen::Matrix3d Stagnation3D::getExactVelocityHessianZ(
     const Eigen::Vector3d& a_location, const double a_time) {
   return Eigen::Matrix3d::Zero();
 }

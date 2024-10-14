@@ -20,16 +20,23 @@ struct Translation3D {
 
   static void initialize(Data<double>* a_U, Data<double>* a_V,
                          Data<double>* a_W, Data<IRL::Paraboloid>* a_interface,
-                         const double a_time);
+                         const double a_time, const double final_time);
 
   static void setVelocity(const double a_time, Data<double>* a_U,
                           Data<double>* a_V, Data<double>* a_W);
 
-  static const std::array<double, 3> getExactVelocity(const IRL::Pt& a_location,
-                                                      const double a_time);
+  static const Eigen::Vector3d getExactVelocity(
+      const Eigen::Vector3d& a_location, const double a_time);
 
-  static const std::array<std::array<double, 3>, 3> getExactVelocityGradient(
-      const IRL::Pt& a_location, const double a_time);
+  static const Eigen::Matrix3d getExactVelocityGradient(
+      const Eigen::Vector3d& a_location, const double a_time);
+
+  static const Eigen::Matrix3d getExactVelocityHessianX(
+      const Eigen::Vector3d& a_location, const double a_time);
+  static const Eigen::Matrix3d getExactVelocityHessianY(
+      const Eigen::Vector3d& a_location, const double a_time);
+  static const Eigen::Matrix3d getExactVelocityHessianZ(
+      const Eigen::Vector3d& a_location, const double a_time);
 };
 
 #endif  // EXAMPLES_PARABOLOID_ADVECTOR_DEFORMATION_2D_H_

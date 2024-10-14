@@ -31,6 +31,7 @@
 #include "examples/paraboloid_advector/solver.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 
+constexpr double T = 1.0;
 constexpr int GC = 3;
 constexpr IRL::Pt lower_domain(-0.5, -0.5, -0.5);
 constexpr IRL::Pt upper_domain(0.5, 0.5, 0.5);
@@ -46,7 +47,7 @@ BasicMesh Rotation3D::setMesh(const int a_nx) {
 void Rotation3D::initialize(Data<double>* a_U, Data<double>* a_V,
                             Data<double>* a_W,
                             Data<IRL::Paraboloid>* a_interface,
-                            const double a_time) {
+                            const double a_time, const double final_time) {
   Rotation3D::setVelocity(a_time, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
   const double sphere_center_radius = std::sqrt(3.0 / (5.0 * 5.0));
@@ -110,7 +111,7 @@ void Rotation3D::initialize(Data<double>* a_U, Data<double>* a_V,
 void Rotation3D::setVelocity(const double a_time, Data<double>* a_U,
                              Data<double>* a_V, Data<double>* a_W) {
   const BasicMesh& mesh = a_U->getMesh();
-  const double vel_scale = 2.0 * M_PI;
+  const double vel_scale = 2.0 * M_PI * T;
   auto plane_normal = IRL::Normal(1.0, 2.0, 3.0);
   plane_normal.normalize();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
@@ -130,53 +131,71 @@ void Rotation3D::setVelocity(const double a_time, Data<double>* a_U,
   }
 }
 
-const std::array<double, 3> Rotation3D::getExactVelocity(
-    const IRL::Pt& a_location, const double a_time) {
-  const double vel_scale = 2.0 * M_PI;
+const Eigen::Vector3d Rotation3D::getExactVelocity(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  const auto loc = IRL::Pt(a_location[0], a_location[1], a_location[2]);
+  const double vel_scale = 2.0 * M_PI * T;
   auto plane_normal = IRL::Normal(1.0, 2.0, 3.0);
   plane_normal.normalize();
-  const auto plane_loc = IRL::Pt(
-      a_location - plane_normal * IRL::dotProduct(plane_normal, a_location));
+  const auto plane_loc =
+      IRL::Pt(loc - plane_normal * IRL::dotProduct(plane_normal, loc));
   auto vel_dir = IRL::Normal(IRL::crossProduct(plane_normal, plane_loc));
   vel_dir.normalize();
   const double vel_mag = vel_scale * IRL::magnitude(plane_loc);
-  return {vel_mag * vel_dir[0], vel_mag * vel_dir[1], vel_mag * vel_dir[2]};
+  return Eigen::Vector3d(
+      {vel_mag * vel_dir[0], vel_mag * vel_dir[1], vel_mag * vel_dir[2]});
 }
 
-const std::array<std::array<double, 3>, 3> Rotation3D::getExactVelocityGradient(
-    const IRL::Pt& a_location, const double a_time) {
+const Eigen::Matrix3d Rotation3D::getExactVelocityGradient(
+    const Eigen::Vector3d& a_location, const double a_time) {
   const double epsilon = std::sqrt(1.0e-15);
-  const IRL::Pt dudx =
-      (IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location + epsilon * IRL::Pt(1.0, 0.0, 0.0)), a_time)
-               .data()) -
-       IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location - epsilon * IRL::Pt(1.0, 0.0, 0.0)), a_time)
-               .data())) *
+  const Eigen::Vector3d dudx =
+      (Rotation3D::getExactVelocity(
+           Eigen::Vector3d(a_location +
+                           epsilon * Eigen::Vector3d({1.0, 0.0, 0.0})),
+           a_time) -
+       Rotation3D::getExactVelocity(
+           Eigen::Vector3d(a_location -
+                           epsilon * Eigen::Vector3d({1.0, 0.0, 0.0})),
+           a_time)) *
       (1.0 / (2.0 * epsilon));
-  const IRL::Pt dudy =
-      (IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location + epsilon * IRL::Pt(0.0, 1.0, 0.0)), a_time)
-               .data()) -
-       IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location - epsilon * IRL::Pt(0.0, 1.0, 0.0)), a_time)
-               .data())) *
+  const Eigen::Vector3d dudy =
+      (Rotation3D::getExactVelocity(
+           Eigen::Vector3d(a_location +
+                           epsilon * Eigen::Vector3d({0.0, 1.0, 0.0})),
+           a_time) -
+       Rotation3D::getExactVelocity(
+           Eigen::Vector3d(a_location -
+                           epsilon * Eigen::Vector3d({0.0, 1.0, 0.0})),
+           a_time)) *
       (1.0 / (2.0 * epsilon));
-  const IRL::Pt dudz =
-      (IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location + epsilon * IRL::Pt(0.0, 0.0, 1.0)), a_time)
-               .data()) -
-       IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location - epsilon * IRL::Pt(0.0, 0.0, 1.0)), a_time)
-               .data())) *
+  const Eigen::Vector3d dudz =
+      (Rotation3D::getExactVelocity(
+           Eigen::Vector3d(a_location +
+                           epsilon * Eigen::Vector3d({0.0, 0.0, 1.0})),
+           a_time) -
+       Rotation3D::getExactVelocity(
+           Eigen::Vector3d(a_location -
+                           epsilon * Eigen::Vector3d({0.0, 0.0, 1.0})),
+           a_time)) *
       (1.0 / (2.0 * epsilon));
-  return std::array<std::array<double, 3>, 3>({{{dudx[0], dudy[0], dudz[0]},
-                                                {dudx[1], dudy[1], dudz[1]},
-                                                {dudx[2], dudy[2], dudz[2]}}});
+  return Eigen::Matrix3d({{dudx[0], dudy[0], dudz[0]},
+                          {dudx[1], dudy[1], dudz[1]},
+                          {dudx[2], dudy[2], dudz[2]}});
+  // return Eigen::Matrix3d::Zero();
+}
+
+const Eigen::Matrix3d Rotation3D::getExactVelocityHessianX(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  return Eigen::Matrix3d::Zero();
+}
+
+const Eigen::Matrix3d Rotation3D::getExactVelocityHessianY(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  return Eigen::Matrix3d::Zero();
+}
+
+const Eigen::Matrix3d Rotation3D::getExactVelocityHessianZ(
+    const Eigen::Vector3d& a_location, const double a_time) {
+  return Eigen::Matrix3d::Zero();
 }

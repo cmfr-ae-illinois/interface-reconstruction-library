@@ -13,6 +13,7 @@
 #include "examples/paraboloid_advector/deformation_3d.h"
 #include "examples/paraboloid_advector/reconstruction_types.h"
 #include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/paraboloid_advector/stagnation_3d.h"
 #include "examples/paraboloid_advector/translation_3d.h"
 #include "examples/paraboloid_advector/vof_advection.h"
 #include "examples/paraboloid_advector/vtk.h"
@@ -786,20 +787,41 @@ void SemiLagrangianCorrected::advectVOF(
     Data<IRL::GeneralMoments3D<2>>* a_gas_moments) {
   const BasicMesh& mesh = a_liquid_moments->getMesh();
 
-  const std::array<double, 3> (*getExactVelocity)(const IRL::Pt& a_location,
-                                                  const double a_time);
-  const std::array<std::array<double, 3>, 3> (*getExactGradient)(
-      const IRL::Pt& a_location, const double a_time);
+  const Eigen::Vector3d (*getExactVelocity)(const Eigen::Vector3d& a_location,
+                                            const double a_time);
+  const Eigen::Matrix3d (*getExactGradient)(const Eigen::Vector3d& a_location,
+                                            const double a_time);
+  const Eigen::Matrix3d (*getExactHessianX)(const Eigen::Vector3d& a_location,
+                                            const double a_time);
+  const Eigen::Matrix3d (*getExactHessianY)(const Eigen::Vector3d& a_location,
+                                            const double a_time);
+  const Eigen::Matrix3d (*getExactHessianZ)(const Eigen::Vector3d& a_location,
+                                            const double a_time);
 
   if (a_simulation_type == "Deformation3D") {
     getExactVelocity = Deformation3D::getExactVelocity;
     getExactGradient = Deformation3D::getExactVelocityGradient;
+    getExactHessianX = Deformation3D::getExactVelocityHessianX;
+    getExactHessianY = Deformation3D::getExactVelocityHessianY;
+    getExactHessianZ = Deformation3D::getExactVelocityHessianZ;
   } else if (a_simulation_type == "Translation3D") {
     getExactVelocity = Translation3D::getExactVelocity;
     getExactGradient = Translation3D::getExactVelocityGradient;
+    getExactHessianX = Translation3D::getExactVelocityHessianX;
+    getExactHessianY = Translation3D::getExactVelocityHessianY;
+    getExactHessianZ = Translation3D::getExactVelocityHessianZ;
   } else if (a_simulation_type == "Rotation3D") {
     getExactVelocity = Rotation3D::getExactVelocity;
     getExactGradient = Rotation3D::getExactVelocityGradient;
+    getExactHessianX = Rotation3D::getExactVelocityHessianX;
+    getExactHessianY = Rotation3D::getExactVelocityHessianY;
+    getExactHessianZ = Rotation3D::getExactVelocityHessianZ;
+  } else if (a_simulation_type == "Stagnation3D") {
+    getExactVelocity = Stagnation3D::getExactVelocity;
+    getExactGradient = Stagnation3D::getExactVelocityGradient;
+    getExactHessianX = Stagnation3D::getExactVelocityHessianX;
+    getExactHessianY = Stagnation3D::getExactVelocityHessianY;
+    getExactHessianZ = Stagnation3D::getExactVelocityHessianZ;
   }
 
   resetMoments(*a_link_localized_paraboloid, a_liquid_moments, a_gas_moments);
@@ -1099,10 +1121,10 @@ void SemiLagrangianCorrected::advectVOF(
             // Extract moment in tensor notation
             //  1, x, y, z, x^2, xy, xz, y^2, yz, z^2, x^3, x^2 y, ...
             const double M0 = (*moments)(i, j, k)[0];
-            const Eigen::Matrix<double, 3, 1> M1{(*moments)(i, j, k)[1],
-                                                 (*moments)(i, j, k)[2],
-                                                 (*moments)(i, j, k)[3]};
-            const Eigen::Matrix<double, 3, 3> M2{
+            const Eigen::Vector3d M1{(*moments)(i, j, k)[1],
+                                     (*moments)(i, j, k)[2],
+                                     (*moments)(i, j, k)[3]};
+            const Eigen::Matrix3d M2{
                 {(*moments)(i, j, k)[4], (*moments)(i, j, k)[5],
                  (*moments)(i, j, k)[6]},
                 {(*moments)(i, j, k)[5], (*moments)(i, j, k)[7],
@@ -1156,90 +1178,111 @@ void SemiLagrangianCorrected::advectVOF(
             // const auto gradv0_k4 = gradV.interpolate(x0_k4);
             // const auto gradw0_k4 = gradW.interpolate(x0_k4);
 
-            auto x0_k1 = IRL::Pt(M1(0), M1(1), M1(2)) / IRL::safelyEpsilon(M0);
-            const auto cell_centroid =
-                IRL::Pt(mesh.xm(i), mesh.ym(j), mesh.zm(k));
-            const auto img_centroid = back_project_vertex(
-                cell_centroid, a_simulation_type, -a_dt, a_time);
-            const double dist = IRL::magnitude(img_centroid - x0_k1);
-            // if (dist > 2.0 * std::sqrt(3.0) * mesh.dx()) x0_k1 =
-            // img_centroid;
-            const auto u0_k1 = IRL::Normal::fromRawDoublePointer(
-                getExactVelocity(x0_k1, a_time).data());
-            const auto gradu0_k1 = getExactGradient(x0_k1, a_time);
-            const auto x0_k2 = IRL::Pt(x0_k1 + a_dt * u0_k1 * 0.5);
-            const auto u0_k2 = IRL::Normal::fromRawDoublePointer(
-                getExactVelocity(x0_k2, a_time + 0.5 * a_dt).data());
-            const auto gradu0_k2 = getExactGradient(x0_k2, a_time + 0.5 * a_dt);
-            const auto x0_k3 = IRL::Pt(x0_k1 + a_dt * u0_k2 * 0.5);
-            const auto u0_k3 = IRL::Normal::fromRawDoublePointer(
-                getExactVelocity(x0_k3, a_time + 0.5 * a_dt).data());
-            const auto gradu0_k3 = getExactGradient(x0_k3, a_time + 0.5 * a_dt);
-            const auto x0_k4 = IRL::Pt(x0_k1 + a_dt * u0_k3);
-            const auto u0_k4 = IRL::Normal::fromRawDoublePointer(
-                getExactVelocity(x0_k4, a_time + a_dt).data());
-            const auto gradu0_k4 = getExactGradient(x0_k4, a_time + a_dt);
+            const bool no_hessian = true;
 
-            Eigen::Matrix<double, 3, 1> X0_k1, X0_k2, X0_k3, X0_k4;
-            Eigen::Matrix<double, 3, 1> U0_k1, U0_k2, U0_k3, U0_k4;
-            Eigen::Matrix<double, 3, 3> gradU0_k1, gradU0_k2, gradU0_k3,
-                gradU0_k4;
+            // RK4 -- step 1
+            const auto X0_k1 = M1 / IRL::safelyEpsilon(M0_final);
+            const auto I0_k1 = M2 / IRL::safelyEpsilon(M0_final);
+            const auto XtX0_k1 = X0_k1 * X0_k1.transpose();
+            const auto U0_k1 = getExactVelocity(X0_k1, a_time);
+            const auto gradU0_k1 = getExactGradient(X0_k1, a_time);
+            const auto hessU0x_k1 = getExactHessianX(X0_k1, a_time);
+            const auto hessU0y_k1 = getExactHessianY(X0_k1, a_time);
+            const auto hessU0z_k1 = getExactHessianZ(X0_k1, a_time);
+            const auto dxdt_order2_k1 =
+                no_hessian
+                    ? Eigen::Vector3d::Zero()
+                    : Eigen::Vector3d(
+                          {hessU0x_k1.cwiseProduct(I0_k1 - XtX0_k1).sum(),
+                           hessU0y_k1.cwiseProduct(I0_k1 - XtX0_k1).sum(),
+                           hessU0z_k1.cwiseProduct(I0_k1 - XtX0_k1).sum()});
+            const auto M2t0_k1 = M0_final * X0_k1 * U0_k1.transpose();
+            const auto M2t1_k1 = -M0_final * XtX0_k1 * gradU0_k1.transpose();
+            const auto M2t2_k1 = M2 * gradU0_k1.transpose();
+            const auto dM2dt_k1 = M2t0_k1 + M2t1_k1 + M2t2_k1;
+            // RK4 -- step 2
+            const auto X0_k2 =
+                X0_k1 + 0.5 * a_dt * (U0_k1 + 0.5 * dxdt_order2_k1);
+            const auto I0_k2 =
+                (M2 + 0.5 * a_dt * (dM2dt_k1 + dM2dt_k1.transpose())) /
+                IRL::safelyEpsilon(M0_final);
+            const auto XtX0_k2 = X0_k2 * X0_k2.transpose();
+            const auto U0_k2 = getExactVelocity(X0_k2, a_time + 0.5 * a_dt);
+            const auto gradU0_k2 = getExactGradient(X0_k2, a_time + 0.5 * a_dt);
+            const auto hessU0x_k2 =
+                getExactHessianX(X0_k2, a_time + 0.5 * a_dt);
+            const auto hessU0y_k2 =
+                getExactHessianY(X0_k2, a_time + 0.5 * a_dt);
+            const auto hessU0z_k2 =
+                getExactHessianZ(X0_k2, a_time + 0.5 * a_dt);
+            const auto dxdt_order2_k2 =
+                no_hessian
+                    ? Eigen::Vector3d::Zero()
+                    : Eigen::Vector3d(
+                          {hessU0x_k2.cwiseProduct(I0_k2 - XtX0_k2).sum(),
+                           hessU0y_k2.cwiseProduct(I0_k2 - XtX0_k2).sum(),
+                           hessU0z_k2.cwiseProduct(I0_k2 - XtX0_k2).sum()});
+            const auto M2t0_k2 = M0_final * X0_k2 * U0_k2.transpose();
+            const auto M2t1_k2 = -M0_final * XtX0_k2 * gradU0_k2.transpose();
+            const auto M2t2_k2 = M0_final * I0_k2 * gradU0_k2.transpose();
+            const auto dM2dt_k2 = M2t0_k2 + M2t1_k2 + M2t2_k2;
+            // RK4 -- step 3
+            const auto X0_k3 =
+                X0_k1 + 0.5 * a_dt * (U0_k2 + 0.5 * dxdt_order2_k2);
+            const auto I0_k3 =
+                (M2 + 0.5 * a_dt * (dM2dt_k2 + dM2dt_k2.transpose())) /
+                IRL::safelyEpsilon(M0_final);
+            const auto XtX0_k3 = X0_k3 * X0_k3.transpose();
+            const auto U0_k3 = getExactVelocity(X0_k3, a_time + 0.5 * a_dt);
+            const auto gradU0_k3 = getExactGradient(X0_k3, a_time + 0.5 * a_dt);
+            const auto hessU0x_k3 =
+                getExactHessianX(X0_k3, a_time + 0.5 * a_dt);
+            const auto hessU0y_k3 =
+                getExactHessianY(X0_k3, a_time + 0.5 * a_dt);
+            const auto hessU0z_k3 =
+                getExactHessianZ(X0_k3, a_time + 0.5 * a_dt);
+            const auto dxdt_order2_k3 =
+                no_hessian
+                    ? Eigen::Vector3d::Zero()
+                    : Eigen::Vector3d(
+                          {hessU0x_k3.cwiseProduct(I0_k3 - XtX0_k3).sum(),
+                           hessU0y_k3.cwiseProduct(I0_k3 - XtX0_k3).sum(),
+                           hessU0z_k3.cwiseProduct(I0_k3 - XtX0_k3).sum()});
+            const auto M2t0_k3 = M0_final * X0_k3 * U0_k3.transpose();
+            const auto M2t1_k3 = -M0_final * XtX0_k3 * gradU0_k3.transpose();
+            const auto M2t2_k3 = M0_final * I0_k3 * gradU0_k3.transpose();
+            const auto dM2dt_k3 = M2t0_k3 + M2t1_k3 + M2t2_k3;
+            // RK4 -- step 4
+            const auto X0_k4 = X0_k1 + a_dt * (U0_k3 + 0.5 * dxdt_order2_k3);
+            const auto I0_k4 = (M2 + a_dt * (dM2dt_k3 + dM2dt_k3.transpose())) /
+                               IRL::safelyEpsilon(M0_final);
+            const auto XtX0_k4 = X0_k4 * X0_k4.transpose();
+            const auto U0_k4 = getExactVelocity(X0_k4, a_time + a_dt);
+            const auto gradU0_k4 = getExactGradient(X0_k4, a_time + a_dt);
+            const auto hessU0x_k4 = getExactHessianX(X0_k4, a_time + a_dt);
+            const auto hessU0y_k4 = getExactHessianY(X0_k4, a_time + a_dt);
+            const auto hessU0z_k4 = getExactHessianZ(X0_k4, a_time + a_dt);
+            const auto dxdt_order2_k4 =
+                no_hessian
+                    ? Eigen::Vector3d::Zero()
+                    : Eigen::Vector3d(
+                          {hessU0x_k4.cwiseProduct(I0_k4 - XtX0_k4).sum(),
+                           hessU0y_k4.cwiseProduct(I0_k4 - XtX0_k4).sum(),
+                           hessU0z_k4.cwiseProduct(I0_k4 - XtX0_k4).sum()});
+            const auto M2t0_k4 = M0_final * X0_k4 * U0_k4.transpose();
+            const auto M2t1_k4 = -M0_final * XtX0_k4 * gradU0_k4.transpose();
+            const auto M2t2_k4 = M0_final * I0_k4 * gradU0_k4.transpose();
+            const auto dM2dt_k4 = M2t0_k4 + M2t1_k4 + M2t2_k4;
 
-            for (int ii = 0; ii < 3; ii++) {
-              X0_k1(ii) = x0_k1[ii];
-              X0_k2(ii) = x0_k2[ii];
-              X0_k3(ii) = x0_k3[ii];
-              X0_k4(ii) = x0_k4[ii];
-              U0_k1(ii) = u0_k1[ii];
-              U0_k2(ii) = u0_k2[ii];
-              U0_k3(ii) = u0_k3[ii];
-              U0_k4(ii) = u0_k4[ii];
-              for (int jj = 0; jj < 3; jj++) {
-                gradU0_k1(ii, jj) = gradu0_k1[ii][jj];
-                gradU0_k2(ii, jj) = gradu0_k2[ii][jj];
-                gradU0_k3(ii, jj) = gradu0_k3[ii][jj];
-                gradU0_k4(ii, jj) = gradu0_k4[ii][jj];
-              }
-            }
-
+            // RK4 -- final update
             const auto M1_final =
                 M1 + a_dt * M0_final *
-                         (U0_k1 + 2.0 * U0_k2 + 2.0 * U0_k3 + U0_k4) / 6.0;
-
-            const auto M2t0_k1 = M0_final * X0_k1 * U0_k1.transpose();
-            const auto M2t0_k2 = M0_final * X0_k2 * U0_k2.transpose();
-            const auto M2t0_k3 = M0_final * X0_k3 * U0_k3.transpose();
-            const auto M2t0_k4 = M0_final * X0_k4 * U0_k4.transpose();
-            const auto M2t1_k1 =
-                -M0_final * (X0_k1 * X0_k1.transpose()) * gradU0_k1.transpose();
-            const auto M2t1_k2 =
-                -M0_final * (X0_k2 * X0_k2.transpose()) * gradU0_k2.transpose();
-            const auto M2t1_k3 =
-                -M0_final * (X0_k3 * X0_k3.transpose()) * gradU0_k3.transpose();
-            const auto M2t1_k4 =
-                -M0_final * (X0_k4 * X0_k4.transpose()) * gradU0_k4.transpose();
-            const auto M2t2_k1 = M2 * gradU0_k1.transpose();
-            const auto M2t2_k2 = (M2 + a_dt *
-                                           (M2t0_k1 + M2t0_k1.transpose() +
-                                            M2t1_k1 + M2t1_k1.transpose() +
-                                            M2t2_k1 + M2t2_k1.transpose()) /
-                                           2.0) *
-                                 gradU0_k2.transpose();
-            const auto M2t2_k3 = (M2 + a_dt *
-                                           (M2t0_k2 + M2t0_k2.transpose() +
-                                            M2t1_k2 + M2t1_k2.transpose() +
-                                            M2t2_k2 + M2t2_k2.transpose()) /
-                                           2.0) *
-                                 gradU0_k3.transpose();
-            const auto M2t2_k4 = (M2 + a_dt * (M2t0_k3 + M2t0_k3.transpose() +
-                                               M2t1_k3 + M2t1_k3.transpose() +
-                                               M2t2_k3 + M2t2_k3.transpose())) *
-                                 gradU0_k4.transpose();
+                         (U0_k1 + 0.5 * dxdt_order2_k1 + 2.0 * U0_k2 +
+                          dxdt_order2_k2 + 2.0 * U0_k3 + dxdt_order2_k3 +
+                          U0_k4 + 0.5 * dxdt_order2_k4) /
+                         6.0;
             const auto M2_rk4 =
-                a_dt *
-                ((M2t0_k1 + 2.0 * M2t0_k2 + 2.0 * M2t0_k3 + M2t0_k4) +
-                 (M2t1_k1 + 2.0 * M2t1_k2 + 2.0 * M2t1_k3 + M2t1_k4) +
-                 (M2t2_k1 + 2.0 * M2t2_k2 + 2.0 * M2t2_k3 + M2t2_k4)) /
+                a_dt * (dM2dt_k1 + 2.0 * dM2dt_k2 + 2.0 * dM2dt_k3 + dM2dt_k4) /
                 6.0;
             const auto M2_final = M2 + M2_rk4 + M2_rk4.transpose();
 
@@ -1252,21 +1295,6 @@ void SemiLagrangianCorrected::advectVOF(
             (*moments)(i, j, k)[7] = M2_final(1, 1);
             (*moments)(i, j, k)[8] = M2_final(1, 2);
             (*moments)(i, j, k)[9] = M2_final(2, 2);
-            // (*moments)(i, j, k)[1] =
-            //     std::max(mesh.x(i) * M0_final,
-            //              std::min(mesh.x(i + 1) * M0_final, M1_final(0)));
-            // (*moments)(i, j, k)[2] =
-            //     std::max(mesh.y(j) * M0_final,
-            //              std::min(mesh.y(j + 1) * M0_final, M1_final(1)));
-            // (*moments)(i, j, k)[3] =
-            //     std::max(mesh.z(k) * M0_final,
-            //              std::min(mesh.z(k + 1) * M0_final, M1_final(2)));
-            // (*moments)(i, j, k)[4] = std::max(0.0, M2_final(0, 0));
-            // (*moments)(i, j, k)[5] = M2_final(0, 1);
-            // (*moments)(i, j, k)[6] = M2_final(0, 2);
-            // (*moments)(i, j, k)[7] = std::max(0.0, M2_final(1, 1));
-            // (*moments)(i, j, k)[8] = M2_final(1, 2);
-            // (*moments)(i, j, k)[9] = std::max(0.0, M2_final(2, 2));
           }
         } else if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
                    liquid_volume_fraction > IRL::global_constants::VF_HIGH) {

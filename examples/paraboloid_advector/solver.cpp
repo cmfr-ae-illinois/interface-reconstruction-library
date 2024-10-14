@@ -23,6 +23,7 @@
 #include "examples/paraboloid_advector/data.h"
 #include "examples/paraboloid_advector/deformation_3d.h"
 #include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/paraboloid_advector/stagnation_3d.h"
 #include "examples/paraboloid_advector/translation_3d.h"
 
 // Convert and store the mesh cells into localizers.
