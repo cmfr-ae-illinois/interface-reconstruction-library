@@ -15,7 +15,7 @@
 
 #include "irl/geometry/general/pt.h"
 
-#include "examples/paraboloid_advector/basic_mesh.h"
+#include "examples/2d_advector/basic_mesh.h"
 
 /// \brief A basic multi-dimensional data container.
 template <class ContainedType>

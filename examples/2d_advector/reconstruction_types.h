@@ -16,7 +16,7 @@
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 
-#include "examples/paraboloid_advector/data.h"
+#include "examples/2d_advector/data.h"
 
 void getReconstruction(
     const std::string& a_reconstruction_method,
@@ -27,60 +27,6 @@ void getReconstruction(
     const Data<double>& a_W, Data<IRL::Paraboloid>* a_interface);
 
 struct PLIC {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
-
-struct Jibben {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
-
-struct Centroid {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
-
-struct PLICMOF1 {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
-
-struct PLICSuperMOF1 {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
-
-struct PPICMOF2 {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
-
-struct PPICSuperMOF2 {
   static void getReconstruction(
       const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
       const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,

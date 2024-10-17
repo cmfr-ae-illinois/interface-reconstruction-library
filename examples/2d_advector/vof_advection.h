@@ -12,13 +12,11 @@
 
 #include <string>
 
-#include "examples/paraboloid_advector/deformation_3d.h"
-#include "examples/paraboloid_advector/rotation_3d.h"
-#include "examples/paraboloid_advector/translation_3d.h"
+#include "examples/2d_advector/rotation_2d.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 
-#include "examples/paraboloid_advector/data.h"
+#include "examples/2d_advector/data.h"
 
 void resetCentroids(const Data<IRL::LocalizedParaboloidLink<double>>&
                         a_link_localized_paraboloid,
@@ -46,34 +44,6 @@ void advectVOF(
     Data<IRL::GeneralMoments3D<2>>* a_liquid_moments,
     Data<IRL::GeneralMoments3D<2>>* a_gas_moments,
     Data<IRL::Paraboloid>* a_interface);
-
-// struct Split {
-//   static void advectVOF(
-//       const std::string& a_reconstruction_method, const double a_dt,
-//       const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
-//       a_W, Data<IRL::LocalizedParaboloidLink<double>>*
-//       a_link_localized_paraboloid, Data<IRL::GeneralMoments3D<2>>*
-//       a_liquid_moments, Data<IRL::GeneralMoments3D<2>>* a_gas_moments,
-//       Data<IRL::Paraboloid>* a_interface);
-// };
-
-// struct FullLagrangian {
-//   static void advectVOF(
-//       const std::string& a_reconstruction_method, const double a_dt,
-//       const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
-//       a_W, Data<IRL::LocalizedParaboloidLink<double>>*
-//       a_link_localized_paraboloid, Data<IRL::GeneralMoments3D<2>>*
-//       a_liquid_moments, Data<IRL::GeneralMoments3D<2>>* a_gas_moments);
-// };
-
-// struct SemiLagrangian {
-//   static void advectVOF(
-//       const std::string& a_reconstruction_method, const double a_dt,
-//       const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
-//       a_W, Data<IRL::LocalizedParaboloidLink<double>>*
-//       a_link_localized_paraboloid, Data<IRL::GeneralMoments3D<2>>*
-//       a_liquid_moments, Data<IRL::GeneralMoments3D<2>>* a_gas_moments);
-// };
 
 struct SemiLagrangianCorrected {
   static void advectVOF(
@@ -130,12 +100,8 @@ inline IRL::Pt back_project_vertex(const IRL::Pt& a_initial_pt,
                                    const double a_dt, const double a_time) {
   const std::array<double, 3> (*getExactVelocity)(const IRL::Pt& a_location,
                                                   const double a_time);
-  if (a_simulation_type == "Deformation3D") {
-    getExactVelocity = Deformation3D::getExactVelocity;
-  } else if (a_simulation_type == "Translation3D") {
-    getExactVelocity = Translation3D::getExactVelocity;
-  } else if (a_simulation_type == "Rotation3D") {
-    getExactVelocity = Rotation3D::getExactVelocity;
+  if (a_simulation_type == "Rotation2D") {
+    getExactVelocity = Rotation2D::getExactVelocity;
   }
 
   auto v1 = IRL::Vec3<double>::fromRawDoublePointer(

@@ -16,8 +16,8 @@
 #include "irl/paraboloid_reconstruction/parametrized_surface.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
-#include "examples/paraboloid_advector/basic_mesh.h"
-#include "examples/paraboloid_advector/data.h"
+#include "examples/2d_advector/basic_mesh.h"
+#include "examples/2d_advector/data.h"
 
 class VTKOutput {
   struct DataIO {

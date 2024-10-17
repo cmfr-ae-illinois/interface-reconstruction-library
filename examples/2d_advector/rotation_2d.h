@@ -1,21 +1,24 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2024 Fabien Evrard <fa.evrard@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_PARABOLOID_ADVECTOR_TRANSLATION_3D_H_
-#define EXAMPLES_PARABOLOID_ADVECTOR_TRANSLATION_3D_H_
+#ifndef EXAMPLES_PARABOLOID_ADVECTOR_ROTATION_3D_H_
+#define EXAMPLES_PARABOLOID_ADVECTOR_ROTATION_3D_H_
 
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 
-#include "examples/paraboloid_advector/basic_mesh.h"
-#include "examples/paraboloid_advector/data.h"
+#include "examples/2d_advector/basic_mesh.h"
+#include "examples/2d_advector/data.h"
 
-struct Translation3D {
+#include "examples/2d_advector/edge_transport.h"
+#include "examples/2d_advector/functions.h"
+
+struct Rotation2D {
   static BasicMesh setMesh(const int a_nx);
 
   static void initialize(Data<double>* a_U, Data<double>* a_V,
@@ -30,6 +33,11 @@ struct Translation3D {
 
   static const std::array<std::array<double, 3>, 3> getExactVelocityGradient(
       const IRL::Pt& a_location, const double a_time);
+
+  static ASHISH ::Vector getExactVelocity2D(double t, ASHISH ::Point P);
+
+  static ASHISH ::Two_By_Two_Matrix getExactVelocityGradient2D(
+      double t, ASHISH ::Point P);
 };
 
 #endif  // EXAMPLES_PARABOLOID_ADVECTOR_DEFORMATION_2D_H_

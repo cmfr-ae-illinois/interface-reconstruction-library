@@ -7,7 +7,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/paraboloid_advector/rotation_3d.h"
+#include "examples/2d_advector/rotation_2d.h"
 
 #include <float.h>
 #include <chrono>
@@ -26,38 +26,31 @@
 #include "irl/parameters/constants.h"
 #include "irl/planar_reconstruction/localized_separator_link.h"
 
-#include "examples/paraboloid_advector/data.h"
-#include "examples/paraboloid_advector/reconstruction_types.h"
-#include "examples/paraboloid_advector/solver.h"
-#include "examples/paraboloid_advector/vof_advection.h"
+#include "examples/2d_advector/data.h"
+#include "examples/2d_advector/reconstruction_types.h"
+#include "examples/2d_advector/solver.h"
+#include "examples/2d_advector/vof_advection.h"
 
 constexpr int GC = 3;
 constexpr IRL::Pt lower_domain(-0.5, -0.5, -0.5);
 constexpr IRL::Pt upper_domain(0.5, 0.5, 0.5);
 
-BasicMesh Rotation3D::setMesh(const int a_nx) {
-  BasicMesh mesh(a_nx, a_nx, a_nx, GC);
+BasicMesh Rotation2D::setMesh(const int a_nx) {
+  BasicMesh mesh(a_nx, a_nx, 1, GC);
   IRL::Pt my_lower_domain = lower_domain;
   IRL::Pt my_upper_domain = upper_domain;
   mesh.setCellBoundaries(my_lower_domain, my_upper_domain);
   return mesh;
 }
 
-void Rotation3D::initialize(Data<double>* a_U, Data<double>* a_V,
+void Rotation2D::initialize(Data<double>* a_U, Data<double>* a_V,
                             Data<double>* a_W,
                             Data<IRL::Paraboloid>* a_interface,
                             const double a_time) {
-  Rotation3D::setVelocity(a_time, a_U, a_V, a_W);
+  Rotation2D::setVelocity(a_time, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
-  const double sphere_center_radius = std::sqrt(3.0 / (5.0 * 5.0));
-  auto plane_normal = IRL::Normal(1.0, 2.0, 3.0);
-  plane_normal.normalize();
-  auto sphere_center_dir = IRL::Normal(1.0 / 5.0, 1.0 / 5.0, -1.0 / 5.0);
-  sphere_center_dir.normalize();
-  IRL::UnitQuaternion rotation(a_time * 2.0 * M_PI, plane_normal);
-  sphere_center_dir = rotation * sphere_center_dir;
-  const auto sphere_center = IRL::Pt(sphere_center_radius * sphere_center_dir);
-  const double sphere_radius = 0.125;
+  const auto sphere_center = IRL::Pt(0.0, 0.0, 0.0);
+  const double sphere_radius = 0.25;
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
@@ -107,76 +100,51 @@ void Rotation3D::initialize(Data<double>* a_U, Data<double>* a_V,
   correctInterfacePlaneBorders(a_interface);
 }
 
-void Rotation3D::setVelocity(const double a_time, Data<double>* a_U,
+void Rotation2D::setVelocity(const double a_time, Data<double>* a_U,
                              Data<double>* a_V, Data<double>* a_W) {
   const BasicMesh& mesh = a_U->getMesh();
   const double vel_scale = 2.0 * M_PI;
-  auto plane_normal = IRL::Normal(1.0, 2.0, 3.0);
+  auto plane_normal = IRL::Normal(0, 0, 1);
   plane_normal.normalize();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
         auto loc = IRL::Pt(mesh.xm(i), mesh.ym(j), mesh.zm(k));
-        const auto plane_loc =
-            IRL::Pt(loc - plane_normal * IRL::dotProduct(plane_normal, loc));
-        auto vel_dir = IRL::Normal(IRL::crossProduct(plane_normal, plane_loc));
-        vel_dir.normalize();
-        const double vel_mag = vel_scale * IRL::magnitude(plane_loc);
-        (*a_U)(i, j, k) = vel_mag * vel_dir[0];
-        (*a_V)(i, j, k) = vel_mag * vel_dir[1];
-        (*a_W)(i, j, k) = vel_mag * vel_dir[2];
+        (*a_U)(i, j, k) = -vel_scale * loc[1];
+        (*a_V)(i, j, k) = vel_scale * loc[0];
+        (*a_W)(i, j, k) = 0.0;
       }
     }
   }
 }
 
-const std::array<double, 3> Rotation3D::getExactVelocity(
+const std::array<double, 3> Rotation2D::getExactVelocity(
     const IRL::Pt& a_location, const double a_time) {
   const double vel_scale = 2.0 * M_PI;
-  auto plane_normal = IRL::Normal(1.0, 2.0, 3.0);
-  plane_normal.normalize();
-  const auto plane_loc = IRL::Pt(
-      a_location - plane_normal * IRL::dotProduct(plane_normal, a_location));
-  auto vel_dir = IRL::Normal(IRL::crossProduct(plane_normal, plane_loc));
-  vel_dir.normalize();
-  const double vel_mag = vel_scale * IRL::magnitude(plane_loc);
-  return {vel_mag * vel_dir[0], vel_mag * vel_dir[1], vel_mag * vel_dir[2]};
+  return {-vel_scale * a_location[1], vel_scale * a_location[0], 0.0};
 }
 
-const std::array<std::array<double, 3>, 3> Rotation3D::getExactVelocityGradient(
+const std::array<std::array<double, 3>, 3> Rotation2D::getExactVelocityGradient(
     const IRL::Pt& a_location, const double a_time) {
-  const double epsilon = std::sqrt(1.0e-15);
-  const IRL::Pt dudx =
-      (IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location + epsilon * IRL::Pt(1.0, 0.0, 0.0)), a_time)
-               .data()) -
-       IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location - epsilon * IRL::Pt(1.0, 0.0, 0.0)), a_time)
-               .data())) *
-      (1.0 / (2.0 * epsilon));
-  const IRL::Pt dudy =
-      (IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location + epsilon * IRL::Pt(0.0, 1.0, 0.0)), a_time)
-               .data()) -
-       IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location - epsilon * IRL::Pt(0.0, 1.0, 0.0)), a_time)
-               .data())) *
-      (1.0 / (2.0 * epsilon));
-  const IRL::Pt dudz =
-      (IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location + epsilon * IRL::Pt(0.0, 0.0, 1.0)), a_time)
-               .data()) -
-       IRL::Pt::fromRawDoublePointer(
-           Rotation3D::getExactVelocity(
-               IRL::Pt(a_location - epsilon * IRL::Pt(0.0, 0.0, 1.0)), a_time)
-               .data())) *
-      (1.0 / (2.0 * epsilon));
+  const double vel_scale = 2.0 * M_PI;
+  return {-vel_scale * a_location[1], vel_scale * a_location[0], 0.0};
+  const auto dudx = IRL::Pt(0.0, vel_scale, 0.0);
+  const auto dudy = IRL::Pt(-vel_scale, 0.0, 0.0);
+  const auto dudz = IRL::Pt(0.0, 0.0, 0.0);
   return std::array<std::array<double, 3>, 3>({{{dudx[0], dudy[0], dudz[0]},
                                                 {dudx[1], dudy[1], dudz[1]},
                                                 {dudx[2], dudy[2], dudz[2]}}});
+}
+
+ASHISH ::Vector Rotation2D::getExactVelocity2D(double t, ASHISH ::Point P) {
+  const double vel_scale = 2.0 * M_PI;
+  // return {-vel_scale * P.y, vel_scale * P.x};
+  return {0.0, P.x * P.x * P.x};
+}
+
+ASHISH ::Two_By_Two_Matrix Rotation2D::getExactVelocityGradient2D(
+    double t, ASHISH ::Point P) {
+  const double vel_scale = 2.0 * M_PI;
+  // return {{{0.0, -vel_scale}, {vel_scale, 0.0}}};
+  return {{{0.0, 0.0}, {3.0 * P.x * P.x, 0.0}}};
 }

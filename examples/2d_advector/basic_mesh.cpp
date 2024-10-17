@@ -7,7 +7,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/paraboloid_advector/basic_mesh.h"
+#include "examples/2d_advector/basic_mesh.h"
 
 void BasicMesh::setCellBoundaries(const IRL::Pt& a_bottom_bounding_box,
                                   const IRL::Pt& a_top_bounding_box) {

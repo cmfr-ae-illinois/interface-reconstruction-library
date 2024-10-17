@@ -19,14 +19,12 @@
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/planar_reconstruction/planar_localizer.h"
 
-#include "examples/paraboloid_advector/basic_mesh.h"
-#include "examples/paraboloid_advector/data.h"
-#include "examples/paraboloid_advector/deformation_3d.h"
-#include "examples/paraboloid_advector/reconstruction_types.h"
-#include "examples/paraboloid_advector/rotation_3d.h"
-#include "examples/paraboloid_advector/translation_3d.h"
-#include "examples/paraboloid_advector/vof_advection.h"
-#include "examples/paraboloid_advector/vtk.h"
+#include "examples/2d_advector/basic_mesh.h"
+#include "examples/2d_advector/data.h"
+#include "examples/2d_advector/reconstruction_types.h"
+#include "examples/2d_advector/rotation_2d.h"
+#include "examples/2d_advector/vof_advection.h"
+#include "examples/2d_advector/vtk.h"
 
 /// \brief Handles running and advancing the solution according to provided
 /// static functions in structs.
@@ -83,10 +81,6 @@ int runSimulation(const std::string& a_simulation_type,
                   const std::string& a_reconstruction_method, const double a_dt,
                   const double a_end_time, const int a_visualization_frequency,
                   const int a_nx) {
-  int rank, size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
   // Set mesh
   BasicMesh cc_mesh = SimulationType::setMesh(a_nx);
 
@@ -112,10 +106,8 @@ int runSimulation(const std::string& a_simulation_type,
   IRL::setVolumeFractionBounds(1.0e-13);
   IRL::setVolumeFractionTolerance(1.0e-12);
 
-  if (rank == 0) {
-    std::cout << "VolumeFractionBounds = " << IRL::global_constants::VF_LOW
-              << std::endl;
-  }
+  std::cout << "VolumeFractionBounds = " << IRL::global_constants::VF_LOW
+            << std::endl;
 
   // Initialize data
   SimulationType::initialize(&velU, &velV, &velW, &interface, 0.0);
@@ -129,9 +121,7 @@ int runSimulation(const std::string& a_simulation_type,
   double simulation_time = 0.0;
   int iteration = 0;
 
-  if (rank == 0) {
-    vtk_io.writeVTKFile(simulation_time);
-  }
+  vtk_io.writeVTKFile(simulation_time);
   getReconstruction(a_reconstruction_method, liquid_moments, gas_moments,
                     &link_localized_paraboloids, 0.0, velU, velV, velW,
                     &interface);
@@ -139,20 +129,16 @@ int runSimulation(const std::string& a_simulation_type,
 
   writeInterfaceToFile(liquid_moments, interface, simulation_time, &vtk_io,
                        true);
-  if (rank == 0) {
-    writeDiagnosticsHeader();
-  }
+  writeDiagnosticsHeader();
   std::string output_folder = "viz";
   const int dir_err = mkdir(output_folder.c_str(), 0777);
   std::chrono::duration<double> advect_VOF_time(0.0);
   std::chrono::duration<double> recon_time(0.0);
   std::chrono::duration<double> write_time(0.0);
-  if (rank == 0) {
-    writeOutDiagnostics(iteration, a_dt, simulation_time, velU, velV, velW,
-                        liquid_moments, interface, advect_VOF_time, recon_time,
-                        write_time);
-    printError(cc_mesh, liquid_moments, starting_liquid_moments);
-  }
+  writeOutDiagnostics(iteration, a_dt, simulation_time, velU, velV, velW,
+                      liquid_moments, interface, advect_VOF_time, recon_time,
+                      write_time);
+  printError(cc_mesh, liquid_moments, starting_liquid_moments);
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
         std::fmin(a_dt, a_end_time - simulation_time);
@@ -165,21 +151,18 @@ int runSimulation(const std::string& a_simulation_type,
               &link_localized_paraboloids, &liquid_moments, &gas_moments,
               &interface);
 
-    if (rank == 0) {
-      writeOutDiagnostics(iteration + 1, time_step_to_use,
-                          simulation_time + time_step_to_use, velU, velV, velW,
-                          liquid_moments, interface, advect_VOF_time,
-                          recon_time, write_time);
-      if (simulation_time + time_step_to_use >= a_end_time) {
-        Data<IRL::Paraboloid> ref_interface(&cc_mesh);
-        Data<IRL::GeneralMoments3D<2>> ref_liquid_moments(&cc_mesh);
-        Data<IRL::GeneralMoments3D<2>> ref_gas_moments(&cc_mesh);
-        SimulationType::initialize(&velU, &velV, &velW, &ref_interface,
-                                   simulation_time + time_step_to_use);
-        setPhaseQuantities(ref_interface, &ref_liquid_moments,
-                           &ref_gas_moments);
-        printError(cc_mesh, liquid_moments, ref_liquid_moments);
-      }
+    writeOutDiagnostics(iteration + 1, time_step_to_use,
+                        simulation_time + time_step_to_use, velU, velV, velW,
+                        liquid_moments, interface, advect_VOF_time, recon_time,
+                        write_time);
+    if (simulation_time + time_step_to_use >= a_end_time) {
+      Data<IRL::Paraboloid> ref_interface(&cc_mesh);
+      Data<IRL::GeneralMoments3D<2>> ref_liquid_moments(&cc_mesh);
+      Data<IRL::GeneralMoments3D<2>> ref_gas_moments(&cc_mesh);
+      SimulationType::initialize(&velU, &velV, &velW, &ref_interface,
+                                 simulation_time + time_step_to_use);
+      setPhaseQuantities(ref_interface, &ref_liquid_moments, &ref_gas_moments);
+      printError(cc_mesh, liquid_moments, ref_liquid_moments);
     }
 
     auto advect_end = std::chrono::system_clock::now();
@@ -192,9 +175,7 @@ int runSimulation(const std::string& a_simulation_type,
 
     if (a_visualization_frequency > 0 &&
         iteration % a_visualization_frequency == 0) {
-      if (rank == 0) {
-        vtk_io.writeVTKFile(simulation_time);
-      }
+      vtk_io.writeVTKFile(simulation_time);
       writeInterfaceToFile(liquid_moments, interface, simulation_time, &vtk_io,
                            simulation_time + time_step_to_use >= a_end_time);
     }
@@ -203,7 +184,6 @@ int runSimulation(const std::string& a_simulation_type,
 
     simulation_time += time_step_to_use;
     ++iteration;
-    // }
   }
 
   return 0;
