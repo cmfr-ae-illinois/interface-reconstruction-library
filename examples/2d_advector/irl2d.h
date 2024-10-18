@@ -11,6 +11,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "irl/generic_cutting/paraboloid_intersection/moment_contributions.h"
 #include "irl/geometry/general/math_vector.h"
 #include "irl/helpers/expression_templates.h"
 #include "irl/parameters/defined_types.h"
@@ -40,6 +41,9 @@ class Vec {
                  std::sqrt(vec_m[0] * vec_m[0] + vec_m[1] * vec_m[1]));
     vec_m[0] *= inv_magnitude;
     vec_m[1] *= inv_magnitude;
+  };
+  const double magnitude(void) const {
+    return std::sqrt(vec_m[0] * vec_m[0] + vec_m[1] * vec_m[1]);
   };
   Vec operator-(void) const { return Vec(-vec_m[0], -vec_m[1]); };
   Vec& operator+=(const Vec& a) {
@@ -74,18 +78,12 @@ class Vec {
   std::array<double, 2> vec_m;
 };
 
-__attribute__((const)) inline double operator*(const Vec& a_vec_0,
-                                               const Vec& a_vec_1);
-__attribute__((const)) inline Vec operator+(const Vec& a_vec_0,
-                                            const Vec& a_vec_1);
-__attribute__((const)) inline Vec operator-(const Vec& a_vec_0,
-                                            const Vec& a_vec_1);
-__attribute__((const)) inline Vec operator*(const double a_scalar,
-                                            const Vec& a_vec);
-__attribute__((const)) inline Vec operator*(const Vec& a_vec,
-                                            const double a_scalar);
-__attribute__((const)) inline Vec operator/(const Vec& a_vec,
-                                            const double a_scalar);
+const double operator*(const Vec& a_vec_0, const Vec& a_vec_1);
+const Vec operator+(const Vec& a_vec_0, const Vec& a_vec_1);
+const Vec operator-(const Vec& a_vec_0, const Vec& a_vec_1);
+const Vec operator*(const double a_scalar, const Vec& a_vec);
+const Vec operator*(const Vec& a_vec, const double a_scalar);
+const Vec operator/(const Vec& a_vec, const double a_scalar);
 
 class Mat {
  public:
@@ -119,7 +117,7 @@ class Mat {
   std::array<Vec, 2> matrix_m;
 };
 
-__attribute__((const)) inline Vec operator*(const Mat& a_mat, const Vec& a_vec);
+const Vec operator*(const Mat& a_mat, const Vec& a_vec);
 
 using PtAndControl = std::pair<Vec, Vec>;
 using BezierList = std::vector<PtAndControl>;
@@ -206,18 +204,60 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
                                           const Vec& p0, const Vec& p1,
                                           const Vec& p2);
 
-std::vector<BezierList> ParabolaClip(const BezierList& original_cell,
-                                     const Parabola& parabola);
-std::vector<BezierList> ParabolaClip(
+double DistanceToParabola(const Parabola& parabola, const Vec& pt);
+bool IsBelow(const Parabola& parabola, const Vec& pt);
+
+std::vector<BezierList> ParabolaClipWeilerAtherton(
+    const BezierList& original_cell, const Parabola& parabola);
+std::vector<BezierList> ParabolaClipWeilerAtherton(
     const std::vector<BezierList>& original_cell, const Parabola& parabola);
 
-std::vector<BezierList> ClipByRectangleAndParabola(
-    const BezierList& original_cell, const Vec& x0, const Vec& x1,
-    const Parabola& parabola);
-
+double ArcVolume(const Vec& P0, const Vec& P1, const Vec& P2);
 double CellVolume(const BezierList& cell);
 double CellVolume(const std::vector<BezierList>& cell);
 
+Vec RK4Point(const Vec& P, const double dt, const double time,
+             const Vec (*vel)(const double t, const Vec& P));
+
+std::pair<Vec, Vec> RK4PointAndTangent(
+    const Vec& P, const Vec& T, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P));
+
+double Determinant(const Vec& T0, const Vec& T1);
+
+std::pair<bool, double> RayIntersection(const Vec& P0, const Vec& P1,
+                                        const Vec& T0, const Vec& T1);
+
+BezierList ConstructPathline(const Vec& P00, const double dt, const double time,
+                             Vec (*vel)(const double t, const Vec& P),
+                             const int rec_num);
+
+BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
+                         const double time,
+                         const Vec (*vel)(const double t, const Vec& P),
+                         const Mat (*grad_vel)(const double t, const Vec& P),
+                         const int recursion_num, const bool add_pathlines,
+                         const bool close_flux, const bool correct_area,
+                         const double exact_area);
+
+BezierList CreateFluxCell(const Vec& P00, const Vec& P10, const double dt,
+                          const double time,
+                          const Vec (*vel)(const double t, const Vec& P),
+                          const Mat (*grad_vel)(const double t, const Vec& P),
+                          const bool correct_area = false,
+                          const double exact_area = 0.);
+
+BezierList ParabolaClip(const BezierList& original_cell,
+                        const Parabola& parabola);
+
+BezierList ClipByRectangleAndParabola(const BezierList& original_cell,
+                                      const Vec& x0, const Vec& x1,
+                                      const Parabola& parabola);
+
+double IntegrateFlux(const Vec& P0, const Vec& P1, const double dt,
+                     const double time,
+                     const Vec (*vel)(const double t, const Vec& P));
 }  // namespace IRL2D
 
 #endif  // EXAMPLES_2D_ADVECTOR_IRL_2D_H_

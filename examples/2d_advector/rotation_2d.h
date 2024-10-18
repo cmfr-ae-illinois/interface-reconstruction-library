@@ -17,6 +17,7 @@
 
 #include "examples/2d_advector/edge_transport.h"
 #include "examples/2d_advector/functions.h"
+#include "examples/2d_advector/irl2d.h"
 
 struct Rotation2D {
   static BasicMesh setMesh(const int a_nx);
@@ -34,10 +35,9 @@ struct Rotation2D {
   static const std::array<std::array<double, 3>, 3> getExactVelocityGradient(
       const IRL::Pt& a_location, const double a_time);
 
-  static ASHISH ::Vector getExactVelocity2D(double t, ASHISH ::Point P);
-
-  static ASHISH ::Two_By_Two_Matrix getExactVelocityGradient2D(
-      double t, ASHISH ::Point P);
+  static const IRL2D::Vec getExactVelocity2D(double t, const IRL2D::Vec& P);
+  static const IRL2D::Mat getExactVelocityGradient2D(double t,
+                                                     const IRL2D::Vec& P);
 };
 
 #endif  // EXAMPLES_PARABOLOID_ADVECTOR_DEFORMATION_2D_H_

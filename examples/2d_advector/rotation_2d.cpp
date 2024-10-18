@@ -136,15 +136,21 @@ const std::array<std::array<double, 3>, 3> Rotation2D::getExactVelocityGradient(
                                                 {dudx[2], dudy[2], dudz[2]}}});
 }
 
-ASHISH ::Vector Rotation2D::getExactVelocity2D(double t, ASHISH ::Point P) {
+const IRL2D::Vec Rotation2D::getExactVelocity2D(double t, const IRL2D::Vec& P) {
   const double vel_scale = 2.0 * M_PI;
-  // return {-vel_scale * P.y, vel_scale * P.x};
-  return {0.0, P.x * P.x * P.x};
+  return IRL2D::Vec{0.25 + P.y() * P.y() * P.y(), 0.25 + P.x() * P.x() * P.x()};
+  // return IRL2D::Vec{1.0 - P.y() * P.y(), 1.0 + P.x() * P.x()};
+  // return IRL2D::Vec{1.0 - P.y(), 1.0 + P.x()};
+  // return IRL2D::Vec{1.0, 1.0};
 }
 
-ASHISH ::Two_By_Two_Matrix Rotation2D::getExactVelocityGradient2D(
-    double t, ASHISH ::Point P) {
+const IRL2D::Mat Rotation2D::getExactVelocityGradient2D(double t,
+                                                        const IRL2D::Vec& P) {
   const double vel_scale = 2.0 * M_PI;
-  // return {{{0.0, -vel_scale}, {vel_scale, 0.0}}};
-  return {{{0.0, 0.0}, {3.0 * P.x * P.x, 0.0}}};
+  return IRL2D::Mat(IRL2D::Vec{0.0, 3.0 * P.y() * P.y()},
+                    IRL2D::Vec{3.0 * P.x() * P.x(), 0.0});
+  // return IRL2D::Mat(IRL2D::Vec{0.0, -2.0 * P.y()},
+  //                   IRL2D::Vec{2.0 * P.x(), 0.0});
+  // return IRL2D::Mat(IRL2D::Vec{0.0, -1.0}, IRL2D::Vec{1.0, 0.0});
+  // return IRL2D::Mat(IRL2D::Vec{0.0, 0.0}, IRL2D::Vec{0.0, 0.0});
 }

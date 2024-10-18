@@ -2,29 +2,29 @@
 
 namespace IRL2D {
 
-double operator*(const Vec& a_vec_0, const Vec& a_vec_1) {
+const double operator*(const Vec& a_vec_0, const Vec& a_vec_1) {
   return a_vec_0[0] * a_vec_1[0] + a_vec_0[1] * a_vec_1[1];
 }
-Vec operator+(const Vec& a_vec_0, const Vec& a_vec_1) {
+const Vec operator+(const Vec& a_vec_0, const Vec& a_vec_1) {
   return Vec(a_vec_0[0] + a_vec_1[0], a_vec_0[1] + a_vec_1[1]);
 }
-Vec operator-(const Vec& a_vec_0, const Vec& a_vec_1) {
+const Vec operator-(const Vec& a_vec_0, const Vec& a_vec_1) {
   return Vec(a_vec_0[0] - a_vec_1[0], a_vec_0[1] - a_vec_1[1]);
 }
-Vec operator*(const double a_scalar, const Vec& a_vec) {
+const Vec operator*(const double a_scalar, const Vec& a_vec) {
   auto vec_to_return = a_vec;
   vec_to_return *= a_scalar;
   return vec_to_return;
 }
-Vec operator*(const Vec& a_vec, const double a_scalar) {
+const Vec operator*(const Vec& a_vec, const double a_scalar) {
   return a_scalar * a_vec;
 }
-Vec operator/(const Vec& a_vec, const double a_scalar) {
+const Vec operator/(const Vec& a_vec, const double a_scalar) {
   Vec vec_to_return = a_vec;
   vec_to_return /= a_scalar;
   return vec_to_return;
 }
-Vec operator*(const Mat& a_mat, const Vec& a_vec) {
+const Vec operator*(const Mat& a_mat, const Vec& a_vec) {
   return Vec(a_mat[0] * a_vec, a_mat[1] * a_vec);
 }
 
@@ -73,7 +73,7 @@ void ToVTK(const std::vector<BezierList>& list, const std::string& filename) {
         file << offset + count++ << " ";
       }
     }
-    offset = count;
+    offset += count;
   }
   file << "\n</DataArray>\n";
   file << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
@@ -117,7 +117,7 @@ void ToVTK(const std::vector<BezierList>& list, const std::string& filename) {
       file << offset + count++ << " ";
       file << offset + count++ << " ";
     }
-    offset = count;
+    offset += count;
   }
   file << "\n</DataArray>\n";
   file << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
@@ -381,8 +381,12 @@ bool IsBelow(const Parabola& parabola, const Vec& pt) {
   return pt.y() < -parabola.coeff() * pt.x() * pt.x();
 }
 
-std::vector<BezierList> ParabolaClip(const BezierList& original_cell,
-                                     const Parabola& parabola) {
+double DistanceToParabola(const Parabola& parabola, const Vec& pt) {
+  return pt.y() + parabola.coeff() * pt.x() * pt.x();
+}
+
+std::vector<BezierList> ParabolaClipWeilerAtherton(
+    const BezierList& original_cell, const Parabola& parabola) {
   // If empty cell, return empty cell
   if (original_cell.size() == 0 || parabola.isAlwaysBelow())
     return std::vector<BezierList>(0);
@@ -563,35 +567,42 @@ std::vector<BezierList> ParabolaClip(const BezierList& original_cell,
   return clipped_cell;
 }
 
-std::vector<BezierList> ParabolaClip(
+std::vector<BezierList> ParabolaClipWeilerAtherton(
     const std::vector<BezierList>& original_cell, const Parabola& parabola) {
   // If empty cell, return empty cell
   if (original_cell.size() == 0 || parabola.isAlwaysBelow())
     return std::vector<BezierList>(0);
   if (parabola.isAlwaysAbove()) return original_cell;
 
-  auto clipped_cell = ParabolaClip(original_cell[0], parabola);
+  auto clipped_cell = ParabolaClipWeilerAtherton(original_cell[0], parabola);
   for (int i = 1; i < original_cell.size(); i++) {
-    const auto tmp_clipped_cell = ParabolaClip(original_cell[i], parabola);
+    const auto tmp_clipped_cell =
+        ParabolaClipWeilerAtherton(original_cell[i], parabola);
     clipped_cell.insert(clipped_cell.end(), tmp_clipped_cell.begin(),
                         tmp_clipped_cell.end());
   }
   return clipped_cell;
 }
 
-std::vector<BezierList> ClipByRectangleAndParabola(
-    const BezierList& original_cell, const Vec& x0, const Vec& x1,
-    const Parabola& parabola) {
-  std::array<Parabola, 4> localizers;
-  localizers[0] = Parabola(x1, ReferenceFrame(0.), 0.);
-  localizers[1] = Parabola(x0, ReferenceFrame(M_PI / 2.), 0.);
-  localizers[2] = Parabola(x0, ReferenceFrame(M_PI), 0.);
-  localizers[3] = Parabola(x1, ReferenceFrame(3. * M_PI / 2.), 0.);
-  auto clipped_cell = ParabolaClip(original_cell, parabola);
-  for (int i = 0; i < 4; i++) {
-    clipped_cell = ParabolaClip(clipped_cell, localizers[i]);
-  }
-  return clipped_cell;
+// std::vector<BezierList> ClipByRectangleAndParabola(
+//     const BezierList& original_cell, const Vec& x0, const Vec& x1,
+//     const Parabola& parabola) {
+//   std::array<Parabola, 4> localizers;
+//   localizers[0] = Parabola(x1, ReferenceFrame(0.), 0.);
+//   localizers[1] = Parabola(x0, ReferenceFrame(M_PI / 2.), 0.);
+//   localizers[2] = Parabola(x0, ReferenceFrame(M_PI), 0.);
+//   localizers[3] = Parabola(x1, ReferenceFrame(3. * M_PI / 2.), 0.);
+//   auto clipped_cell = ParabolaClip(original_cell, parabola);
+//   for (int i = 0; i < 4; i++) {
+//     clipped_cell = ParabolaClip(clipped_cell, localizers[i]);
+//   }
+//   return clipped_cell;
+// }
+
+double ArcVolume(const Vec& P0, const Vec& P1, const Vec& P2) {
+  return -(P2.x() * (2. * P0.y() + P1.y()) + P1.x() * (P0.y() - P2.y()) -
+           P0.x() * (P1.y() + 2. * P2.y())) /
+         3.;
 }
 
 double CellVolume(const BezierList& cell) {
@@ -620,4 +631,400 @@ double CellVolume(const std::vector<BezierList>& cell) {
   return area;
 }
 
+Vec RK4Point(const Vec& P, const double dt, const double time,
+             const Vec (*vel)(const double t, const Vec& P)) {
+  const auto k1 = vel(time, P);
+  const auto P1 = P + 0.5 * dt * k1;
+  const auto k2 = vel(time + 0.5 * dt, P1);
+  const auto P2 = P + 0.5 * dt * k2;
+  const auto k3 = vel(time + 0.5 * dt, P2);
+  const auto P3 = P + dt * k3;
+  const auto k4 = vel(time + dt, P3);
+  const auto Pnew = P + dt * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
+  return Pnew;
+}
+
+std::pair<Vec, Vec> RK4PointAndTangent(
+    const Vec& P, const Vec& T, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P)) {
+  const auto k1 = vel(time, P);
+  const auto q1 = grad_vel(time, P) * T;
+  const auto P1 = P + 0.5 * dt * k1;
+  const auto T1 = T + 0.5 * dt * q1;
+  const auto k2 = vel(time + 0.5 * dt, P1);
+  const auto q2 = grad_vel(time + 0.5 * dt, P1) * T1;
+  const auto P2 = P + 0.5 * dt * k2;
+  const auto T2 = T + 0.5 * dt * q2;
+  const auto k3 = vel(time + 0.5 * dt, P2);
+  const auto q3 = grad_vel(time + 0.5 * dt, P2) * T2;
+  const auto P3 = P + dt * k3;
+  const auto T3 = T + dt * q3;
+  const auto k4 = vel(time + dt, P3);
+  const auto q4 = grad_vel(time + dt, P3) * T3;
+  const auto Pnew = P + dt * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
+  const auto Tnew = T + dt * (q1 + 2.0 * q2 + 2.0 * q3 + q4) / 6.0;
+  return std::make_pair(Pnew, Tnew);
+}
+
+double Determinant(const Vec& T0, const Vec& T1) {
+  return T0[0] * T1[1] - T0[1] * T1[0];
+}
+
+std::pair<bool, double> RayIntersection(const Vec& P0, const Vec& P1,
+                                        const Vec& T0, const Vec& T1) {
+  double tol = 1000. * std::numeric_limits<double>::epsilon();
+  auto edge = P1 - P0;
+  const auto dP = edge;
+  edge.normalize();
+  const double det = Determinant(T1, T0);
+  // If T0 and T1 are parallel
+  if (std::abs(det) < tol) {
+    const double det_2 = Determinant(T0, edge);
+    // If T0 and P1-P0 are parallel
+    if (std::abs(det_2) < tol) {
+      return std::pair<bool, double>(true, 0.5 * dP.magnitude());
+    }
+    return std::pair<bool, double>(false, 0.0);
+  }
+  double t0 = Determinant(T1, dP) / det;
+  double t1 = Determinant(T0, dP) / det;
+  return std::pair<bool, double>(t0 > 0.0 && t1 > 0.0, t0);
+}
+
+BezierList ConstructPathline(const Vec& P00, const double dt, const double t,
+                             const Vec (*vel)(const double t, const Vec& P),
+                             const int rec_num) {
+  const int max_recursion = 3;
+  auto P01 = RK4Point(P00, dt, t, vel);
+  auto T00 = std::copysign(1.0, dt) * vel(t, P00);
+  T00.normalize();
+  auto T01 = -std::copysign(1.0, dt) * vel(t + dt, P01);
+  T01.normalize();
+
+  auto intersection = RayIntersection(P00, P01, T00, T01);
+  if (intersection.first == false) {
+    const double ddt = 0.5 * dt;
+    auto Pmid = RK4Point(P00, ddt, t, vel);
+    // If max level not reached, split arc
+    if (rec_num < max_recursion) {
+      auto list1 = ConstructPathline(P00, ddt, t, vel, rec_num + 1);
+      auto list2 = ConstructPathline(Pmid, ddt, t + ddt, vel, rec_num + 1);
+      // Append list2 to list1
+      list1.insert(list1.end(), list2.begin(), list2.end());
+      return list1;
+      // Else return straight line
+    } else {
+      return std::vector{std::make_pair(P00, Pmid)};
+    }
+  } else {
+    return std::vector{std::make_pair(P00, P00 + intersection.second * T00)};
+  }
+}
+
+BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
+                         const double time,
+                         const Vec (*vel)(const double t, const Vec& P),
+                         const Mat (*grad_vel)(const double t, const Vec& P),
+                         const int rec_num, const bool add_pathlines,
+                         const bool close_flux, const bool correct_area,
+                         const double exact_area) {
+  double tol = 10. * std::numeric_limits<double>::epsilon();
+  const int max_recursion = 3;
+  BezierList list;
+  // Add first pathline
+  if (add_pathlines == true) {
+    auto pathline = ConstructPathline(P00, dt, time, vel, 0);
+    list.insert(list.end(), pathline.begin(), pathline.end());
+  }
+
+  // Transport both points and tangents
+  auto T00 = P10 - P00;
+  T00.normalize();
+  const auto T10 = -T00;
+  auto PT01back = RK4PointAndTangent(P00, T00, dt, time, vel, grad_vel);
+  auto PT11back = RK4PointAndTangent(P10, T10, dt, time, vel, grad_vel);
+  const auto P01 = PT01back.first;
+  const auto T01 = PT01back.second;
+  const auto P11 = PT11back.first;
+  const auto T11 = PT11back.second;
+
+  // Check for existance of control point; recursive slip if needed
+  auto intersection = RayIntersection(P01, P11, T01, T11);
+  const int start_edge = list.size();
+  int end_edge = -1;
+  if (intersection.first == false) {
+    auto Pmid = 0.5 * (P00 + P10);
+    // If max level not reached, split arc
+    if (rec_num < max_recursion) {
+      const auto list1 = TransportEdge(P00, Pmid, dt, time, vel, grad_vel,
+                                       rec_num + 1, false, false, false, 0.);
+      list.insert(list.end(), list1.begin(), list1.end());
+      const auto list2 = TransportEdge(Pmid, P10, dt, time, vel, grad_vel,
+                                       rec_num + 1, false, false, false, 0.);
+      list.insert(list.end(), list2.begin(), list2.end());
+    } else {
+      list.push_back(std::make_pair(P01, 0.5 * (P01 + P11)));
+    }
+  } else {
+    list.push_back(std::make_pair(P01, P01 + intersection.second * T01));
+  }
+
+  // If area correction required, store last id of edge
+  if (add_pathlines == true && close_flux == true && correct_area == true) {
+    end_edge = list.size();
+  }
+
+  // Add returning pathline to list
+  if (add_pathlines == true) {
+    auto pathline = ConstructPathline(P10, dt, time, vel, 0);
+    list.push_back(std::make_pair(P11, pathline.back().second));
+    for (int i = pathline.size() - 1; i >= 1; i--) {
+      list.push_back(std::make_pair(pathline[i].first, pathline[i - 1].second));
+    }
+  }
+
+  // Add original edge to list
+  if (close_flux == true) {
+    list.push_back(std::make_pair(P10, 0.5 * (P00 + P10)));
+  }
+
+  // Correct control points of egde to match exact area
+  if (add_pathlines == true && close_flux == true && correct_area == true) {
+    const int narcs = end_edge - start_edge;
+    const double uncorrected_area = CellVolume(list);
+    const double area_correction = exact_area - uncorrected_area;
+
+    // Compute length of polygon arc
+    double total_length = 0.0;
+    for (int i = start_edge; i < end_edge; i++) {
+      const auto segment = list[i + 1].first - list[i].first;
+      total_length += segment.magnitude();
+    }
+
+    // Correct each arc
+    for (int i = start_edge; i < end_edge; i++) {
+      const auto P0 = list[i].first;
+      const auto P1 = list[i].second;
+      const auto P2 = list[i + 1].first;
+      auto segment = P2 - P0;
+      const double length = segment.magnitude();
+      segment.normalize();
+      const auto normal = IRL2D::Vec(-segment.y(), segment.x());
+      const double weight = length / total_length;
+      const double desired_arc_area =
+          ArcVolume(P0, P1, P2) + weight * area_correction;
+      // Find correction dir
+      const auto Pmid = P1 - (normal * (P1 - P0)) * normal;
+      // Calculate new distance correction
+      const double s =
+          (3. * desired_arc_area + 2. * P2.x() * P0.y() + Pmid.x() * P0.y() -
+           2. * P0.x() * P2.y() - Pmid.x() * P2.y() - P0.x() * Pmid.y() +
+           P2.x() * Pmid.y()) /
+          IRL::safelyEpsilon(normal.y() * P0.x() - normal.y() * P2.x() -
+                             normal.x() * P0.y() + normal.x() * P2.y());
+      // Correct control point
+      list[i].second = Pmid + s * normal;
+    }
+  }
+
+  return list;
+}
+
+BezierList CreateFluxCell(const Vec& P00, const Vec& P10, const double dt,
+                          const double time,
+                          const Vec (*vel)(const double t, const Vec& P),
+                          const Mat (*grad_vel)(const double t, const Vec& P),
+                          const bool correct_area, const double exact_area) {
+  return TransportEdge(P00, P10, dt, time, vel, grad_vel, 0, true, true,
+                       correct_area, exact_area);
+}
+
+BezierList ParabolaClip(const BezierList& original_cell,
+                        const Parabola& parabola) {
+  // If empty cell, return empty cell
+  if (original_cell.size() == 0 || parabola.isAlwaysBelow())
+    return BezierList();
+  if (parabola.isAlwaysAbove()) return original_cell;
+
+  // Specify constants
+  double tol = 10. * std::numeric_limits<double>::epsilon();
+  bool parabola_contains_vertex = true;
+  const int itmax = 100;
+
+  // Initialize clipped cell
+  BezierList clipped_cell;
+
+  // Store parabola properties
+  Vec datum = parabola.datum();
+  ReferenceFrame frame = parabola.frame();
+  double coeff = parabola.coeff();
+
+  // This while loop is needed in case we might want to nudge the parabola
+  int it = 0;
+  while (parabola_contains_vertex && it < itmax) {
+    parabola_contains_vertex = false;
+    it++;
+    // Copy cell in frame of reference of parabola
+    const int nvert_init = original_cell.size();
+    BezierList cell, cell_with_intersections;
+    cell.assign(original_cell.begin(), original_cell.end());
+    for (int i = 0; i < nvert_init; i++) {
+      cell[i].first = frame * (cell[i].first - datum);
+      cell[i].second = frame * (cell[i].second - datum);
+    }
+    // Reserve 5 times original size (i.e., 4 intersections per arc)
+    cell_with_intersections.reserve(5 * original_cell.size());
+
+    // Compute all intersections and insert them in cell
+    int nintersections = 0;
+    // Vertex nature: 1 = below, 0 = above, 2 = entry, 3 = exit
+    std::vector<int> vertex_nature;
+    for (int i = 0; i < nvert_init; i++) {
+      // Get points of current bezier arc
+      const auto p0 = cell[i].first;
+      const auto p1 = cell[i].second;
+      const auto p2 = cell[(i + 1) % cell.size()].first;
+      // Add p0 and p1 to new list
+      cell_with_intersections.push_back(PtAndControl{p0, p1});
+      // Is p0 below or above parabola?
+      const double dist = DistanceToParabola(parabola, p0);
+      if (std::abs(dist) < tol) {
+        parabola_contains_vertex = true;
+        break;
+      }
+      vertex_nature.push_back(dist < 0. ? 1 : 0);
+      // Compute t-values of potential intersections
+      auto t_vals = AnalyticIntersections(parabola, p0, p1, p2);
+      // Tmp variables needs for arc splitting
+      double t0 = 0.;
+      auto p0new = p0, p1new = p1;
+      // Loop over all detected intersections
+      for (int j = 0; j < t_vals.size(); j++) {
+        const double t = t_vals[j];
+        // If t = 0 or t = 1, we must nudge! Go back to beginning of function
+        if (std::fabs(t) < tol || std::fabs(1. - t) < tol) {
+          parabola_contains_vertex = true;
+          break;
+        }
+        //// Spilling of the arc (using de Casteljau algorithm)
+        // First: Update previous control point
+        cell_with_intersections.back().second =
+            p0new + (t - t0) / (1. - t0) * (p1new - p0new);
+        // Second: Add intersection and new control point
+        p0new = BezierPoint(p0, p1, p2, t);
+        p1new = p1new + (t - t0) / (1. - t0) * (p2 - p1new);
+        cell_with_intersections.push_back(PtAndControl{p0new, p1new});
+        nintersections++;
+        // Check if intersection is entry of exit
+        // If: previous vertex is below or exit, then current vertex is entry
+        // Otherwise: the current vertex is exit
+        vertex_nature.push_back(
+            (vertex_nature.back() == 1 || vertex_nature.back() == 2) ? 3 : 2);
+        t0 = t;
+      }
+      if (parabola_contains_vertex) break;
+    }
+
+    // If non-even # of intersections or parabola intersects with vertex, nudge!
+    if (nintersections % 2 != 0 || parabola_contains_vertex) {
+      datum += 10. * tol * frame[1];
+      continue;
+    }
+
+    // If no intersections at all; leave loop
+    if (nintersections == 0) {
+      if (vertex_nature[0] == 1) {
+        return original_cell;
+      }
+      return BezierList();
+    }
+
+    ///////// In-house clipping algorithm
+    // Create new bezier list
+    // First, find entry
+    int start = -1;
+    const int nvertices = cell_with_intersections.size();
+    for (int i = 0; i < nvertices; i++) {
+      if (vertex_nature[i] == 2) {
+        start = i;
+        break;
+      }
+    }
+    assert(start >= 0);
+    // Add entry to new bezier list
+    clipped_cell.push_back(cell_with_intersections[start]);
+    // Store start id
+    const int check_start = start;
+    // Loop over cell until next exit or start point itself;
+    for (int i = 0; i < nvertices; i++) {
+      // Fint next vertex on cell
+      const int next_id = (start + 1 + i) % nvertices;
+      // If next vertex is entry, modify previous control point
+      if (vertex_nature[next_id] == 2) {
+        // Find next entry in cell
+        // Create new control point for bezier arc extracted from parabola
+        const auto p0 = clipped_cell.back().first;
+        const auto p2 = cell_with_intersections[next_id].first;
+        clipped_cell.back().second =
+            Vec(0.5 * (p0.x() + p2.x()),
+                p0.y() + coeff * (p0.x() - p2.x()) * p0.x());
+      }
+      // If next vertex is start, we are done
+      if (next_id == check_start) {
+        break;
+      }
+      // If below or intersection, add next vertex to list
+      if (vertex_nature[next_id] != 0) {
+        clipped_cell.push_back(cell_with_intersections[next_id]);
+      }
+    }
+  }
+
+  if (parabola_contains_vertex) {
+    std::cout << "WARNING: Parabola contains vertex!" << itmax
+              << " nudges were not enough." << std::endl;
+  }
+
+  // Move clipped cell back to canonical frame of reference
+  for (int i = 0; i < clipped_cell.size(); i++) {
+    clipped_cell[i].first =
+        parabola.datum() + frame.transpose() * clipped_cell[i].first;
+    clipped_cell[i].second =
+        parabola.datum() + frame.transpose() * clipped_cell[i].second;
+  }
+
+  return clipped_cell;
+}
+
+BezierList ClipByRectangleAndParabola(const BezierList& original_cell,
+                                      const Vec& x0, const Vec& x1,
+                                      const Parabola& parabola) {
+  std::array<Parabola, 4> localizers;
+  localizers[0] = Parabola(x1, ReferenceFrame(0.), 0.);
+  localizers[1] = Parabola(x0, ReferenceFrame(M_PI / 2.), 0.);
+  localizers[2] = Parabola(x0, ReferenceFrame(M_PI), 0.);
+  localizers[3] = Parabola(x1, ReferenceFrame(3. * M_PI / 2.), 0.);
+  auto clipped_cell = ParabolaClip(original_cell, parabola);
+  for (int i = 0; i < 4; i++) {
+    clipped_cell = ParabolaClip(clipped_cell, localizers[i]);
+  }
+  return clipped_cell;
+}
+
+double IntegrateFlux(const Vec& P0, const Vec& P1, const double dt,
+                     const double time,
+                     const Vec (*vel)(const double t, const Vec& P)) {
+  const auto points = IRL::AbscissaeGauss<double, 50>();
+  const auto weights = IRL::WeightsGauss<double, 50>();
+  const auto edge = P1 - P0;
+  auto normal = Vec(-edge.y(), edge.x());
+  normal.normalize();
+  double udotn = 0.0;
+  for (int i = 0; i < 50; i++) {
+    udotn +=
+        weights[i] * (vel(time, P0 + 0.5 * (1.0 + points[i]) * edge) * normal);
+  }
+  return 0.5 * dt * edge.magnitude() * udotn;
+}
 }  // namespace IRL2D

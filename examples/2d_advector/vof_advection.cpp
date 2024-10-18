@@ -172,9 +172,8 @@ void SemiLagrangianCorrected::advectVOF(
   const std::array<std::array<double, 3>, 3> (*getExactGradient)(
       const IRL::Pt& a_location, const double a_time);
 
-  ASHISH ::Vector (*getExactVelocity2D)(const double t, const ASHISH ::Point P);
-  ASHISH ::Two_By_Two_Matrix (*getExactGradient2D)(const double t,
-                                                   const ASHISH ::Point P);
+  const IRL2D::Vec (*getExactVelocity2D)(const double t, const IRL2D::Vec& P);
+  const IRL2D::Mat (*getExactGradient2D)(const double t, const IRL2D::Vec& P);
 
   if (a_simulation_type == "Rotation2D") {
     getExactVelocity = Rotation2D::getExactVelocity;
@@ -326,18 +325,21 @@ void SemiLagrangianCorrected::advectVOF(
                                                      mesh.y(j), mesh.y(j + 1));
           IRL2D::Print(cell);
 
-          auto datum = IRL2D::Vec(0.6, 0.6);
-          auto frame = IRL2D::ReferenceFrame(-M_PI / 4.0);
-          auto parabola = IRL2D::Parabola(datum, frame, 0.0);
+          auto datum = IRL2D::Vec(0.0, 0.0);
+          auto frame = IRL2D::ReferenceFrame(-M_PI / 3.0);
+          auto parabola = IRL2D::Parabola(datum, frame, -1.0);
           std::cout << "Parabola  : " << parabola << std::endl;
 
-          cell[0].second.y() += 0.1;
-          cell[1].second.x() -= 1.1;
-          cell[2].second.y() -= 0.1;
-          cell[3].second.x() -= 1.1;
+          // cell[0].second.y() += 0.1;
+          // cell[1].second.y() -= 2.0;
+          // cell[2].second.y() -= 0.1;
+          // cell[3].second.y() += 2.0;
           IRL2D::ToVTK(cell, "cell");
 
-          auto clipped_cell = IRL2D::ClipByRectangleAndParabola(
+          auto clipped_cell = IRL2D::ParabolaClip(cell, parabola);
+          IRL2D::ToVTK(clipped_cell, "clipped_cell");
+
+          clipped_cell = IRL2D::ClipByRectangleAndParabola(
               cell, IRL2D::Vec(-0.4, -0.4), IRL2D::Vec(0.4, 0.4), parabola);
 
           IRL2D::ToVTK(clipped_cell, "clipped_by_rectangle_and_parabola");
@@ -346,11 +348,38 @@ void SemiLagrangianCorrected::advectVOF(
                     << std::endl;
 
           cell = IRL2D::RectangleListFromBounds(-0.4, 0.4, -0.4, 0.4);
-          clipped_cell = IRL2D::ParabolaClip(cell, parabola);
-          std::cout << "Clipped cell has " << clipped_cell.size() << " curves"
-                    << " and volume = " << IRL2D::CellVolume(clipped_cell)
+          const bool correct_fluxes = true;
+
+          std::vector<IRL2D::BezierList> flux_cell;
+          double area = IntegrateFlux(cell[0].first, cell[1].first, a_dt,
+                                      a_time, getExactVelocity2D);
+          flux_cell.push_back(IRL2D::CreateFluxCell(
+              cell[0].first, cell[1].first, -a_dt, a_time, getExactVelocity2D,
+              getExactGradient2D, correct_fluxes, area));
+          area = IntegrateFlux(cell[1].first, cell[2].first, a_dt, a_time,
+                               getExactVelocity2D);
+          flux_cell.push_back(IRL2D::CreateFluxCell(
+              cell[1].first, cell[2].first, -a_dt, a_time, getExactVelocity2D,
+              getExactGradient2D, correct_fluxes, area));
+          area = IntegrateFlux(cell[2].first, cell[3].first, a_dt, a_time,
+                               getExactVelocity2D);
+          flux_cell.push_back(IRL2D::CreateFluxCell(
+              cell[2].first, cell[3].first, -a_dt, a_time, getExactVelocity2D,
+              getExactGradient2D, correct_fluxes, area));
+          area = IntegrateFlux(cell[3].first, cell[0].first, a_dt, a_time,
+                               getExactVelocity2D);
+          flux_cell.push_back(IRL2D::CreateFluxCell(
+              cell[3].first, cell[0].first, -a_dt, a_time, getExactVelocity2D,
+              getExactGradient2D, correct_fluxes, area));
+          IRL2D::ToVTK(flux_cell, "flux_cell");
+
+          std::cout << "Divergence = " << std::scientific
+                    << std::setprecision(6)
+                    << (IRL2D::CellVolume(flux_cell[0]) +
+                        IRL2D::CellVolume(flux_cell[2]) +
+                        IRL2D::CellVolume(flux_cell[1]) +
+                        IRL2D::CellVolume(flux_cell[3]))
                     << std::endl;
-          IRL2D::ToVTK(clipped_cell, "clipped_cell");
 
           exit(0);
         }
