@@ -23,9 +23,18 @@
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
+#include "irl/moments/general_moments.h"
+#include "irl/moments/volume_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {
+
+template <class ScalarType, UnsignedIndex_t Order>
+const std::array<ScalarType, Order> AbscissaeGauss(void);
+
+template <class ScalarType, UnsignedIndex_t Order>
+const std::array<ScalarType, Order> WeightsGauss(void);
 
 template <class ScalarType>
 inline ScalarType signedDistance(
