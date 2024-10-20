@@ -9,8 +9,8 @@
 
 #include "examples/2d_advector/basic_mesh.h"
 
-void BasicMesh::setCellBoundaries(const IRL::Pt& a_bottom_bounding_box,
-                                  const IRL::Pt& a_top_bounding_box) {
+void BasicMesh::setCellBoundaries(const IRL2D::Vec& a_bottom_bounding_box,
+                                  const IRL2D::Vec& a_top_bounding_box) {
   // X direction
   dx_m = (a_top_bounding_box.x() - a_bottom_bounding_box.x()) /
          static_cast<double>(this->getNx());
@@ -24,16 +24,9 @@ void BasicMesh::setCellBoundaries(const IRL::Pt& a_bottom_bounding_box,
   for (int j = -this->getNgc(); j < this->getNy() + 1 + this->getNgc(); ++j) {
     this->y(j) = a_bottom_bounding_box.y() + static_cast<double>(j) * dy_m;
   }
-
-  // Z direction
-  dz_m = (a_top_bounding_box.z() - a_bottom_bounding_box.z()) /
-         static_cast<double>(this->getNz());
-  for (int k = -this->getNgc(); k < this->getNz() + 1 + this->getNgc(); ++k) {
-    this->z(k) = a_bottom_bounding_box.z() + static_cast<double>(k) * dz_m;
-  }
 }
 
-void BasicMesh::getIndices(const IRL::Pt& a_location, int* a_indices) const {
+void BasicMesh::getIndices(const IRL2D::Vec& a_location, int* a_indices) const {
   // Localize x index
   int i =
       static_cast<int>((a_location[0] - this->x(this->imin())) / this->dx()) +
@@ -41,10 +34,6 @@ void BasicMesh::getIndices(const IRL::Pt& a_location, int* a_indices) const {
   int j =
       static_cast<int>((a_location[1] - this->y(this->jmin())) / this->dy()) +
       this->jmin();
-  int k =
-      static_cast<int>((a_location[2] - this->z(this->kmin())) / this->dz()) +
-      this->kmin();
   a_indices[0] = i;
   a_indices[1] = j;
-  a_indices[2] = k;
 }

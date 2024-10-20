@@ -27,6 +27,43 @@ const Vec operator/(const Vec& a_vec, const double a_scalar) {
 const Vec operator*(const Mat& a_mat, const Vec& a_vec) {
   return Vec(a_mat[0] * a_vec, a_mat[1] * a_vec);
 }
+const Mat outer_product(const Vec& a_vec_0, const Vec& a_vec_1) {
+  return Mat(Vec(a_vec_0[0] * a_vec_1[0], a_vec_0[0] * a_vec_1[1]),
+             Vec(a_vec_0[1] * a_vec_1[0], a_vec_0[1] * a_vec_1[0]));
+}
+const Mat operator*(const Mat& a_mat_0, const Mat& a_mat_1) {
+  const auto a_mat_1_T = a_mat_1.transpose();
+  return Mat(Vec(a_mat_0[0] * a_mat_1_T[0], a_mat_0[0] * a_mat_1_T[1]),
+             Vec(a_mat_0[1] * a_mat_1_T[0], a_mat_0[1] * a_mat_1_T[0]));
+}
+const Mat operator+(const Mat& a_mat_0, const Mat& a_mat_1) {
+  return Mat(Vec(a_mat_0[0][0] + a_mat_1[0][0], a_mat_0[0][1] + a_mat_1[0][1]),
+             Vec(a_mat_0[1][0] + a_mat_1[1][0], a_mat_0[1][1] + a_mat_1[1][1]));
+}
+const Mat operator-(const Mat& a_mat_0, const Mat& a_mat_1) {
+  return Mat(Vec(a_mat_0[0][0] - a_mat_1[0][0], a_mat_0[0][1] - a_mat_1[0][1]),
+             Vec(a_mat_0[1][0] - a_mat_1[1][0], a_mat_0[1][1] - a_mat_1[1][1]));
+}
+const Mat operator*(const double a_scalar, const Mat& a_mat) {
+  return Mat(a_scalar * a_mat[0], a_scalar * a_mat[1]);
+}
+const Mat operator*(const Mat& a_mat, const double a_scalar) {
+  return a_scalar * a_mat;
+}
+const Moments operator+(const Moments& a_mom_0, const Moments& a_mom_1) {
+  return Moments(a_mom_0.m0() + a_mom_1.m0(), a_mom_0.m1() + a_mom_1.m1(),
+                 a_mom_0.m2() + a_mom_1.m2());
+}
+const Moments operator-(const Moments& a_mom_0, const Moments& a_mom_1) {
+  return Moments(a_mom_0.m0() - a_mom_1.m0(), a_mom_0.m1() - a_mom_1.m1(),
+                 a_mom_0.m2() - a_mom_1.m2());
+}
+const Moments operator*(const double a_scalar, const Moments& a_mom) {
+  return Moments(a_scalar * a_mom.m0(), a_scalar * a_mom.m1(), a_mom.m2());
+}
+const Moments operator*(const Moments& a_mom, const double a_scalar) {
+  return a_scalar * a_mom;
+}
 
 void Print(const BezierList& list) {
   std::cout << "Cell:";
@@ -140,9 +177,9 @@ void ToVTK(const BezierList& list, const std::string& filename) {
   ToVTK(std::vector<BezierList>{list}, filename);
 }
 
-BezierList RectangleListFromBounds(const double x0, const double x1,
-                                   const double y0, const double y1) {
-  Vec p00(x0, y0), p10(x1, y0), p11(x1, y1), p01(x0, y1);
+BezierList RectangleFromBounds(const Vec& x0, const Vec& x1) {
+  Vec p00(x0.x(), x0.y()), p10(x1.x(), x0.y()), p11(x1.x(), x1.y()),
+      p01(x0.x(), x1.y());
   PtAndControl pc0{p00, .5 * (p00 + p10)};
   PtAndControl pc1{p10, .5 * (p10 + p11)};
   PtAndControl pc2{p11, .5 * (p11 + p01)};
@@ -314,44 +351,24 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
              y1 - y2 + 2. * yc;
   double D = 4. * a * x1 * (xc - x1) + 2. * y1 - 2. * yc;
   double E = a * x1 * x1 - y1;
-  int eqn_order = 0;
 
   std::vector<double> t_vals, t_solutions;
   if (std::abs(A) > tol) {
-    // if A != 0, solve quartic equation
     t_solutions = solve_quartic(B / A, C / A, D / A, E / A);
-    // std::cout << "Quartic solve (ABCDE = " << A << ", " << B << ", " << C
-    //           << ", " << D << ", " << E << std::endl;
-    eqn_order = 4;
   } else if (std::abs(B) > tol) {
-    // solve cubic equation
     t_solutions = solve_cubic(B, C, D, E);
-    eqn_order = 3;
-    // std::cout << "Cubic solve (ABCDE = " << A << ", " << B << ", " << C << ",
-    // "
-    //           << D << ", " << E << std::endl;
   } else if (std::abs(C) > tol) {
-    // solve quadratic equation
-    t_solutions.push_back((-D - std::sqrt(D * D - 4. * C * E)) / (2. * C));
-    t_solutions.push_back((-D + std::sqrt(D * D - 4. * C * E)) / (2. * C));
-    eqn_order = 2;
-    // std::cout << "Quadratic solve (ABCDE = " << A << ", " << B << ", " << C
-    //           << ", " << D << ", " << E << std::endl;
+    const auto quadratic_solution = IRL::solveQuadratic(C, D, E);
+    for (int i = 0; i < quadratic_solution.size(); i++) {
+      t_solutions.push_back(quadratic_solution[i]);
+    }
   } else if (std::abs(D) > tol) {
-    // solve linear equation
     t_solutions.push_back(-E / D);
-    eqn_order = 1;
-    // std::cout << "Linear solve (ABCDE = " << A << ", " << B << ", " << C <<
-    // ", "
-    //           << D << ", " << E << std::endl;
   } else {
     t_solutions = {};
-    eqn_order = 0;
-    // std::cout << "No solve (ABCDE = " << A << ", " << B << ", " << C << ", "
-    //           << D << ", " << E << std::endl;
   }
 
-  for (size_t i = 0; i < eqn_order; ++i) {
+  for (size_t i = 0; i < t_solutions.size(); ++i) {
     if (t_solutions[i] >= 0. && t_solutions[i] <= 1.) {
       t_vals.push_back(t_solutions[i]);
     }
@@ -359,17 +376,6 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
 
   std::sort(t_vals.begin(), t_vals.end());
   return t_vals;
-
-  // std::vector<std::pair<Vec, double>> intersections;
-  // for (auto t : t_vals) {
-  //   double B0 = (1. - t) * (1. - t);
-  //   double B1 = 2. * (1. - t) * t;
-  //   double B2 = t * t;
-  //   double x = B0 * x1 + B1 * xc + B2 * x2;
-  //   double y = B0 * y1 + B1 * yc + B2 * y2;
-  //   intersections.push_back(std::pair<Vec, double>{{x, y}, t});
-  // }
-  // return intersections;
 }
 
 const Vec BezierPoint(const Vec& p0, const Vec& p1, const Vec& p2,
@@ -605,7 +611,7 @@ double ArcVolume(const Vec& P0, const Vec& P1, const Vec& P2) {
          3.;
 }
 
-double CellVolume(const BezierList& cell) {
+double ComputeVolume(const BezierList& cell) {
   if (cell.size() == 0) return 0.0;
 
   double area = 0.0;
@@ -620,15 +626,142 @@ double CellVolume(const BezierList& cell) {
   return area;
 }
 
-double CellVolume(const std::vector<BezierList>& cell) {
+double ComputeVolume(const std::vector<BezierList>& cell) {
   if (cell.size() == 0) return 0.0;
 
   double area = 0.0;
   for (int i = 0; i < cell.size(); i++) {
-    area += CellVolume(cell[i]);
+    area += ComputeVolume(cell[i]);
   }
 
   return area;
+}
+
+Moments ComputeMoments(const BezierList& cell) {
+  if (cell.size() == 0) return Moments();
+
+  auto moments = Moments();
+  for (int i = 0; i < cell.size(); i++) {
+    const auto p0 = cell[i].first;
+    const auto p1 = cell[i].second;
+    const auto p2 = cell[(i + 1) % cell.size()].first;
+    moments.m0() +=
+        (-(p2.x() * (p0.y() + 2. * p1.y())) - 2. * p1.x() * (p0.y() - p2.y()) +
+         p0.x() * (2. * p1.y() + p2.y())) /
+        6.;
+    moments.m1() += IRL2D::Vec(
+        (-4. * p1.x() * p2.x() * (p0.y() + p1.y() - 2. * p2.y()) -
+         4. * (p1.x() * p1.x()) * (p0.y() - p2.y()) +
+         2. * p0.x() * p2.x() * (-p0.y() + p2.y()) +
+         4. * p0.x() * p1.x() * (-2. * p0.y() + p1.y() + p2.y()) +
+         p0.x() * p0.x() * (5. * p0.y() + 8. * p1.y() + 2. * p2.y()) -
+         p2.x() * p2.x() * (2. * p0.y() + 8. * p1.y() + 5. * p2.y())) /
+            60.,
+        (-4. * p1.x() * (p0.y() - p2.y()) *
+             (2. * p0.y() + p1.y() + 2. * p2.y()) -
+         p2.x() * (2. * (p0.y() * p0.y()) + 4. * p0.y() * p1.y() +
+                   4. * (p1.y() * p1.y()) + 2. * p0.y() * p2.y() +
+                   8. * p1.y() * p2.y() - 5. * (p2.y() * p2.y())) +
+         p0.x() * (-5. * (p0.y() * p0.y()) + 8. * p0.y() * p1.y() +
+                   4. * (p1.y() * p1.y()) + 2. * p0.y() * p2.y() +
+                   4. * p1.y() * p2.y() + 2. * (p2.y() * p2.y()))) /
+            60.);
+    moments.m2() += IRL2D::Mat(
+        IRL2D::Vec(
+            (-4. * (p1.x() * p1.x()) * p2.x() *
+                 (3. * p0.y() + 2. * p1.y() - 5. * p2.y()) -
+             10. * p1.x() * (p2.x() * p2.x()) *
+                 (p0.y() + 2. * p1.y() - 3. * p2.y()) -
+             8. * (p1.x() * p1.x() * p1.x()) * (p0.y() - p2.y()) +
+             5. * (p0.x() * p0.x() * p0.x()) *
+                 (7. * p0.y() + 6. * p1.y() + p2.y()) -
+             5. * (p2.x() * p2.x() * p2.x()) *
+                 (p0.y() + 6. * p1.y() + 7. * p2.y()) +
+             p0.x() * p0.x() *
+                 (10. * p1.x() * (-3. * p0.y() + 2. * p1.y() + p2.y()) +
+                  p2.x() * (-5. * p0.y() + 2. * p1.y() + 3. * p2.y())) +
+             p0.x() *
+                 (-12. * p1.x() * p2.x() * (p0.y() - p2.y()) +
+                  p2.x() * p2.x() * (-3. * p0.y() - 2. * p1.y() + 5. * p2.y()) +
+                  p1.x() * p1.x() *
+                      (-20. * p0.y() + 8. * p1.y() + 12. * p2.y()))) /
+                420.,
+            (-4. * (p1.x() * p1.x()) * (p0.y() - p2.y()) *
+                 (5. * p0.y() + 4. * p1.y() + 5. * p2.y()) -
+             2. * p0.x() * p2.x() * (p0.y() - p2.y()) *
+                 (5. * p0.y() + 4. * p1.y() + 5. * p2.y()) +
+             4. * p0.x() * p1.x() *
+                 (-15. * (p0.y() * p0.y()) + 4. * (p1.y() * p1.y()) +
+                  2. * p0.y() * p2.y() + 6. * p1.y() * p2.y() +
+                  3. * (p2.y() * p2.y())) -
+             4. * p1.x() * p2.x() *
+                 (3. * (p0.y() * p0.y()) + 4. * (p1.y() * p1.y()) -
+                  15. * (p2.y() * p2.y()) +
+                  2. * p0.y() * (3. * p1.y() + p2.y())) +
+             p0.x() * p0.x() *
+                 (20. * (p1.y() * p1.y()) + 12. * p1.y() * p2.y() +
+                  3. * (p2.y() * p2.y()) +
+                  10. * p0.y() * (6. * p1.y() + p2.y())) -
+             p2.x() * p2.x() *
+                 (3. * (p0.y() * p0.y()) +
+                  20. * p1.y() * (p1.y() + 3. * p2.y()) +
+                  2. * p0.y() * (6. * p1.y() + 5. * p2.y()))) /
+                840.),
+        IRL2D::Vec((-4. * (p1.x() * p1.x()) * (p0.y() - p2.y()) *
+                        (5. * p0.y() + 4. * p1.y() + 5. * p2.y()) -
+                    2. * p0.x() * p2.x() * (p0.y() - p2.y()) *
+                        (5. * p0.y() + 4. * p1.y() + 5. * p2.y()) +
+                    4. * p0.x() * p1.x() *
+                        (-15. * (p0.y() * p0.y()) + 4. * (p1.y() * p1.y()) +
+                         2. * p0.y() * p2.y() + 6. * p1.y() * p2.y() +
+                         3. * (p2.y() * p2.y())) -
+                    4. * p1.x() * p2.x() *
+                        (3. * (p0.y() * p0.y()) + 4. * (p1.y() * p1.y()) -
+                         15. * (p2.y() * p2.y()) +
+                         2. * p0.y() * (3. * p1.y() + p2.y())) +
+                    p0.x() * p0.x() *
+                        (20. * (p1.y() * p1.y()) + 12. * p1.y() * p2.y() +
+                         3. * (p2.y() * p2.y()) +
+                         10. * p0.y() * (6. * p1.y() + p2.y())) -
+                    p2.x() * p2.x() *
+                        (3. * (p0.y() * p0.y()) +
+                         20. * p1.y() * (p1.y() + 3. * p2.y()) +
+                         2. * p0.y() * (6. * p1.y() + 5. * p2.y()))) /
+                       840.,
+                   (-2. * p1.x() * (p0.y() - p2.y()) *
+                        (15. * (p0.y() * p0.y()) + 4. * (p1.y() * p1.y()) +
+                         10. * p1.y() * p2.y() + 15. * (p2.y() * p2.y()) +
+                         2. * p0.y() * (5. * p1.y() + 8. * p2.y())) +
+                    p0.x() * (-35. * (p0.y() * p0.y() * p0.y()) +
+                              8. * (p1.y() * p1.y() * p1.y()) +
+                              12. * (p1.y() * p1.y()) * p2.y() +
+                              10. * p1.y() * (p2.y() * p2.y()) +
+                              5. * (p2.y() * p2.y() * p2.y()) +
+                              5. * (p0.y() * p0.y()) * (6. * p1.y() + p2.y()) +
+                              p0.y() * (20. * (p1.y() * p1.y()) +
+                                        12. * p1.y() * p2.y() +
+                                        3. * (p2.y() * p2.y()))) -
+                    p2.x() * (5. * (p0.y() * p0.y() * p0.y()) +
+                              8. * (p1.y() * p1.y() * p1.y()) +
+                              20. * (p1.y() * p1.y()) * p2.y() +
+                              30. * p1.y() * (p2.y() * p2.y()) -
+                              35. * (p2.y() * p2.y() * p2.y()) +
+                              p0.y() * p0.y() * (10. * p1.y() + 3. * p2.y()) +
+                              p0.y() * (12. * (p1.y() * p1.y()) +
+                                        12. * p1.y() * p2.y() +
+                                        5. * (p2.y() * p2.y())))) /
+                       420.));
+  }
+  return moments;
+}
+
+Moments ComputeMoments(const BezierList& cell, const Parabola& parabola) {
+  return ComputeMoments(ParabolaClip(cell, parabola));
+}
+
+Moments ComputeMoments(const BezierList& cell, const Vec& x0, const Vec& x1,
+                       const Parabola& parabola) {
+  return ComputeMoments(ClipByRectangleAndParabola(cell, x0, x1, parabola));
 }
 
 Vec RK4Point(const Vec& P, const double dt, const double time,
@@ -792,7 +925,7 @@ BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
   // Correct control points of egde to match exact area
   if (add_pathlines == true && close_flux == true && correct_area == true) {
     const int narcs = end_edge - start_edge;
-    const double uncorrected_area = CellVolume(list);
+    const double uncorrected_area = ComputeVolume(list);
     const double area_correction = exact_area - uncorrected_area;
 
     // Compute length of polygon arc
@@ -841,19 +974,27 @@ BezierList CreateFluxCell(const Vec& P00, const Vec& P10, const double dt,
 }
 
 BezierList ParabolaClip(const BezierList& original_cell,
-                        const Parabola& parabola) {
+                        const Parabola& parabola,
+                        const bool return_parabola_only) {
   // If empty cell, return empty cell
-  if (original_cell.size() == 0 || parabola.isAlwaysBelow())
+  if (original_cell.size() == 0 || parabola.isAlwaysBelow()) {
     return BezierList();
-  if (parabola.isAlwaysAbove()) return original_cell;
+  }
+  if (parabola.isAlwaysAbove()) {
+    if (return_parabola_only) {
+      return BezierList();
+    } else {
+      return original_cell;
+    }
+  }
 
   // Specify constants
-  double tol = 10. * std::numeric_limits<double>::epsilon();
+  const double tol = 5. * std::numeric_limits<double>::epsilon();
   bool parabola_contains_vertex = true;
   const int itmax = 100;
 
   // Initialize clipped cell
-  BezierList clipped_cell;
+  BezierList clipped_cell, clipped_parabola;
 
   // Store parabola properties
   Vec datum = parabola.datum();
@@ -928,16 +1069,20 @@ BezierList ParabolaClip(const BezierList& original_cell,
 
     // If non-even # of intersections or parabola intersects with vertex, nudge!
     if (nintersections % 2 != 0 || parabola_contains_vertex) {
-      datum += 10. * tol * frame[1];
+      datum += 2. * tol * frame[1];
       continue;
     }
 
     // If no intersections at all; leave loop
     if (nintersections == 0) {
-      if (vertex_nature[0] == 1) {
-        return original_cell;
+      if (return_parabola_only) {
+        return BezierList();
+      } else {
+        if (vertex_nature[0] == 1) {
+          return original_cell;
+        }
+        return BezierList();
       }
-      return BezierList();
     }
 
     ///////// In-house clipping algorithm
@@ -966,9 +1111,13 @@ BezierList ParabolaClip(const BezierList& original_cell,
         // Create new control point for bezier arc extracted from parabola
         const auto p0 = clipped_cell.back().first;
         const auto p2 = cell_with_intersections[next_id].first;
-        clipped_cell.back().second =
-            Vec(0.5 * (p0.x() + p2.x()),
-                p0.y() + coeff * (p0.x() - p2.x()) * p0.x());
+        const auto p1 = Vec(0.5 * (p0.x() + p2.x()),
+                            p0.y() + coeff * (p0.x() - p2.x()) * p0.x());
+        clipped_cell.back().second = p1;
+        if (return_parabola_only) {
+          clipped_parabola.push_back(std::make_pair(p0, p1));
+          clipped_parabola.push_back(std::make_pair(p2, p1));
+        }
       }
       // If next vertex is start, we are done
       if (next_id == check_start) {
@@ -984,6 +1133,9 @@ BezierList ParabolaClip(const BezierList& original_cell,
   if (parabola_contains_vertex) {
     std::cout << "WARNING: Parabola contains vertex!" << itmax
               << " nudges were not enough." << std::endl;
+    std::cout << "  -> Parabola orignal = " << parabola << std::endl;
+    std::cout << "  -> Parabola nudged  = " << Parabola(datum, frame, coeff)
+              << std::endl;
   }
 
   // Move clipped cell back to canonical frame of reference
@@ -992,6 +1144,16 @@ BezierList ParabolaClip(const BezierList& original_cell,
         parabola.datum() + frame.transpose() * clipped_cell[i].first;
     clipped_cell[i].second =
         parabola.datum() + frame.transpose() * clipped_cell[i].second;
+  }
+
+  if (return_parabola_only) {
+    for (int i = 0; i < clipped_parabola.size(); i++) {
+      clipped_parabola[i].first =
+          parabola.datum() + frame.transpose() * clipped_parabola[i].first;
+      clipped_parabola[i].second =
+          parabola.datum() + frame.transpose() * clipped_parabola[i].second;
+    }
+    return clipped_parabola;
   }
 
   return clipped_cell;

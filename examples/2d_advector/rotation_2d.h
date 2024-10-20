@@ -23,17 +23,11 @@ struct Rotation2D {
   static BasicMesh setMesh(const int a_nx);
 
   static void initialize(Data<double>* a_U, Data<double>* a_V,
-                         Data<double>* a_W, Data<IRL::Paraboloid>* a_interface,
+                         Data<IRL2D::Parabola>* a_interface,
                          const double a_time);
 
   static void setVelocity(const double a_time, Data<double>* a_U,
-                          Data<double>* a_V, Data<double>* a_W);
-
-  static const std::array<double, 3> getExactVelocity(const IRL::Pt& a_location,
-                                                      const double a_time);
-
-  static const std::array<std::array<double, 3>, 3> getExactVelocityGradient(
-      const IRL::Pt& a_location, const double a_time);
+                          Data<double>* a_V);
 
   static const IRL2D::Vec getExactVelocity2D(double t, const IRL2D::Vec& P);
   static const IRL2D::Mat getExactVelocityGradient2D(double t,

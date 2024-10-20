@@ -12,58 +12,18 @@
 
 #include <string>
 
-#include "irl/moments/general_moments.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/planar_reconstruction/planar_separator.h"
-
 #include "examples/2d_advector/data.h"
+#include "examples/2d_advector/irl2d.h"
 
-void getReconstruction(
-    const std::string& a_reconstruction_method,
-    const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-    const Data<IRL::GeneralMoments3D<2>>& a_gas_moments,
-    Data<IRL::LocalizedParaboloidLink<double>>* a_localized_paraboloid_link,
-    const double a_dt, const Data<double>& a_U, const Data<double>& a_V,
-    const Data<double>& a_W, Data<IRL::Paraboloid>* a_interface);
+void getReconstruction(const std::string& a_reconstruction_method,
+                       const Data<IRL2D::Moments>& a_liquid_moments,
+                       const Data<IRL2D::Moments>& a_gas_moments,
+                       const double a_dt, const Data<double>& a_U,
+                       const Data<double>& a_V,
+                       Data<IRL2D::Parabola>* a_interface);
 
-struct PLIC {
-  static void getReconstruction(
-      const Data<IRL::GeneralMoments3D<2>>& a_liquid_moments,
-      const Data<IRL::GeneralMoments3D<2>>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::Paraboloid>* a_interface,
-      Data<IRL::LocalizedParaboloidLink<double>>* a_link_localized_paraboloid);
-};
+void RecenterMoments(IRL2D::Moments* moments, const IRL2D::Vec& center);
 
-void RecenterMoments(IRL::GeneralMoments3D<2>* moments, const IRL::Pt& center);
-
-void correctInterfacePlaneBorders(Data<IRL::Paraboloid>* a_interface);
-
-namespace details {
-inline IRL::Paraboloid fromSphere(const IRL::Pt& a_center,
-                                  const double a_radius,
-                                  const IRL::Normal& a_normal) {
-  const double curvature = 1.0 / a_radius;
-  IRL::ReferenceFrame frame;
-  int largest_dir = 0;
-  if (std::fabs(a_normal[largest_dir]) < std::fabs(a_normal[1]))
-    largest_dir = 1;
-  if (std::fabs(a_normal[largest_dir]) < std::fabs(a_normal[2]))
-    largest_dir = 2;
-  if (largest_dir == 0)
-    frame[0] = IRL::crossProduct(a_normal, IRL::Normal(0.0, 1.0, 0.0));
-  else if (largest_dir == 1)
-    frame[0] = IRL::crossProduct(a_normal, IRL::Normal(0.0, 0.0, 1.0));
-  else
-    frame[0] = IRL::crossProduct(a_normal, IRL::Normal(1.0, 0.0, 0.0));
-  frame[0].normalize();
-  frame[1] = crossProduct(a_normal, frame[0]);
-  frame[2] = a_normal;
-
-  return IRL::Paraboloid(a_center + a_radius * a_normal, frame, 0.5 * curvature,
-                         0.5 * curvature);
-}
-
-}  // namespace details
+void correctInterfaceBorders(Data<IRL2D::Parabola>* a_interface);
 
 #endif  // EXAMPLES_PARABOLOID_ADVECTOR_RECONSTRUCTION_TYPES_H_

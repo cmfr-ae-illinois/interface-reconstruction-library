@@ -13,9 +13,8 @@
 #include <algorithm>
 #include <cstring>
 
-#include "irl/geometry/general/pt.h"
-
 #include "examples/2d_advector/basic_mesh.h"
+#include "examples/2d_advector/irl2d.h"
 
 /// \brief A basic multi-dimensional data container.
 template <class ContainedType>
@@ -78,13 +77,13 @@ class Data {
   const BasicMesh& getMesh(void) const { return *mesh_m; }
 
   /// \brief Provide access to data.
-  ContainedType& operator()(const int i, const int j, const int k) {
-    return data_m[this->calculateIndex(i, j, k)];
+  ContainedType& operator()(const int i, const int j) {
+    return data_m[this->calculateIndex(i, j)];
   }
 
   /// \brief Provide const access to data.
-  const ContainedType& operator()(const int i, const int j, const int k) const {
-    return data_m[this->calculateIndex(i, j, k)];
+  const ContainedType& operator()(const int i, const int j) const {
+    return data_m[this->calculateIndex(i, j)];
   }
 
   /// \brief Update the border for periodicity.
@@ -93,14 +92,6 @@ class Data {
   void updateUpperX(void);
   void updateLowerY(void);
   void updateUpperY(void);
-  void updateLowerZ(void);
-  void updateUpperZ(void);
-
-  /// \brief Tri-linearly interpolate data to a point.
-  ContainedType interpolate(const IRL::Pt& a_location);
-
-  /// \brief Const version of interpolate.
-  ContainedType interpolate(const IRL::Pt& a_location) const;
 
   /// \brief Destructor to delete memory allocated during construction.
   ~Data(void) { delete[] data_m; }
@@ -108,37 +99,27 @@ class Data {
  private:
   /// \brief Calculate the index, where the first real (non-ghost) cell is at 0
   /// and the fastest changing indices are k, j, i.
-  std::size_t calculateIndex(const int i, const int j, const int k) {
+  std::size_t calculateIndex(const int i, const int j) {
     assert(i >= this->getMesh().imino() && i <= this->getMesh().imaxo());
     assert(j >= this->getMesh().jmino() && j <= this->getMesh().jmaxo());
-    assert(k >= this->getMesh().kmino() && k <= this->getMesh().kmaxo());
     assert(static_cast<std::size_t>(
-               (i + this->getMesh().getNgc()) * this->getMesh().getNyo() *
-                   this->getMesh().getNzo() +
-               (j + this->getMesh().getNgc()) * this->getMesh().getNzo() +
-               (k + this->getMesh().getNgc())) < this->getMesh().size());
-    return static_cast<std::size_t>(
-        (i + this->getMesh().getNgc()) * this->getMesh().getNyo() *
-            this->getMesh().getNzo() +
-        (j + this->getMesh().getNgc()) * this->getMesh().getNzo() +
-        (k + this->getMesh().getNgc()));
+               (i + this->getMesh().getNgc()) * this->getMesh().getNyo() +
+               (j + this->getMesh().getNgc())) < this->getMesh().size());
+    return static_cast<std::size_t>((i + this->getMesh().getNgc()) *
+                                        this->getMesh().getNyo() +
+                                    (j + this->getMesh().getNgc()));
   }
 
   /// \brief Const getInd
-  std::size_t calculateIndex(const int i, const int j, const int k) const {
+  std::size_t calculateIndex(const int i, const int j) const {
     assert(i >= this->getMesh().imino() && i <= this->getMesh().imaxo());
     assert(j >= this->getMesh().jmino() && j <= this->getMesh().jmaxo());
-    assert(k >= this->getMesh().kmino() && k <= this->getMesh().kmaxo());
     assert(static_cast<std::size_t>(
-               (i + this->getMesh().getNgc()) * this->getMesh().getNyo() *
-                   this->getMesh().getNzo() +
-               (j + this->getMesh().getNgc()) * this->getMesh().getNzo() +
-               (k + this->getMesh().getNgc())) < this->getMesh().size());
-    return static_cast<std::size_t>(
-        (i + this->getMesh().getNgc()) * this->getMesh().getNyo() *
-            this->getMesh().getNzo() +
-        (j + this->getMesh().getNgc()) * this->getMesh().getNzo() +
-        (k + this->getMesh().getNgc()));
+               (i + this->getMesh().getNgc()) * this->getMesh().getNyo() +
+               (j + this->getMesh().getNgc())) < this->getMesh().size());
+    return static_cast<std::size_t>((i + this->getMesh().getNgc()) *
+                                        this->getMesh().getNyo() +
+                                    (j + this->getMesh().getNgc()));
   }
 
   ContainedType* data_m = nullptr;
@@ -151,8 +132,6 @@ void Data<ContainedType>::updateBorder(void) {
   this->updateUpperX();
   this->updateLowerY();
   this->updateUpperY();
-  this->updateLowerZ();
-  this->updateUpperZ();
 }
 
 template <class ContainedType>
@@ -160,9 +139,7 @@ void Data<ContainedType>::updateLowerX(void) {
   const BasicMesh& mesh = this->getMesh();
   for (int i = mesh.imino(); i < mesh.imin(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        (*this)(i, j, k) = (*this)(mesh.imax() + 1 + i, j, k);
-      }
+      (*this)(i, j) = (*this)(mesh.imax() + 1 + i, j);
     }
   }
 }
@@ -171,9 +148,7 @@ void Data<ContainedType>::updateUpperX(void) {
   const BasicMesh& mesh = this->getMesh();
   for (int i = mesh.imax() + 1; i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        (*this)(i, j, k) = (*this)(i - mesh.getNx(), j, k);
-      }
+      (*this)(i, j) = (*this)(i - mesh.getNx(), j);
     }
   }
 }
@@ -183,9 +158,7 @@ void Data<ContainedType>::updateLowerY(void) {
   const BasicMesh& mesh = this->getMesh();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j < mesh.jmin(); ++j) {
-      for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        (*this)(i, j, k) = (*this)(i, mesh.jmax() + 1 + j, k);
-      }
+      (*this)(i, j) = (*this)(i, mesh.jmax() + 1 + j);
     }
   }
 }
@@ -194,130 +167,9 @@ void Data<ContainedType>::updateUpperY(void) {
   const BasicMesh& mesh = this->getMesh();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmax() + 1; j <= mesh.jmaxo(); ++j) {
-      for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        (*this)(i, j, k) = (*this)(i, j - mesh.getNy(), k);
-      }
+      (*this)(i, j) = (*this)(i, j - mesh.getNy());
     }
   }
-}
-template <class ContainedType>
-void Data<ContainedType>::updateLowerZ(void) {
-  const BasicMesh& mesh = this->getMesh();
-  for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
-    for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      for (int k = mesh.kmino(); k < mesh.kmin(); ++k) {
-        (*this)(i, j, k) = (*this)(i, j, mesh.kmax() + 1 + k);
-      }
-    }
-  }
-}
-template <class ContainedType>
-void Data<ContainedType>::updateUpperZ(void) {
-  const BasicMesh& mesh = this->getMesh();
-  for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
-    for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      for (int k = mesh.kmax() + 1; k <= mesh.kmaxo(); ++k) {
-        (*this)(i, j, k) = (*this)(i, j, k - mesh.getNz());
-      }
-    }
-  }
-}
-
-template <class ContainedType>
-ContainedType cubicInterpolate(const ContainedType p[4], const double x) {
-  return p[1] + 0.5 * x *
-                    (p[2] - p[0] +
-                     x * (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3] +
-                          x * (3.0 * (p[1] - p[2]) + p[3] - p[0])));
-}
-
-template <class ContainedType>
-ContainedType bicubicInterpolate(const ContainedType p[4][4], const double x,
-                                 const double y) {
-  ContainedType arr[4];
-  arr[0] = cubicInterpolate(p[0], y);
-  arr[1] = cubicInterpolate(p[1], y);
-  arr[2] = cubicInterpolate(p[2], y);
-  arr[3] = cubicInterpolate(p[3], y);
-  return cubicInterpolate(arr, x);
-}
-
-template <class ContainedType>
-ContainedType tricubicInterpolate(const ContainedType p[4][4][4],
-                                  const double x, const double y,
-                                  const double z) {
-  ContainedType arr[4];
-  arr[0] = bicubicInterpolate(p[0], y, z);
-  arr[1] = bicubicInterpolate(p[1], y, z);
-  arr[2] = bicubicInterpolate(p[2], y, z);
-  arr[3] = bicubicInterpolate(p[3], y, z);
-  return cubicInterpolate(arr, x);
-}
-
-template <class ContainedType>
-ContainedType Data<ContainedType>::interpolate(const IRL::Pt& a_location) {
-  const BasicMesh& mesh = this->getMesh();
-  static int indices[3];
-  mesh.getIndices(a_location, indices);
-  int i = std::max(this->getMesh().imino() + 1,
-                   std::min(indices[0], this->getMesh().imaxo() - 2));
-  int j = std::max(this->getMesh().jmino() + 1,
-                   std::min(indices[1], this->getMesh().jmaxo() - 2));
-  int k = std::max(this->getMesh().kmino() + 1,
-                   std::min(indices[2], this->getMesh().kmaxo() - 2));
-  double wx1 = (a_location[0] - mesh.xm(i)) / (mesh.xm(i + 1) - mesh.xm(i));
-  double wy1 = (a_location[1] - mesh.ym(j)) / (mesh.ym(j + 1) - mesh.ym(j));
-  double wz1 = (a_location[2] - mesh.zm(k)) / (mesh.zm(k + 1) - mesh.zm(k));
-
-  ContainedType data[4][4][4];
-  for (int ii = 0; ii < 4; ii++) {
-    for (int jj = 0; jj < 4; jj++) {
-      for (int kk = 0; kk < 4; kk++) {
-        data[ii][jj][kk] = (*this)(i + ii, j + kk, k + kk);
-      }
-    }
-  }
-  return tricubicInterpolate(data, wx1, wy1, wz1);
-  // double wx2 = 1.0 - wx1;
-  // double wy2 = 1.0 - wy1;
-  // double wz2 = 1.0 - wz1;
-  // return wz1 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k + 1) +
-  //                      wx2 * (*this)(i, j + 1, k + 1)) +
-  //               wy2 * (wx1 * (*this)(i + 1, j, k + 1) +
-  //                      wx2 * (*this)(i, j, k + 1))) +
-  //        wz2 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k) +
-  //                      wx2 * (*this)(i, j + 1, k)) +
-  //               wy2 * (wx1 * (*this)(i + 1, j, k) + wx2 * (*this)(i, j, k)));
-}
-
-template <class ContainedType>
-ContainedType Data<ContainedType>::interpolate(
-    const IRL::Pt& a_location) const {
-  const BasicMesh& mesh = this->getMesh();
-  static int indices[3];
-  mesh.getIndices(a_location, indices);
-  const int i = std::max(this->getMesh().imino(),
-                         std::min(indices[0], this->getMesh().imaxo() - 1));
-  const int j = std::max(this->getMesh().jmino(),
-                         std::min(indices[1], this->getMesh().jmaxo() - 1));
-  const int k = std::max(this->getMesh().kmino(),
-                         std::min(indices[2], this->getMesh().kmaxo() - 1));
-  const double wx1 =
-      (a_location[0] - mesh.xm(i)) / (mesh.xm(i + 1) - mesh.xm(i));
-  const double wy1 =
-      (a_location[1] - mesh.ym(j)) / (mesh.ym(j + 1) - mesh.ym(j));
-  const double wz1 =
-      (a_location[2] - mesh.zm(k)) / (mesh.zm(k + 1) - mesh.zm(k));
-  const double wx2 = 1.0 - wx1;
-  const double wy2 = 1.0 - wy1;
-  const double wz2 = 1.0 - wz1;
-  return wz1 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k + 1) +
-                       wx2 * (*this)(i, j + 1, k + 1)) +
-                wy2 * (wx1 * (*this)(i + 1, j, k + 1) +
-                       wx2 * (*this)(i, j, k + 1))) +
-         wz2 * (wy1 * (wx1 * (*this)(i + 1, j + 1, k) +
-                       wx2 * (*this)(i, j + 1, k)) +
-                wy2 * (wx1 * (*this)(i + 1, j, k) + wx2 * (*this)(i, j, k)));
 }
 
 #endif  // EXAMPLES_PARABOLOID_ADVECTOR_DATA_H_
