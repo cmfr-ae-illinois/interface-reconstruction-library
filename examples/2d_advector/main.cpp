@@ -3,13 +3,12 @@
 #include <iostream>
 #include <string>
 
+#include "examples/2d_advector/deformation_2d.h"
+#include "examples/2d_advector/oscillation_2d.h"
 #include "examples/2d_advector/reconstruction_types.h"
 #include "examples/2d_advector/rotation_2d.h"
 #include "examples/2d_advector/solver.h"
 #include "examples/2d_advector/vof_advection.h"
-
-#include "examples/2d_advector/edge_transport.h"
-#include "examples/2d_advector/functions.h"
 
 static int startSimulation(const std::string& a_simulation_type,
                            const std::string& a_advection_method,
@@ -61,9 +60,18 @@ static int startSimulation(const std::string& a_simulation_type,
     return runSimulation<Rotation2D>(a_simulation_type, a_advection_method,
                                      a_reconstruction_method, a_time_step_size,
                                      a_time_duration, a_viz_frequency, a_nx);
+  } else if (a_simulation_type == "Oscillation2D") {
+    return runSimulation<Oscillation2D>(
+        a_simulation_type, a_advection_method, a_reconstruction_method,
+        a_time_step_size, a_time_duration, a_viz_frequency, a_nx);
+  } else if (a_simulation_type == "Deformation2D") {
+    return runSimulation<Deformation2D>(
+        a_simulation_type, a_advection_method, a_reconstruction_method,
+        a_time_step_size, a_time_duration, a_viz_frequency, a_nx);
   } else {
     std::cout << "Unknown simulation type of : " << a_simulation_type << '\n';
-    std::cout << "Value entries are: Rotation2D. \n";
+    std::cout
+        << "Value entries are: Rotation2D, Oscillation2D, Deformation2D. \n";
     std::exit(-1);
   }
   return -1;

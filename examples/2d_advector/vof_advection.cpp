@@ -10,7 +10,9 @@
 #include <mpi.h>
 #include <iostream>
 
+#include "examples/2d_advector/deformation_2d.h"
 #include "examples/2d_advector/irl2d.h"
+#include "examples/2d_advector/oscillation_2d.h"
 #include "examples/2d_advector/reconstruction_types.h"
 #include "examples/2d_advector/rotation_2d.h"
 #include "examples/2d_advector/vof_advection.h"
@@ -32,6 +34,12 @@ void advectVOF(const std::string& a_simulation_type,
   if (a_simulation_type == "Rotation2D") {
     getExactVelocity2D = Rotation2D::getExactVelocity2D;
     getExactGradient2D = Rotation2D::getExactVelocityGradient2D;
+  } else if (a_simulation_type == "Oscillation2D") {
+    getExactVelocity2D = Oscillation2D::getExactVelocity2D;
+    getExactGradient2D = Oscillation2D::getExactVelocityGradient2D;
+  } else if (a_simulation_type == "Deformation2D") {
+    getExactVelocity2D = Deformation2D::getExactVelocity2D;
+    getExactGradient2D = Deformation2D::getExactVelocityGradient2D;
   }
 
   // setPhaseQuantities((*a_interface), a_liquid_moments, a_gas_moments);
@@ -65,7 +73,7 @@ void advectVOF(const std::string& a_simulation_type,
   }
   band.updateBorder();
 
-  const int nlayers = static_cast<int>(std::ceil(CFL));
+  const int nlayers = 1 + static_cast<int>(std::ceil(CFL));
   for (int n = 0; n < nlayers; ++n) {
     for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
       for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -86,92 +94,12 @@ void advectVOF(const std::string& a_simulation_type,
   std::vector<IRL2D::BezierList> fluxes;
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
+      // Initialize fluxes to zero
       for (int dim = 0; dim < 2; ++dim) {
-        // Store face flux
         (face_liquid_flux[dim])(i, j) = IRL2D::Moments();
         (face_gas_flux[dim])(i, j) = IRL2D::Moments();
       }
-      // if (1) {
-      //   auto cell = IRL2D::RectangleFromBounds(
-      //       IRL2D::Vec(mesh.x(i), mesh.y(j)),
-      //       IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1)));
-      //   IRL2D::Print(cell);
-
-      //   auto datum = IRL2D::Vec(0.5, 0.5);
-      //   auto frame = IRL2D::ReferenceFrame(-M_PI / 3.0);
-      //   auto parabola = IRL2D::Parabola(datum, frame, -1.0);
-      //   std::cout << "Parabola  : " << parabola << std::endl;
-
-      //   // cell[0].second.y() += 0.1;
-      //   // cell[1].second.y() -= 2.0;
-      //   // cell[2].second.y() -= 0.1;
-      //   // cell[3].second.y() += 2.0;
-      //   IRL2D::ToVTK(cell, "cell");
-
-      //   auto clipped_cell = IRL2D::ParabolaClip(cell, parabola);
-      //   IRL2D::ToVTK(clipped_cell, "clipped_cell");
-
-      //   clipped_cell = IRL2D::ClipByRectangleAndParabola(
-      //       cell, IRL2D::Vec(-0.4, -0.4), IRL2D::Vec(0.4, 0.4), parabola);
-
-      //   IRL2D::ToVTK(clipped_cell, "clipped_by_rectangle_and_parabola");
-      //   const auto moments = IRL2D::ComputeMoments(clipped_cell);
-      //   std::cout << "Clipped cell has " << clipped_cell.size() << " curves"
-      //             << " and volume = " << moments.m0() << " and centroid "
-      //             << moments.m1() / moments.m0() << " and moment of inertia "
-      //             << moments.m2() << std::endl;
-
-      //   cell = IRL2D::RectangleFromBounds(IRL2D::Vec(-0.4, -0.4),
-      //                                     IRL2D::Vec(0.4, 0.4));
-      //   const bool correct_fluxes = false;
-
-      //   std::vector<IRL2D::BezierList> flux_cell;
-      //   double area = IntegrateFlux(cell[0].first, cell[1].first, a_dt,
-      //   a_time,
-      //                               getExactVelocity2D);
-      //   flux_cell.push_back(IRL2D::CreateFluxCell(
-      //       cell[0].first, cell[1].first, -a_dt, a_time, getExactVelocity2D,
-      //       getExactGradient2D, correct_fluxes, area));
-      //   area = IntegrateFlux(cell[1].first, cell[2].first, a_dt, a_time,
-      //                        getExactVelocity2D);
-      //   flux_cell.push_back(IRL2D::CreateFluxCell(
-      //       cell[1].first, cell[2].first, -a_dt, a_time, getExactVelocity2D,
-      //       getExactGradient2D, correct_fluxes, area));
-      //   area = IntegrateFlux(cell[2].first, cell[3].first, a_dt, a_time,
-      //                        getExactVelocity2D);
-      //   flux_cell.push_back(IRL2D::CreateFluxCell(
-      //       cell[2].first, cell[3].first, -a_dt, a_time, getExactVelocity2D,
-      //       getExactGradient2D, correct_fluxes, area));
-      //   area = IntegrateFlux(cell[3].first, cell[0].first, a_dt, a_time,
-      //                        getExactVelocity2D);
-      //   flux_cell.push_back(IRL2D::CreateFluxCell(
-      //       cell[3].first, cell[0].first, -a_dt, a_time, getExactVelocity2D,
-      //       getExactGradient2D, correct_fluxes, area));
-      //   IRL2D::ToVTK(flux_cell, "flux_cell");
-
-      //   std::cout << "Divergence = " << std::scientific <<
-      //   std::setprecision(6)
-      //             << (IRL2D::ComputeVolume(flux_cell[0]) +
-      //                 IRL2D::ComputeVolume(flux_cell[2]) +
-      //                 IRL2D::ComputeVolume(flux_cell[1]) +
-      //                 IRL2D::ComputeVolume(flux_cell[3]))
-      //             << std::endl;
-
-      //   auto clipped_flux = IRL2D::ClipByRectangleAndParabola(
-      //       flux_cell[1], IRL2D::Vec(-0.4, -0.4), IRL2D::Vec(0.4, 0.4),
-      //       parabola);
-
-      //   IRL2D::ToVTK(clipped_flux, "clipped_flux");
-      //   const auto moments_flux = IRL2D::ComputeMoments(clipped_flux);
-      //   std::cout << "Clipped flux has " << clipped_flux.size() << " curves"
-      //             << " and volume = " << moments_flux.m0() << " and centroid
-      //             "
-      //             << moments_flux.m1() / moments_flux.m0()
-      //             << " and moment of inertia " << moments_flux.m2()
-      //             << std::endl;
-
-      //   exit(0);
-      // }
+      // Only solve advection in narrow band near the interface
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
         const auto x0 = IRL2D::Vec(mesh.x(i), mesh.y(j));
         const auto x1 = IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1));
@@ -191,15 +119,21 @@ void advectVOF(const std::string& a_simulation_type,
                           getExactVelocity2D));
         fluxes.push_back(face_cell[0]);
         fluxes.push_back(face_cell[1]);
-        for (int dim = 0; dim < 2; ++dim) {
-          for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-            for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-              const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
-              const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
+
+        // Compute liquid fluxes by intersection on a n x n neighborhood
+        for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
+            const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
+            for (int dim = 0; dim < 2; ++dim) {
               (face_liquid_flux[dim])(i, j) += IRL2D::ComputeMoments(
                   face_cell[dim], xn0, xn1, (*a_interface)(ii, jj));
             }
           }
+        }
+
+        // Update gas fluxes
+        for (int dim = 0; dim < 2; ++dim) {
           (face_gas_flux[dim])(i, j) += IRL2D::ComputeMoments(face_cell[dim]) -
                                         (face_liquid_flux[dim])(i, j);
         }

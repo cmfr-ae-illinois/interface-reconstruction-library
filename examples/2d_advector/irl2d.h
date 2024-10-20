@@ -272,6 +272,8 @@ class Parabola {
     datum_m = a.datum();
     frame_m = a.frame();
     coeff_m = a.coeff();
+    above_m = a.isAlwaysAbove();
+    below_m = a.isAlwaysBelow();
     return (*this);
   };
   friend std::ostream& operator<<(std::ostream& out, const Parabola& parabola) {
@@ -312,8 +314,11 @@ std::vector<BezierList> ParabolaClipWeilerAtherton(
     const std::vector<BezierList>& original_cell, const Parabola& parabola);
 
 double ArcVolume(const Vec& P0, const Vec& P1, const Vec& P2);
-double ComputeVolume(const BezierList& cell);
-double ComputeVolume(const std::vector<BezierList>& cell);
+double ComputeArea(const BezierList& cell);
+double ComputeArea(const BezierList& cell, const Parabola& parabola);
+double ComputeArea(const std::vector<BezierList>& cell);
+double ComputeVFrac(const BezierList& cell, const Parabola& parabola);
+
 Moments ComputeMoments(const BezierList& cell);
 Moments ComputeMoments(const BezierList& cell, const Parabola& parabola);
 Moments ComputeMoments(const BezierList& cell, const Vec& x0, const Vec& x1,
@@ -362,6 +367,9 @@ BezierList ClipByRectangleAndParabola(const BezierList& original_cell,
 double IntegrateFlux(const Vec& P0, const Vec& P1, const double dt,
                      const double time,
                      const Vec (*vel)(const double t, const Vec& P));
+
+Parabola MatchToVolumeFraction(const BezierList& cell, const Parabola& parabola,
+                               const double vfrac);
 }  // namespace IRL2D
 
 #endif  // EXAMPLES_2D_ADVECTOR_IRL_2D_H_

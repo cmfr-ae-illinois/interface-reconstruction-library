@@ -99,9 +99,12 @@ void VTKOutput::writeVTKInterface(const double a_time,
       const auto cell =
           IRL2D::RectangleFromBounds(IRL2D::Vec(mesh.x(i), mesh.y(j)),
                                      IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1)));
-      const auto arcs = IRL2D::ParabolaClip(cell, a_interface(i, j), true);
-      for (int k = 0; k < arcs.size(); k += 2) {
-        interfaces.push_back(IRL2D::BezierList{arcs[k], arcs[k + 1]});
+      const auto vfrac = IRL2D::ComputeVFrac(cell, a_interface(i, j));
+      if (vfrac > 1.0e-8 && vfrac < 1.0 - 1.0e-8) {
+        const auto arcs = IRL2D::ParabolaClip(cell, a_interface(i, j), true);
+        for (int k = 0; k < arcs.size(); k += 2) {
+          interfaces.push_back(IRL2D::BezierList{arcs[k], arcs[k + 1]});
+        }
       }
     }
   }

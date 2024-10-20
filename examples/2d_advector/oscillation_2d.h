@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_PARABOLOID_ADVECTOR_ROTATION_3D_H_
-#define EXAMPLES_PARABOLOID_ADVECTOR_ROTATION_3D_H_
+#ifndef EXAMPLES_PARABOLOID_ADVECTOR_OSCILLATION_2D_H_
+#define EXAMPLES_PARABOLOID_ADVECTOR_OSCILLATION_2D_H_
 
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 
@@ -16,7 +16,7 @@
 #include "examples/2d_advector/data.h"
 #include "examples/2d_advector/irl2d.h"
 
-struct Rotation2D {
+struct Oscillation2D {
   static BasicMesh setMesh(const int a_nx);
 
   static void initialize(Data<double>* a_U, Data<double>* a_V,
@@ -31,4 +31,4 @@ struct Rotation2D {
                                                      const IRL2D::Vec& P);
 };
 
-#endif  // EXAMPLES_PARABOLOID_ADVECTOR_DEFORMATION_2D_H_
+#endif  // EXAMPLES_PARABOLOID_ADVECTOR_OSCILLATION_2D_H_

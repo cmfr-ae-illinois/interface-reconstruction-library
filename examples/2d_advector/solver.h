@@ -84,7 +84,7 @@ int runSimulation(const std::string& a_simulation_type,
   // Set constants in IRL
   IRL::setMinimumVolumeToTrack(10.0 * DBL_EPSILON * cc_mesh.dx() *
                                cc_mesh.dy());
-  IRL::setVolumeFractionBounds(1.0e-13);
+  IRL::setVolumeFractionBounds(1.0e-12);
   IRL::setVolumeFractionTolerance(1.0e-12);
 
   std::cout << "VolumeFractionBounds = " << IRL::global_constants::VF_LOW
@@ -133,31 +133,37 @@ int runSimulation(const std::string& a_simulation_type,
                         simulation_time + time_step_to_use, velU, velV,
                         liquid_moments, interface, advect_VOF_time, recon_time,
                         write_time);
-    if (simulation_time + time_step_to_use >= a_end_time) {
-      Data<double> ref_vfrac(&cc_mesh);
-      Data<IRL2D::Parabola> ref_interface(&cc_mesh);
-      Data<IRL2D::Moments> ref_liquid_moments(&cc_mesh);
-      Data<IRL2D::Moments> ref_gas_moments(&cc_mesh);
-      SimulationType::initialize(&velU, &velV, &ref_interface,
-                                 simulation_time + time_step_to_use);
-      setPhaseQuantities(ref_interface, &ref_liquid_moments, &ref_gas_moments,
-                         &ref_vfrac);
-      // printError(cc_mesh, liquid_moments, ref_liquid_moments);
-    }
+    // if (simulation_time + time_step_to_use >= a_end_time) {
+    //   Data<double> ref_vfrac(&cc_mesh);
+    //   Data<IRL2D::Parabola> ref_interface(&cc_mesh);
+    //   Data<IRL2D::Moments> ref_liquid_moments(&cc_mesh);
+    //   Data<IRL2D::Moments> ref_gas_moments(&cc_mesh);
+    //   SimulationType::initialize(&velU, &velV, &ref_interface,
+    //                              simulation_time + time_step_to_use);
+    //   setPhaseQuantities(ref_interface, &ref_liquid_moments,
+    //   &ref_gas_moments,
+    //                      &ref_vfrac);
+    //   // printError(cc_mesh, liquid_moments, ref_liquid_moments);
+    // }
 
     auto advect_end = std::chrono::system_clock::now();
     advect_VOF_time = advect_end - start;
     getReconstruction(a_reconstruction_method, liquid_moments, gas_moments,
                       time_step_to_use, velU, velV, &interface);
-    setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
     auto recon_end = std::chrono::system_clock::now();
     recon_time = recon_end - advect_end;
 
     if (a_visualization_frequency > 0 &&
         iteration % a_visualization_frequency == 0) {
+      for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+        for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+          vfrac(i, j) = liquid_moments(i, j).m0() / cc_mesh.cell_volume();
+        }
+      }
       vtk_io.writeVTKFile(simulation_time);
       vtk_io.writeVTKInterface(simulation_time, interface);
     }
+    setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
     auto write_end = std::chrono::system_clock::now();
     write_time = write_end - recon_end;
 

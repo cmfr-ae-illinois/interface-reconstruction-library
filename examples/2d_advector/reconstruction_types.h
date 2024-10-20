@@ -21,6 +21,21 @@ void getReconstruction(const std::string& a_reconstruction_method,
                        const double a_dt, const Data<double>& a_U,
                        const Data<double>& a_V,
                        Data<IRL2D::Parabola>* a_interface);
+struct ELVIRA {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct LVIRAQ {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
 
 void RecenterMoments(IRL2D::Moments* moments, const IRL2D::Vec& center);
 
