@@ -28,6 +28,14 @@ const Vec operator/(const Vec& a_vec, const double a_scalar) {
 const Vec operator*(const Mat& a_mat, const Vec& a_vec) {
   return Vec(a_mat[0] * a_vec, a_mat[1] * a_vec);
 }
+const Vec min(const Vec& a_vec_0, const Vec& a_vec_1) {
+  return Vec(std::fmin(a_vec_0[0], a_vec_1[0]),
+             std::fmin(a_vec_0[1], a_vec_1[1]));
+}
+const Vec max(const Vec& a_vec_0, const Vec& a_vec_1) {
+  return Vec(std::fmax(a_vec_0[0], a_vec_1[0]),
+             std::fmax(a_vec_0[1], a_vec_1[1]));
+}
 const Mat outer_product(const Vec& a_vec_0, const Vec& a_vec_1) {
   return Mat(Vec(a_vec_0[0] * a_vec_1[0], a_vec_0[0] * a_vec_1[1]),
              Vec(a_vec_0[1] * a_vec_1[0], a_vec_0[1] * a_vec_1[0]));
@@ -358,7 +366,6 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
   max_coeff = std::fmax(max_coeff, std::abs(C));
   max_coeff = std::fmax(max_coeff, std::abs(D));
   max_coeff = std::fmax(max_coeff, std::abs(E));
-
   A /= max_coeff;
   B /= max_coeff;
   C /= max_coeff;
@@ -366,6 +373,9 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
   E /= max_coeff;
 
   std::vector<double> t_vals, t_solutions;
+  t_solutions.reserve(4);
+  t_vals.reserve(4);
+
   Eigen::PolynomialSolver<double, Eigen::Dynamic> solver;
 
   if (std::abs(A) > tol) {
@@ -373,9 +383,7 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
     Eigen::Matrix<double, 5, 1> coeff(E, D, C, B, A);
     solver.compute(coeff);
     for (int i = 0; i < solver.roots().size(); ++i) {
-      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e-12 &&
-          std::real(solver.roots()[i]) >= 0. &&
-          std::real(solver.roots()[i]) <= 1.) {
+      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e-12) {
         t_solutions.push_back(std::real(solver.roots()[i]));
       }
     }
@@ -384,9 +392,7 @@ std::vector<double> AnalyticIntersections(const Parabola& parabola,
     Eigen::Matrix<double, 4, 1> coeff(E, D, C, B);
     solver.compute(coeff);
     for (int i = 0; i < solver.roots().size(); ++i) {
-      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e-12 &&
-          std::real(solver.roots()[i]) >= 0. &&
-          std::real(solver.roots()[i]) <= 1.) {
+      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e-12) {
         t_solutions.push_back(std::real(solver.roots()[i]));
       }
     }
@@ -921,6 +927,7 @@ BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
   double tol = 10. * std::numeric_limits<double>::epsilon();
   const int max_recursion = 3;
   BezierList list;
+  list.reserve(5);
   // Add first pathline
   if (add_pathlines == true) {
     auto pathline = ConstructPathline(P00, dt, time, vel, 0);
@@ -946,11 +953,11 @@ BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
     auto Pmid = 0.5 * (P00 + P10);
     // If max level not reached, split arc
     if (rec_num < max_recursion) {
-      const auto list1 = TransportEdge(P00, Pmid, dt, time, vel, grad_vel,
-                                       rec_num + 1, false, false, false, 0.);
+      const auto list1 =
+          TransportEdge(P00, Pmid, dt, time, vel, grad_vel, rec_num + 1);
       list.insert(list.end(), list1.begin(), list1.end());
-      const auto list2 = TransportEdge(Pmid, P10, dt, time, vel, grad_vel,
-                                       rec_num + 1, false, false, false, 0.);
+      const auto list2 =
+          TransportEdge(Pmid, P10, dt, time, vel, grad_vel, rec_num + 1);
       list.insert(list.end(), list2.begin(), list2.end());
     } else {
       list.push_back(std::make_pair(P01, 0.5 * (P01 + P11)));
@@ -1075,8 +1082,42 @@ BezierList ParabolaClip(const BezierList& original_cell,
     cell[i].second = inv_ls * frame * (original_cell[i].second - datum);
   }
 
+  // Compute bounding box and do simple cheap tests
+  const auto bbox = BoundingBox(cell);
+  const auto xmin = bbox.first.x(), ymin = bbox.first.y();
+  const auto xmax = bbox.second.x(), ymax = bbox.second.y();
+  const auto parabola_at_xmin = -scaled_coeff * xmin * xmin;
+  const auto parabola_at_xmax = -scaled_coeff * xmax * xmax;
+  bool is_entirely_below = false, is_entirely_above = false;
+  if (scaled_coeff >= 0.0) {
+    if (ymax <= parabola_at_xmin && ymax <= parabola_at_xmax) {
+      is_entirely_below = true;
+    } else if ((xmax <= 0.0 && ymin >= parabola_at_xmax) ||
+               (xmin >= 0.0 && ymin >= parabola_at_xmin)) {
+      is_entirely_above = true;
+    }
+  } else {
+    if (ymin >= parabola_at_xmin && ymin >= parabola_at_xmax) {
+      is_entirely_above = true;
+    } else if ((xmax <= 0.0 && ymax <= parabola_at_xmax) ||
+               (xmin >= 0.0 && ymax <= parabola_at_xmin)) {
+      is_entirely_below = true;
+    }
+  }
+  if (is_entirely_above) {
+    return BezierList();
+  }
+  if (is_entirely_below) {
+    if (return_parabola_only) {
+      return BezierList();
+    } else {
+      return original_cell;
+    }
+  }
+
   // Initialize clipped cell
   BezierList clipped_cell, clipped_parabola;
+  if (!return_parabola_only) clipped_cell.reserve(5 * nvert_init);
 
   // This while loop is needed in case we might want to nudge the parabola
   int it = 0;
@@ -1190,10 +1231,11 @@ BezierList ParabolaClip(const BezierList& original_cell,
         const auto p2 = cell_with_intersections[next_id].first;
         const auto p1 = Vec(0.5 * (p0.x() + p2.x()),
                             p0.y() + scaled_coeff * (p0.x() - p2.x()) * p0.x());
-        clipped_cell.back().second = p1;
         if (return_parabola_only) {
           clipped_parabola.push_back(std::make_pair(p0, p1));
           clipped_parabola.push_back(std::make_pair(p2, p1));
+        } else {
+          clipped_cell.back().second = p1;
         }
       }
       // If next vertex is start, we are done
@@ -1224,6 +1266,7 @@ BezierList ParabolaClip(const BezierList& original_cell,
     std::cout << "  -> Length scale      = " << length_scale << std::endl;
   }
 
+  // Move back to canonical frame of reference and return
   if (return_parabola_only) {
     for (int i = 0; i < clipped_parabola.size(); i++) {
       clipped_parabola[i].first =
@@ -1234,17 +1277,15 @@ BezierList ParabolaClip(const BezierList& original_cell,
           length_scale * (frame.transpose() * clipped_parabola[i].second);
     }
     return clipped_parabola;
+  } else {
+    for (int i = 0; i < clipped_cell.size(); i++) {
+      clipped_cell[i].first =
+          datum + length_scale * (frame.transpose() * clipped_cell[i].first);
+      clipped_cell[i].second =
+          datum + length_scale * (frame.transpose() * clipped_cell[i].second);
+    }
+    return clipped_cell;
   }
-
-  // Move clipped cell back to canonical frame of reference
-  for (int i = 0; i < clipped_cell.size(); i++) {
-    clipped_cell[i].first =
-        datum + length_scale * (frame.transpose() * clipped_cell[i].first);
-    clipped_cell[i].second =
-        datum + length_scale * (frame.transpose() * clipped_cell[i].second);
-  }
-
-  return clipped_cell;
 }
 
 BezierList ClipByRectangleAndParabola(const BezierList& original_cell,
@@ -1284,11 +1325,19 @@ double IntegrateFlux(const Vec& P0, const Vec& P1, const double dt,
 
 Parabola MatchToVolumeFraction(const BezierList& cell, const Parabola& parabola,
                                const double vfrac) {
-  const IRL::UnsignedIndex_t max_bisection_iter = 80;
-  const double vfrac_tolerance = 1.0e-15;
+  return MatchToVolumeFractionBisection(cell, parabola, vfrac);
+}
+
+Parabola MatchToVolumeFractionBrent(const BezierList& cell,
+                                    const Parabola& parabola,
+                                    const double vfrac) {
+  const IRL::UnsignedIndex_t max_brent_iter = 50;
+  const double tol = std::numeric_limits<double>::epsilon();
+  const double vfrac_tolerance = 1.0e-14;
 
   // Calculate volume of cell
   const auto cell_area = ComputeArea(cell);
+  const double cell_area_inv = 1.0 / cell_area;
   const double length_scale = std::sqrt(cell_area);
 
   // Move cell to local frame of reference of the paraboloid
@@ -1296,42 +1345,205 @@ Parabola MatchToVolumeFraction(const BezierList& cell, const Parabola& parabola,
   const auto frame = parabola.frame();
   const auto coeff = parabola.coeff();
 
-  double interval_min = -length_scale;
-  double interval_max = length_scale;
+  double interval_min = -0.5;
+  double interval_max = 0.5;
 
   Parabola moving_parabola(datum, frame, coeff);
-  moving_parabola.datum() = datum + frame[1] * interval_max;
-  double vfrac_max = ComputeArea(cell, moving_parabola) / cell_area;
+  moving_parabola.datum() = datum + frame[1] * interval_max * length_scale;
+  double vfrac_max = ComputeArea(cell, moving_parabola) * cell_area_inv;
   IRL::UnsignedIndex_t iter = 0;
-  while (iter < 40 && vfrac_max < 1.0) {
+  while (iter < 40 && vfrac_max < vfrac) {
     interval_max *= 2.0;
-    moving_parabola.datum() = datum + frame[1] * interval_max;
-    vfrac_max = ComputeArea(cell, moving_parabola) / cell_area;
+    moving_parabola.datum() = datum + frame[1] * interval_max * length_scale;
+    vfrac_max = ComputeArea(cell, moving_parabola) * cell_area_inv;
     iter++;
   }
 
-  moving_parabola.datum() = datum + frame[1] * interval_min;
-  double vfrac_min = ComputeArea(cell, moving_parabola) / cell_area;
+  moving_parabola.datum() = datum + frame[1] * interval_min * length_scale;
+  double vfrac_min = ComputeArea(cell, moving_parabola) * cell_area_inv;
   iter = 0;
-  while (iter < 40 && vfrac_min > 0.0) {
+  while (iter < 40 && vfrac_min > vfrac) {
     interval_min *= 2.0;
-    moving_parabola.datum() = datum + frame[1] * interval_min;
-    vfrac_min = ComputeArea(cell, moving_parabola) / cell_area;
+    moving_parabola.datum() = datum + frame[1] * interval_min * length_scale;
+    vfrac_min = ComputeArea(cell, moving_parabola) * cell_area_inv;
     iter++;
   }
 
-  // Perform bisection since secant failed to find answer within tolerance.
-  // Move cell back to its initial position
-  double distance = 0.0;
-  std::array<double, 3> bounding_values{{interval_min, 0.0, interval_max}};
+  // Brent algorithm
+  double a = interval_min, b = interval_max;
+  double fa = 0.0 - vfrac, fb = 1.0 - vfrac;
+  if (fa * fb > 0.0) {
+    std::cout << "ERROR: Brent root-finding failure: f(a)*f(b) > 0"
+              << std::endl;
+    exit(-1);
+  }
+  if (std::fabs(fa) < std::fabs(fb)) {
+    std::swap(a, b);
+    std::swap(fa, fb);
+  }
+  double c = a, fc = fa, s = DBL_MAX, d = DBL_MAX;
+  double fs = DBL_MAX;
+  bool mflag = true;
+  for (IRL::UnsignedIndex_t iter = 0; iter < max_brent_iter; ++iter) {
+    if (std::fabs(fs) < vfrac_tolerance) {
+      return moving_parabola;
+    }
+    if (fa != fc && fb != fc) {
+      s = a * fb * fc / ((fa - fb) * (fa - fc)) +
+          b * fa * fc / ((fb - fa) * (fb - fc)) +
+          c * fa * fb / ((fc - fa) * (fc - fb));
+    } else {
+      s = b - fb * (b - a) / (fb - fa);
+    }
+    if (s < 0.25 * (3.0 * a + b) || s > b ||
+        (mflag && std::fabs(s - b) >= 0.5 * std::fabs(b - c)) ||
+        (!mflag && std::fabs(s - b) >= 0.5 * std::fabs(c - d)) ||
+        (mflag && std::fabs(b - c) < tol) ||
+        (!mflag && std::fabs(c - d) < tol)) {
+      s = 0.5 * (a + b);
+      mflag = true;
+    } else {
+      mflag = false;
+    }
+    moving_parabola.datum() = datum + frame[1] * s * length_scale;
+    fs = ComputeArea(cell, moving_parabola) * cell_area_inv - vfrac;
+    d = c;
+    c = b;
+    fc = fb;
+    if (fa * fs < 0.0) {
+      b = s;
+      fb = fs;
+    } else {
+      a = s;
+      fa = fs;
+    }
+    if (std::fabs(fa) < std::fabs(fb)) {
+      std::swap(a, b);
+      std::swap(fa, fb);
+    }
+  }
+
+  return moving_parabola;
+}
+
+Parabola MatchToVolumeFractionIllinois(const BezierList& cell,
+                                       const Parabola& parabola,
+                                       const double vfrac) {
+  const IRL::UnsignedIndex_t max_illinois_iter = 100;
+  const double vfrac_tolerance = 1.0e-14;
+
+  // Calculate volume of cell
+  const auto cell_area = ComputeArea(cell);
+  const double cell_area_inv = 1.0 / cell_area;
+  const double length_scale = std::sqrt(cell_area);
+
+  // Move cell to local frame of reference of the paraboloid
+  const auto datum = parabola.datum();
+  const auto frame = parabola.frame();
+  const auto coeff = parabola.coeff();
+
+  double interval_min = -1.0;
+  double interval_max = 1.0;
+
+  Parabola moving_parabola(datum, frame, coeff);
+  moving_parabola.datum() = datum + frame[1] * interval_max * length_scale;
+  double vfrac_max = ComputeArea(cell, moving_parabola) * cell_area_inv;
+  IRL::UnsignedIndex_t iter = 0;
+  while (iter < 40 && vfrac_max < vfrac) {
+    interval_max *= 2.0;
+    moving_parabola.datum() = datum + frame[1] * interval_max * length_scale;
+    vfrac_max = ComputeArea(cell, moving_parabola) * cell_area_inv;
+    iter++;
+  }
+
+  moving_parabola.datum() = datum + frame[1] * interval_min * length_scale;
+  double vfrac_min = ComputeArea(cell, moving_parabola) * cell_area_inv;
+  iter = 0;
+  while (iter < 40 && vfrac_min > vfrac) {
+    interval_min *= 2.0;
+    moving_parabola.datum() = datum + frame[1] * interval_min * length_scale;
+    vfrac_min = ComputeArea(cell, moving_parabola) * cell_area_inv;
+    iter++;
+  }
+
+  // Illinois algorithm
+  double a = interval_min, b = interval_max;
+  double fa = 0.0 - vfrac, fb = 1.0 - vfrac;
+  if (fa * fb > 0.0) {
+    std::cout << "ERROR: Illinois root-finding failure: f(a)*f(b) > 0"
+              << std::endl;
+    exit(-1);
+  }
+  for (IRL::UnsignedIndex_t iter = 0; iter < max_illinois_iter; ++iter) {
+    double c = b - fb * (b - a) / (fb - fa);
+    moving_parabola.datum() = datum + frame[1] * c * length_scale;
+    const double fc =
+        ComputeArea(cell, moving_parabola) * cell_area_inv - vfrac;
+    if (std::fabs(fc) < vfrac_tolerance) return moving_parabola;
+    if (fb * fc < 0.0) {
+      a = b;
+      fa = fb;
+    } else {
+      fa = 0.5 * fa;
+    }
+    b = c;
+    fb = fc;
+  }
+
+  return moving_parabola;
+}
+
+Parabola MatchToVolumeFractionBisection(const BezierList& cell,
+                                        const Parabola& parabola,
+                                        const double vfrac) {
+  const IRL::UnsignedIndex_t max_bisection_iter = 50;
+  const double vfrac_tolerance = 1.0e-14;
+
+  // Calculate volume of cell
+  const auto cell_area = ComputeArea(cell);
+  const double cell_area_inv = 1.0 / cell_area;
+  const double length_scale = std::sqrt(cell_area);
+
+  // Move cell to local frame of reference of the paraboloid
+  const auto datum = parabola.datum();
+  const auto frame = parabola.frame();
+  const auto coeff = parabola.coeff();
+
+  double interval_min = -0.5;
+  double interval_max = 0.5;
+
+  Parabola moving_parabola(datum, frame, coeff);
+  moving_parabola.datum() = datum + frame[1] * interval_max * length_scale;
+  double vfrac_max = ComputeArea(cell, moving_parabola) * cell_area_inv;
+  IRL::UnsignedIndex_t iter = 0;
+  while (iter < 40 && vfrac_max < vfrac) {
+    interval_max *= 2.0;
+    moving_parabola.datum() = datum + frame[1] * interval_max * length_scale;
+    vfrac_max = ComputeArea(cell, moving_parabola) * cell_area_inv;
+    iter++;
+  }
+
+  moving_parabola.datum() = datum + frame[1] * interval_min * length_scale;
+  double vfrac_min = ComputeArea(cell, moving_parabola) * cell_area_inv;
+  iter = 0;
+  while (iter < 40 && vfrac_min > vfrac) {
+    interval_min *= 2.0;
+    moving_parabola.datum() = datum + frame[1] * interval_min * length_scale;
+    vfrac_min = ComputeArea(cell, moving_parabola) * cell_area_inv;
+    iter++;
+  }
+
+  // Bisection algorithm
+  double a = interval_min;
+  double b = interval_max;
   for (IRL::UnsignedIndex_t iter = 0; iter < max_bisection_iter; ++iter) {
-    bounding_values[1] = 0.5 * (bounding_values[0] + bounding_values[2]);
-    moving_parabola.datum() = datum + frame[1] * bounding_values[1];
-    const double vfrac_cut = ComputeArea(cell, moving_parabola) / cell_area;
+    double c = 0.5 * (a + b);
+    moving_parabola.datum() = datum + frame[1] * c * length_scale;
+    const double vfrac_cut = ComputeArea(cell, moving_parabola) * cell_area_inv;
     if (vfrac_cut > vfrac + vfrac_tolerance) {
-      bounding_values[2] = bounding_values[1];
+      b = c;
     } else if (vfrac_cut < vfrac - vfrac_tolerance) {
-      bounding_values[0] = bounding_values[1];
+      a = c;
     } else {
       return moving_parabola;
     }
@@ -1340,4 +1552,38 @@ Parabola MatchToVolumeFraction(const BezierList& cell, const Parabola& parabola,
   return moving_parabola;
 }
 
+std::pair<Vec, Vec> BoundingBox(const BezierList& cell) {
+  if (cell.size() == 0)
+    return std::make_pair(Vec(-DBL_MAX, -DBL_MAX), Vec(DBL_MAX, DBL_MAX));
+  auto mi = cell[0].first;
+  auto ma = cell[0].first;
+  for (int i = 0; i < cell.size(); i++) {
+    const auto p0 = cell[i].first;
+    const auto p1 = cell[i].second;
+    const auto p2 = cell[(i + 1) % cell.size()].first;
+    mi = min(mi, p0);
+    mi = min(mi, p2);
+    ma = max(ma, p0);
+    ma = max(ma, p2);
+    if (p1.x() < mi.x() || p1.x() > ma.x() || p1.y() < mi.y() ||
+        p1.y() > ma.y()) {
+      const double tx =
+          std::clamp((p0.x() - p1.x()) /
+                         IRL::safelyEpsilon(p0.x() - 2.0 * p1.x() + p2.x()),
+                     0.0, 1.0);
+      const double ty =
+          std::clamp((p0.y() - p1.y()) /
+                         IRL::safelyEpsilon(p0.y() - 2.0 * p1.y() + p2.y()),
+                     0.0, 1.0);
+      const double sx = 1.0 - tx;
+      const double sy = 1.0 - ty;
+      const Vec q{sx * sx * p0.x() + 2.0 * sx * tx * p1.x() + tx * tx * p2.x(),
+                  sy * sy * p0.y() + 2.0 * sy * ty * p1.y() + ty * ty * p2.y()};
+      mi = min(mi, q);
+      ma = max(ma, q);
+    }
+  }
+
+  return std::make_pair(mi, ma);
+}
 }  // namespace IRL2D

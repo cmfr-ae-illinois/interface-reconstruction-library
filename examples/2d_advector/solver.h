@@ -133,18 +133,17 @@ int runSimulation(const std::string& a_simulation_type,
                         simulation_time + time_step_to_use, velU, velV,
                         liquid_moments, interface, advect_VOF_time, recon_time,
                         write_time);
-    // if (simulation_time + time_step_to_use >= a_end_time) {
-    //   Data<double> ref_vfrac(&cc_mesh);
-    //   Data<IRL2D::Parabola> ref_interface(&cc_mesh);
-    //   Data<IRL2D::Moments> ref_liquid_moments(&cc_mesh);
-    //   Data<IRL2D::Moments> ref_gas_moments(&cc_mesh);
-    //   SimulationType::initialize(&velU, &velV, &ref_interface,
-    //                              simulation_time + time_step_to_use);
-    //   setPhaseQuantities(ref_interface, &ref_liquid_moments,
-    //   &ref_gas_moments,
-    //                      &ref_vfrac);
-    //   // printError(cc_mesh, liquid_moments, ref_liquid_moments);
-    // }
+    if (simulation_time + time_step_to_use >= a_end_time) {
+      Data<double> ref_vfrac(&cc_mesh);
+      Data<IRL2D::Parabola> ref_interface(&cc_mesh);
+      Data<IRL2D::Moments> ref_liquid_moments(&cc_mesh);
+      Data<IRL2D::Moments> ref_gas_moments(&cc_mesh);
+      SimulationType::initialize(&velU, &velV, &ref_interface,
+                                 simulation_time + time_step_to_use);
+      setPhaseQuantities(ref_interface, &ref_liquid_moments, &ref_gas_moments,
+                         &ref_vfrac);
+      // printError(cc_mesh, liquid_moments, ref_liquid_moments);
+    }
 
     auto advect_end = std::chrono::system_clock::now();
     advect_VOF_time = advect_end - start;

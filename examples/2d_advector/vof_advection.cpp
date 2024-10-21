@@ -42,8 +42,6 @@ void advectVOF(const std::string& a_simulation_type,
     getExactGradient2D = Deformation2D::getExactVelocityGradient2D;
   }
 
-  // setPhaseQuantities((*a_interface), a_liquid_moments, a_gas_moments);
-
   // Allocate storage for face fluxes
   Data<IRL2D::Moments> face_liquid_flux[2] = {Data<IRL2D::Moments>(&mesh),
                                               Data<IRL2D::Moments>(&mesh)};
@@ -58,7 +56,7 @@ void advectVOF(const std::string& a_simulation_type,
                                      a_V(i, j) * a_dt / mesh.dy()));
     }
   }
-
+  // Generate band that is ceil(CFL) thick around interface
   Data<int> band(&mesh);
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -72,7 +70,6 @@ void advectVOF(const std::string& a_simulation_type,
     }
   }
   band.updateBorder();
-
   const int nlayers = 1 + static_cast<int>(std::ceil(CFL));
   for (int n = 0; n < nlayers; ++n) {
     for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
@@ -91,7 +88,8 @@ void advectVOF(const std::string& a_simulation_type,
     band.updateBorder();
   }
 
-  std::vector<IRL2D::BezierList> fluxes;
+  // Compute fluxes
+  // std::vector<IRL2D::BezierList> fluxes;
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       // Initialize fluxes to zero
@@ -117,31 +115,34 @@ void advectVOF(const std::string& a_simulation_type,
             getExactGradient2D, correct_fluxes,
             IntegrateFlux(cell[0].first, cell[1].first, a_dt, a_time,
                           getExactVelocity2D));
-        fluxes.push_back(face_cell[0]);
-        fluxes.push_back(face_cell[1]);
+        // fluxes.push_back(face_cell[0]);
+        // fluxes.push_back(face_cell[1]);
 
-        // Compute liquid fluxes by intersection on a n x n neighborhood
-        for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-            const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
-            const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
-            for (int dim = 0; dim < 2; ++dim) {
+        for (int dim = 0; dim < 2; ++dim) {
+          // Compute flux bounding boxes
+          const auto bbox = IRL2D::BoundingBox(face_cell[dim]);
+          static int idmin[2], idmax[2];
+          mesh.getIndices(bbox.first, idmin);
+          mesh.getIndices(bbox.second, idmax);
+
+          // Compute liquid fluxes by intersection on a n x n neighborhood
+          for (int ii = idmin[0]; ii <= idmax[0]; ++ii) {
+            for (int jj = idmin[1]; jj <= idmax[1]; ++jj) {
+              const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
+              const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
               (face_liquid_flux[dim])(i, j) += IRL2D::ComputeMoments(
                   face_cell[dim], xn0, xn1, (*a_interface)(ii, jj));
             }
           }
-        }
 
-        // Update gas fluxes
-        for (int dim = 0; dim < 2; ++dim) {
+          // Update gas fluxes
           (face_gas_flux[dim])(i, j) += IRL2D::ComputeMoments(face_cell[dim]) -
                                         (face_liquid_flux[dim])(i, j);
         }
       }
     }
   }
-
-  IRL2D::ToVTK(fluxes, "fluxes");
+  // IRL2D::ToVTK(fluxes, "fluxes");
 
   face_liquid_flux[0].updateBorder();
   face_liquid_flux[1].updateBorder();

@@ -85,6 +85,8 @@ const Vec operator-(const Vec& a_vec_0, const Vec& a_vec_1);
 const Vec operator*(const double a_scalar, const Vec& a_vec);
 const Vec operator*(const Vec& a_vec, const double a_scalar);
 const Vec operator/(const Vec& a_vec, const double a_scalar);
+const Vec min(const Vec& a_vec_0, const Vec& a_vec_1);
+const Vec max(const Vec& a_vec_0, const Vec& a_vec_1);
 
 class Mat {
  public:
@@ -345,9 +347,11 @@ BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
                          const double time,
                          const Vec (*vel)(const double t, const Vec& P),
                          const Mat (*grad_vel)(const double t, const Vec& P),
-                         const int recursion_num, const bool add_pathlines,
-                         const bool close_flux, const bool correct_area,
-                         const double exact_area);
+                         const int recursion_num,
+                         const bool add_pathlines = false,
+                         const bool close_flux = false,
+                         const bool correct_area = false,
+                         const double exact_area = 0.0);
 
 BezierList CreateFluxCell(const Vec& P00, const Vec& P10, const double dt,
                           const double time,
@@ -370,6 +374,21 @@ double IntegrateFlux(const Vec& P0, const Vec& P1, const double dt,
 
 Parabola MatchToVolumeFraction(const BezierList& cell, const Parabola& parabola,
                                const double vfrac);
+
+Parabola MatchToVolumeFractionBrent(const BezierList& cell,
+                                    const Parabola& parabola,
+                                    const double vfrac);
+
+Parabola MatchToVolumeFractionBisection(const BezierList& cell,
+                                        const Parabola& parabola,
+                                        const double vfrac);
+
+Parabola MatchToVolumeFractionIllinois(const BezierList& cell,
+                                       const Parabola& parabola,
+                                       const double vfrac);
+
+std::pair<Vec, Vec> BoundingBox(const BezierList& cell);
+
 }  // namespace IRL2D
 
 #endif  // EXAMPLES_2D_ADVECTOR_IRL_2D_H_
