@@ -6,12 +6,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-#include <mpi.h>
-
 #include "examples/2d_advector/reconstruction_types.h"
 
 #include "irl/interface_reconstruction_methods/constrained_optimization_behavior.h"
 #include "irl/interface_reconstruction_methods/elvira_neighborhood.h"
+#include "irl/interface_reconstruction_methods/lvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/plvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
@@ -38,13 +37,16 @@ void getReconstruction(const std::string& a_reconstruction_method,
   if (a_reconstruction_method == "ELVIRA") {
     ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                               a_interface);
+  } else if (a_reconstruction_method == "LVIRA") {
+    LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                             a_interface);
   } else if (a_reconstruction_method == "LVIRAQ") {
     LVIRAQ::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                               a_interface);
   } else {
     std::cout << "Unknown reconstruction method of : "
               << a_reconstruction_method << '\n';
-    std::cout << "Valid entries are: ELVIRA, LVIRAQ. \n";
+    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ. \n";
     std::exit(-1);
   }
 }
@@ -90,11 +92,79 @@ void ELVIRA::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                                    jj);
           }
         }
-        const auto planar_separator = reconstructionWithELVIRA2D(neighborhood);
+        const auto planar_separator =
+            IRL::reconstructionWithELVIRA2D(neighborhood);
         const auto normal = planar_separator[0].normal();
-        const auto frame = IRL2D::ReferenceFrame{{normal[1], -normal[0]},
-                                                 {normal[0], normal[1]}};
-        const auto datum = IRL2D::Vec{mesh.xm(i), mesh.ym(j)};
+        const auto frame =
+            IRL2D::ReferenceFrame(IRL2D::Vec(normal[1], -normal[0]),
+                                  IRL2D::Vec(normal[0], normal[1]));
+        const auto datum = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
+        const auto x0 = IRL2D::Vec(mesh.x(i), mesh.y(j));
+        const auto x1 = IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1));
+        const auto cell = IRL2D::RectangleFromBounds(x0, x1);
+        const auto parabola = IRL2D::Parabola(datum, frame, 0.0);
+        (*a_interface)(i, j) =
+            IRL2D::MatchToVolumeFraction(cell, parabola, vfrac);
+      }
+    }
+  }
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+void LVIRA::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                              const Data<IRL2D::Moments>& a_gas_moments,
+                              const double a_dt, const Data<double>& a_U,
+                              const Data<double>& a_V,
+                              Data<IRL2D::Parabola>* a_interface) {
+  ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                            a_interface);
+
+  const BasicMesh& mesh = a_U.getMesh();
+  IRL::LVIRANeighborhood<IRL::RectangularCuboid> neighborhood;
+  neighborhood.resize(9);
+  std::array<IRL::RectangularCuboid, 9> cells;
+  std::array<double, 9> liquid_volume_fraction;
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double vfrac = a_liquid_moments(i, j).m0() / mesh.cell_volume();
+      if (vfrac < IRL::global_constants::VF_LOW) {
+        (*a_interface)(i, j).markAsAlwaysBelow();
+      } else if (vfrac > IRL::global_constants::VF_HIGH) {
+        (*a_interface)(i, j).markAsAlwaysAbove();
+      } else {
+        IRL::UnsignedIndex_t ndata = 0;
+        for (int jj = -1; jj <= 1; ++jj) {
+          for (int ii = -1; ii <= 1; ++ii) {
+            if (ii == 0 && jj == 0) {
+              neighborhood.setCenterOfStencil(ndata);
+            }
+            const double x_shift = static_cast<double>(ii);
+            const double y_shift = static_cast<double>(jj);
+            const IRL::UnsignedIndex_t linear_index = (jj + 1) * 3 + (ii + 1);
+            cells[ndata] = IRL::RectangularCuboid::fromBoundingPts(
+                IRL::Pt(-0.5 + x_shift, -0.5 + y_shift, -0.5),
+                IRL::Pt(0.5 + x_shift, 0.5 + y_shift, 0.5));
+            liquid_volume_fraction[ndata] =
+                a_liquid_moments(i + ii, j + jj).m0() / mesh.cell_volume();
+            neighborhood.setMember(ndata, &cells[ndata],
+                                   &liquid_volume_fraction[ndata]);
+            ndata++;
+          }
+        }
+        const auto guess_datum = (*a_interface)(i, j).datum();
+        const auto guess_frame = (*a_interface)(i, j).frame();
+        const auto planar_guess = IRL::PlanarSeparator::fromOnePlane(
+            IRL::Plane(IRL::Normal(guess_frame[1][0], guess_frame[1][1], 0.0),
+                       guess_datum.magnitude()));
+        const auto planar_separator =
+            IRL::reconstructionWithLVIRA2D(neighborhood, planar_guess);
+        const auto normal = planar_separator[0].normal();
+        const auto frame =
+            IRL2D::ReferenceFrame(IRL2D::Vec(normal[1], -normal[0]),
+                                  IRL2D::Vec(normal[0], normal[1]));
+        const auto datum = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
         const auto x0 = IRL2D::Vec(mesh.x(i), mesh.y(j));
         const auto x1 = IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1));
         const auto cell = IRL2D::RectangleFromBounds(x0, x1);
@@ -151,7 +221,7 @@ struct LVIRAQFunctor {
   const IRL2D::Parabola getparabola(const Eigen::VectorXd& x) const {
     const auto rotation = IRL2D::ReferenceFrame(x(0) * M_PI);
     const auto new_frame =
-        IRL2D::ReferenceFrame({rotation * m_frame[0], rotation * m_frame[1]});
+        IRL2D::ReferenceFrame(rotation * m_frame[0], rotation * m_frame[1]);
     const double new_coeff = m_coeff + x(1) / m_length_scale;
     const auto parabola = IRL2D::Parabola(m_datum, new_frame, new_coeff);
     return IRL2D::MatchToVolumeFraction(m_cells[1][1], parabola,
@@ -190,11 +260,54 @@ void LVIRAQ::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                                const Data<double>& a_V,
                                Data<IRL2D::Parabola>* a_interface) {
   // First guess with ELVIRA
-  ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
-                            a_interface);
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
 
   // Now fit parabola LVIRA-style
   const BasicMesh& mesh = a_U.getMesh();
+
+#ifdef USE_MPI
+  const double cell_volume = mesh.cell_volume();
+  int nmixed_global = 0;
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          a_liquid_moments(i, j).m0() / cell_volume;
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        nmixed_global++;
+      }
+    }
+  }
+
+  int rank, size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  IRL2D::Parabola dummy_par;
+  IRL::ByteBuffer dummy_buffer;
+  dummy_buffer.resize(0);
+  dummy_buffer.resetBufferPointer();
+  IRL::serializeAndPack(dummy_par, &dummy_buffer);
+  const int size_parabola = dummy_buffer.size();
+
+  int nmixed_local = std::max(nmixed_global / size, 1);
+  std::vector<int> proc_offset(size + 1);
+  proc_offset[0] = 0;
+  for (int r = 0; r < size; r++)
+    proc_offset[r + 1] = proc_offset[r] + nmixed_local;
+  proc_offset[size] = nmixed_global;
+  for (int r = 1; r < size + 1; r++)
+    proc_offset[r] = std::min(proc_offset[r], nmixed_global);
+  nmixed_local = proc_offset[rank + 1] - proc_offset[rank];
+  IRL::ByteBuffer interface_local, interface_global;
+  interface_local.resize(nmixed_local * sizeof(IRL2D::Parabola));
+  interface_global.resize(0);
+  interface_local.resetBufferPointer();
+  interface_global.resetBufferPointer();
+
+  int count = 0;
+#endif
 
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -204,36 +317,75 @@ void LVIRAQ::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
       } else if (vfrac > IRL::global_constants::VF_HIGH) {
         (*a_interface)(i, j).markAsAlwaysAbove();
       } else {
-        // Fill stencil of moments
-        std::array<std::array<double, 3>, 3> vfracs;
-        std::array<std::array<IRL2D::BezierList, 3>, 3> cells;
-        for (int jj = 0; jj < 3; ++jj) {
-          for (int ii = 0; ii < 3; ++ii) {
-            vfracs[ii][jj] = a_liquid_moments(i + ii - 1, j + jj - 1).m0() /
-                             mesh.cell_volume();
-            const auto x0 = IRL2D::Vec(mesh.x(i + ii - 1), mesh.y(j + jj - 1));
-            const auto x1 = IRL2D::Vec(mesh.x(i + ii), mesh.y(j + jj));
-            cells[ii][jj] = IRL2D::RectangleFromBounds(x0, x1);
+#ifdef USE_MPI
+        if (count >= proc_offset[rank] && count < proc_offset[rank + 1]) {
+#endif
+          // Fill stencil of moments
+          std::array<std::array<double, 3>, 3> vfracs;
+          std::array<std::array<IRL2D::BezierList, 3>, 3> cells;
+          for (int jj = 0; jj < 3; ++jj) {
+            for (int ii = 0; ii < 3; ++ii) {
+              vfracs[ii][jj] = a_liquid_moments(i + ii - 1, j + jj - 1).m0() /
+                               mesh.cell_volume();
+              const auto x0 =
+                  IRL2D::Vec(mesh.x(i + ii - 1), mesh.y(j + jj - 1));
+              const auto x1 = IRL2D::Vec(mesh.x(i + ii), mesh.y(j + jj));
+              cells[ii][jj] = IRL2D::RectangleFromBounds(x0, x1);
+            }
           }
-        }
 
-        // Create functor for LM minimization
-        LVIRAQFunctor myLVIRAQFunctor(2, 10, cells, vfracs);
-        myLVIRAQFunctor.setframe((*a_interface)(i, j));
-        Eigen::NumericalDiff<LVIRAQFunctor> NDLVIRAQFunctor(myLVIRAQFunctor);
-        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<LVIRAQFunctor>, double>
-            LVIRAQ_LM(NDLVIRAQFunctor);
-        Eigen::VectorXd x(2);
-        x.setZero();
-        Eigen::LevenbergMarquardtSpace::Status status =
-            LVIRAQ_LM.minimizeInit(x);
-        do {
-          status = LVIRAQ_LM.minimizeOneStep(x);
-        } while (status == Eigen::LevenbergMarquardtSpace::Running);
-        (*a_interface)(i, j) = myLVIRAQFunctor.getparabola(x);
+          // Create functor for LM minimization
+          LVIRAQFunctor myLVIRAQFunctor(2, 10, cells, vfracs);
+          myLVIRAQFunctor.setframe((*a_interface)(i, j));
+          Eigen::NumericalDiff<LVIRAQFunctor> NDLVIRAQFunctor(myLVIRAQFunctor);
+          Eigen::LevenbergMarquardt<Eigen::NumericalDiff<LVIRAQFunctor>, double>
+              LVIRAQ_LM(NDLVIRAQFunctor);
+          Eigen::VectorXd x(2);
+          x.setZero();
+          Eigen::LevenbergMarquardtSpace::Status status =
+              LVIRAQ_LM.minimizeInit(x);
+          do {
+            status = LVIRAQ_LM.minimizeOneStep(x);
+          } while (status == Eigen::LevenbergMarquardtSpace::Running);
+          const auto parabola = IRL2D::MatchToVolumeFractionBisection(
+              cells[1][1], myLVIRAQFunctor.getparabola(x), vfracs[1][1], 500);
+#ifdef USE_MPI
+          IRL::serializeAndPack(parabola, &interface_local);
+        }
+        count++;
+#else
+        (*a_interface)(i, j) = parabola;
+#endif
       }
     }
   }
+
+#ifdef USE_MPI
+  std::vector<int> proc_count(size);
+  for (int r = 0; r < size; r++) {
+    proc_count[r] = size_parabola * (proc_offset[r + 1] - proc_offset[r]);
+    proc_offset[r] = size_parabola * proc_offset[r];
+  }
+
+  interface_global.resize(size_parabola * nmixed_global);
+  MPI_Allgatherv(interface_local.data(), size_parabola * nmixed_local, MPI_BYTE,
+                 interface_global.data(), proc_count.data(), proc_offset.data(),
+                 MPI_BYTE, MPI_COMM_WORLD);
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          a_liquid_moments(i, j).m0() / cell_volume;
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        IRL2D::Parabola parabola;
+        IRL::unpackAndStore(&parabola, &interface_global);
+        (*a_interface)(i, j) = parabola;
+      }
+    }
+  }
+#endif
+
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);
 }
@@ -245,28 +397,32 @@ void correctInterfaceBorders(Data<IRL2D::Parabola>* a_interface) {
   // x- boundary
   for (int i = mesh.imino(); i < mesh.imin(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      (*a_interface)(i, j).datum()[0] -= mesh.lx();
+      IRL2D::Vec& datum = (*a_interface)(i, j).datum();
+      datum[0] -= mesh.lx();
     }
   }
 
   // x+ boundary
   for (int i = mesh.imax() + 1; i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      (*a_interface)(i, j).datum()[0] += mesh.lx();
+      IRL2D::Vec& datum = (*a_interface)(i, j).datum();
+      datum[0] += mesh.lx();
     }
   }
 
   // y- boundary
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j < mesh.jmin(); ++j) {
-      (*a_interface)(i, j).datum()[1] -= mesh.ly();
+      IRL2D::Vec& datum = (*a_interface)(i, j).datum();
+      datum[1] -= mesh.ly();
     }
   }
 
   // y+ boundary
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmax() + 1; j <= mesh.jmaxo(); ++j) {
-      (*a_interface)(i, j).datum()[1] += mesh.ly();
+      IRL2D::Vec& datum = (*a_interface)(i, j).datum();
+      datum[1] += mesh.ly();
     }
   }
 }

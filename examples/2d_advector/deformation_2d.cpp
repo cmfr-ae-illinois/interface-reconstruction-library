@@ -22,9 +22,9 @@
 #include "irl/parameters/constants.h"
 
 constexpr int GC = 3;
-constexpr IRL2D::Vec lower_domain(0.0, 0.0);
-constexpr IRL2D::Vec upper_domain(1.0, 1.0);
-constexpr double T = 8.0;
+constexpr IRL2D::Vec lower_domain(-0.5, -0.5);
+constexpr IRL2D::Vec upper_domain(0.5, 0.5);
+constexpr double T = 2.0;
 
 BasicMesh Deformation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
@@ -39,7 +39,7 @@ void Deformation2D::initialize(Data<double>* a_U, Data<double>* a_V,
                                const double a_time) {
   Deformation2D::setVelocity(a_time, a_U, a_V);
   const BasicMesh& mesh = a_U->getMesh();
-  const auto circle_center = IRL2D::Vec(0.5, 0.75);
+  const auto circle_center = IRL2D::Vec(0.0, 0.25);
   const double circle_radius = 0.15;
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
@@ -98,35 +98,42 @@ void Deformation2D::setVelocity(const double t, Data<double>* a_U,
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       auto P = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
-      (*a_U)(i, j) = -2.0 * std::sin(M_PI * P.x()) * std::sin(M_PI * P.x()) *
-                     std::sin(M_PI * P.y()) * std::cos(M_PI * P.y()) *
-                     std::cos(t * M_PI / T);
-      (*a_V)(i, j) = 2.0 * std::sin(M_PI * P.x()) * std::sin(M_PI * P.y()) *
-                     std::sin(M_PI * P.y()) * std::cos(M_PI * P.x()) *
-                     std::cos(t * M_PI / T);
+      (*a_U)(i, j) = -2.0 * std::sin(M_PI * (P.x() - 0.5)) *
+                     std::sin(M_PI * (P.x() - 0.5)) *
+                     std::sin(M_PI * (P.y() - 0.5)) *
+                     std::cos(M_PI * (P.y() - 0.5)) * std::cos(t * M_PI / T);
+      (*a_V)(i, j) = 2.0 * std::sin(M_PI * (P.x() - 0.5)) *
+                     std::sin(M_PI * (P.y() - 0.5)) *
+                     std::sin(M_PI * (P.y() - 0.5)) *
+                     std::cos(M_PI * (P.x() - 0.5)) * std::cos(t * M_PI / T);
     }
   }
 }
 
 const IRL2D::Vec Deformation2D::getExactVelocity2D(double t,
                                                    const IRL2D::Vec& P) {
-  return IRL2D::Vec{-2.0 * std::sin(M_PI * P.x()) * std::sin(M_PI * P.x()) *
-                        std::sin(M_PI * P.y()) * std::cos(M_PI * P.y()) *
-                        std::cos(t * M_PI / T),
-                    2.0 * std::sin(M_PI * P.x()) * std::sin(M_PI * P.y()) *
-                        std::sin(M_PI * P.y()) * std::cos(M_PI * P.x()) *
-                        std::cos(t * M_PI / T)};
+  return IRL2D::Vec{
+      -2.0 * std::sin(M_PI * (P.x() - 0.5)) * std::sin(M_PI * (P.x() - 0.5)) *
+          std::sin(M_PI * (P.y() - 0.5)) * std::cos(M_PI * (P.y() - 0.5)) *
+          std::cos(t * M_PI / T),
+      2.0 * std::sin(M_PI * (P.x() - 0.5)) * std::sin(M_PI * (P.y() - 0.5)) *
+          std::sin(M_PI * (P.y() - 0.5)) * std::cos(M_PI * (P.x() - 0.5)) *
+          std::cos(t * M_PI / T)};
 }
 
 const IRL2D::Mat Deformation2D::getExactVelocityGradient2D(
     double t, const IRL2D::Vec& P) {
   return IRL2D::Mat(
-      IRL2D::Vec{-M_PI * std::sin(2.0 * M_PI * P.x()) *
-                     std::sin(2.0 * M_PI * P.y()) * std::cos(t * M_PI / T),
-                 -2.0 * M_PI * std::sin(M_PI * P.x()) * std::sin(M_PI * P.x()) *
-                     std::cos(2.0 * M_PI * P.y()) * std::cos(t * M_PI / T)},
-      IRL2D::Vec{-2.0 * M_PI * std::sin(M_PI * P.y()) * std::sin(M_PI * P.y()) *
-                     std::cos(2.0 * M_PI * P.x()) * std::cos(t * M_PI / T),
-                 -M_PI * std::sin(2.0 * M_PI * P.y()) *
-                     std::sin(2.0 * M_PI * P.x()) * std::cos(t * M_PI / T)});
+      IRL2D::Vec{
+          -M_PI * std::sin(2.0 * M_PI * (P.x() - 0.5)) *
+              std::sin(2.0 * M_PI * (P.y() - 0.5)) * std::cos(t * M_PI / T),
+          -2.0 * M_PI * std::sin(M_PI * (P.x() - 0.5)) *
+              std::sin(M_PI * (P.x() - 0.5)) *
+              std::cos(2.0 * M_PI * (P.y() - 0.5)) * std::cos(t * M_PI / T)},
+      IRL2D::Vec{
+          -2.0 * M_PI * std::sin(M_PI * (P.y() - 0.5)) *
+              std::sin(M_PI * (P.y() - 0.5)) *
+              std::cos(2.0 * M_PI * (P.x() - 0.5)) * std::cos(t * M_PI / T),
+          -M_PI * std::sin(2.0 * M_PI * (P.y() - 0.5)) *
+              std::sin(2.0 * M_PI * (P.x() - 0.5)) * std::cos(t * M_PI / T)});
 }

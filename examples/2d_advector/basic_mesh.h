@@ -10,6 +10,12 @@
 #ifndef EXAMPLES_PARABOLOID_ADVECTOR_BASIC_MESH_H_
 #define EXAMPLES_PARABOLOID_ADVECTOR_BASIC_MESH_H_
 
+// #define USE_MPI
+
+#ifdef USE_MPI
+#include <mpi.h>
+#endif
+
 #include <cstring>
 #include "examples/2d_advector/irl2d.h"
 

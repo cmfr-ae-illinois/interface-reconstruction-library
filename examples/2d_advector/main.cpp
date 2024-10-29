@@ -1,4 +1,3 @@
-#include <mpi.h>
 #include <chrono>
 #include <iostream>
 #include <string>
@@ -22,8 +21,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Incorrect amount of command line arguments supplied. \n";
     std::cout << "Arguments should be \n";
     std::cout << "Simulation to run. Options: Rotation2D\n";
-    std::cout << "Advection method. Options: SemiLagrangianCorrected\n";
-    std::cout << "Reconstruction method. Options: PLIC\n";
+    std::cout << "Advection method. Options: SemiLagQ\n";
+    std::cout << "Reconstruction method. Options: ELVIRA, LVIRA, LVIRAQ\n";
     std::cout << "Time step size, dt (double)\n";
     std::cout << "Simulation duration(double)\n";
     std::cout
@@ -31,6 +30,13 @@ int main(int argc, char* argv[]) {
     std::cout << "Number of cells (integer)\n";
     std::exit(-1);
   }
+
+#ifdef USE_MPI
+  MPI_Init(&argc, &argv);
+  int rank, size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
 
   std::string simulation_type = argv[1];
   std::string advection_method = argv[2];
@@ -45,7 +51,13 @@ int main(int argc, char* argv[]) {
                   time_step_size, time_duration, viz_frequency, Nx);
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<double> runtime = end - start;
+
+#ifdef USE_MPI
+  MPI_Finalize();
+  if (rank == 0) printf("Total run time: %20f \n\n", runtime.count());
+#else
   printf("Total run time: %20f \n\n", runtime.count());
+#endif
 
   return 0;
 }

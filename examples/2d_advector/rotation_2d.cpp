@@ -22,13 +22,11 @@
 #include "irl/parameters/constants.h"
 
 constexpr int GC = 3;
-constexpr IRL2D::Vec lower_domain(-0.5, -0.5);
-constexpr IRL2D::Vec upper_domain(0.5, 0.5);
 
 BasicMesh Rotation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
-  IRL2D::Vec my_lower_domain = lower_domain;
-  IRL2D::Vec my_upper_domain = upper_domain;
+  IRL2D::Vec my_lower_domain(-0.5, -0.5);
+  IRL2D::Vec my_upper_domain(0.5, 0.5);
   mesh.setCellBoundaries(my_lower_domain, my_upper_domain);
   return mesh;
 }
@@ -38,7 +36,8 @@ void Rotation2D::initialize(Data<double>* a_U, Data<double>* a_V,
                             const double a_time) {
   Rotation2D::setVelocity(a_time, a_U, a_V);
   const BasicMesh& mesh = a_U->getMesh();
-  const auto circle_center = IRL2D::Vec(0.0, 0.25);
+  const auto circle_center = 0.25 * IRL2D::Vec(-std::sin(2.0 * M_PI * a_time),
+                                               std::cos(2.0 * M_PI * a_time));
   const double circle_radius = 0.15;
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
@@ -92,8 +91,8 @@ void Rotation2D::initialize(Data<double>* a_U, Data<double>* a_V,
 
 void Rotation2D::setVelocity(const double a_time, Data<double>* a_U,
                              Data<double>* a_V) {
-  const double vel_scale = 2.0 * M_PI;
   const BasicMesh& mesh = a_U->getMesh();
+  const double vel_scale = 2.0 * M_PI;
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       auto loc = IRL2D::Vec(mesh.xm(i), mesh.ym(j));

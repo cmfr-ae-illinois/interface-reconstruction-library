@@ -98,94 +98,75 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
       number_of_interface_cells);
 }
 
-// void printError(const BasicMesh& mesh,
-//                 const Data<IRL::GeneralMoments3D<2>>& liquid_moments,
-//                 const Data<IRL::GeneralMoments3D<2>>&
-//                 starting_liquid_moments) {
-//   double linf_error_m0 = 0.0;
-//   double linf_error_m1 = 0.0;
-//   double linf_error_m2 = 0.0;
-//   double l1_error_m0 = 0.0;
-//   double l1_error_m1 = 0.0;
-//   double l1_error_m2 = 0.0;
-//   double l2_error_m0 = 0.0;
-//   double l2_error_m1 = 0.0;
-//   double l2_error_m2 = 0.0;
-//   double scale_m0 = 1.0 / std::pow(mesh.dx(), 3.0);
-//   double scale_m1 = 1.0 / std::pow(mesh.dx(), 4.0);
-//   double scale_m2 = 1.0 / std::pow(mesh.dx(), 5.0);
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         const double liquid_volume_fraction =
-//             liquid_moments(i, j, k)[0] / mesh.cell_volume();
-//         if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-//             liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-//           auto mom_err =
-//               (liquid_moments(i, j, k) - starting_liquid_moments(i, j, k));
-//           linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err[0]));
-//           linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err[1]));
-//           linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err[2]));
-//           linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err[3]));
-//           linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err[4]));
-//           linf_error_m2 = std::max(linf_error_m2, std::abs(2.0 *
-//           mom_err[5])); linf_error_m2 = std::max(linf_error_m2, std::abs(2.0
-//           * mom_err[6])); linf_error_m2 = std::max(linf_error_m2,
-//           std::abs(mom_err[7])); linf_error_m2 = std::max(linf_error_m2,
-//           std::abs(2.0 * mom_err[8])); linf_error_m2 =
-//           std::max(linf_error_m2, std::abs(mom_err[9])); l1_error_m0 +=
-//           std::abs(mom_err[0]); l1_error_m1 += std::abs(mom_err[1]);
-//           l1_error_m1 += std::abs(mom_err[2]);
-//           l1_error_m1 += std::abs(mom_err[3]);
-//           l1_error_m2 += std::abs(mom_err[4]);
-//           l1_error_m2 += std::abs(2.0 * mom_err[5]);
-//           l1_error_m2 += std::abs(2.0 * mom_err[6]);
-//           l1_error_m2 += std::abs(mom_err[7]);
-//           l1_error_m2 += std::abs(2.0 * mom_err[8]);
-//           l1_error_m2 += std::abs(mom_err[9]);
-//           l2_error_m0 += mom_err[0] * mom_err[0];
-//           l2_error_m1 += mom_err[1] * mom_err[1];
-//           l2_error_m1 += mom_err[2] * mom_err[2];
-//           l2_error_m1 += mom_err[3] * mom_err[3];
-//           l2_error_m2 += mom_err[4] * mom_err[4];
-//           l2_error_m2 += 4.0 * mom_err[5] * mom_err[5];
-//           l2_error_m2 += 4.0 * mom_err[6] * mom_err[6];
-//           l2_error_m2 += mom_err[7] * mom_err[7];
-//           l2_error_m2 += 4.0 * mom_err[8] * mom_err[8];
-//           l2_error_m2 += mom_err[9] * mom_err[9];
-//         }
-//       }
-//     }
-//   }
-//   l1_error_m0 /=
-//       (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-//   l1_error_m1 /=
-//       (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-//   l1_error_m2 /=
-//       (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-//   l2_error_m0 /=
-//       (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-//   l2_error_m1 /=
-//       (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-//   l2_error_m2 /=
-//       (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-//   linf_error_m0 *= scale_m0;
-//   linf_error_m1 *= scale_m1;
-//   linf_error_m2 *= scale_m2;
-//   l1_error_m0 *= scale_m0;
-//   l1_error_m1 *= scale_m1;
-//   l1_error_m2 *= scale_m2;
-//   l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
-//   l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
-//   l2_error_m2 = std::sqrt(l2_error_m2) * scale_m2;
-//   std::cout << std::scientific << std::setprecision(2)
-//             << "Linf M0 = " << linf_error_m0 << std::endl;
-//   std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
-//   std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
-//   std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
-//   std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
-//   std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
-//   std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
-//   std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
-//   std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
-// }
+void printError(const BasicMesh& mesh,
+                const Data<IRL2D::Moments>& liquid_moments,
+                const Data<IRL2D::Moments>& starting_liquid_moments) {
+  double linf_error_m0 = 0.0;
+  double linf_error_m1 = 0.0;
+  double linf_error_m2 = 0.0;
+  double l1_error_m0 = 0.0;
+  double l1_error_m1 = 0.0;
+  double l1_error_m2 = 0.0;
+  double l2_error_m0 = 0.0;
+  double l2_error_m1 = 0.0;
+  double l2_error_m2 = 0.0;
+  double scale_m0 = 1.0 / std::pow(mesh.dx(), 2.0);
+  double scale_m1 = 1.0 / std::pow(mesh.dx(), 3.0);
+  double scale_m2 = 1.0 / std::pow(mesh.dx(), 4.0);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          liquid_moments(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        auto mom_err = (liquid_moments(i, j) - starting_liquid_moments(i, j));
+        linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.m0()));
+        linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err.m1()[0]));
+        linf_error_m1 = std::max(linf_error_m1, std::abs(mom_err.m1()[1]));
+        linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err.m2()[0][0]));
+        linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err.m2()[1][0]));
+        linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err.m2()[1][1]));
+        linf_error_m2 = std::max(linf_error_m2, std::abs(mom_err.m2()[0][1]));
+        l1_error_m0 += std::abs(mom_err.m0());
+        l1_error_m1 += std::abs(mom_err.m1()[0]);
+        l1_error_m1 += std::abs(mom_err.m1()[1]);
+        l1_error_m2 += std::abs(mom_err.m2()[0][0]);
+        l1_error_m2 += std::abs(mom_err.m2()[1][0]);
+        l1_error_m2 += std::abs(mom_err.m2()[1][1]);
+        l1_error_m2 += std::abs(mom_err.m2()[0][1]);
+        l2_error_m0 += mom_err.m0() * mom_err.m0();
+        l2_error_m1 += mom_err.m1()[0] * mom_err.m1()[0];
+        l2_error_m1 += mom_err.m1()[1] * mom_err.m1()[1];
+        l2_error_m2 += mom_err.m2()[0][0] * mom_err.m2()[0][0];
+        l2_error_m2 += mom_err.m2()[1][0] * mom_err.m2()[1][0];
+        l2_error_m2 += mom_err.m2()[1][1] * mom_err.m2()[1][1];
+        l2_error_m2 += mom_err.m2()[0][1] * mom_err.m2()[0][1];
+      }
+    }
+  }
+  l1_error_m0 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  l1_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  l1_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  l2_error_m0 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  l2_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  l2_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  linf_error_m0 *= scale_m0;
+  linf_error_m1 *= scale_m1;
+  linf_error_m2 *= scale_m2;
+  l1_error_m0 *= scale_m0;
+  l1_error_m1 *= scale_m1;
+  l1_error_m2 *= scale_m2;
+  l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
+  l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
+  l2_error_m2 = std::sqrt(l2_error_m2) * scale_m2;
+  std::cout << std::scientific << std::setprecision(3)
+            << "Linf M0 = " << linf_error_m0 << std::endl;
+  std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
+  std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
+  std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
+  std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
+  std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
+  std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
+  std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
+  std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
+}

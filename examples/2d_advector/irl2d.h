@@ -1,6 +1,7 @@
 #ifndef EXAMPLES_2D_ADVECTOR_IRL_2D_H_
 #define EXAMPLES_2D_ADVECTOR_IRL_2D_H_
 
+#include <quadmath.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -9,11 +10,14 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <random>
 #include <string>
+#include <unsupported/Eigen/Polynomials>
 #include <vector>
 #include "irl/generic_cutting/paraboloid_intersection/moment_contributions.h"
 #include "irl/geometry/general/math_vector.h"
 #include "irl/helpers/expression_templates.h"
+#include "irl/helpers/mymath.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/parameters/defined_types.h"
 
@@ -68,6 +72,13 @@ class Vec {
     vec_m[1] /= a;
     return (*this);
   };
+  void serialize(IRL::ByteBuffer* a_buffer) const {
+    a_buffer->pack(vec_m.data(), vec_m.size());
+  }
+  void unpackSerialized(IRL::ByteBuffer* a_buffer) {
+    a_buffer->unpack(vec_m.data(), vec_m.size());
+  }
+
   friend std::ostream& operator<<(std::ostream& out, const Vec& vec) {
     out << std::setprecision(3) << std::scientific << "(" << std::setw(10)
         << std::setfill(' ') << vec.x() << "," << std::setw(10)
@@ -85,12 +96,12 @@ const Vec operator-(const Vec& a_vec_0, const Vec& a_vec_1);
 const Vec operator*(const double a_scalar, const Vec& a_vec);
 const Vec operator*(const Vec& a_vec, const double a_scalar);
 const Vec operator/(const Vec& a_vec, const double a_scalar);
-const Vec min(const Vec& a_vec_0, const Vec& a_vec_1);
-const Vec max(const Vec& a_vec_0, const Vec& a_vec_1);
+const Vec minvec(const Vec& a_vec_0, const Vec& a_vec_1);
+const Vec maxvec(const Vec& a_vec_0, const Vec& a_vec_1);
 
 class Mat {
  public:
-  constexpr Mat(void) : matrix_m{Vec(1., 0.), Vec(0., 1.)} {};
+  constexpr Mat(void) : matrix_m{Vec(0., 0.), Vec(0., 0.)} {};
   constexpr Mat(const double angular_pos)
       : matrix_m{Vec(std::cos(angular_pos), std::sin(angular_pos)),
                  Vec(-std::sin(angular_pos), std::cos(angular_pos))} {};
@@ -232,7 +243,7 @@ BezierList RectangleFromBounds(const Vec& x0, const Vec& x1);
 class Parabola {
  public:
   constexpr Parabola(void)
-      : datum_m{0., 0.},
+      : datum_m{Vec(0., 0.)},
         frame_m{Vec(1., 0.), Vec(0., 1.)},
         coeff_m{0.},
         above_m{false},
@@ -261,12 +272,12 @@ class Parabola {
   bool isAlwaysAbove(void) const { return above_m; }
   bool isAlwaysBelow(void) const { return below_m; }
   Parabola createAlwaysAbove(void) {
-    Parabola parabola;
+    auto parabola = Parabola();
     parabola.markAsAlwaysAbove();
     return parabola;
   }
   Parabola createAlwaysBelow(void) {
-    Parabola parabola;
+    auto parabola = Parabola();
     parabola.markAsAlwaysBelow();
     return parabola;
   }
@@ -277,7 +288,26 @@ class Parabola {
     above_m = a.isAlwaysAbove();
     below_m = a.isAlwaysBelow();
     return (*this);
-  };
+  }
+  void serialize(IRL::ByteBuffer* a_buffer) const {
+    datum_m.serialize(a_buffer);
+    frame_m[0].serialize(a_buffer);
+    frame_m[1].serialize(a_buffer);
+    a_buffer->pack(&coeff_m, 1);
+    const IRL::UnsignedIndex_t bool_to_int =
+        (above_m ? 1 : 0) + 2 * (below_m ? 1 : 0);
+    a_buffer->pack(&bool_to_int, 1);
+  }
+  void unpackSerialized(IRL::ByteBuffer* a_buffer) {
+    datum_m.unpackSerialized(a_buffer);
+    frame_m[0].unpackSerialized(a_buffer);
+    frame_m[1].unpackSerialized(a_buffer);
+    a_buffer->unpack(&coeff_m, 1);
+    IRL::UnsignedIndex_t int_to_bool = 0;
+    a_buffer->unpack(&int_to_bool, 1);
+    above_m = (int_to_bool % 2 == 1) ? true : false;
+    below_m = (int_to_bool / 2 == 1) ? true : false;
+  }
   friend std::ostream& operator<<(std::ostream& out, const Parabola& parabola) {
     out << std::setprecision(3) << std::scientific
         << "Datum = " << parabola.datum() << "; Frame = " << parabola.frame()
@@ -303,11 +333,14 @@ unsigned int solveP3(double* x, const double a, const double b, const double c);
 std::vector<double> solve_cubic(const double a, const double b, const double c,
                                 const double d);
 
-std::vector<double> AnalyticIntersections(const Parabola& parabola,
-                                          const Vec& p0, const Vec& p1,
-                                          const Vec& p2);
+template <class ScalarType>
+std::vector<ScalarType> AnalyticIntersections(const Parabola& parabola,
+                                              const Vec& p0, const Vec& p1,
+                                              const Vec& p2);
 
-double DistanceToParabola(const Parabola& parabola, const Vec& pt);
+template <class ScalarType>
+ScalarType DistanceToParabola(const Parabola& parabola, const Vec& pt);
+
 bool IsBelow(const Parabola& parabola, const Vec& pt);
 
 std::vector<BezierList> ParabolaClipWeilerAtherton(
@@ -360,6 +393,26 @@ BezierList CreateFluxCell(const Vec& P00, const Vec& P10, const double dt,
                           const bool correct_area = false,
                           const double exact_area = 0.);
 
+BezierList CreatePreImage(const Vec& X0, const Vec& X1, const double dt,
+                          const double time,
+                          const Vec (*vel)(const double t, const Vec& P),
+                          const Mat (*grad_vel)(const double t, const Vec& P),
+                          const bool correct_area,
+                          const std::array<double, 4>& exact_area);
+
+BezierList TransportLinearEdge(
+    const Vec& P00, const Vec& P10, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P), const int rec_num,
+    const bool add_pathlines = false, const bool close_flux = false,
+    const bool correct_area = false, const double exact_area = 0.0);
+
+BezierList CreateLinearFluxCell(
+    const Vec& P00, const Vec& P10, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area = false, const double exact_area = 0.);
+
 BezierList ParabolaClip(const BezierList& original_cell,
                         const Parabola& parabola,
                         const bool return_parabola_only = false);
@@ -381,7 +434,8 @@ Parabola MatchToVolumeFractionBrent(const BezierList& cell,
 
 Parabola MatchToVolumeFractionBisection(const BezierList& cell,
                                         const Parabola& parabola,
-                                        const double vfrac);
+                                        const double vfrac,
+                                        const int max_bisection_iter = 50);
 
 Parabola MatchToVolumeFractionIllinois(const BezierList& cell,
                                        const Parabola& parabola,

@@ -23,6 +23,28 @@ void advectVOF(const std::string& a_simulation_type,
                Data<IRL2D::Moments>* a_gas_moments,
                Data<IRL2D::Parabola>* a_interface);
 
+struct SemiLag {
+  static void advectVOF(const std::string& a_simulation_type,
+                        const std::string& a_advection_method,
+                        const std::string& a_reconstruction_method,
+                        const double a_dt, const double a_time,
+                        const Data<double>& a_U, const Data<double>& a_V,
+                        Data<IRL2D::Moments>* a_liquid_moments,
+                        Data<IRL2D::Moments>* a_gas_moments,
+                        Data<IRL2D::Parabola>* a_interface);
+};
+
+struct FullLag {
+  static void advectVOF(const std::string& a_simulation_type,
+                        const std::string& a_advection_method,
+                        const std::string& a_reconstruction_method,
+                        const double a_dt, const double a_time,
+                        const Data<double>& a_U, const Data<double>& a_V,
+                        Data<IRL2D::Moments>* a_liquid_moments,
+                        Data<IRL2D::Moments>* a_gas_moments,
+                        Data<IRL2D::Parabola>* a_interface);
+};
+
 void correctMomentLocations(Data<IRL2D::Moments>* a_liquid_moments);
 
 #endif  // EXAMPLES_PARABOLOID_ADVECTOR_VOF_ADVECTION_H_
