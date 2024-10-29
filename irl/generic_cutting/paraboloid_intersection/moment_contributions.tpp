@@ -31,7 +31,9 @@ namespace IRL {
 
 template <class ScalarType, UnsignedIndex_t Order>
 const std::array<ScalarType, Order> AbscissaeGauss(void) {
-  if constexpr (Order == 5) {
+  if constexpr (Order == 1) {
+    return std::array<ScalarType, Order>({ScalarType(0)});
+  } else if constexpr (Order == 5) {
     return std::array<ScalarType, Order>(
         {ScalarType(-0.9061798459386639927976268782993929651256519107625),
          ScalarType(-0.5384693101056830910363144207002088049672866069056),
@@ -210,7 +212,9 @@ const std::array<ScalarType, Order> AbscissaeGauss(void) {
 
 template <class ScalarType, UnsignedIndex_t Order>
 const std::array<ScalarType, Order> WeightsGauss(void) {
-  if constexpr (Order == 5) {
+  if constexpr (Order == 1) {
+    return std::array<ScalarType, Order>({ScalarType(2)});
+  } else if constexpr (Order == 5) {
     return std::array<ScalarType, Order>(
         {ScalarType(0.23692688505618908751426404071991736264326000221241),
          ScalarType(0.47862867049936646804129151483563819291229555334314),
