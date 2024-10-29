@@ -1,4 +1,4 @@
-*build/*
+*build*/*
 bin/*
 obj/*
 libs/*
@@ -19,6 +19,7 @@ reference/plots/
 reference/half_edge_plotter/polytope.m
 examples/example_advector/viz/*
 *~
+*vscode*
 
 .cproject
 .project
