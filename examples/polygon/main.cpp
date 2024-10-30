@@ -3,6 +3,7 @@
 #include <string>
 
 #include "irl/generic_cutting/cut_polygon.h"
+#include "irl/generic_cutting/generic_cutting.h"
 
 int main(int argc, char* argv[]) {
   // Defining bounds of cuboid cell
@@ -29,6 +30,13 @@ int main(int argc, char* argv[]) {
               << "Surface area of polygon = " << std::setprecision(3)
               << polygon.calculateVolume()
               << " and distance = " << std::setprecision(3) << distance
+              << std::endl;
+
+    // Print volume fraction
+    const double vfrac =
+        IRL::getVolumeFraction(cell, IRL::PlanarSeparator::fromOnePlane(plane));
+    std::cout << std::scientific << "Volume fraction = " << std::setprecision(3)
+              << vfrac << " and distance = " << std::setprecision(3) << distance
               << std::endl;
   }
 
