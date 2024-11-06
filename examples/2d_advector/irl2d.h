@@ -376,6 +376,13 @@ BezierList ConstructPathline(const Vec& P00, const double dt, const double time,
                              Vec (*vel)(const double t, const Vec& P),
                              const int rec_num);
 
+BezierList TransportEdgeMidPoint(
+    const Vec& P00, const Vec& P10, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P), const int rec_num,
+    const bool add_pathlines = false, const bool close_flux = false,
+    const bool correct_area = false, const double exact_area = 0.0);
+
 BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
                          const double time,
                          const Vec (*vel)(const double t, const Vec& P),
@@ -399,6 +406,24 @@ BezierList CreatePreImage(const Vec& X0, const Vec& X1, const double dt,
                           const Mat (*grad_vel)(const double t, const Vec& P),
                           const bool correct_area,
                           const std::array<double, 4>& exact_area);
+
+BezierList CreateFluxCellMidPoint(
+    const Vec& P00, const Vec& P10, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area = false, const double exact_area = 0.);
+
+BezierList CreatePreImageMidPoint(
+    const Vec& X0, const Vec& X1, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area, const std::array<double, 4>& exact_area);
+
+BezierList CreateLinearPreImage(
+    const Vec& X0, const Vec& X1, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area, const std::array<double, 4>& exact_area);
 
 BezierList TransportLinearEdge(
     const Vec& P00, const Vec& P10, const double dt, const double time,

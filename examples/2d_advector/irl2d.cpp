@@ -87,7 +87,7 @@ void Print(const BezierList& list) {
 }
 
 void ToVTK(const std::vector<BezierList>& list, const std::string& filename) {
-  const int nsamples = 100;
+  const int nsamples = 10;
   const double w = 1. / static_cast<double>(nsamples);
   int npoints = 0;
   for (int i = 0; i < list.size(); i++) {
@@ -1070,19 +1070,27 @@ std::pair<Vec, Vec> RK4PointAndTangent(
   for (int i = 0; i < nsteps; i++) {
     const double t0 = time + static_cast<double>(i) * ddt;
     const auto k1 = vel(t0, Pnew);
-    const auto q1 = grad_vel(t0, Pnew) * Tnew;
+    const auto gradu1 = grad_vel(t0, Pnew);
+    const auto vortu1 = 0.0;  // gradu1[1][0] - gradu1[0][1];
+    const auto q1 = gradu1 * Tnew + Vec(Tnew[1], -Tnew[0]) * vortu1;
     const auto P1 = Pnew + 0.5 * ddt * k1;
     const auto T1 = Tnew + 0.5 * ddt * q1;
     const auto k2 = vel(t0 + 0.5 * ddt, P1);
-    const auto q2 = grad_vel(t0 + 0.5 * ddt, P1) * T1;
+    const auto gradu2 = grad_vel(t0 + 0.5 * ddt, P1);
+    const auto vortu2 = 0.0;  // gradu2[1][0] - gradu2[0][1];
+    const auto q2 = gradu2 * T1 + Vec(T1[1], -T1[0]) * vortu2;
     const auto P2 = Pnew + 0.5 * ddt * k2;
     const auto T2 = Tnew + 0.5 * ddt * q2;
     const auto k3 = vel(t0 + 0.5 * ddt, P2);
-    const auto q3 = grad_vel(t0 + 0.5 * ddt, P2) * T2;
+    const auto gradu3 = grad_vel(t0 + 0.5 * ddt, P2);
+    const auto vortu3 = 0.0;  // gradu3[1][0] - gradu3[0][1];
+    const auto q3 = gradu3 * T2 + Vec(T2[1], -T2[0]) * vortu3;
     const auto P3 = Pnew + ddt * k3;
     const auto T3 = Tnew + ddt * q3;
     const auto k4 = vel(t0 + ddt, P3);
-    const auto q4 = grad_vel(t0 + ddt, P3) * T3;
+    const auto gradu4 = grad_vel(t0 + ddt, P3);
+    const auto vortu4 = 0.0;  // gradu4[1][0] - gradu4[0][1];
+    const auto q4 = gradu4 * T3 + Vec(T3[1], -T3[0]) * vortu4;
     Pnew += ddt * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
     Tnew += ddt * (q1 + 2.0 * q2 + 2.0 * q3 + q4) / 6.0;
   }
@@ -1146,6 +1154,80 @@ BezierList ConstructPathline(const Vec& P00, const double dt, const double t,
   } else {
     return std::vector{std::make_pair(P00, P00 + intersection.second * T00)};
   }
+}
+
+BezierList TransportEdgeMidPoint(
+    const Vec& P00, const Vec& P10, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P), const int rec_num,
+    const bool add_pathlines, const bool close_flux, const bool correct_area,
+    const double exact_area) {
+  double tol = 10. * std::numeric_limits<double>::epsilon();
+  const int max_recursion = 1;
+  BezierList list(0);
+  list.reserve(4);
+  const auto P01 = RK4Point(P00, dt, time, vel);
+  const auto P11 = RK4Point(P10, dt, time, vel);
+  const auto Phalf0 = 0.5 * (P00 + P10);
+  const auto Phalf1 = RK4Point(Phalf0, dt, time, vel);
+
+  // Add first pathline
+  if (add_pathlines == true || correct_area == true) {
+    const auto P0half = RK4Point(P00, 0.5 * dt, time, vel);
+    const auto P0ctrl = 2.0 * P0half - 0.5 * (P00 + P01);
+    list.push_back(std::make_pair(P00, P0ctrl));
+  }
+
+  const auto Pctrl1 = 2.0 * Phalf1 - 0.5 * (P01 + P11);
+  list.push_back(std::make_pair(P01, Pctrl1));
+
+  // Add returning pathline to list
+  if (add_pathlines == true || correct_area == true) {
+    const auto P1half = RK4Point(P10, 0.5 * dt, time, vel);
+    const auto P1ctrl = 2.0 * P1half - 0.5 * (P10 + P11);
+    list.push_back(std::make_pair(P11, P1ctrl));
+  }
+
+  // Add original edge to list
+  if (close_flux == true || correct_area == true) {
+    list.push_back(std::make_pair(P10, 0.5 * (P00 + P10)));
+  }
+
+  // Correct control points of egde to match exact area
+  if (correct_area == true) {
+    const double uncorrected_area = ComputeArea(list);
+    const double area_correction = exact_area - uncorrected_area;
+
+    const auto P0 = P01;
+    const auto P1 = Pctrl1;
+    const auto P2 = P11;
+    auto segment = P2 - P0;
+    const double length = segment.magnitude();
+    segment.normalize();
+    const auto normal = IRL2D::Vec(-segment.y(), segment.x());
+    const double desired_arc_area = ArcVolume(P0, P1, P2) + area_correction;
+    // Find correction dir
+    const auto Pmid = P1 - (normal * (P1 - P0)) * normal;
+    // Calculate new distance correction
+    const double s =
+        (3. * desired_arc_area + 2. * P2.x() * P0.y() + Pmid.x() * P0.y() -
+         2. * P0.x() * P2.y() - Pmid.x() * P2.y() - P0.x() * Pmid.y() +
+         P2.x() * Pmid.y()) /
+        IRL::safelyEpsilon(normal.y() * P0.x() - normal.y() * P2.x() -
+                           normal.x() * P0.y() + normal.x() * P2.y());
+    // Correct control point
+    list[1].second = Pmid + s * normal;
+
+    if (close_flux == false) {
+      list.pop_back();
+    }
+    if (add_pathlines == false) {
+      list.erase(list.begin() + 2, list.end());
+      list.erase(list.begin(), list.begin() + 1);
+    }
+  }
+
+  return list;
 }
 
 BezierList TransportEdge(const Vec& P00, const Vec& P10, const double dt,
@@ -1283,7 +1365,7 @@ BezierList TransportLinearEdge(
   const auto PM1 = RK4Point(PM0, dt, time, vel);
 
   // Add first pathline
-  if (add_pathlines == true) {
+  if (add_pathlines == true || correct_area == true) {
     list.push_back(std::make_pair(P00, 0.5 * (P01 + P00)));
   }
 
@@ -1291,17 +1373,17 @@ BezierList TransportLinearEdge(
   list.push_back(std::make_pair(PM1, 0.5 * (PM1 + P11)));
 
   // Add returning pathline to list
-  if (add_pathlines == true) {
+  if (add_pathlines == true || correct_area == true) {
     list.push_back(std::make_pair(P11, 0.5 * (P10 + P11)));
   }
 
   // Add original edge to list
-  if (close_flux == true) {
+  if (close_flux == true || correct_area == true) {
     list.push_back(std::make_pair(P10, 0.5 * (P00 + P10)));
   }
 
   // Correct control points of egde to match exact area
-  if (add_pathlines == true && close_flux == true && correct_area == true) {
+  if (correct_area == true) {
     const double uncorrected_area = ComputeArea(list);
     const double area_correction = exact_area - uncorrected_area;
 
@@ -1327,6 +1409,14 @@ BezierList TransportLinearEdge(
     list[2].first = P1 + s * normal;
     list[1].second = 0.5 * (list[1].first + list[2].first);
     list[2].second = 0.5 * (list[2].first + list[3].first);
+
+    if (close_flux == false) {
+      list.pop_back();
+    }
+    if (add_pathlines == false) {
+      list.erase(list.begin() + 3, list.end());
+      list.erase(list.begin(), list.begin() + 1);
+    }
   }
 
   return list;
@@ -1339,6 +1429,15 @@ BezierList CreateFluxCell(const Vec& P00, const Vec& P10, const double dt,
                           const bool correct_area, const double exact_area) {
   return TransportEdge(P00, P10, dt, time, vel, grad_vel, 0, true, true,
                        correct_area, exact_area);
+}
+
+BezierList CreateFluxCellMidPoint(
+    const Vec& P00, const Vec& P10, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area, const double exact_area) {
+  return TransportEdgeMidPoint(P00, P10, dt, time, vel, grad_vel, 0, true, true,
+                               correct_area, exact_area);
 }
 
 BezierList CreatePreImage(const Vec& X0, const Vec& X1, const double dt,
@@ -1356,6 +1455,44 @@ BezierList CreatePreImage(const Vec& X0, const Vec& X1, const double dt,
     auto tmp_edge =
         TransportEdge(PList[i], PList[(i + 1) % 4], dt, time, vel, grad_vel, 0,
                       false, false, correct_area, exact_area[i]);
+    preimage.insert(preimage.end(), tmp_edge.begin(), tmp_edge.end());
+  }
+  return preimage;
+}
+
+BezierList CreatePreImageMidPoint(
+    const Vec& X0, const Vec& X1, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area, const std::array<double, 4>& exact_area) {
+  const auto PList =
+      std::array<Vec, 4>{Vec(X0.x(), X0.y()), Vec(X1.x(), X0.y()),
+                         Vec(X1.x(), X1.y()), Vec(X0.x(), X1.y())};
+  BezierList preimage(0);
+  preimage.reserve(4);
+  for (int i = 0; i < 4; i++) {
+    auto tmp_edge = TransportEdgeMidPoint(PList[i], PList[(i + 1) % 4], dt,
+                                          time, vel, grad_vel, 0, false, false,
+                                          correct_area, exact_area[i]);
+    preimage.insert(preimage.end(), tmp_edge.begin(), tmp_edge.end());
+  }
+  return preimage;
+}
+
+BezierList CreateLinearPreImage(
+    const Vec& X0, const Vec& X1, const double dt, const double time,
+    const Vec (*vel)(const double t, const Vec& P),
+    const Mat (*grad_vel)(const double t, const Vec& P),
+    const bool correct_area, const std::array<double, 4>& exact_area) {
+  const auto PList =
+      std::array<Vec, 4>{Vec(X0.x(), X0.y()), Vec(X1.x(), X0.y()),
+                         Vec(X1.x(), X1.y()), Vec(X0.x(), X1.y())};
+  BezierList preimage(0);
+  preimage.reserve(4);
+  for (int i = 0; i < 4; i++) {
+    auto tmp_edge = TransportLinearEdge(PList[i], PList[(i + 1) % 4], dt, time,
+                                        vel, grad_vel, 0, false, false,
+                                        correct_area, exact_area[i]);
     preimage.insert(preimage.end(), tmp_edge.begin(), tmp_edge.end());
   }
   return preimage;

@@ -340,6 +340,10 @@ void LVIRAQ::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
           Eigen::NumericalDiff<LVIRAQFunctor> NDLVIRAQFunctor(myLVIRAQFunctor);
           Eigen::LevenbergMarquardt<Eigen::NumericalDiff<LVIRAQFunctor>, double>
               LVIRAQ_LM(NDLVIRAQFunctor);
+          // LVIRAQ_LM.parameters.ftol = 1.0e-8;
+          // LVIRAQ_LM.parameters.xtol = 1.0e-8;
+          // LVIRAQ_LM.parameters.factor = 1.0;
+          // LVIRAQ_LM.parameters.maxfev = 1000;  // Max
           Eigen::VectorXd x(2);
           x.setZero();
           Eigen::LevenbergMarquardtSpace::Status status =

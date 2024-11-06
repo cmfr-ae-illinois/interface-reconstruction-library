@@ -218,10 +218,12 @@ void SemiLag::advectVOF(const std::string& a_simulation_type,
             mesh.getIndices(bbox.second, idmax);
 
             // Compute liquid fluxes by intersection on a n x n neighborhood
-            for (int ii = std::max(idmin[0], mesh.imino());
-                 ii <= std::min(idmax[0], mesh.imaxo()); ++ii) {
-              for (int jj = std::max(idmin[1], mesh.imino());
-                   jj <= std::min(idmax[1], mesh.imaxo()); ++jj) {
+            // for (int ii = std::max(idmin[0], mesh.imino());
+            //      ii <= std::min(idmax[0], mesh.imaxo()); ++ii) {
+            //   for (int jj = std::max(idmin[1], mesh.imino());
+            //        jj <= std::min(idmax[1], mesh.imaxo()); ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ii++) {
+              for (int jj = j - nlayers; jj <= j + nlayers; jj++) {
                 const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
                 const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
                 (liq_flux[dim])(i, j) += IRL2D::ComputeMoments(
@@ -495,10 +497,9 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
       const IRL2D::Mat (*grad_vel)(const double t, const IRL2D::Vec& P),
       const bool correct_area, const std::array<double, 4>& exact_area);
 
-  if (a_advection_method == "SemiLagL") {
-    std::cout << "Linear preimage not yet implemented" << std::endl;
-    exit(-1);
-  } else if (a_advection_method == "SemiLagQ") {
+  if (a_advection_method == "FullLagL") {
+    CreatePreImage = IRL2D::CreateLinearPreImage;
+  } else if (a_advection_method == "FullLagQ") {
     CreatePreImage = IRL2D::CreatePreImage;
   }
 
@@ -644,10 +645,12 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
           mesh.getIndices(bbox.second, idmax);
 
           // Compute liquid fluxes by intersection on a n x n neighborhood
-          for (int ii = std::max(idmin[0], mesh.imino());
-               ii <= std::min(idmax[0], mesh.imaxo()); ++ii) {
-            for (int jj = std::max(idmin[1], mesh.imino());
-                 jj <= std::min(idmax[1], mesh.imaxo()); ++jj) {
+          // for (int ii = std::max(idmin[0], mesh.imino());
+          //      ii <= std::min(idmax[0], mesh.imaxo()); ++ii) {
+          //   for (int jj = std::max(idmin[1], mesh.imino());
+          //        jj <= std::min(idmax[1], mesh.imaxo()); ++jj) {
+          for (int ii = i - nlayers; ii <= i + nlayers; ii++) {
+            for (int jj = j - nlayers; jj <= j + nlayers; jj++) {
               const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
               const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
               (liq_mom_update)(i, j) += IRL2D::ComputeMoments(

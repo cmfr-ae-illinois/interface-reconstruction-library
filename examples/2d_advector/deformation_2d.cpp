@@ -21,10 +21,12 @@
 #include "examples/2d_advector/vof_advection.h"
 #include "irl/parameters/constants.h"
 
-constexpr int GC = 3;
+constexpr int GC = 15;
 constexpr IRL2D::Vec lower_domain(-0.5, -0.5);
 constexpr IRL2D::Vec upper_domain(0.5, 0.5);
-constexpr double T = 2.0;
+constexpr double T = 1.0;
+constexpr double U = 1.0;
+constexpr double V = 1.0;
 
 BasicMesh Deformation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
@@ -98,42 +100,41 @@ void Deformation2D::setVelocity(const double t, Data<double>* a_U,
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       auto P = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
-      (*a_U)(i, j) = -2.0 * std::sin(M_PI * (P.x() - 0.5)) *
-                     std::sin(M_PI * (P.x() - 0.5)) *
-                     std::sin(M_PI * (P.y() - 0.5)) *
-                     std::cos(M_PI * (P.y() - 0.5)) * std::cos(t * M_PI / T);
-      (*a_V)(i, j) = 2.0 * std::sin(M_PI * (P.x() - 0.5)) *
-                     std::sin(M_PI * (P.y() - 0.5)) *
-                     std::sin(M_PI * (P.y() - 0.5)) *
-                     std::cos(M_PI * (P.x() - 0.5)) * std::cos(t * M_PI / T);
+      const double sinpix = std::sin(M_PI * (P.x() - 0.5 - U * t));
+      const double cospix = std::cos(M_PI * (P.x() - 0.5 - U * t));
+      const double sinpiy = std::sin(M_PI * (P.y() - 0.5 - V * t));
+      const double cospiy = std::cos(M_PI * (P.y() - 0.5 - V * t));
+      const double cost = std::cos(t * M_PI / T);
+      (*a_U)(i, j) = U - 2.0 * sinpix * sinpix * sinpiy * cospiy * cost;
+      (*a_V)(i, j) = V + 2.0 * sinpiy * sinpiy * sinpix * cospix * cost;
     }
   }
 }
 
 const IRL2D::Vec Deformation2D::getExactVelocity2D(double t,
                                                    const IRL2D::Vec& P) {
-  return IRL2D::Vec{
-      -2.0 * std::sin(M_PI * (P.x() - 0.5)) * std::sin(M_PI * (P.x() - 0.5)) *
-          std::sin(M_PI * (P.y() - 0.5)) * std::cos(M_PI * (P.y() - 0.5)) *
-          std::cos(t * M_PI / T),
-      2.0 * std::sin(M_PI * (P.x() - 0.5)) * std::sin(M_PI * (P.y() - 0.5)) *
-          std::sin(M_PI * (P.y() - 0.5)) * std::cos(M_PI * (P.x() - 0.5)) *
-          std::cos(t * M_PI / T)};
+  const double sinpix = std::sin(M_PI * (P.x() - 0.5 - U * t));
+  const double cospix = std::cos(M_PI * (P.x() - 0.5 - U * t));
+  const double sinpiy = std::sin(M_PI * (P.y() - 0.5 - V * t));
+  const double cospiy = std::cos(M_PI * (P.y() - 0.5 - V * t));
+  const double cost = std::cos(t * M_PI / T);
+  return IRL2D::Vec{U - 2.0 * sinpix * sinpix * sinpiy * cospiy * cost,
+                    V + 2.0 * sinpiy * sinpiy * sinpix * cospix * cost};
 }
 
 const IRL2D::Mat Deformation2D::getExactVelocityGradient2D(
     double t, const IRL2D::Vec& P) {
-  return IRL2D::Mat(
-      IRL2D::Vec{
-          -M_PI * std::sin(2.0 * M_PI * (P.x() - 0.5)) *
-              std::sin(2.0 * M_PI * (P.y() - 0.5)) * std::cos(t * M_PI / T),
-          -2.0 * M_PI * std::sin(M_PI * (P.x() - 0.5)) *
-              std::sin(M_PI * (P.x() - 0.5)) *
-              std::cos(2.0 * M_PI * (P.y() - 0.5)) * std::cos(t * M_PI / T)},
-      IRL2D::Vec{
-          -2.0 * M_PI * std::sin(M_PI * (P.y() - 0.5)) *
-              std::sin(M_PI * (P.y() - 0.5)) *
-              std::cos(2.0 * M_PI * (P.x() - 0.5)) * std::cos(t * M_PI / T),
-          -M_PI * std::sin(2.0 * M_PI * (P.y() - 0.5)) *
-              std::sin(2.0 * M_PI * (P.x() - 0.5)) * std::cos(t * M_PI / T)});
+  const double sinpix = std::sin(M_PI * (P.x() - 0.5 - U * t));
+  const double cospix = std::cos(M_PI * (P.x() - 0.5 - U * t));
+  const double sinpiy = std::sin(M_PI * (P.y() - 0.5 - V * t));
+  const double cospiy = std::cos(M_PI * (P.y() - 0.5 - V * t));
+  const double sin2pix = std::sin(2.0 * M_PI * (P.x() - 0.5 - U * t));
+  const double cos2pix = std::cos(2.0 * M_PI * (P.x() - 0.5 - U * t));
+  const double sin2piy = std::sin(2.0 * M_PI * (P.y() - 0.5 - V * t));
+  const double cos2piy = std::cos(2.0 * M_PI * (P.y() - 0.5 - V * t));
+  const double cost = std::cos(t * M_PI / T);
+  return IRL2D::Mat(IRL2D::Vec{-M_PI * sin2pix * sin2piy * cost,
+                               -2.0 * M_PI * cos2piy * sinpix * sinpix * cost},
+                    IRL2D::Vec{2.0 * M_PI * cos2pix * sinpiy * sinpiy * cost,
+                               M_PI * sin2pix * sin2piy * cost});
 }

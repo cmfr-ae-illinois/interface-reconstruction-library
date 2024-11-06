@@ -25,6 +25,7 @@ constexpr int GC = 3;
 constexpr IRL2D::Vec lower_domain(-0.5, -0.5);
 constexpr IRL2D::Vec upper_domain(0.5, 0.5);
 constexpr double T = 1.0;
+const double circle_radius = 0.25;
 
 BasicMesh Oscillation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
@@ -40,7 +41,6 @@ void Oscillation2D::initialize(Data<double>* a_U, Data<double>* a_V,
   Oscillation2D::setVelocity(a_time, a_U, a_V);
   const BasicMesh& mesh = a_U->getMesh();
   const auto circle_center = IRL2D::Vec(0.0, 0.0);
-  const double circle_radius = 0.25;
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
@@ -98,20 +98,24 @@ void Oscillation2D::setVelocity(const double a_time, Data<double>* a_U,
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       auto loc = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
-      (*a_U)(i, j) = std::cos(a_time * 2.0 * M_PI / T) * loc[0];
-      (*a_V)(i, j) = -std::cos(a_time * 2.0 * M_PI / T) * loc[1];
+      (*a_U)(i, j) =
+          std::cos(a_time * 2.0 * M_PI / T) * loc[0] / (2.0 * circle_radius);
+      (*a_V)(i, j) =
+          -std::cos(a_time * 2.0 * M_PI / T) * loc[1] / (2.0 * circle_radius);
     }
   }
 }
 
 const IRL2D::Vec Oscillation2D::getExactVelocity2D(double t,
                                                    const IRL2D::Vec& P) {
-  return IRL2D::Vec{std::cos(t * 2.0 * M_PI / T) * P.x(),
-                    -std::cos(t * 2.0 * M_PI / T) * P.y()};
+  return IRL2D::Vec{
+      std::cos(t * 2.0 * M_PI / T) * P.x() / (2.0 * circle_radius),
+      -std::cos(t * 2.0 * M_PI / T) * P.y() / (2.0 * circle_radius)};
 }
 
 const IRL2D::Mat Oscillation2D::getExactVelocityGradient2D(
     double t, const IRL2D::Vec& P) {
-  return IRL2D::Mat(IRL2D::Vec{std::cos(t * 2.0 * M_PI / T), 0.0},
-                    IRL2D::Vec{0.0, -std::cos(t * 2.0 * M_PI / T)});
+  return IRL2D::Mat(
+      IRL2D::Vec{std::cos(t * 2.0 * M_PI / T) / (2.0 * circle_radius), 0.0},
+      IRL2D::Vec{0.0, -std::cos(t * 2.0 * M_PI / T) / (2.0 * circle_radius)});
 }
