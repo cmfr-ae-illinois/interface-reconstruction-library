@@ -7,18 +7,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/2d_advector/deformation_2d.h"
+#include "examples/test/deformation_2d.h"
 
 #include <float.h>
 #include <chrono>
 #include <cmath>
 #include <iostream>
 
-#include "examples/2d_advector/data.h"
-#include "examples/2d_advector/irl2d.h"
-#include "examples/2d_advector/reconstruction_types.h"
-#include "examples/2d_advector/solver.h"
-#include "examples/2d_advector/vof_advection.h"
+#include "examples/test/data.h"
+#include "examples/test/irl2d.h"
+#include "examples/test/reconstruction_types.h"
+#include "examples/test/solver.h"
+#include "examples/test/vof_advection.h"
 #include "irl/parameters/constants.h"
 
 constexpr int GC = 15;

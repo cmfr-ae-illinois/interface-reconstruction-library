@@ -1,0 +1,30 @@
+IRLAddExample_cpp(
+  TARGET_NAME
+  test
+  HDRS
+  "basic_mesh.h"
+  "data.h"
+  "rotation_2d.h"
+  "oscillation_2d.h"
+  "deformation_2d.h"
+  "reconstruction_types.h"
+  "vof_advection.h"
+  "solver.h"
+  "vtk.h"
+  "irl2d.h"
+  SRCS
+  "main.cpp"
+  "basic_mesh.cpp"
+  "vof_advection.cpp"
+  "solver.cpp"
+  "reconstruction_types.cpp"
+  "rotation_2d.cpp"
+  "oscillation_2d.cpp"
+  "deformation_2d.cpp"
+  "vtk.cpp"
+  "irl2d.cpp"
+  OUTPUT_DIR
+  "${IRL_EXAMPLES_OUTPUT_DIR}/test"
+  COLLECTION
+  "examples_test"
+)

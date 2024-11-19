@@ -17,7 +17,7 @@
 #endif
 
 #include <cstring>
-#include "examples/2d_advector/irl2d.h"
+#include "examples/test/irl2d.h"
 
 /// \brief This is a basic mesh class that stores
 /// the number of cells in the mesh, the number of

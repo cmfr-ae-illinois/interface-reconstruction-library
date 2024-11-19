@@ -7,28 +7,27 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/2d_advector/deformation_2d.h"
+#include "examples/2d_advector/oscillation_2d.h"
 
 #include <float.h>
 #include <chrono>
 #include <cmath>
 #include <iostream>
 
-#include "examples/2d_advector/data.h"
-#include "examples/2d_advector/irl2d.h"
-#include "examples/2d_advector/reconstruction_types.h"
-#include "examples/2d_advector/solver.h"
-#include "examples/2d_advector/vof_advection.h"
+#include "examples/test/data.h"
+#include "examples/test/irl2d.h"
+#include "examples/test/reconstruction_types.h"
+#include "examples/test/solver.h"
+#include "examples/test/vof_advection.h"
 #include "irl/parameters/constants.h"
 
-constexpr int GC = 15;
+constexpr int GC = 3;
 constexpr IRL2D::Vec lower_domain(-0.5, -0.5);
 constexpr IRL2D::Vec upper_domain(0.5, 0.5);
-constexpr double T = 8;
-constexpr double U = 0;
-constexpr double V = 0;
+constexpr double T = 1.0;
+const double circle_radius = 0.25;
 
-BasicMesh Deformation2D::setMesh(const int a_nx) {
+BasicMesh Oscillation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
   IRL2D::Vec my_lower_domain = lower_domain;
   IRL2D::Vec my_upper_domain = upper_domain;
@@ -36,13 +35,12 @@ BasicMesh Deformation2D::setMesh(const int a_nx) {
   return mesh;
 }
 
-void Deformation2D::initialize(Data<double>* a_U, Data<double>* a_V,
+void Oscillation2D::initialize(Data<double>* a_U, Data<double>* a_V,
                                Data<IRL2D::Parabola>* a_interface,
                                const double a_time) {
-  Deformation2D::setVelocity(a_time, a_U, a_V);
+  Oscillation2D::setVelocity(a_time, a_U, a_V);
   const BasicMesh& mesh = a_U->getMesh();
-  const auto circle_center = IRL2D::Vec(0.0, 0.25);
-  const double circle_radius = 0.15;
+  const auto circle_center = IRL2D::Vec(0.0, 0.0);
 
   // Loop over cells in domain. Skip if cell is not mixed phase.
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
@@ -93,48 +91,31 @@ void Deformation2D::initialize(Data<double>* a_U, Data<double>* a_V,
   correctInterfaceBorders(a_interface);
 }
 
-void Deformation2D::setVelocity(const double t, Data<double>* a_U,
+void Oscillation2D::setVelocity(const double a_time, Data<double>* a_U,
                                 Data<double>* a_V) {
   const double vel_scale = 2.0 * M_PI;
   const BasicMesh& mesh = a_U->getMesh();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      auto P = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
-      const double sinpix = std::sin(M_PI * (P.x() - 0.5 - U * t));
-      const double cospix = std::cos(M_PI * (P.x() - 0.5 - U * t));
-      const double sinpiy = std::sin(M_PI * (P.y() - 0.5 - V * t));
-      const double cospiy = std::cos(M_PI * (P.y() - 0.5 - V * t));
-      const double cost = std::cos(t * M_PI / T);
-      (*a_U)(i, j) = U - 2.0 * sinpix * sinpix * sinpiy * cospiy * cost;
-      (*a_V)(i, j) = V + 2.0 * sinpiy * sinpiy * sinpix * cospix * cost;
+      auto loc = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
+      (*a_U)(i, j) =
+          std::cos(a_time * 2.0 * M_PI / T) * loc[0] / (2.0 * circle_radius);
+      (*a_V)(i, j) =
+          -std::cos(a_time * 2.0 * M_PI / T) * loc[1] / (2.0 * circle_radius);
     }
   }
 }
 
-const IRL2D::Vec Deformation2D::getExactVelocity2D(double t,
+const IRL2D::Vec Oscillation2D::getExactVelocity2D(double t,
                                                    const IRL2D::Vec& P) {
-  const double sinpix = std::sin(M_PI * (P.x() - 0.5 - U * t));
-  const double cospix = std::cos(M_PI * (P.x() - 0.5 - U * t));
-  const double sinpiy = std::sin(M_PI * (P.y() - 0.5 - V * t));
-  const double cospiy = std::cos(M_PI * (P.y() - 0.5 - V * t));
-  const double cost = std::cos(t * M_PI / T);
-  return IRL2D::Vec{U - 2.0 * sinpix * sinpix * sinpiy * cospiy * cost,
-                    V + 2.0 * sinpiy * sinpiy * sinpix * cospix * cost};
+  return IRL2D::Vec{
+      std::cos(t * 2.0 * M_PI / T) * P.x() / (2.0 * circle_radius),
+      -std::cos(t * 2.0 * M_PI / T) * P.y() / (2.0 * circle_radius)};
 }
 
-const IRL2D::Mat Deformation2D::getExactVelocityGradient2D(
+const IRL2D::Mat Oscillation2D::getExactVelocityGradient2D(
     double t, const IRL2D::Vec& P) {
-  const double sinpix = std::sin(M_PI * (P.x() - 0.5 - U * t));
-  const double cospix = std::cos(M_PI * (P.x() - 0.5 - U * t));
-  const double sinpiy = std::sin(M_PI * (P.y() - 0.5 - V * t));
-  const double cospiy = std::cos(M_PI * (P.y() - 0.5 - V * t));
-  const double sin2pix = std::sin(2.0 * M_PI * (P.x() - 0.5 - U * t));
-  const double cos2pix = std::cos(2.0 * M_PI * (P.x() - 0.5 - U * t));
-  const double sin2piy = std::sin(2.0 * M_PI * (P.y() - 0.5 - V * t));
-  const double cos2piy = std::cos(2.0 * M_PI * (P.y() - 0.5 - V * t));
-  const double cost = std::cos(t * M_PI / T);
-  return IRL2D::Mat(IRL2D::Vec{-M_PI * sin2pix * sin2piy * cost,
-                               -2.0 * M_PI * cos2piy * sinpix * sinpix * cost},
-                    IRL2D::Vec{2.0 * M_PI * cos2pix * sinpiy * sinpiy * cost,
-                               M_PI * sin2pix * sin2piy * cost});
+  return IRL2D::Mat(
+      IRL2D::Vec{std::cos(t * 2.0 * M_PI / T) / (2.0 * circle_radius), 0.0},
+      IRL2D::Vec{0.0, -std::cos(t * 2.0 * M_PI / T) / (2.0 * circle_radius)});
 }
