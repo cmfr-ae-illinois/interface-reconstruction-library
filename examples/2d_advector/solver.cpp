@@ -40,10 +40,10 @@ void setPhaseQuantities(const Data<IRL2D::Parabola>& a_interface,
 }
 
 void writeDiagnosticsHeader(void) {
-  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s %16s %12s\n", "Iteration",
+  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s %16s\n", "Iteration",
          "Time", "CFL", "liquidVFSum", "liquidVolSum", "ChangeLiquidVFSum",
          "ChangeLiquidVolSum", "AdvectionDuration", "ReconDuration",
-         "OutputDuration", "InterfaceCells","Counter");
+         "OutputDuration", "InterfaceCells");
 }
 
 void writeOutDiagnostics(const int a_iteration, const double a_dt,
@@ -53,9 +53,7 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          const Data<IRL2D::Parabola>& a_interface,
                          std::chrono::duration<double> a_VOF_duration,
                          std::chrono::duration<double> a_recon_duration,
-                         std::chrono::duration<double> a_write_duration,
-                         int& counter, double& maxDistanceThisTime,
-                         double& distanceSumThisTime) {
+                         std::chrono::duration<double> a_write_duration) {
   const BasicMesh& mesh = a_U.getMesh();
   static double initial_liquid_volume_fraction_sum;
   static double initial_liquid_volume_sum;
@@ -84,64 +82,25 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
       }
     }
   }
-
-  // realizibility and symmetry checks -----------------------------------------------------------------
-
-  for (int i = mesh.imin(); i <= mesh.imax(); ++i){
-    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
-      if (a_liquid_moments(i, j).m0() / mesh.cell_volume() >= IRL::global_constants::VF_LOW &&
-          a_liquid_moments(i, j).m0() / mesh.cell_volume() <= IRL::global_constants::VF_HIGH){
-          double x_centroid = a_liquid_moments(i, j).m1()[0] / a_liquid_moments(i, j).m0();
-          double y_centroid = a_liquid_moments(i, j).m1()[1] / a_liquid_moments(i, j).m0();
-          bool isOut = false;
-          double distanceFromEdge = 0.0;
-          double distanceTemp = 0.0;
-          if (x_centroid < (mesh.xm(i) - mesh.dx()/2)) {          // left
-              isOut=true;
-              distanceFromEdge = std::fabs((mesh.xm(i) - mesh.dx()/2) - x_centroid)/mesh.dx();
-          } else if (x_centroid > (mesh.xm(i) + mesh.dx()/2)) {   // right
-              isOut = true;
-              distanceFromEdge = std::fabs(x_centroid - (mesh.xm(i) + mesh.dx()/2))/mesh.dx();
-          } else if (y_centroid < (mesh.ym(j) - mesh.dy()/2)) {   // bottom
-              distanceTemp = std::fabs((mesh.ym(i) - mesh.dy()/2) - y_centroid)/mesh.dy();
-              distanceFromEdge = isOut? std::max(distanceFromEdge,distanceTemp) : distanceTemp;
-              isOut = true;
-          } else if (y_centroid > (mesh.ym(j) + mesh.dy()/2)) {   // top
-              distanceTemp = std::fabs(y_centroid - (mesh.ym(i) + mesh.dy()/2))/mesh.dy();
-              distanceFromEdge = isOut? std::max(distanceFromEdge,distanceTemp) : distanceTemp;
-              isOut = true;
-          }
-          if (isOut){
-            ++counter;
-            distanceSumThisTime = distanceSumThisTime + distanceFromEdge;
-            maxDistanceThisTime = std::max(maxDistanceThisTime,distanceFromEdge);
-          } 
-      }   
-    }
-  }
-
-  // --------------------------------------------------------------------------------------------------
-
   // Save initial values to compare against.
   if (a_iteration == 0) {
     initial_liquid_volume_fraction_sum = liquid_volume_fraction_sum;
     initial_liquid_volume_sum = liquid_volume_sum;
   }
   printf(
-      "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %16d %12d"
+      "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %16d"
       "\n",
       a_iteration, a_simulation_time, CFL, liquid_volume_fraction_sum,
       liquid_volume_sum,
       liquid_volume_fraction_sum - initial_liquid_volume_fraction_sum,
       liquid_volume_sum - initial_liquid_volume_sum, a_VOF_duration.count(),
       a_recon_duration.count(), a_write_duration.count(),
-      number_of_interface_cells, counter);
+      number_of_interface_cells);
 }
 
 void printError(const BasicMesh& mesh,
                 const Data<IRL2D::Moments>& liquid_moments,
-                const Data<IRL2D::Moments>& starting_liquid_moments, const int& total_counter,
-                const double& maxDistanceAllTime, const double& avgDistanceAllTime) {
+                const Data<IRL2D::Moments>& starting_liquid_moments) {
   double linf_error_m0 = 0.0;
   double linf_error_m1 = 0.0;
   double linf_error_m2 = 0.0;
@@ -185,7 +144,6 @@ void printError(const BasicMesh& mesh,
       }
     }
   }
-  //int counter = 1;
   l1_error_m0 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
   l1_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
   l1_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
@@ -211,7 +169,4 @@ void printError(const BasicMesh& mesh,
   std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
   std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
   std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
-  std::cout << "Total non-realizable centroids: " << total_counter << std::endl;
-  std::cout << "Maximum distance of centroid from cell edge: "  << maxDistanceAllTime <<" cells" << std::endl;
-  std::cout << "Average distance of centroid from cell edge: " << avgDistanceAllTime <<" cells" << std::endl;
 }

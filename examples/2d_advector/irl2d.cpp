@@ -2128,4 +2128,81 @@ std::pair<Vec, Vec> BoundingBox(const BezierList& cell) {
   return std::make_pair(mi, ma);
 }
 
+// Functions for mapping centroids -----------------------------------------------
+
+std::vector<BezierList> TriangulateCell(const BezierList& cell, const int num){
+  // num = 0 is for cell and 1 is for preimage
+  std::vector<BezierList> triangles;
+  std::vector<Vec> cell_points;
+  for(int i = 0; i < cell.size(); ++i){
+    cell_points.push_back(cell[i].first);
+    if (num == 0){
+      cell_points.push_back(cell[i].second);
+    }
+  }
+  cell_points.push_back(cell[0].first); 
+  
+  Moments cell_moment = ComputeMoments(cell);
+  auto centroid = Vec();
+  centroid.x() = cell_moment.m1()[0]/cell_moment.m0();
+  centroid.y() = cell_moment.m1()[1]/cell_moment.m0();
+  for(int i = 0; i < cell_points.size() - 1; ++i){
+    Vec v1 = cell_points[i];
+    Vec v2 = cell_points[i+1];
+    Vec v3 = centroid;
+    Vec c1 = (v1 + v2)/2;
+    Vec c2 = (v2 + centroid)/2;
+    Vec c3 = (centroid + v1)/2;
+    BezierList triangle_list = {{v1,c1},{v2,c2},{v3,c3}};
+    triangles.push_back(triangle_list);
+  }
+  return triangles; // 8 bezier lists with 3 point & control pt pairs each
+}
+
+
+std::pair<Mat,Vec> MappingMatVec(const BezierList& triangle1, const BezierList& triangle2){
+  Mat A = Mat();
+  Vec b = Vec();
+
+  double x1, x2, x3, y1, y2, y3, x1p, x2p, x3p, y1p, y2p, y3p, denominator;
+  x1 = triangle1[0].first[0]; x2 = triangle1[1].first[0]; x3 = triangle1[2].first[0];
+  y1 = triangle1[0].first[1]; y2 = triangle1[1].first[1]; y3 = triangle1[2].first[1];
+
+  x1p = triangle2[0].first[0]; x2p = triangle2[1].first[0]; x3p = triangle2[2].first[0];
+  y1p = triangle2[0].first[1]; y2p = triangle2[1].first[1]; y3p = triangle2[2].first[1];
+
+  denominator = (x2*y1 - x3*y1 - x1*y2 + x3*y2 + x1*y3 - x2*y3);
+
+  A[0][0] = -(-x2p*y1 + x3p*y1 + x1p*y2 - x3p*y2 - x1p*y3 + x2p*y3) / denominator;
+  A[0][1] = -(x1p*x2 - x1*x2p - x1p*x3 + x2p*x3 + x1*x3p - x2*x3p) / (-denominator);
+  A[1][0] = -(y1p*y2 - y1*y2p - y1p*y3 + y2p*y3 + y1*y3p - y2*y3p) / denominator;
+  A[1][1] = -(-x2*y1p + x3*y1p + x1*y2p - x3*y2p - x1*y3p + x2*y3p) / denominator;
+
+  b[0] = -(-x2p*x3*y1 + x2*x3p*y1 + x1p*x3*y2 - x1*x3p*y2 - x1p*x2*y3 + x1*x2p*y3) / (-denominator);
+  b[1] = -(-x3*y1p*y2 + x3*y1*y2p + x2*y1p*y3 - x1*y2p*y3 - x2*y1*y3p + x1*y2*y3p) / denominator;
+
+  return {A, b};
+}
+
+Vec MappingPoint(const Mat& A, const Vec& b, const Vec& point){
+  Vec mapped_point = Vec();
+  mapped_point.x() = A[0][0]*point.x() + A[0][1]*point.y() + b[0];
+  mapped_point.y() = A[1][0]*point.x() + A[1][1]*point.y() + b[1];
+
+  return mapped_point;
+}
+
+double TriangleArea(const BezierList& triangle){
+  double area;
+  Vec point1 = triangle[0].first;
+  Vec point2 = triangle[1].first;
+  Vec point3 = triangle[2].first;
+
+  area = 0.5 * std::abs( point1.x()*(point2.y()-point3.y())
+                      +  point2.x()*(point3.y()-point1.y())
+                      +  point3.x()*(point1.y()-point2.y()));
+
+  return area;
+}
+
 }  // namespace IRL2D
