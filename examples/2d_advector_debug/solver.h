@@ -184,7 +184,7 @@ int runSimulation(const std::string& a_simulation_type,
                           liquid_moments, interface, advect_VOF_time,
                           recon_time, write_time, counter, maxDistanceThisTime,
                           distanceSumThisTime, ij_nonrealizableThisTime, volFrac_nonrealizableThisTime);
-      printline();
+      //printline();
       if(counter != 0){
         for (int c = 0; c < counter; ++c){
           t_nonrealizable.push_back(simulation_time + time_step_to_use);
