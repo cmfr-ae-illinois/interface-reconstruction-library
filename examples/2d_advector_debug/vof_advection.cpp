@@ -613,7 +613,7 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
   Data<std::vector<IRL2D::Mat>> mapping_A(&mesh);
   Data<std::vector<IRL2D::Vec>> mapping_b(&mesh);
   Data<std::vector<bool>> contains_liquid(&mesh);
-  Data<std::vector<IRL2D::Vec>> mapped_centroid(&mesh);
+  Data<std::vector<IRL2D::Vec>> mapped_m1_triangle(&mesh);
   int num_triangles = 8;
   // for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
   //   for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -625,7 +625,7 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
   // }
 
 
-  int count = 0, count_local = 0;
+  int count = 0, count_local = 0, debug_count = 0;
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       const double cell_volume = mesh.cell_volume();
@@ -636,7 +636,7 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
       mapping_A(i,j) = std::vector<IRL2D::Mat>(num_triangles, IRL2D::Mat());
       mapping_b(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
       contains_liquid(i,j) = std::vector<bool>(num_triangles, false);
-      mapped_centroid(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
+      mapped_m1_triangle(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
 
       // Only solve advection in narrow band near the interface
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
@@ -660,9 +660,40 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
 
           fluxes.push_back(preimage);
 
+          // FOR DEBUGGING
+          // int i_debug, j_debug;
+          // if (band(i,j) == 1 && debug_count == 0){
+          //   std::cout << "(i,j) = (" << i << "," << j << ")" << std::endl;
+          //   i_debug = i, j_debug = j;
+          //   IRL2D::Print(cell);
+          //   IRL2D::Print(preimage);
+          //   std::cout << "" << std::endl;
+          //   debug_count = 1;
+          // }
+
           // triangulation of cell and preimage
           std::vector<IRL2D::BezierList> triangulated_cell = IRL2D::TriangulateCell(cell, 0);
           std::vector<IRL2D::BezierList> triangulated_preimage = IRL2D::TriangulateCell(preimage, 1);
+
+
+          // to check if triangulation is done right
+          // if (i == i_debug && j == j_debug){
+          //   std::cout << triangulated_cell.size() << std::endl;
+          //   std::cout << triangulated_preimage.size() << std::endl;
+          //   std::cout << "Triangulated cell: " << std::endl;
+
+          //   for (int t = 0; t < triangulated_cell.size(); ++t){
+          //     std::cout << "Triangle: " << t+1 << std::endl;
+          //     IRL2D::Print(triangulated_cell[t]);
+          //   }
+
+          //   std::cout << "Triangulated preimage: " << std::endl;
+
+          //   for (int t = 0; t < triangulated_preimage.size(); ++t){
+          //     std::cout << "Triangle: " << t+1 << std::endl;
+          //     IRL2D::Print(triangulated_preimage[t]);
+          //   }
+          // }
 
           // mapping from preimage to cell
           for (int t = 0; t < num_triangles; ++t){
@@ -670,6 +701,17 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
             = IRL2D::MappingMatVec(triangulated_preimage[t], triangulated_cell[t]);
             mapping_A(i,j)[t] = mapping_MatVec.first;
             mapping_b(i,j)[t] = mapping_MatVec.second;
+
+            // For debugging
+          //   if (i == i_debug && j == j_debug){
+          //     std::cout << "Triangle: " << t+1 << std::endl;
+          //     std::cout << "A00 = " << mapping_MatVec.first[0][0] << ";" << std::endl;
+          //     std::cout << "A01 = " << mapping_MatVec.first[0][1] << ";" << std::endl;
+          //     std::cout << "A10 = " << mapping_MatVec.first[1][0] << ";" << std::endl;
+          //     std::cout << "A11 = " << mapping_MatVec.first[1][1] << ";" << std::endl;
+          //     std::cout << "b0 = " << mapping_MatVec.second[0] << ";" << std::endl;
+          //     std::cout << "b1 = " << mapping_MatVec.second[1] << ";" << std::endl;
+          //   }
           }
 
           // Compute flux bounding boxes
@@ -701,16 +743,17 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
             }
           }
 
-          // checking which triangle has liquid
           for (int t = 0; t < num_triangles; ++t){
-            double triangle_area = IRL2D::TriangleArea(triangulated_preimage[t]);
-            double triangle_volfrac = triangle_liq_mom(i,j)[t].m0()/triangle_area;
-            if (triangle_volfrac >= IRL::global_constants::VF_LOW){
-              contains_liquid(i,j)[t] = true;
+            // double triangle_area = IRL2D::TriangleArea(triangulated_preimage[t]);
+            // double triangle_volfrac = triangle_liq_mom(i,j)[t].m0()/triangle_area;
+            // if (triangle_volfrac >= IRL::global_constants::VF_LOW){
+            //   contains_liquid(i,j)[t] = true;
               // mapping centroid for triangles with liquid
-              IRL2D::Vec centroid = triangle_liq_mom(i,j)[t].m1() / triangle_liq_mom(i,j)[t].m0();
-              mapped_centroid(i,j)[t] = IRL2D::MappingPoint(mapping_A(i,j)[t], mapping_b(i,j)[t], centroid);
-            }
+            //IRL2D::Vec m1_triangle = triangle_liq_mom(i,j)[t].m1();// / triangle_liq_mom(i,j)[t].m0();
+            mapped_m1_triangle(i,j)[t] = IRL2D::MappingPoint(mapping_A(i,j)[t], 
+                                         mapping_b(i,j)[t]*triangle_liq_mom(i,j)[t].m0(),
+                                         triangle_liq_mom(i,j)[t].m1());
+            //}
           }
 
           // (liq_mom_update)(i, j).m0() =
@@ -793,7 +836,7 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
   mapping_A.updateBorder();
   mapping_b.updateBorder();
   contains_liquid.updateBorder();
-  mapped_centroid.updateBorder();
+  mapped_m1_triangle.updateBorder();
 
   // Transporting moments
   // Now calculate VOF from the face fluxes.
@@ -844,9 +887,9 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
           //weighted sum of first moment for simplices that contain liquid
           IRL2D::Vec M1_final = IRL2D::Vec();
           for (int t = 0; t < num_triangles; ++t){
-            if (contains_liquid(i,j)[t] == true){
-              M1_final += triangle_liq_mom(i,j)[t].m0() * mapped_centroid(i,j)[t];
-            }
+            //if (contains_liquid(i,j)[t] == true){
+            M1_final += mapped_m1_triangle(i,j)[t];
+            //}
           }
 
           // const auto M1_final =

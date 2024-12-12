@@ -55,7 +55,10 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          std::chrono::duration<double> a_recon_duration,
                          std::chrono::duration<double> a_write_duration,
                          int& counter, double& maxDistanceThisTime,
-                         double& distanceSumThisTime) {
+                         double& distanceSumThisTime,
+                         std::vector<std::pair<int, int>>& ij_nonrealizableThisTime,
+                         std::vector<double>& volFrac_nonrealizableThisTime) {
+
   const BasicMesh& mesh = a_U.getMesh();
   static double initial_liquid_volume_fraction_sum;
   static double initial_liquid_volume_sum;
@@ -96,25 +99,31 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
           bool isOut = false;
           double distanceFromEdge = 0.0;
           double distanceTemp = 0.0;
-          if (x_centroid < (mesh.xm(i) - mesh.dx()/2)) {          // left
+          if (a_liquid_moments(i, j).m1()[0] < (mesh.xm(i) - mesh.dx()/2)*a_liquid_moments(i, j).m0()) {          // left
               isOut=true;
               distanceFromEdge = std::fabs((mesh.xm(i) - mesh.dx()/2) - x_centroid)/mesh.dx();
-          } else if (x_centroid > (mesh.xm(i) + mesh.dx()/2)) {   // right
+          } else if (a_liquid_moments(i, j).m1()[0] > (mesh.xm(i) + mesh.dx()/2)*a_liquid_moments(i, j).m0()) {   // right
               isOut = true;
               distanceFromEdge = std::fabs(x_centroid - (mesh.xm(i) + mesh.dx()/2))/mesh.dx();
-          } else if (y_centroid < (mesh.ym(j) - mesh.dy()/2)) {   // bottom
+          } else if (a_liquid_moments(i, j).m1()[1] < (mesh.ym(j) - mesh.dy()/2)*a_liquid_moments(i, j).m0()) {   // bottom
               distanceTemp = std::fabs((mesh.ym(i) - mesh.dy()/2) - y_centroid)/mesh.dy();
               distanceFromEdge = isOut? std::max(distanceFromEdge,distanceTemp) : distanceTemp;
               isOut = true;
-          } else if (y_centroid > (mesh.ym(j) + mesh.dy()/2)) {   // top
+          } else if (a_liquid_moments(i, j).m1()[1] > (mesh.ym(j) + mesh.dy()/2)*a_liquid_moments(i, j).m0()) {   // top
               distanceTemp = std::fabs(y_centroid - (mesh.ym(i) + mesh.dy()/2))/mesh.dy();
               distanceFromEdge = isOut? std::max(distanceFromEdge,distanceTemp) : distanceTemp;
               isOut = true;
           }
           if (isOut){
             ++counter;
-            distanceSumThisTime = distanceSumThisTime + distanceFromEdge;
+            distanceSumThisTime = distanceSumThisTime + distanceFromEdge; // for average distance calc
             maxDistanceThisTime = std::max(maxDistanceThisTime,distanceFromEdge);
+
+            // (i,j) indicies where non-realizable centroids are observed
+            ij_nonrealizableThisTime.push_back({i,j});
+
+            // volume fractions for these cells
+            volFrac_nonrealizableThisTime.push_back(a_liquid_moments(i, j).m0());
           } 
       }   
     }
@@ -201,16 +210,16 @@ void printError(const BasicMesh& mesh,
   l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
   l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
   l2_error_m2 = std::sqrt(l2_error_m2) * scale_m2;
-  std::cout << std::scientific << std::setprecision(3)
-            << "Linf M0 = " << linf_error_m0 << std::endl;
-  std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
-  std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
-  std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
-  std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
-  std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
-  std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
-  std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
-  std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
+  std::cout << std::scientific << std::setprecision(3);
+  //           << "Linf M0 = " << linf_error_m0 << std::endl;
+  // std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
+  // std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
+  // std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
+  // std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
+  // std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
+  // std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
+  // std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
+  // std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
   std::cout << "Total non-realizable centroids: " << total_counter << std::endl;
   std::cout << "Maximum distance of centroid from cell edge: "  << maxDistanceAllTime <<" cells" << std::endl;
   std::cout << "Average distance of centroid from cell edge: " << avgDistanceAllTime <<" cells" << std::endl;

@@ -22,6 +22,8 @@
 #include "examples/2d_advector_debug/rotation_2d.h"
 #include "examples/2d_advector_debug/vof_advection.h"
 #include "examples/2d_advector_debug/vtk.h"
+#include "examples/2d_advector_debug/output_data.h"
+
 
 /// \brief Handles running and advancing the solution according to provided
 /// static functions in structs.
@@ -50,7 +52,9 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          std::chrono::duration<double> a_recon_duration,
                          std::chrono::duration<double> a_write_duration,
                          int& counter, double& maxDistanceThisTime,
-                         double& distanceSumThisTime);
+                         double& distanceSumThisTime,
+                         std::vector<std::pair<int, int>>& ij_nonrealizableThisTime,
+                         std::vector<double>& volFrac_nonrealizableThisTime);
 
 /// \brief Generates triangulated surface and writes to provided VTK file
 void writeInterfaceToFile(const Data<IRL2D::Moments>& a_liquid_moments,
@@ -129,14 +133,19 @@ int runSimulation(const std::string& a_simulation_type,
 #ifdef USE_MPI
   if (!rank) {
 #endif
+
+    // diagnostics for t=0
     writeDiagnosticsHeader();
     int counter_initial = 0; // for the first iteration
     double maxDistanceInitial = 0.0;
     double distanceSumInitial = 0.0;
+    std::vector<std::pair<int, int>> ij_nonrealizableInitial;
+    std::vector<double> volFrac_nonrealizableInitial;
+
     writeOutDiagnostics(iteration, a_dt, simulation_time, velU, velV,
                         liquid_moments, interface, advect_VOF_time, recon_time,
                         write_time, counter_initial, maxDistanceInitial,
-                        distanceSumInitial);
+                        distanceSumInitial, ij_nonrealizableInitial, volFrac_nonrealizableInitial);
 #ifdef USE_MPI
   }
 #endif
@@ -146,6 +155,10 @@ int runSimulation(const std::string& a_simulation_type,
   int total_counter = 0;
   double maxDistanceAllTime = 0.0;
   double distanceSumAllTime = 0.0;
+  std::vector<double> t_nonrealizable;
+  std::vector<double> volfrac_nonrealizable;
+  std::vector<std::pair<int, int>> ij_nonrealizable;
+
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
         std::fmin(a_dt, a_end_time - simulation_time);
@@ -163,15 +176,28 @@ int runSimulation(const std::string& a_simulation_type,
       int counter = 0;
       double maxDistanceThisTime = 0.0;
       double distanceSumThisTime = 0.0;
+      std::vector<std::pair<int, int>> ij_nonrealizableThisTime; 
+      std::vector<double> volFrac_nonrealizableThisTime;
+
       writeOutDiagnostics(iteration + 1, time_step_to_use,
                           simulation_time + time_step_to_use, velU, velV,
                           liquid_moments, interface, advect_VOF_time,
                           recon_time, write_time, counter, maxDistanceThisTime,
-                          distanceSumThisTime);
-
+                          distanceSumThisTime, ij_nonrealizableThisTime, volFrac_nonrealizableThisTime);
+      printline();
+      if(counter != 0){
+        for (int c = 0; c < counter; ++c){
+          t_nonrealizable.push_back(simulation_time + time_step_to_use);
+        }
+      }
       total_counter = total_counter + counter; // non-realizable centroids
       maxDistanceAllTime = std::max(maxDistanceAllTime,maxDistanceThisTime); // max distance
       distanceSumAllTime = distanceSumAllTime + distanceSumThisTime; // for avg calc
+      ij_nonrealizable.insert(ij_nonrealizable.end(), ij_nonrealizableThisTime.begin(),
+                              ij_nonrealizableThisTime.end());
+      volfrac_nonrealizable.insert(volfrac_nonrealizable.end(), volFrac_nonrealizableThisTime.begin(),
+                                   volFrac_nonrealizableThisTime.end());
+
 #ifdef USE_MPI
     }
 #endif
@@ -222,6 +248,32 @@ int runSimulation(const std::string& a_simulation_type,
 #endif
     double avgDistanceAllTime = distanceSumAllTime/total_counter;
     printError(cc_mesh, liquid_moments, ref_liquid_moments, total_counter, maxDistanceAllTime, avgDistanceAllTime);
+
+    // Printing for debugging ---------------------------------------------------------------------------------------
+
+    // printing the t vector at which we observe non-realizable centroids
+    std::cout << std::endl;
+    std::cout << "t: ";
+    for (double value : t_nonrealizable){
+      std::cout << value << " " ;
+    }
+    std::cout << std::endl;
+
+    // printing i and j for nonrealizable centroids
+    std::cout << "(i,j): ";
+    for (std::pair<int,int> value : ij_nonrealizable){
+      std::cout << "(" << value.first << "," << value.second << ")" << " " ;
+    }
+    std::cout << std::endl;
+
+    // printing volfrac for cells that have non-realizable centroids
+    std::cout << "Volume fractions: ";
+    for (double value : volfrac_nonrealizable){
+      std::cout << value << " " ;
+    }
+    std::cout << std::endl;
+
+
 #ifdef USE_MPI
   }
 #endif

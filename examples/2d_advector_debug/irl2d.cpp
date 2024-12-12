@@ -2140,13 +2140,13 @@ std::vector<BezierList> TriangulateCell(const BezierList& cell, const int num){
       cell_points.push_back(cell[i].second);
     }
   }
-  cell_points.push_back(cell[0].first); // starting point is in the last triangle
+  cell_points.push_back(cell[0].first);
   
   Moments cell_moment = ComputeMoments(cell);
   auto centroid = Vec();
   centroid.x() = cell_moment.m1()[0]/cell_moment.m0();
   centroid.y() = cell_moment.m1()[1]/cell_moment.m0();
-  for(int i = 0; i < cell_points.size(); ++i){
+  for(int i = 0; i < cell_points.size()-1; ++i){
     Vec v1 = cell_points[i];
     Vec v2 = cell_points[i+1];
     Vec v3 = centroid;
@@ -2199,15 +2199,15 @@ std::pair<Mat,Vec> MappingMatVec(const BezierList& triangle1, const BezierList& 
   x1p = triangle2[0].first[0]; x2p = triangle2[1].first[0]; x3p = triangle2[2].first[0];
   y1p = triangle2[0].first[1]; y2p = triangle2[1].first[1]; y3p = triangle2[2].first[1];
 
-  denominator = (x2 * y1 - x3 * y1 - x1 * y2 + x3 * y2 + x1 * y3 - x2 * y3);
+  denominator = (x2*y1 - x3*y1 - x1*y2 + x3*y2 + x1*y3 - x2*y3);
 
-  A[0][0] = -(-x2p * y1 + x3p * y1 + x1p * y2 - x3p * y2 - x1p * y3 + x2p * y3) / denominator;
-  A[0][1] = -(x1p * x2 - x1 * x2p - x1p * x3 + x2p * x3 + x1 * x3p - x2 * x3p) / denominator;
-  A[1][0] = -(y1p * y2 - y1 * y2p - y1p * y3 + y2p * y3 + y1 * y3p - y2 * y3p) / denominator;
-  A[1][1] = -(-x2 * y1p + x3 * y1p + x1 * y2p - x3 * y2p - x1 * y3p + x2 * y3p) / denominator;
+  A[0][0] = -(-x2p*y1 + x3p*y1 + x1p*y2 - x3p*y2 - x1p*y3 + x2p*y3) / denominator;
+  A[0][1] = -(x1p*x2 - x1*x2p - x1p*x3 + x2p*x3 + x1*x3p - x2*x3p) / (-denominator);
+  A[1][0] = -(y1p*y2 - y1*y2p - y1p*y3 + y2p*y3 + y1*y3p - y2*y3p) / denominator;
+  A[1][1] = -(-x2*y1p + x3*y1p + x1*y2p - x3*y2p - x1*y3p + x2*y3p) / denominator;
 
-  b[0] = -(-x2p * x3 * y1 + x2 * x3p * y1 + x1p * x3 * y2 - x1 * x3p * y2 - x1p * x2 * y3 + x1 * x2p * y3) / denominator;
-  b[1] = -(-x3 * y1p * y2 + x3 * y1 * y2p + x2 * y1p * y3 - x1 * y2p * y3 - x2 * y1 * y3p + x1 * y2 * y3p) / denominator;
+  b[0] = -(-x2p*x3*y1 + x2*x3p*y1 + x1p*x3*y2 - x1*x3p*y2 - x1p*x2*y3 + x1*x2p*y3) / (-denominator);
+  b[1] = -(-x3*y1p*y2 + x3*y1*y2p + x2*y1p*y3 - x1*y2p*y3 - x2*y1*y3p + x1*y2*y3p) / denominator;
 
   return {A, b};
 }
