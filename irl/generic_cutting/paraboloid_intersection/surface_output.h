@@ -13,8 +13,9 @@
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
-#include "irl/paraboloid_reconstruction/ellipse.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/quadratic_reconstruction/ellipse.h"
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 
 namespace IRL {
 template <class ScalarType>

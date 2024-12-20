@@ -7,10 +7,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_PARABOLOID_RECONSTRUCTION_PARAMETRIZED_SURFACE_H_
-#define IRL_PARABOLOID_RECONSTRUCTION_PARAMETRIZED_SURFACE_H_
+#ifndef IRL_PARABOLOID_RECONSTRUCTION_PARABOLOID_PARAMETRIZED_SURFACE_H_
+#define IRL_PARABOLOID_RECONSTRUCTION_PARABOLOID_PARAMETRIZED_SURFACE_H_
 
 #include <vector>
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
 
 #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
@@ -37,31 +38,12 @@
 #endif
 
 #include "irl/geometry/general/normal.h"
-#include "irl/paraboloid_reconstruction/ellipse.h"
+#include "irl/quadratic_reconstruction/ellipse.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
 namespace IRL {
-
-template <class MomentType, class SurfaceType>
-class AddSurfaceOutput {
- public:
-  using moment_type = MomentType;
-  using surface_type = SurfaceType;
-
-  AddSurfaceOutput(void) = default;
-
-  MomentType& getMoments(void);
-  const MomentType& getMoments(void) const;
-
-  SurfaceType& getSurface(void);
-  const SurfaceType& getSurface(void) const;
-
- private:
-  MomentType volume_moments_m;
-  SurfaceType surface_m;
-};
 
 template <class C>
 struct has_paraboloid_surface : std::false_type {};
@@ -73,56 +55,34 @@ template <class MomentType, class SurfaceType>
 struct has_paraboloid_surface<AddSurfaceOutput<MomentType, SurfaceType>>
     : std::true_type {};
 
-class NoSurfaceOutput {
- public:
-  NoSurfaceOutput(void) = default;
-  ~NoSurfaceOutput(void) = default;
-
- private:
-};
-
 /// \brief Parametrized surface defined by coeffs A,B of paraboloid + list of
 /// rational Bézier arcs
-class ParametrizedSurfaceOutput {
+class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
  public:
   /// \brief Default constructor.
-  ParametrizedSurfaceOutput(void);
-  ParametrizedSurfaceOutput(const Paraboloid& a_paraboloid);
+  ParaboloidParametrizedSurfaceOutput(void);
+  ParaboloidParametrizedSurfaceOutput(const Paraboloid& a_paraboloid);
 
-  ParametrizedSurfaceOutput(const ParametrizedSurfaceOutput& a_rhs);
-  ParametrizedSurfaceOutput(ParametrizedSurfaceOutput&& a_rhs);
+  ParaboloidParametrizedSurfaceOutput(const ParaboloidParametrizedSurfaceOutput& a_rhs);
+  ParaboloidParametrizedSurfaceOutput(ParaboloidParametrizedSurfaceOutput&& a_rhs);
 
-  ParametrizedSurfaceOutput& operator=(const ParametrizedSurfaceOutput& a_rhs);
-  ParametrizedSurfaceOutput& operator=(ParametrizedSurfaceOutput&& a_rhs);
+  ParaboloidParametrizedSurfaceOutput& operator=(const ParaboloidParametrizedSurfaceOutput& a_rhs);
+  ParaboloidParametrizedSurfaceOutput& operator=(ParaboloidParametrizedSurfaceOutput&& a_rhs);
 
   void setParaboloid(const Paraboloid& a_paraboloid);
-  void setLengthScale(const double a_length_scale);
-
-  RationalBezierArc& operator[](const UnsignedIndex_t a_index);
-  const RationalBezierArc& operator[](const UnsignedIndex_t a_index) const;
-  const std::vector<RationalBezierArc>::size_type size(void) const;
 
   const Paraboloid& getParaboloid(void) const;
-  std::vector<RationalBezierArc>& getArcs(void);
-  std::vector<Pt*>& getPts(void);
-  void addArc(const RationalBezierArc& a_rational_bezier_arc);
-  void addPt(Pt* a_pt);
-  void clearArcs(void);
-  void clearPts(void);
-  void clear(void);
+  inline double getSurfaceArea(void);
+  inline double getMeanCurvatureIntegral(void);
+  inline double getGaussianCurvatureIntegral(void);
+  inline Normal getAverageNormal(void);
+  inline Normal getAverageNormalNonAligned(void);
   inline Normal getNormalAligned(const Pt a_pt);
   inline Normal getNormalNonAligned(const Pt a_pt);
   inline double getMeanCurvatureAligned(const Pt a_pt);
   inline double getMeanCurvatureNonAligned(const Pt a_pt);
   inline double getGaussianCurvatureAligned(const Pt a_pt);
   inline double getGaussianCurvatureNonAligned(const Pt a_pt);
-  inline double getSurfaceArea(void);
-  inline double getMeanCurvatureIntegral(void);
-  inline double getGaussianCurvatureIntegral(void);
-  inline Normal getAverageNormal(void);
-  inline Normal getAverageNormalNonAligned(void);
-  inline double getAverageMeanCurvature(void);
-  inline double getAverageGaussianCurvature(void);
 
   void triangulate_fromPtr(
       const double a_length_scale = -1.0, const UnsignedIndex_t a_nsplit = 5,
@@ -132,28 +92,17 @@ class ParametrizedSurfaceOutput {
       const double a_length_scale = -1.0,
       const UnsignedIndex_t a_nsplit = 5) const;
 
-  ~ParametrizedSurfaceOutput(void);
+  ~ParaboloidParametrizedSurfaceOutput(void);
 
  private:
-  double length_scale_m;
-  bool knows_surface_area_m;
-  double surface_area_m;
-  bool knows_avg_normal_m;
-  Normal avg_normal_m;
-  bool knows_int_mean_curv_m;
-  double int_mean_curv_m;
-  bool knows_int_gaussian_curv_m;
-  double int_gaussian_curv_m;
   Paraboloid paraboloid_m;
-  std::vector<Pt*> pt_from_bezier_split_m;
-  std::vector<RationalBezierArc> arc_list_m;
 };
 
 inline std::ostream& operator<<(
-    std::ostream& out, const ParametrizedSurfaceOutput& a_parametrized_surface);
+    std::ostream& out, const ParaboloidParametrizedSurfaceOutput& a_paraboloid_parametrized_surface);
 
 }  // namespace IRL
 
-#include "irl/paraboloid_reconstruction/parametrized_surface.tpp"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.tpp"
 
-#endif  // IRL_PARABOLOID_RECONSTRUCTION_PARAMETRIZED_SURFACE_H_
+#endif  // IRL_PARABOLOID_RECONSTRUCTION_PARABOLOID_PARAMETRIZED_SURFACE_H_

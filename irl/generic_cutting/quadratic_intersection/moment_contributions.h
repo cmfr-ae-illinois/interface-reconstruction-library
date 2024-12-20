@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_H_
-#define IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_H_
+#ifndef IRL_GENERIC_CUTTING_QUADRATIC_INTERSECTION_MOMENT_CONTRIBUTIONS_H_
+#define IRL_GENERIC_CUTTING_QUADRATIC_INTERSECTION_MOMENT_CONTRIBUTIONS_H_
 
 #include <float.h>
 #include <cassert>
@@ -373,6 +373,6 @@ static double cz3Series[41][5] = {
      -5.0987752482180218611e-11}};
 }  // namespace IRL
 
-#include "irl/generic_cutting/paraboloid_intersection/moment_contributions.tpp"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.tpp"
 
 #endif  // IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_H_

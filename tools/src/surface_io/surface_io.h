@@ -19,7 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 #include "irl/parameters/defined_types.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 

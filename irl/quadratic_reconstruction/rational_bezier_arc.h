@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_PARABOLOID_RECONSTRUCTION_RATIONAL_BEZIER_ARC_H_
-#define IRL_PARABOLOID_RECONSTRUCTION_RATIONAL_BEZIER_ARC_H_
+#ifndef IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_H_
+#define IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_H_
 
 #include <cstdint>
 #include <utility>
@@ -178,6 +178,6 @@ using RationalBezierArcWithGradient =
 
 }  // namespace IRL
 
-#include "irl/paraboloid_reconstruction/rational_bezier_arc.tpp"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.tpp"
 
-#endif  // IRL_PARABOLOID_RECONSTRUCTION_RATIONAL_BEZIER_ARC_H_
+#endif  // IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_H_

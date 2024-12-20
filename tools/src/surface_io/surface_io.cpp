@@ -22,6 +22,8 @@
 
 std::vector<std::string> split(const std::string& s, char c);
 
+// TODO : Fix it ot make it cylinder compatible
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     simpleErrorHandler("Program expects name of file(s).");
@@ -112,7 +114,7 @@ int main(int argc, char* argv[]) {
       }
       vec.clear();
 
-      std::vector<IRL::ParametrizedSurfaceOutput> surface_patches;
+      std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surface_patches;
       surface_patches.resize(number_of_patches);
       for (IRL::UnsignedIndex_t j = 0; j < number_of_patches; j++) {
         /*********** Number of arcs */
@@ -235,7 +237,7 @@ int main(int argc, char* argv[]) {
         vec.clear();
 
         /*********** Arcs */
-        surface_patches[j] = IRL::ParametrizedSurfaceOutput(
+        surface_patches[j] = IRL::ParaboloidParametrizedSurfaceOutput(
             IRL::Paraboloid(datum, frame, coeff_a, coeff_b));
         for (IRL::UnsignedIndex_t k = 0; k < number_of_arcs; k++) {
           getline(stream_input_file, line);
@@ -454,21 +456,21 @@ int main(int argc, char* argv[]) {
         for (IRL::UnsignedIndex_t j = 0; j < number_of_patches; ++j) {
           auto avg_normal = surface_patches[j].getAverageNormal();
           const auto& datum = surface_patches[j].getParaboloid().getDatum();
-          const auto& ref_frame =
+            const auto& ref_frame =
               surface_patches[j].getParaboloid().getReferenceFrame();
-          const auto base_normal = avg_normal;
-          avg_normal = IRL::Normal(0.0, 0.0, 0.0);
-          for (std::size_t d = 0; d < 3; ++d) {
-            for (std::size_t n = 0; n < 3; ++n) {
-              avg_normal[n] += ref_frame[d][n] * base_normal[d];
+            const auto base_normal = avg_normal;
+            avg_normal = IRL::Normal(0.0, 0.0, 0.0);
+            for (std::size_t d = 0; d < 3; ++d) {
+              for (std::size_t n = 0; n < 3; ++n) {
+                avg_normal[n] += ref_frame[d][n] * base_normal[d];
+              }
             }
-          }
-          const auto& tlist = triangulated_surface[j].getTriangleList();
-          for (IRL::UnsignedIndex_t k = 0; k < tlist.size(); ++k) {
-            fprintf(file, "%15.8E %15.8E %15.8E ",
-                    static_cast<double>(avg_normal[0]),
-                    static_cast<double>(avg_normal[1]),
-                    static_cast<double>(avg_normal[2]));
+            const auto& tlist = triangulated_surface[j].getTriangleList();
+            for (IRL::UnsignedIndex_t k = 0; k < tlist.size(); ++k) {
+              fprintf(file, "%15.8E %15.8E %15.8E ",
+                      static_cast<double>(avg_normal[0]),
+                      static_cast<double>(avg_normal[1]),
+                      static_cast<double>(avg_normal[2]));
           }
         }
         fprintf(file, "</DataArray>\n");

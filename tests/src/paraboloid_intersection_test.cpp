@@ -34,7 +34,7 @@
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
 #include "irl/moments/general_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 #include "tests/src/basic_mesh.h"
 #include "tests/src/vtk.h"

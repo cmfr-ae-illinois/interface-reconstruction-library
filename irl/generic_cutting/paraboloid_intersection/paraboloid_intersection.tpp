@@ -19,7 +19,7 @@
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_initializer.tpp"
-#include "irl/generic_cutting/paraboloid_intersection/moment_contributions.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/general/reference_frame.h"
@@ -29,7 +29,7 @@
 #include "irl/helpers/mymath.h"
 #include "irl/moments/general_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 #define NUMERICAL_INTEGRATION
 

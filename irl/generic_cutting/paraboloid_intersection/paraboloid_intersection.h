@@ -25,8 +25,7 @@
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
-#include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {
 

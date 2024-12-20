@@ -7,8 +7,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_PARABOLOID_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_
-#define IRL_PARABOLOID_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_
+#ifndef IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_
+#define IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_
+
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {
 
@@ -654,4 +656,4 @@ inline std::ostream& operator<<(
 
 }  // namespace IRL
 
-#endif  // IRL_PARABOLOID_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_
+#endif  // IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_

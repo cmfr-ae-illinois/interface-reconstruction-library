@@ -1,0 +1,149 @@
+// This file is part of the Interface Reconstruction Library (IRL),
+// a library for interface reconstruction and computational geometry operations.
+//
+// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#ifndef IRL_QUADRATIC_RECONSTRUCTION_PARAMETRIZED_SURFACE_H_
+#define IRL_QUADRATIC_RECONSTRUCTION_PARAMETRIZED_SURFACE_H_
+
+#include <vector>
+
+#define IRL_USE_EARCUT
+// #define IRL_USE_TRIANGLE
+// #define IRL_USE_CGAL
+// #define IRL_USE_GEOGRAM
+
+#ifdef IRL_USE_EARCUT
+#include "external/earcut.hpp/include/mapbox/earcut.hpp"
+#elif defined IRL_USE_TRIANGLE
+#include "external/triangle/triangle.h"
+#elif defined IRL_USE_CGAL
+#include <CGAL/Arr_segment_traits_2.h>
+#include <CGAL/Constrained_Delaunay_triangulation_2.h>
+#include <CGAL/Delaunay_mesh_face_base_2.h>
+#include <CGAL/Delaunay_mesh_size_criteria_2.h>
+#include <CGAL/Delaunay_mesh_vertex_base_2.h>
+#include <CGAL/Delaunay_mesher_2.h>
+#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Surface_sweep_2_algorithms.h>
+#include <CGAL/lloyd_optimize_mesh_2.h>
+#elif defined IRL_USE_GEOGRAM
+#include "external/geogram.psm.Delaunay/Delaunay_psm.h"
+#endif
+
+#include "irl/geometry/general/normal.h"
+#include "irl/quadratic_reconstruction/ellipse.h"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
+#include "irl/surface_mesher/triangulated_surface.h"
+
+namespace IRL {
+
+template <class MomentType, class SurfaceType>
+class AddSurfaceOutput {
+ public:
+  using moment_type = MomentType;
+  using surface_type = SurfaceType;
+
+  AddSurfaceOutput(void) = default;
+
+  MomentType& getMoments(void);
+  const MomentType& getMoments(void) const;
+
+  SurfaceType& getSurface(void);
+  const SurfaceType& getSurface(void) const;
+
+ private:
+  MomentType volume_moments_m;
+  SurfaceType surface_m;
+};
+
+class NoSurfaceOutput {
+ public:
+  NoSurfaceOutput(void) = default;
+  ~NoSurfaceOutput(void) = default;
+
+ private:
+};
+
+// forward declaration of child to declare them as friend class
+class ParaboloidParametrizedSurfaceOutput;
+
+/// \brief General Parametrized surface defined for quadratic surfaces (paraboloid or cylinder)
+/// rational Bézier arcs
+class ParametrizedSurfaceOutput {
+ public:
+  /// \brief Default constructor.
+  ParametrizedSurfaceOutput(void);
+
+  ParametrizedSurfaceOutput(const ParametrizedSurfaceOutput& a_rhs);
+  ParametrizedSurfaceOutput(ParametrizedSurfaceOutput&& a_rhs);
+
+  ParametrizedSurfaceOutput& operator=(const ParametrizedSurfaceOutput& a_rhs);
+  ParametrizedSurfaceOutput& operator=(ParametrizedSurfaceOutput&& a_rhs);
+
+  void setLengthScale(const double a_length_scale);
+
+  RationalBezierArc& operator[](const UnsignedIndex_t a_index);
+  const RationalBezierArc& operator[](const UnsignedIndex_t a_index) const;
+  const std::vector<RationalBezierArc>::size_type size(void) const;
+
+  std::vector<RationalBezierArc>& getArcs(void);
+  std::vector<Pt*>& getPts(void);
+  void addArc(const RationalBezierArc& a_rational_bezier_arc);
+  void addPt(Pt* a_pt);
+  void clearArcs(void);
+  void clearPts(void);
+  void clear(void);  
+  virtual inline Normal getNormalAligned(const Pt a_pt) = 0;
+  virtual inline Normal getNormalNonAligned(const Pt a_pt) = 0;
+  virtual inline double getMeanCurvatureAligned(const Pt a_pt) = 0;
+  virtual inline double getMeanCurvatureNonAligned(const Pt a_pt) = 0;
+  virtual inline double getGaussianCurvatureAligned(const Pt a_pt) = 0;
+  virtual inline double getGaussianCurvatureNonAligned(const Pt a_pt) = 0;
+  virtual inline double getSurfaceArea(void) = 0;
+  virtual inline double getMeanCurvatureIntegral(void) = 0;
+  virtual inline double getGaussianCurvatureIntegral(void) = 0;
+  virtual inline Normal getAverageNormal(void) = 0;
+  virtual inline Normal getAverageNormalNonAligned(void) = 0;
+  inline double getAverageMeanCurvature(void);
+  inline double getAverageGaussianCurvature(void);
+
+  virtual void triangulate_fromPtr(
+      const double a_length_scale = -1.0, const UnsignedIndex_t a_nsplit = 5,
+      TriangulatedSurfaceOutput* a_surface = nullptr) const = 0;
+
+  virtual TriangulatedSurfaceOutput triangulate(
+      const double a_length_scale = -1.0,
+      const UnsignedIndex_t a_nsplit = 5) const = 0;
+
+  ~ParametrizedSurfaceOutput(void);
+
+  friend class ParaboloidParametrizedSurfaceOutput;
+
+ private:
+  double length_scale_m;
+  bool knows_surface_area_m;
+  double surface_area_m;
+  bool knows_avg_normal_m;
+  Normal avg_normal_m;
+  bool knows_int_mean_curv_m;
+  double int_mean_curv_m;
+  bool knows_int_gaussian_curv_m;
+  double int_gaussian_curv_m;
+  std::vector<Pt*> pt_from_bezier_split_m;
+  std::vector<RationalBezierArc> arc_list_m;
+};
+
+inline std::ostream& operator<<(
+    std::ostream& out, const ParametrizedSurfaceOutput& a_parametrized_surface);
+
+}  // namespace IRL
+
+#include "irl/quadratic_reconstruction/parametrized_surface.tpp"
+
+#endif  // IRL_QUADRATIC_RECONSTRUCTION_PARAMETRIZED_SURFACE_H_
