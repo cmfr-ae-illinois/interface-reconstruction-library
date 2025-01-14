@@ -7,19 +7,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_PARABOLOID_TPP_
-#define SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_PARABOLOID_TPP_
+#ifndef SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_QUADRATIC_TPP_
+#define SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_QUADRATIC_TPP_
 
 namespace IRL {
 
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
-SegmentedHalfEdgePolyhedronParaboloid<FaceType, VertexType>
-HalfEdgePolyhedronParaboloid<PtType, VertexType, HalfEdgeType, FaceType,
+SegmentedHalfEdgePolyhedronQuadratic<FaceType, VertexType>
+HalfEdgePolyhedronQuadratic<PtType, VertexType, HalfEdgeType, FaceType,
                              kMaxHalfEdges, kMaxVertices,
                              kMaxFaces>::generateSegmentedPolyhedron(void) {
-  SegmentedHalfEdgePolyhedronParaboloid<FaceType, VertexType> a_polyhedron;
+  SegmentedHalfEdgePolyhedronQuadratic<FaceType, VertexType> a_polyhedron;
   this->setSegmentedPolyhedron(&a_polyhedron);
   return a_polyhedron;
 }
@@ -28,7 +28,7 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
 template <class SegmentedType>
-void HalfEdgePolyhedronParaboloid<
+void HalfEdgePolyhedronQuadratic<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::setSegmentedPolyhedron(SegmentedType* a_polytope) {
   a_polytope->setNumberOfFaces(this->getNumberOfInitialFaces());
@@ -48,4 +48,4 @@ void HalfEdgePolyhedronParaboloid<
 
 }  // namespace IRL
 
-#endif  // SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_PARABOLOID_TPP_
+#endif  // SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_QUADRATIC_TPP_

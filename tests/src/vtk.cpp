@@ -1,5 +1,5 @@
 
-#include "examples/simple_paraboloid_advector/vtk.h"
+#include "tests/src/vtk.h"
 
 #include <stdio.h>
 #include <sys/stat.h>
@@ -90,7 +90,7 @@ void VTKOutput::writeVTKFile(const double a_time) {
 }
 
 void VTKOutput::writeVTKInterface(
-    const double a_time, std::vector<IRL::ParametrizedSurfaceOutput>& a_surface,
+    const double a_time, std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_surface,
     const bool a_print_info) {
   const auto surface_file_name =
       directory_m + "/" + file_name_base_m + "_interface_" +

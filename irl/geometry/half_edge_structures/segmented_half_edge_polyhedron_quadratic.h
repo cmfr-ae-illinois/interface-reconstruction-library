@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYHEDRON_PARABOLOID_H_
-#define IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYHEDRON_PARABOLOID_H_
+#ifndef IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYHEDRON_QUADRATIC_H_
+#define IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYHEDRON_QUADRATIC_H_
 
 #include <utility>
 
@@ -21,7 +21,7 @@
 
 namespace IRL {
 
-namespace segmented_half_edge_polyhedron_paraboloid_detail {
+namespace segmented_half_edge_polyhedron_quadratic_detail {
 template <class GeometryType, class CalculationFunctor>
 auto calculateMoments(GeometryType* a_geometry,
                       CalculationFunctor a_moment_accumulator) ->
@@ -94,7 +94,7 @@ auto calculateMoments(GeometryType* a_geometry,
   return a_moment_accumulator.getMoments();
 }
 
-}  // namespace segmented_half_edge_polyhedron_paraboloid_detail
+}  // namespace segmented_half_edge_polyhedron_quadratic_detail
 
 template <
     class FaceType, class VertexType,
@@ -102,7 +102,7 @@ template <
         segmented_half_edge_polytope::default_sizes::segemented_max_faces,
     UnsignedIndex_t kMaxVertices =
         segmented_half_edge_polytope::default_sizes::segmented_max_vertices>
-class SegmentedHalfEdgePolyhedronParaboloid
+class SegmentedHalfEdgePolyhedronQuadratic
     : public SegmentedHalfEdgePolyhedron<FaceType, VertexType, kMaxFaces,
                                          kMaxVertices> {
   using Base = SegmentedHalfEdgePolyhedron<FaceType, VertexType, kMaxFaces,
@@ -110,7 +110,7 @@ class SegmentedHalfEdgePolyhedronParaboloid
 
  public:
   Volume calculateVolume(void) {
-    return segmented_half_edge_polyhedron_paraboloid_detail::calculateMoments(
+    return segmented_half_edge_polyhedron_quadratic_detail::calculateMoments(
         this, Volume3D_Functor());
   }
 
@@ -119,9 +119,9 @@ class SegmentedHalfEdgePolyhedronParaboloid
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
-struct is_polyhedron<SegmentedHalfEdgePolyhedronParaboloid<
+struct is_polyhedron<SegmentedHalfEdgePolyhedronQuadratic<
     FaceType, VertexType, kMaxFaces, kMaxVertices>> : std::true_type {};
 
 }  // namespace IRL
 
-#endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYHEDRON_PARABOLOID_H_
+#endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYHEDRON_QUADRATIC_H_

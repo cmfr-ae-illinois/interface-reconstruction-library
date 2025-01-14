@@ -30,13 +30,13 @@
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/plane.h"
-#include "irl/geometry/half_edge_structures/half_edge_polyhedron_paraboloid.h"
-#include "irl/geometry/half_edge_structures/segmented_half_edge_polyhedron_paraboloid.h"
+#include "irl/geometry/half_edge_structures/half_edge_polyhedron_quadratic.h"
+#include "irl/geometry/half_edge_structures/segmented_half_edge_polyhedron_quadratic.h"
 #include "irl/geometry/polyhedrons/general_polyhedron.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 
 #include <Eigen/Dense>  // Eigen header
@@ -548,7 +548,7 @@ TEST(ParaboloidMOF, MOF) {
   VTKOutput vtk_io("viz_out", "viz", mesh);
   vtk_io.addData("VOF", liquid_vf);
   vtk_io.writeVTKFile(time);
-  std::vector<ParametrizedSurfaceOutput> surfaces;
+  std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
@@ -568,7 +568,7 @@ TEST(ParaboloidMOF, MOF) {
           const auto paraboloid = Paraboloid(
               datum, frame, aligned_paraboloid.a(), aligned_paraboloid.b());
           auto volume_and_surface = getVolumeMoments<
-              AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>>(cell,
+              AddSurfaceOutput<Volume, ParaboloidParametrizedSurfaceOutput>>(cell,
                                                                    paraboloid);
           auto& surface = volume_and_surface.getSurface();
           surface.setLengthScale(std::pow(cell.calculateVolume(), 1.0 / 3.0) /
@@ -682,7 +682,7 @@ TEST(ParaboloidMOF, MOF) {
           const auto new_new_cell = RectangularCuboid::fromBoundingPts(
               Pt(lower_cell_pt_new), Pt(upper_cell_pt_new));
           auto volume_and_surface = getVolumeMoments<
-              AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>>(
+              AddSurfaceOutput<Volume, ParaboloidParametrizedSurfaceOutput>>(
               new_new_cell, new_paraboloid);
           auto& surface = volume_and_surface.getSurface();
           auto area = surface.getSurfaceArea();

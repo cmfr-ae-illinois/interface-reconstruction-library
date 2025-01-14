@@ -13,8 +13,8 @@
 // THE HALF EDGE CLASS AND FACE CLASS RELY ON ONE ANOTHER.
 // FOR NOW, JUST HARD CODE DIFFERENT CLASSES.
 
-#ifndef IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_PARABOLOID_H_
-#define IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_PARABOLOID_H_
+#ifndef IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_QUADRATIC_H_
+#define IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_QUADRATIC_H_
 
 #include <float.h>
 #include <utility>
@@ -27,54 +27,54 @@ namespace IRL {
 
 // Forward declarations.
 template <class PtType>
-class VertexParaboloid;
+class VertexQuadratic;
 
 template <class VertexType>
-class HalfEdgeParaboloid;
+class HalfEdgeQuadratic;
 
 template <class HalfEdgeType>
-class FaceParaboloid;
+class FaceQuadratic;
 
 template <class VertexType>
 inline void doubleLinkHalfEdges(
-    HalfEdgeParaboloid<VertexType>* a_starting_half_edge,
-    HalfEdgeParaboloid<VertexType>* a_ending_half_edge);
+    HalfEdgeQuadratic<VertexType>* a_starting_half_edge,
+    HalfEdgeQuadratic<VertexType>* a_ending_half_edge);
 
 template <class VertexType>
 inline void setMutualOpposites(
-    HalfEdgeParaboloid<VertexType>* a_starting_half_edge,
-    HalfEdgeParaboloid<VertexType>* a_ending_half_edge);
+    HalfEdgeQuadratic<VertexType>* a_starting_half_edge,
+    HalfEdgeQuadratic<VertexType>* a_ending_half_edge);
 
 template <class VertexType>
-class HalfEdgeParaboloid {
+class HalfEdgeQuadratic {
  public:
   using vertex_type = VertexType;
   using value_type = typename vertex_type::value_type;
 
-  HalfEdgeParaboloid(void);
+  HalfEdgeQuadratic(void);
 
-  HalfEdgeParaboloid(VertexType* a_vertex, HalfEdgeParaboloid* a_previous,
-                     HalfEdgeParaboloid* a_next,
-                     FaceParaboloid<HalfEdgeParaboloid>* a_face);
+  HalfEdgeQuadratic(VertexType* a_vertex, HalfEdgeQuadratic* a_previous,
+                     HalfEdgeQuadratic* a_next,
+                     FaceQuadratic<HalfEdgeQuadratic>* a_face);
 
-  HalfEdgeParaboloid(const HalfEdgeParaboloid& a_other) = default;
-  HalfEdgeParaboloid& operator=(const HalfEdgeParaboloid& a_other) = default;
+  HalfEdgeQuadratic(const HalfEdgeQuadratic& a_other) = default;
+  HalfEdgeQuadratic& operator=(const HalfEdgeQuadratic& a_other) = default;
 
-  void setPreviousHalfEdge(HalfEdgeParaboloid* a_previous);
-  HalfEdgeParaboloid* getPreviousHalfEdge(void);
-  const HalfEdgeParaboloid* getPreviousHalfEdge(void) const;
+  void setPreviousHalfEdge(HalfEdgeQuadratic* a_previous);
+  HalfEdgeQuadratic* getPreviousHalfEdge(void);
+  const HalfEdgeQuadratic* getPreviousHalfEdge(void) const;
 
-  void setNextHalfEdge(HalfEdgeParaboloid* a_next);
-  HalfEdgeParaboloid* getNextHalfEdge(void);
-  const HalfEdgeParaboloid* getNextHalfEdge(void) const;
+  void setNextHalfEdge(HalfEdgeQuadratic* a_next);
+  HalfEdgeQuadratic* getNextHalfEdge(void);
+  const HalfEdgeQuadratic* getNextHalfEdge(void) const;
 
-  void setOppositeHalfEdge(HalfEdgeParaboloid* a_opposite);
-  HalfEdgeParaboloid* getOppositeHalfEdge(void);
-  const HalfEdgeParaboloid* getOppositeHalfEdge(void) const;
+  void setOppositeHalfEdge(HalfEdgeQuadratic* a_opposite);
+  HalfEdgeQuadratic* getOppositeHalfEdge(void);
+  const HalfEdgeQuadratic* getOppositeHalfEdge(void) const;
 
-  void setFace(FaceParaboloid<HalfEdgeParaboloid>* a_face);
-  FaceParaboloid<HalfEdgeParaboloid>* getFace(void);
-  const FaceParaboloid<HalfEdgeParaboloid>* getFace(void) const;
+  void setFace(FaceQuadratic<HalfEdgeQuadratic>* a_face);
+  FaceQuadratic<HalfEdgeQuadratic>* getFace(void);
+  const FaceQuadratic<HalfEdgeQuadratic>* getFace(void) const;
 
   void setVertex(VertexType* a_vertex);
   VertexType* getVertex(void);
@@ -83,29 +83,29 @@ class HalfEdgeParaboloid {
   VertexType* getPreviousVertex(void);
   const VertexType* getPreviousVertex(void) const;
 
-  ~HalfEdgeParaboloid(void) = default;
+  ~HalfEdgeQuadratic(void) = default;
 
  private:
-  HalfEdgeParaboloid* previous_m;
-  HalfEdgeParaboloid* next_m;
-  HalfEdgeParaboloid* opposite_m;
+  HalfEdgeQuadratic* previous_m;
+  HalfEdgeQuadratic* next_m;
+  HalfEdgeQuadratic* opposite_m;
   VertexType* end_point_m;
-  FaceParaboloid<HalfEdgeParaboloid>* corresponding_face_m;
+  FaceQuadratic<HalfEdgeQuadratic>* corresponding_face_m;
 };
 
 template <class PtType>
-class VertexParaboloid {
+class VertexQuadratic {
  public:
   using pt_type = PtType;
   using value_type = typename pt_type::value_type;
 
-  VertexParaboloid(void);
+  VertexQuadratic(void);
 
-  explicit VertexParaboloid(const PtType& a_location);
+  explicit VertexQuadratic(const PtType& a_location);
 
-  void setHalfEdge(HalfEdgeParaboloid<VertexParaboloid>* a_half_edge);
-  HalfEdgeParaboloid<VertexParaboloid>* getHalfEdge(void);
-  const HalfEdgeParaboloid<VertexParaboloid>* getHalfEdge(void) const;
+  void setHalfEdge(HalfEdgeQuadratic<VertexQuadratic>* a_half_edge);
+  HalfEdgeQuadratic<VertexQuadratic>* getHalfEdge(void);
+  const HalfEdgeQuadratic<VertexQuadratic>* getHalfEdge(void) const;
 
   pt_type& getLocation(void);
   const pt_type& getLocation(void) const;
@@ -130,22 +130,22 @@ class VertexParaboloid {
 
  private:
   PtType vertex_location_m;
-  HalfEdgeParaboloid<VertexParaboloid>*
-      half_edge_m;  // HalfEdgeParaboloid that ends at this vertex
+  HalfEdgeQuadratic<VertexQuadratic>*
+      half_edge_m;  // HalfEdgeQuadratic that ends at this vertex
   value_type distance_m;
   bool is_clipped_m = false;
   bool needs_to_seek_m = false;
 };
 
 template <class HalfEdgeType>
-class FaceParaboloid : public Face<HalfEdgeType> {
+class FaceQuadratic : public Face<HalfEdgeType> {
  public:
   using half_edge_type = HalfEdgeType;
   using value_type = typename half_edge_type::value_type;
 
-  FaceParaboloid(void);
+  FaceQuadratic(void);
 
-  explicit FaceParaboloid(HalfEdgeType* a_starting_half_edge);
+  explicit FaceQuadratic(HalfEdgeType* a_starting_half_edge);
 
   void setPlane(const PlaneBase<value_type>& a_plane);
   const PlaneBase<value_type>& getPlane(void) const;
@@ -173,6 +173,6 @@ class FaceParaboloid : public Face<HalfEdgeType> {
 
 }  // namespace IRL
 
-#include "irl/geometry/half_edge_structures/half_edge_paraboloid.tpp"
+#include "irl/geometry/half_edge_structures/half_edge_quadratic.tpp"
 
-#endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_PARABOLOID_H_
+#endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_QUADRATIC_H_

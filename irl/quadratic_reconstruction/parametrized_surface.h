@@ -72,6 +72,7 @@ class NoSurfaceOutput {
 
 // forward declaration of child to declare them as friend class
 class ParaboloidParametrizedSurfaceOutput;
+class CylinderParametrizedSurfaceOutput;
 
 /// \brief General Parametrized surface defined for quadratic surfaces (paraboloid or cylinder)
 /// rational Bézier arcs
@@ -124,6 +125,7 @@ class ParametrizedSurfaceOutput {
   ~ParametrizedSurfaceOutput(void);
 
   friend class ParaboloidParametrizedSurfaceOutput;
+  friend class CylinderParametrizedSurfaceOutput;
 
  private:
   double length_scale_m;

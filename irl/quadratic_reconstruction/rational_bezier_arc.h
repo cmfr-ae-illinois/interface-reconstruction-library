@@ -15,6 +15,7 @@
 
 #include "irl/geometry/general/pt.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/parameters/defined_types.h"
 
 namespace IRL {
@@ -46,6 +47,12 @@ class RationalBezierArcBase {
                         const NormalBase<ScalarType>& a_plane_normal,
                         const AlignedParaboloidBase<ScalarType>& a_paraboloid);
 
+  RationalBezierArcBase(const PtBase<ScalarType>& a_start_pt,
+                        const NormalBase<ScalarType>& a_control_pt,
+                        const PtBase<ScalarType>& a_end_pt,
+                        const NormalBase<ScalarType>& a_plane_normal,
+                        const AlignedCylinderBase<ScalarType>& a_cylinder);
+
   /// \brief Constructor that initializes the rational Bèzier arc by computing
   /// the rational weight
   RationalBezierArcBase(const PtBase<ScalarType>& a_start_pt,
@@ -54,6 +61,13 @@ class RationalBezierArcBase {
                         const NormalBase<ScalarType>& a_end_tangent,
                         const NormalBase<ScalarType>& a_plane_normal,
                         const AlignedParaboloidBase<ScalarType>& a_paraboloid);
+
+  RationalBezierArcBase(const PtBase<ScalarType>& a_start_pt,
+                        const NormalBase<ScalarType>& a_start_tangent,
+                        const PtBase<ScalarType>& a_end_pt,
+                        const NormalBase<ScalarType>& a_end_tangent,
+                        const NormalBase<ScalarType>& a_plane_normal,
+                        const AlignedCylinderBase<ScalarType>& a_cylinder);
 
   /// \brief Return const weight.
   const ScalarType& weight(void) const;

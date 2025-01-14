@@ -113,6 +113,61 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
 template <class ScalarType>
 inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
     const PtBase<ScalarType>& a_start_pt,
+    const NormalBase<ScalarType>& a_control_pt,
+    const PtBase<ScalarType>& a_end_pt,
+    const NormalBase<ScalarType>& a_plane_normal,
+    const AlignedCylinderBase<ScalarType>& a_cylinder) {
+  // Defining constants and types
+  const ScalarType EPSILON = machine_epsilon<ScalarType>();
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType HALF = ScalarType(0.5);
+  const ScalarType ONEHUNDRED = ScalarType(100);
+  const ScalarType DISTANCE_EPSILON = ONEHUNDRED * EPSILON;
+  const ScalarType DEFAULT_WEIGHT = ScalarType(DBL_MAX);
+
+  // Set what can already be set
+  start_point_m = a_start_pt;
+  control_point_m = a_control_pt;
+  end_point_m = a_end_pt;
+  start_point_id_m = reinterpret_cast<std::uintptr_t>(&a_start_pt);
+  end_point_id_m = reinterpret_cast<std::uintptr_t>(&a_end_pt);
+
+  // Compute weight by caculating the end-point curvature. This calculate the
+  // curvature of the conic with (Hartmann1996) and uses it to compute the
+  // weight (Farin1992)
+  const ScalarType L = squaredMagnitude(a_control_pt - a_start_pt);
+  if (L < DISTANCE_EPSILON * DISTANCE_EPSILON) {
+    weight_m = DEFAULT_WEIGHT;
+  } else {
+    const NormalBase<ScalarType> start_normal =
+        getCylinderSurfaceNormal(a_cylinder, a_start_pt);
+    const NormalBase<ScalarType> start_cross_prod =
+        crossProduct(a_plane_normal, start_normal);
+    const ScalarType cross_sq_0 = start_cross_prod[0] * start_cross_prod[0];
+    const ScalarType cross_sq_1 = start_cross_prod[1] * start_cross_prod[1];
+    const ScalarType cross_sq_2 = start_cross_prod[2] * start_cross_prod[2];
+    const ScalarType D =
+        fabs(a_cylinder.b() * cross_sq_1 + cross_sq_2);
+    if (D < DISTANCE_EPSILON * DISTANCE_EPSILON) {
+      weight_m = DEFAULT_WEIGHT;
+    } else {
+      const ScalarType R = (cross_sq_0 + cross_sq_1 + cross_sq_2) / L;
+      const ScalarType A =
+          sqrt(R * R * R *
+               squaredMagnitude(crossProduct(a_end_pt - a_start_pt,
+                                             a_control_pt - a_end_pt)));
+      weight_m = HALF * sqrt(A / D);
+    }
+  }
+
+  // Clip weight to avoid variable overflows
+  weight_m = minimum(weight_m, ONE);
+}
+
+template <class ScalarType>
+inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
+    const PtBase<ScalarType>& a_start_pt,
     const NormalBase<ScalarType>& a_start_tangent,
     const PtBase<ScalarType>& a_end_pt,
     const NormalBase<ScalarType>& a_end_tangent,
@@ -242,6 +297,82 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
   } else {
     weight_m = minimum(weight_m, ONE);
   }
+}
+
+template <class ScalarType>
+inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
+    const PtBase<ScalarType>& a_start_pt,
+    const NormalBase<ScalarType>& a_start_tangent,
+    const PtBase<ScalarType>& a_end_pt,
+    const NormalBase<ScalarType>& a_end_tangent,
+    const NormalBase<ScalarType>& a_plane_normal,
+    const AlignedCylinderBase<ScalarType>& a_cylinder) {
+  // Defining constants and types
+  const ScalarType EPSILON = machine_epsilon<ScalarType>();
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
+  const ScalarType HALF = ONE / TWO;
+  const ScalarType ONEANDHALF = ONE + HALF;
+  const ScalarType ONEHUNDRED = ScalarType(100);
+  const ScalarType DISTANCE_EPSILON = ONEHUNDRED * EPSILON;
+  const ScalarType DEFAULT_WEIGHT = ScalarType(DBL_MAX);
+
+  // Set what can already be set
+  start_point_m = a_start_pt;
+  end_point_m = a_end_pt;
+  start_point_id_m = reinterpret_cast<std::uintptr_t>(&a_start_pt);
+  end_point_id_m = reinterpret_cast<std::uintptr_t>(&a_end_pt);
+
+  // Compute control point using 2 tangents
+  const NormalBase<ScalarType> edge_vector = end_point_m - start_point_m;
+  const PtBase<ScalarType> average_pt = HALF * (start_point_m + end_point_m);
+  const NormalBase<ScalarType> n_cross_t0 =
+      crossProduct(a_plane_normal, a_start_tangent);
+  if (fabs(n_cross_t0 * a_end_tangent) < ONEHUNDRED * EPSILON) {
+    control_point_m = average_pt;
+    weight_m = DEFAULT_WEIGHT;
+  } else {
+    assert(fabs(n_cross_t0 * a_end_tangent) >= ONEHUNDRED * EPSILON);
+    const ScalarType lambda_1 =
+        -(n_cross_t0 * edge_vector) / (n_cross_t0 * a_end_tangent);
+    control_point_m =
+        PtBase<ScalarType>(end_point_m + lambda_1 * a_end_tangent);
+    const ScalarType ct_correction =
+        NormalBase<ScalarType>(control_point_m - start_point_m) *
+        a_plane_normal;
+    control_point_m = control_point_m - ct_correction * a_plane_normal;
+
+    // Compute weight by caculating the end-point curvature. This calculate the
+    // curvature of the conic with (Hartmann1996) and uses it to compute the
+    // weight (Farin1992)
+    const ScalarType L = squaredMagnitude(control_point_m - a_start_pt);
+    if (L < DISTANCE_EPSILON * DISTANCE_EPSILON) {
+      weight_m = DEFAULT_WEIGHT;
+    } else {
+      const NormalBase<ScalarType> start_normal =
+          getCylinderSurfaceNormal(a_cylinder, a_start_pt);
+      const NormalBase<ScalarType> start_cross_prod =
+          crossProduct(a_plane_normal, start_normal);
+      const ScalarType cross_sq_0 = start_cross_prod[0] * start_cross_prod[0];
+      const ScalarType cross_sq_1 = start_cross_prod[1] * start_cross_prod[1];
+      const ScalarType cross_sq_2 = start_cross_prod[2] * start_cross_prod[2];
+      const ScalarType D =
+          fabs(a_cylinder.b() * cross_sq_1 + cross_sq_2);
+      if (D < DISTANCE_EPSILON * DISTANCE_EPSILON) {
+        weight_m = DEFAULT_WEIGHT;
+      } else {
+        const ScalarType R = (cross_sq_0 + cross_sq_1 + cross_sq_2) / L;
+        const ScalarType A =
+            sqrt(R * R * R *
+                 squaredMagnitude(crossProduct(a_end_pt - a_start_pt,
+                                               control_point_m - a_end_pt)));
+        weight_m = HALF * sqrt(A / D);
+      }
+    }
+  }
+  // Clip weight to avoid variable overflows
+  weight_m = minimum(weight_m, ONE);
 }
 
 template <class ScalarType>

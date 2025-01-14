@@ -27,8 +27,8 @@
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection_amr.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/plane.h"
-#include "irl/geometry/half_edge_structures/half_edge_polyhedron_paraboloid.h"
-#include "irl/geometry/half_edge_structures/segmented_half_edge_polyhedron_paraboloid.h"
+#include "irl/geometry/half_edge_structures/half_edge_polyhedron_quadratic.h"
+#include "irl/geometry/half_edge_structures/segmented_half_edge_polyhedron_quadratic.h"
 #include "irl/geometry/polyhedrons/general_polyhedron.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
@@ -325,7 +325,7 @@ TEST(ParaboloidIntersection, Dodecahedron) {
   const UnsignedIndex_t AMR_levels = 17;
   double max_error = 0.0, rms_error = 0.0;
   bool first_vertex_on_surface = false;
-  HalfEdgePolyhedronParaboloid<Pt> half_edge;
+  HalfEdgePolyhedronQuadratic<Pt> half_edge;
   // Create random number generator and seed it with entropy
   std::random_device rd;
   std::mt19937_64 eng(0);  // rd());
@@ -485,7 +485,7 @@ TEST(ParaboloidIntersection, Dodecahedron) {
 }
 
 TEST(ParaboloidIntersection, SISCPaperFig5) {
-  using VolumeAndSuface = AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>;
+  using VolumeAndSuface = AddSurfaceOutput<Volume, ParaboloidParametrizedSurfaceOutput>;
 
   // Defining elliptic paraboloic
   AlignedParaboloid aligned_paraboloid({1.0, 1.0});
@@ -518,7 +518,7 @@ TEST(ParaboloidIntersection, SISCPaperFig5) {
 
   // Generate approximate triangulation of clipped polyhedron using AMR
   for (UnsignedIndex_t i = 0; i < 3; i++) {
-    HalfEdgePolyhedronParaboloid<Pt> half_edge;
+    HalfEdgePolyhedronQuadratic<Pt> half_edge;
     cubes[i].setHalfEdgeVersion(&half_edge);
     auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
     auto dummy_volume = intersectPolyhedronWithParaboloidAMR<Volume>(
@@ -529,7 +529,7 @@ TEST(ParaboloidIntersection, SISCPaperFig5) {
 
 TEST(ParaboloidIntersection, SISCPaperFig6) {
   using VolumeMomentsAndSuface =
-      AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>;
+      AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
 
   AlignedParaboloid aligned_paraboloid({1.0, 1.0});  // DO NOT CHANGE
   Pt datum(0, 0, 0);
@@ -1014,7 +1014,7 @@ TEST(ParaboloidIntersection, PtQuad) {
     const auto first_moments =
         getVolumeMoments<VolumeMoments>(cell, paraboloid);
     // const auto first_moments_and_surface = getVolumeMoments<
-    //     AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(cell,
+    //     AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>>(cell,
     //                                                                 paraboloid);
     // auto first_moments = first_moments_and_surface.getMoments();
     // const double length_scale = 0.05;

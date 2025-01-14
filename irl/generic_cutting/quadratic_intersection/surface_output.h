@@ -7,15 +7,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_GENERIC_CUTTING_PARABOLOID_SURFACE_OUTPUT_INTERSECTION_H_
-#define IRL_GENERIC_CUTTING_PARABOLOID_SURFACE_OUTPUT_INTERSECTION_H_
+#ifndef IRL_GENERIC_CUTTING_QUADRATIC_SURFACE_OUTPUT_INTERSECTION_H_
+#define IRL_GENERIC_CUTTING_QUADRATIC_SURFACE_OUTPUT_INTERSECTION_H_
 
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
+#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
 #include "irl/quadratic_reconstruction/parametrized_surface.h"
 #include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
+#include "irl/cylinder_reconstruction/cylinder_parametrized_surface.h"
 
 namespace IRL {
 template <class ScalarType>
@@ -23,8 +25,14 @@ void addEllipseToSurfaceOutput(
     const AlignedParaboloidBase<ScalarType>& a_aligned_paraboloid,
     const PlaneBase<ScalarType>& a_face_plane,
     const ParametrizedSurfaceOutput* a_surface);
+
+template <class ScalarType>
+void addEllipseToSurfaceOutput(
+    const AlignedCylinderBase<ScalarType>& a_aligned_cylinder,
+    const PlaneBase<ScalarType>& a_face_plane,
+    const ParametrizedSurfaceOutput* a_surface);
 }  // namespace IRL
 
-#include "irl/generic_cutting/paraboloid_intersection/surface_output.tpp"
+#include "irl/generic_cutting/quadratic_intersection/surface_output.tpp"
 
-#endif  // IRL_GENERIC_CUTTING_PARABOLOID_SURFACE_OUTPUT_INTERSECTION_H_
+#endif  // IRL_GENERIC_CUTTING_QUADRATIC_SURFACE_OUTPUT_INTERSECTION_H_
