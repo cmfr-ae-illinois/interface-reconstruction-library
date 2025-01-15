@@ -337,6 +337,38 @@ inline bool FaceQuadratic<HalfEdgeType>::isTriangle(void) const {
   return is_triangle_m;
 }
 
+
+template <class PtType>
+inline std::ostream& operator<<(
+    std::ostream& out, const VertexQuadratic<PtType>& a_vertex) {
+  const auto& st_point = a_vertex.getLocation();
+
+  out << "position " << st_point << '\n';
+  out << "distance : " << a_vertex.getDistance() << '\n';
+  out << "is_clipped ? " << a_vertex.isClipped() << '\n';
+  out << "needs_to_seek_m ? " << a_vertex.needsToSeek() << '\n';
+  return out;
+}
+
+template <class HalfEdgeType>
+inline std::ostream& operator<<(
+    std::ostream& out, const FaceQuadratic<HalfEdgeType>& a_face) {
+  const auto& a_plane = a_face.getPlane();
+  const auto& a_normal = a_plane.normal();
+
+  out << std::setprecision(15);
+
+  out << "face of equation : " << 
+         a_normal[0] << " * x + " <<
+         a_normal[1] << " * y + " <<
+         a_normal[2] << " * z - " <<
+         a_plane.distance() << " = 0\n";
+  out << "nb intersection " << a_face.getNumberOfIntersections() << '\n';
+  out << "nb parra intersection " << a_face.getNumberOfEdgeParallelIntersections() << '\n';
+  out << "triangle ? " << a_face.isTriangle() << '\n';
+  return out;
+}
+
 }  // namespace IRL
 
 #endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_QUADRATIC_TPP_

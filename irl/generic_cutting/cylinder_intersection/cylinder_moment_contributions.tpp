@@ -28,6 +28,9 @@
 #include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 
+// this enable a lot of debug text when computing
+//#define VALDEBUG
+
 namespace IRL {
 
 template <class ScalarType, UnsignedIndex_t OrderX, UnsignedIndex_t OrderY,
@@ -220,7 +223,7 @@ inline std::array<ContainerType, 3> coeffsVC3SeriesOne(
   while (i <= 40) {
     max_diff = ScalarType(0);
     for (UnsignedIndex_t j = 0; j < 2; ++j) {
-      ContainerType add_to_coeff = ScalarType(v3Series[i][j]) * x;
+      ContainerType add_to_coeff = ScalarType(vc3Series[i][j]) * x;
       coeffs[j+1] += add_to_coeff;
       max_diff = maximum(max_diff, fabs(add_to_coeff));
     }
@@ -422,18 +425,48 @@ ReturnType computeType3Contribution(
     const auto& cp = a_arc.control_point();
     const auto& pt_1 = a_arc.end_point();
     const auto& weight = a_arc.weight();
+
+
+    #ifdef VALDEBUG
+    std::cout << "M3 computation :" << std::endl;
+    std::cout << "x0 : " << pt_0 << std::endl;
+    std::cout << "x* : " << cp << std::endl;
+    std::cout << "x1 : " << pt_1 << std::endl;
+    std::cout << "w : " << weight << std::endl;
+    #endif
+
     assert(weight >= ZERO);
     std::array<ScalarType, 3> coeffs;
-    if (weight < ScalarType(0.35))  // We use the exact expressions
-      coeffs = coeffsV3Exact<ScalarType, ScalarType>(weight);
-    else if (weight <
-             ScalarType(1.7))  // We use the 40th order Taylor series (w -> 1)
-      coeffs = coeffsV3SeriesOne<ScalarType, ScalarType>(weight);
-    else if (weight <
-             ScalarType(1.0e9))  // We use the series expansion (w -> infty)
-      coeffs = coeffsV3Exact<ScalarType, ScalarType>(weight);
-    else  // This is within EPSILON of the actual value
+    if (weight < ScalarType(0.35)) { // We use the exact expressions
+    #ifdef VALDEBUG
+    std::cout << "weight is low, using exact value" << std::endl;
+    #endif
+      coeffs = coeffsVC3Exact<ScalarType, ScalarType>(weight);
+    } else if (weight <
+             ScalarType(1.7)) { // We use the 40th order Taylor series (w -> 1)
+    #ifdef VALDEBUG
+    std::cout << "weight is close to 1, using Taylor series" << std::endl;
+    #endif
+      coeffs = coeffsVC3SeriesOne<ScalarType, ScalarType>(weight);
+    } else if (weight <
+             ScalarType(1.0e9)) { // We use the series expansion (w -> infty)
+    #ifdef VALDEBUG
+    std::cout << "weight is high, using exact value" << std::endl;
+    #endif
+      coeffs = coeffsVC3Exact<ScalarType, ScalarType>(weight);
+    } else { // This is within EPSILON of the actual value
+    #ifdef VALDEBUG
+    std::cout << "weight is BIG, using limite" << std::endl;
+    #endif
       coeffs = std::array<ScalarType, 3>({ONE / SIX, ONE / SIX, ZERO});
+    }
+
+    #ifdef VALDEBUG
+    std::cout << "coeffs :" << std::endl;
+    std::cout << "0 : " << coeffs[0] << std::endl;
+    std::cout << "1 : " << coeffs[1] << std::endl;
+    std::cout << "2 : " << coeffs[2] << std::endl;
+    #endif
 
     const auto& C11 = (pt_1[1]-pt_0[1]) * 
         (TWO * pt_0[0] * pt_0[2] + TWO * pt_1[0] * pt_1[2] +
@@ -444,6 +477,12 @@ ReturnType computeType3Contribution(
     const auto& C13 = cp[0] * 
         (pt_0[1] * (pt_1[2] - cp[2]) + pt_1[1] * (cp[2] - pt_0[2]) + 
          cp[1] * (pt_0[2] - pt_1[2]));
+    #ifdef VALDEBUG
+    std::cout << "C vector :" << std::endl;
+    std::cout << "C11 : " << C11 << std::endl;
+    std::cout << "C12 : " << C12 << std::endl;
+    std::cout << "C13 : " << C13 << std::endl;
+    #endif
     return ReturnType::fromScalarConstant(ReturnScalarType(
         (coeffs[0] * C11 +
          coeffs[1] * C12 +

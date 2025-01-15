@@ -171,6 +171,14 @@ class FaceQuadratic : public Face<HalfEdgeType> {
   bool is_triangle_m = false;
 };
 
+template <class PtType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const VertexQuadratic<PtType>& a_vertex);
+
+template <class HalfEdgeType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const FaceQuadratic<HalfEdgeType>& a_face);
+
 }  // namespace IRL
 
 #include "irl/geometry/half_edge_structures/half_edge_quadratic.tpp"

@@ -387,7 +387,7 @@ inline std::ostream& operator<<(
     std::ostream& out, const CylinderBase<ScalarType>& a_cylinder) {
   const auto& datum = a_cylinder.getDatum();
   const auto& frame = a_cylinder.getReferenceFrame();
-  const auto& aligned_cylinder = a_cylinder.getAlignedParaboloid();
+  const auto& aligned_cylinder = a_cylinder.getAlignedCylinder();
 
   out << "Datum: " << datum << '\n';
   out << "Frame: \n"

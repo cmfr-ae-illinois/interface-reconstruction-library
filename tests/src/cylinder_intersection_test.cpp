@@ -509,12 +509,11 @@ TEST(CylinderIntersection, SISCPaperFig5) {
       {"surface_a", "surface_b", "surface_c", "surface_d", "surface_e"});
   std::array<std::string, 5> clipped_faces_filenames(
       {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e"});
-
   // Compute moments and return parametrized surface
   for (UnsignedIndex_t i = 0; i < 5; i++) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
-    std::cout << "the " << i << "th volum is :" << temp_surface_and_moments.getMoments().volume() << std::endl;
+    std::cout << "the " << i << "th volum is :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -569,7 +568,8 @@ TEST(CylinderIntersection, Debug) {
   // Compute moments and return parametrized surface
   auto temp_surface_and_moments =
       getVolumeMoments<VolumeAndSuface>(prism, cylinder);
-  std::cout << "the volum is :" << temp_surface_and_moments.getMoments().volume() << std::endl;
+  std::cout << "the volume is   :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+  std::cout << "expected volume :" << std::setprecision(20) << M_PI / 4.0 + 0.1 << std::endl;
   auto temp_param_surface = temp_surface_and_moments.getSurface();
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);
