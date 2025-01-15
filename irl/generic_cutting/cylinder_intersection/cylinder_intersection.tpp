@@ -1603,7 +1603,7 @@ formCylinderIntersectionBases(
   }
 
   #ifdef VALDEBUG
-  std::cout << "\n=======Starting computing the face=========" << std::endl;
+  std::cout << "\n=======Starting computing the faces=========" << std::endl;
   #endif
   // There are edge-intersections. We then need to calculate the
   // contributions of all unclipped faces to the moments
@@ -1619,7 +1619,7 @@ formCylinderIntersectionBases(
     // If magnitude(normal) ~ 0, the face area is ~ 0 so we can skip
     if (squaredMagnitude(face_normal) < MACHINE_EPSILON) {
   #ifdef VALDEBUG
-  std::cout << "face is vertical, skip to the next one" << std::endl;
+  std::cout << "face is small, skip to the next one" << std::endl;
   #endif
       continue;
     }
@@ -1776,14 +1776,10 @@ formCylinderIntersectionBases(
     // The face has more than 2 intersections (i.e. more than 1 arc). We
     // need to discriminate elliptic/hyperbolic/parabolic cases
     else {
-      // // These flags identify the type of the conic section arcs in the face
-      // const bool elliptic_face =
-      //     a_aligned_paraboloid.a() * a_aligned_paraboloid.b() > ZERO &&
-      //     fabs(face_normal[2]) > MACHINE_EPSILON;
-      // const bool hyperbolic_face =
-      //     a_aligned_paraboloid.a() * a_aligned_paraboloid.b() < ZERO &&
-      //     fabs(face_normal[2]) > MACHINE_EPSILON;
-      const bool reactangle_face = fabs(face_normal[0]) < MACHINE_EPSILON;
+  #ifdef VALDEBUG
+  std::cout << "the face has more than 2 intersections (i.e. more than 1 arc)" << std::endl;
+  #endif
+      const bool rectangle_face = fabs(face_normal[0]) < MACHINE_EPSILON;
 
       // If the face is convex and we do not want to output the parametrized
       // surface, we don't need to sort the intersections to avoid
@@ -1791,7 +1787,7 @@ formCylinderIntersectionBases(
       if (face.isTriangle() &&
           std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
         // CASE: the conic section arcs are arcs of an ellipse
-        if (!reactangle_face) {
+        if (!rectangle_face) {
           // The sign of coeff_a gives us the direction of traversal of the
           // intersection list
           // const bool reverse = a_aligned_paraboloid.a() < ZERO;
@@ -1974,6 +1970,9 @@ formCylinderIntersectionBases(
       // The face is not convex, or we want to output the clipped surface.
       // We then need to sort the intersections
       else {
+  #ifdef VALDEBUG
+  std::cout << "we are going to sort the intersection" << std::endl;
+  #endif
         // This flag is there to prevent degenerate configuration with
         // overlapping arcs
         bool ignore_type3_contributions = false;
@@ -1988,40 +1987,81 @@ formCylinderIntersectionBases(
         half_edge_type* exit_half_edge;
         std::size_t found_intersections = 0;
         const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
+  #ifdef VALDEBUG
+  std::cout << "we starting with the edge : " << *current_edge << std::endl;
+  std::cout << "the ref point is : " << ref_pt << std::endl;
+  #endif
         bool skip_first = true;
         do {
-          full_moments +=
-              computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
+          auto type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
                   ref_pt, current_edge, exit_half_edge,
                   &skip_first, face_normal, max_component_index);
+  #ifdef VALDEBUG
+  std::cout << "type 1 contribution : " << type1contribution << std::endl;
+  #endif
+          full_moments += type1contribution;
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {current_edge, ScalarType(0)}));
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {exit_half_edge, ScalarType(0)}));
+  #ifdef VALDEBUG
+  std::cout << "adding intersections : " << *current_edge << std::endl;
+  std::cout << "and exit : " << *exit_half_edge << std::endl;
+  #endif
           current_edge = exit_half_edge->getNextHalfEdge();
+  #ifdef VALDEBUG
+  std::cout << "next edge is : " << *current_edge << std::endl;
+  #endif
           while (current_edge->getVertex()->needsToSeek()) {
+  #ifdef VALDEBUG
+  std::cout << "next edge is is skiped " << *current_edge << std::endl;
+  #endif
             current_edge = current_edge->getNextHalfEdge();
+  #ifdef VALDEBUG
+  std::cout << "next edge is  : " << *current_edge << std::endl;
+  #endif
           }
           found_intersections += 2;
           skip_first = false;
         } while (found_intersections != intersection_size);
+  #ifdef VALDEBUG
+  std::cout << "ended with " << found_intersections << " intersections" << std::endl;
+  #endif
 
         // Here also, we need to discriminate elliptic/hyperbolic/parabolic
         // conic sections First: we start with elliptic conic section arcs
-        if (!reactangle_face) {
+        if (true) {
           // Compute the center of this ellipse
           // const std::array<ScalarType, 2> conic_center{
           //     { face.getPlane().distance() /
           //          face_normal[0],
           //       ScalarType(0)}};
-          const ScalarType invert = copysign(ONE, face_normal[2]);
+  #ifdef VALDEBUG
+  std::cout << "we don't have rectangle intersection" << std::endl;
+  std::cout << "these are our intersections (befor sorting) : " << std::endl;
+  #endif
           // const ScalarType invert =
           //     a_aligned_paraboloid.a() < ZERO ? -normal_invert : normal_invert;
           // Store angular position of intersection on the ellipse
-          for (auto& element : intersections) {
-            const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = invert * atan2(pt[1],
-                                            pt[0]);
+          const ScalarType invert = rectangle_face ? copysign(ONE, face_normal[2]) : copysign(ONE, face_normal[0]);
+          if (rectangle_face) {
+            for (auto& element : intersections) {
+              const auto& pt = element.first->getVertex()->getLocation().getPt();
+              element.second = invert * atan2(pt[1],
+                                              pt[0]);
+    #ifdef VALDEBUG
+    std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
+    #endif
+            }
+          } else {
+            for (auto& element : intersections) {
+              const auto& pt = element.first->getVertex()->getLocation().getPt();
+              element.second = invert * atan2(pt[2],
+                                              pt[1]);
+    #ifdef VALDEBUG
+    std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
+    #endif
+            }
           }
           // Sort intersections
           std::sort(intersections.begin(), intersections.end(),
@@ -2039,7 +2079,7 @@ formCylinderIntersectionBases(
               break;
             }
           }
-          restart_sort = true;
+          // restart_sort = true;
           // If this sorting failed, we now sort based on Y positions
           if (restart_sort) {
             SmallVector<stype, 6> intersection_copy;
@@ -2159,7 +2199,7 @@ formCylinderIntersectionBases(
             }
           }
         }
-        // The section is a rectangle
+        // The section is a hyperbolique
         else 
         {
           // pour l'instant on skip

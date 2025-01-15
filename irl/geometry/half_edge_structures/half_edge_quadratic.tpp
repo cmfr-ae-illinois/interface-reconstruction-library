@@ -369,6 +369,16 @@ inline std::ostream& operator<<(
   return out;
 }
 
+template <class VertexType>
+inline std::ostream& operator<<(
+    std::ostream& out, const HalfEdgeQuadratic<VertexType>& a_halfedge) {
+  const auto& start_pos = a_halfedge.getPreviousVertex()->getLocation();
+  const auto& end_pos = a_halfedge.getVertex()->getLocation();
+
+  out << "edge going from : " << start_pos << ", to " << end_pos << std::endl;
+  return out;
+}
+
 }  // namespace IRL
 
 #endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_QUADRATIC_TPP_

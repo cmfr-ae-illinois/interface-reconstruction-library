@@ -179,6 +179,10 @@ template <class HalfEdgeType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const FaceQuadratic<HalfEdgeType>& a_face);
 
+template <class VertexType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const HalfEdgeQuadratic<VertexType>& a_halfedge);
+
 }  // namespace IRL
 
 #include "irl/geometry/half_edge_structures/half_edge_quadratic.tpp"
