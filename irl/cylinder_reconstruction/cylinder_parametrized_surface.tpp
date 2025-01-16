@@ -29,13 +29,10 @@ template <class VertexList>
 void projectOnSurface(VertexList& vertices, const AlignedCylinder cylinder,
                       const UnsignedIndex_t fixed_vertices) {
   if (vertices.size() > fixed_vertices) {
+    using ScalarType = AlignedCylinder::value_type;
     for (UnsignedIndex_t i = fixed_vertices; i < vertices.size(); i++) {
       const double y = vertices[i][1];
-      if (cylinder.b() * y * y > cylinder.r()) {
-        vertices[i][2] = 0.;
-      } else {
-        vertices[i][2] = sqrt<double>(cylinder.r() - cylinder.b() * y * y);
-      }
+      vertices[i][2] = sqrt(maximum(cylinder.r() - cylinder.b() * y * y, ScalarType(0)));
     }
   }
 }
@@ -978,7 +975,7 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         double x = polygon[i][j][0];
         double y = polygon[i][j][1];
         double z =
-            std::sqrt(aligned_cylinder.r() - aligned_cylinder.b() * y * y);
+            sqrt(maximum(aligned_cylinder.r() - aligned_cylinder.b() * y * y, double(0)));
         vlist[count++] = Pt(x, y, z);
       }
     }

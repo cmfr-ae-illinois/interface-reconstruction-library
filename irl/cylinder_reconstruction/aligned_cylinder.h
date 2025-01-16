@@ -50,38 +50,39 @@ class AlignedCylinderBase {
   ScalarType& r(void) { return coefficients_m[1]; }
   ScalarType r(void) const { return coefficients_m[1]; }
 
-  // Ellipse in the form Ax^2 + By^2 + Cxy + Dx + Ey + F = 0
-  EllipseBase<ScalarType> intersectWithPlane(
-      const PlaneBase<ScalarType>& a_plane) const {
-    EllipseBase<ScalarType> ellipse_to_return;
-    if constexpr (std::is_same<ScalarType, Quad_t>::value) {
-      if (fabsq(a_plane.normal()[2]) < FLT128_EPSILON) {
-        // no intersection
-        return ellipse_to_return;
-      }
+  // Unused?
+  // // Ellipse in the form Ax^2 + By^2 + Cxy + Dx + Ey + F = 0
+  // EllipseBase<ScalarType> intersectWithPlane(
+  //     const PlaneBase<ScalarType>& a_plane) const {
+  //   EllipseBase<ScalarType> ellipse_to_return;
+  //   if constexpr (std::is_same<ScalarType, Quad_t>::value) {
+  //     if (fabsq(a_plane.normal()[2]) < FLT128_EPSILON) {
+  //       // no intersection
+  //       return ellipse_to_return;
+  //     }
 
-    } else {
-      if (std::fabs(a_plane.normal()[2]) < DBL_EPSILON) {
-        // no intersection
-        return ellipse_to_return;
-      }
-    }
-    // IRL Plane defined as n_x x + n_y y + n_z z - d = 0
-    auto normal = a_plane.normal();
-    auto nx = normal[0];
-    auto ny = normal[1];
-    auto nz = normal[2];
-    auto d = a_plane.distance();
+  //   } else {
+  //     if (std::fabs(a_plane.normal()[2]) < DBL_EPSILON) {
+  //       // no intersection
+  //       return ellipse_to_return;
+  //     }
+  //   }
+  //   // IRL Plane defined as n_x x + n_y y + n_z z - d = 0
+  //   auto normal = a_plane.normal();
+  //   auto nx = normal[0];
+  //   auto ny = normal[1];
+  //   auto nz = normal[2];
+  //   auto d = a_plane.distance();
 
-    ellipse_to_return.a() = (nx * nx) / (nz * nz);
-    ellipse_to_return.b() = this->b() + (ny * ny) / (nz * nz);
-    ellipse_to_return.c() =
-        static_cast<ScalarType>(2) * (nx * ny) / (nz * nz);  // AlignedParaboloid is aligned along x-y
-    ellipse_to_return.d() = static_cast<ScalarType>(2) * d * nx / nz;
-    ellipse_to_return.e() = static_cast<ScalarType>(2) * d * ny / nz;
-    ellipse_to_return.f() = d * d - this->r();
-    return ellipse_to_return;
-  }
+  //   ellipse_to_return.a() = (nx * nx) / (nz * nz);
+  //   ellipse_to_return.b() = this->b() + (ny * ny) / (nz * nz);
+  //   ellipse_to_return.c() =
+  //       static_cast<ScalarType>(2) * (nx * ny) / (nz * nz);  // AlignedParaboloid is aligned along x-y
+  //   ellipse_to_return.d() = static_cast<ScalarType>(2) * d * nx / nz;
+  //   ellipse_to_return.e() = static_cast<ScalarType>(2) * d * ny / nz;
+  //   ellipse_to_return.f() = d * d - this->r();
+  //   return ellipse_to_return;
+  // }
 
   void serialize(ByteBuffer* a_buffer) const {
     a_buffer->pack(coefficients_m.data(), 2);
@@ -100,7 +101,11 @@ template <class ScalarType>
 inline std::ostream& operator<<(
     std::ostream& out,
     const AlignedCylinderBase<ScalarType>& a_aligned_cylinder) {
-  out << a_aligned_cylinder.r() << " = z^2 + " << a_aligned_cylinder.b() << " * y^2";
+  if (a_aligned_cylinder.b() < ScalarType(0)) {
+    out << a_aligned_cylinder.r() << " = z^2 " << a_aligned_cylinder.b() << " * y^2";
+  } else {
+    out << a_aligned_cylinder.r() << " = z^2 + " << a_aligned_cylinder.b() << " * y^2";
+  }
   return out;
 }
 

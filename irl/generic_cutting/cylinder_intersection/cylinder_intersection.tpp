@@ -119,7 +119,7 @@ ReturnType computeType3ContributionWithSplit(
   const ScalarType ONE_HUNDRED = ScalarType(100);
 
     #ifdef VALDEBUG
-    std::cout << "trying to compute Type 3 Contri, counter : " << a_split_counter << std::endl;
+    std::cout << "trying to compute Type 3 Contri, counter : " << *a_split_counter << std::endl;
     #endif
 
   // Store reference point, start point and end point of arc
@@ -142,25 +142,24 @@ ReturnType computeType3ContributionWithSplit(
   const ScalarType tgt0_dot_edge = a_tangent_0 * edge_vector_normalized;
   const ScalarType tgt1_dot_edge = a_tangent_1 * edge_vector_normalized;
 
-  // Because we don't use M2, we need M3 to compute the contribution
-  // // If start and end point are very close and tangents point toward each
-  // // other: the arc has no contribution to the moments
-  // if (squaredMagnitude(edge_vector) < DISTANCE_EPSILON * DISTANCE_EPSILON &&
-  //     fabs(ONE - tgt0_dot_edge) < ANGLE_EPSILON &&
-  //     fabs(ONE + tgt1_dot_edge) < ANGLE_EPSILON) {
-  //   // For completeness, we update the parametric surface boundary with a
-  //   // straight Bezier arc
-  //   if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
-  //     auto surface_arc = RationalBezierArc(
-  //         pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
-  //         pt_1.toDoublePt(), 0.0);
-  //     // TODO: check that this recast works in DP
-  //     surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(&pt_0));
-  //     surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
-  //     a_surface->addArc(surface_arc);
-  //   }
-  //   return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
-  // }
+  // If start and end point are very close and tangents point toward each
+  // other: the arc has no contribution to the moments
+  if (squaredMagnitude(edge_vector) < DISTANCE_EPSILON * DISTANCE_EPSILON &&
+      fabs(ONE - tgt0_dot_edge) < ANGLE_EPSILON &&
+      fabs(ONE + tgt1_dot_edge) < ANGLE_EPSILON) {
+    // For completeness, we update the parametric surface boundary with a
+    // straight Bezier arc
+    if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
+      auto surface_arc = RationalBezierArc(
+          pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
+          pt_1.toDoublePt(), 0.0);
+      // TODO: check that this recast works in DP
+      surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(&pt_0));
+      surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
+      a_surface->addArc(surface_arc);
+    }
+    return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+  }
 
   // We split the Bezier arc if:
   // - the tangents both point toward the same infinite point (to avoid
@@ -282,7 +281,7 @@ ReturnType computeType3ContributionWithSplit(
     // the polytope
     if (arc.weight() < ZERO) {
     #ifdef VALDEBUG
-    std::cout << "tthe arc is computed with negative weight, splitting" << std::endl;
+    std::cout << "the arc is computed with negative weight, nudging" << std::endl;
     #endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
@@ -293,7 +292,6 @@ ReturnType computeType3ContributionWithSplit(
     // Calculate type 3 contribution of arc
     auto moments = computeType3Contribution<ReturnType, ScalarType>(
         a_cylinder, arc, a_plane_normal);
-    // I think this is M2. so skip
     // // If the arc was split, then we need to add the contribution of the
     // // space between the splitted arcs and the orignial arc
     // if (!(&a_pt_ref == &a_pt_0 || &a_pt_ref == &a_pt_1)) {
@@ -641,13 +639,9 @@ template <class VertexType>
 bool vertexBelow(const VertexType& a_pt,
                  const AlignedCylinderBase<typename VertexType::value_type>&
                      a_cylinder) {
+  using ScalarType = typename VertexType::value_type;
   const auto& pt = a_pt.getPt();
-  if (fabs(pt[1]) < sqrt(a_cylinder.r() / a_cylinder.b()))
-  {
-    return pt[2] <
-          sqrt(a_cylinder.r() - a_cylinder.b() * pt[1] * pt[1]);
-  } else
-  return false;
+  return a_cylinder.r() - pt[2] * pt[2] - a_cylinder.b() * pt[1] * pt[1] > ScalarType(0);
 }
 
 // If centroid is outside of polygon, or any vertex on face
@@ -1102,10 +1096,7 @@ formCylinderIntersectionBases(
 
     const auto& pt = vertex.getLocation().getPt();
     const auto& hdist = sqrt(r/b) - fabs(pt[1]);
-    const ScalarType dist_function = (hdist < 0) ? 
-                                      - hdist :
-                                      pt[2] - 
-                                        sqrt(r - b * pt[1] * pt[1]);
+    const ScalarType dist_function = pt[2] * pt[2] + b * pt[1] * pt[1] - r;
     #ifdef VALDEBUG
     std::cout << "computed distance is " << dist_function << std::endl;
     #endif

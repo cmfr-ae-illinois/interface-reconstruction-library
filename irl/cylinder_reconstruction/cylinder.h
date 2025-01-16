@@ -48,7 +48,6 @@ class CylinderBase {
                  const ReferenceFrameBase<ScalarType>& a_reference_frame,
                  const ScalarType a_coef_b, const ScalarType a_coef_r);
 
-  // always above doesn't make a lot of sens, but i'll let it pass
   static CylinderBase createAlwaysAbove(void);
 
   static CylinderBase createAlwaysBelow(void);
@@ -82,7 +81,6 @@ class CylinderBase {
 
   /// Cylinder cannot be a flipped reconstruction. Add this for ease of use
   /// with other routines that usually take planar reconstructions.
-  // NOTE: can it?
   static constexpr bool isFlipped(void) { return false; }
 
   /// \brief Since localizers are always convex, never flip.

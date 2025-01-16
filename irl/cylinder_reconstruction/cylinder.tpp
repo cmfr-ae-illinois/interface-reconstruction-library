@@ -139,26 +139,13 @@ inline PtBase<ScalarType> conicCenter(
   const auto& face_normal = a_plane.normal();
   const auto& face_distance = a_plane.distance();
   const ScalarType MACHINE_EPSILON = machine_epsilon<ScalarType>();
-  if (abs<ScalarType>(face_normal[0]) < MACHINE_EPSILON) {
-    // this intersection result in 2 parallel lines, 
-    // I'll send back the point at x=0
-    const auto nx = face_normal[0];
-    const auto ny = face_normal[1];
-    const auto nz = face_normal[2];
-    const auto c = face_distance * nz / safelyTiny(nz * nz * a_cylinder.b() + ny * ny);
-    return PtBase<ScalarType>(
-        static_cast<ScalarType>(0),
-        c * ny ,
-        c * nz);
-  } else {
     // If the intersection is not 2 parallel lines,
     // the intersection will be an ellipse with the center
     // on the Ox axis
-    return PtBase<ScalarType>(
-        -face_distance / safelyTiny(face_normal[0]),
-        static_cast<ScalarType>(0),
-        static_cast<ScalarType>(0));
-  }
+  return PtBase<ScalarType>(
+      -face_distance / safelyTiny(face_normal[0]),
+      static_cast<ScalarType>(0),
+      static_cast<ScalarType>(0));
 }
 
 template <class ScalarType>
