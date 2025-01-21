@@ -51,8 +51,8 @@ struct has_cylinder_surface : std::false_type {};
 template <class C>
 struct has_cylinder_surface<const C> : has_cylinder_surface<C> {};
 
-template <class MomentType, class SurfaceType>
-struct has_cylinder_surface<AddSurfaceOutput<MomentType, SurfaceType>>
+template <class MomentType>
+struct has_cylinder_surface<AddSurfaceOutput<MomentType, CylinderParametrizedSurfaceOutput>>
     : std::true_type {};
 
 /// \brief Parametrized surface defined by coeffs B and R of Cylinder + list of

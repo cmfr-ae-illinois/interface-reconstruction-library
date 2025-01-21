@@ -194,6 +194,14 @@ inline void TriangulatedSurfaceOutput::write(const std::string& filename) {
   }
   myfile.close();
 }
+
+inline std::ostream& operator<<(
+    std::ostream& out, const TriangulatedSurfaceOutput& a_triangulated_surface) 
+    {
+      out << "triangulated surface has " << a_triangulated_surface.nTriangles() << " triangles\n";
+      out << "a total of " << a_triangulated_surface.nVertices() << " vertices and " << a_triangulated_surface.nBoundaryEdges() << " boundaries\n";
+      return out;
+    }
 }  // namespace IRL
 
 #endif  // IRL_SURFACE_MESH_TRIANGULATED_SURFACE_TPP_

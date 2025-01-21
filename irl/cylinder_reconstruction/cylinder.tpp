@@ -158,29 +158,6 @@ inline NormalBase<ScalarType> getCylinderSurfaceNormal(
       static_cast<ScalarType>(2) * a_pt[2]);
 };
 
-// template <class PtTypeWithGradient, class ScalarType>
-// inline PtTypeWithGradient getParaboloidSurfaceNormalWithGradient(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PtTypeWithGradient& a_pt) {
-//   using gradient_type = typename PtTypeWithGradient::gradient_type;
-//   const ScalarType A = a_paraboloid.a(), B = a_paraboloid.b();
-//   auto A_grad = gradient_type(static_cast<ScalarType>(0)),
-//        B_grad = gradient_type(static_cast<ScalarType>(0));
-//   const auto& pt = a_pt.getPt();
-//   const auto& pt_grad = a_pt.getData();
-//   const auto surface_normal = PtBase<ScalarType>(
-//       static_cast<ScalarType>(2) * A * pt[0],
-//       static_cast<ScalarType>(2) * B * pt[1], static_cast<ScalarType>(1));
-//   auto surface_normal_withgrad = PtTypeWithGradient(surface_normal);
-//   auto& surface_normal_grad = surface_normal_withgrad.getData();
-//   surface_normal_grad[0] =
-//       static_cast<ScalarType>(2) * (A_grad * pt[0] + A * pt_grad[0]);
-//   surface_normal_grad[1] =
-//       static_cast<ScalarType>(2) * (B_grad * pt[1] + B * pt_grad[1]);
-//   // surface_normal_grad[2] = 0.0;
-//   return surface_normal_withgrad;
-// };
-
 template <class ScalarType>
 inline PtBase<ScalarType> projectPtAlongLineOntoCylinder(
     const AlignedCylinderBase<ScalarType>& a_cylinder,
@@ -196,10 +173,6 @@ inline PtBase<ScalarType> projectPtAlongLineOntoCylinder(
   const ScalarType c = (a_cylinder.b() * a_starting_pt[1] * a_starting_pt[1] +
                         a_starting_pt[2] * a_starting_pt[2] -
                         a_cylinder.r());
-  // check if starting point is on paraboloid (then solution = 0)
-  // if (std::fabs(c) < 5.0 * DBL_EPSILON) {
-  //   return a_starting_pt;
-  // } else {
   const StackVector<ScalarType, 2> solutions =
       solveQuadratic<ScalarType>(a, b, c);
   if (solutions.size() == 0) {
@@ -216,7 +189,6 @@ inline PtBase<ScalarType> projectPtAlongLineOntoCylinder(
       return a_starting_pt + a_line * solutions[1];
     }
   }
-  // }
 }
 
 template <class ScalarType>
@@ -234,12 +206,6 @@ inline PtBase<ScalarType> projectPtAlongHalfLineOntoCylinder(
   const ScalarType c = (a_cylinder.b() * a_starting_pt[1] * a_starting_pt[1] +
                         a_starting_pt[2] * a_starting_pt[2] -
                         a_cylinder.r());
-  // check if starting point is on paraboloid (then solution = 0)
-  // if (std::fabs(c) < DBL_EPSILON) {
-  //   return Pt(static_cast<ScalarType>(DBL_MAX),
-  //             static_cast<ScalarType>(DBL_MAX),
-  //             static_cast<ScalarType>(DBL_MAX));
-  // } else {
   const StackVector<ScalarType, 2> solutions =
       solveQuadratic<ScalarType>(a, b, c);
   if (solutions.size() == 0) {
@@ -247,9 +213,7 @@ inline PtBase<ScalarType> projectPtAlongHalfLineOntoCylinder(
                               static_cast<ScalarType>(DBL_MAX),
                               static_cast<ScalarType>(DBL_MAX));
   }
-  // assert(solutions.size() > 0);
   if (solutions.size() == 1) {
-    // assert(solutions[0] >= static_cast<ScalarType>(0));
     if (solutions[0] < machine_epsilon<ScalarType>()) {
       return PtBase<ScalarType>(static_cast<ScalarType>(DBL_MAX),
                                 static_cast<ScalarType>(DBL_MAX),
@@ -257,8 +221,6 @@ inline PtBase<ScalarType> projectPtAlongHalfLineOntoCylinder(
     }
     return a_starting_pt + a_line * solutions[0];
   } else {
-    // assert(maximum(solutions[0], solutions[1]) >=
-    // static_cast<ScalarType>(0));
     if ((solutions[1] < static_cast<ScalarType>(0))) {
       return PtBase<ScalarType>(static_cast<ScalarType>(DBL_MAX),
                                 static_cast<ScalarType>(DBL_MAX),
@@ -272,102 +234,7 @@ inline PtBase<ScalarType> projectPtAlongHalfLineOntoCylinder(
       return a_starting_pt + a_line * distance_along_line;
     }
   }
-  // }
 }
-
-// template <class PtTypeWithGradient, class ScalarType>
-// inline PtTypeWithGradient projectPtAlongHalfLineOntoParaboloidWithGradient(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PtTypeWithGradient& a_line, const PtTypeWithGradient& a_starting_pt) {
-//   // a_line should be normalized before passing in to make
-//   // these checks make sense
-//   using gradient_type = typename PtTypeWithGradient::gradient_type;
-//   ScalarType EPSILON;
-//   if constexpr (std::is_same<ScalarType, Quad_t>::value) {
-//     EPSILON = FLT128_EPSILON;
-//   } else {
-//     EPSILON = DBL_EPSILON;
-//   }
-//   const ScalarType A = a_paraboloid.a(), B = a_paraboloid.b();
-//   auto A_grad = gradient_type(static_cast<ScalarType>(0)),
-//        B_grad = gradient_type(static_cast<ScalarType>(0));
-//   A_grad.setGradA(static_cast<ScalarType>(1));
-//   B_grad.setGradB(static_cast<ScalarType>(1));
-//   const PtBase<ScalarType>& line = a_line.getPt();
-//   const auto& line_grad = a_line.getData();
-//   const PtBase<ScalarType>& starting_pt = a_starting_pt.getPt();
-//   const auto& starting_pt_grad = a_starting_pt.getData();
-//   const ScalarType a = (A * line[0] * line[0] + B * line[1] * line[1]);
-//   const ScalarType b =
-//       (line[2] + static_cast<ScalarType>(2) * A * starting_pt[0] * line[0] +
-//        static_cast<ScalarType>(2) * B * starting_pt[1] * line[1]);
-//   const ScalarType c = (starting_pt[2] + A * starting_pt[0] * starting_pt[0] +
-//                         B * starting_pt[1] * starting_pt[1]);
-//   // check if starting point is on paraboloid(then solution = 0)
-//   if (fabs(c) < static_cast<ScalarType>(5) * EPSILON) {
-//     return a_starting_pt;
-//   } else {
-//     const auto a_grad =
-//         A_grad * line[0] * line[0] + B_grad * line[1] * line[1] +
-//         static_cast<ScalarType>(2) * A * line_grad[0] * line[0] +
-//         static_cast<ScalarType>(2) * B * line_grad[1] * line[1];
-//     const auto b_grad =
-//         line_grad[2] +
-//         static_cast<ScalarType>(2) * A_grad * starting_pt[0] * line[0] +
-//         static_cast<ScalarType>(2) * A * starting_pt_grad[0] * line[0] +
-//         static_cast<ScalarType>(2) * A * starting_pt[0] * line_grad[0] +
-//         static_cast<ScalarType>(2) * B_grad * starting_pt[1] * line[1] +
-//         static_cast<ScalarType>(2) * B * starting_pt_grad[1] * line[1] +
-//         static_cast<ScalarType>(2) * B * starting_pt[1] * line_grad[1];
-//     const auto c_grad =
-//         starting_pt_grad[2] + A_grad * starting_pt[0] * starting_pt[0] +
-//         static_cast<ScalarType>(2) * A * starting_pt_grad[0] * starting_pt[0] +
-//         B_grad * starting_pt[1] * starting_pt[1] +
-//         static_cast<ScalarType>(2) * B * starting_pt_grad[1] * starting_pt[1];
-//     const auto solutions =
-//         solveQuadraticWithGradient(a, b, c, a_grad, b_grad, c_grad);
-//     if (solutions.size() == 0) {
-//       std::cout << "Solution not found on half-line: " << line << starting_pt
-//                 << std::endl;
-//     }
-//     // assert(solutions.size() > 0);
-//     if (solutions.size() == 1) {
-//       const auto sol = solutions[0].first;
-//       const auto sol_grad = solutions[0].second;
-//       // assert(sol >= static_cast<ScalarType>(0));
-//       auto intersection =
-//           PtTypeWithGradient(PtBase<ScalarType>(starting_pt + sol * line));
-//       for (UnsignedIndex_t d = 0; d < 3; ++d) {
-//         intersection.getData()[d] =
-//             starting_pt_grad[d] + sol_grad * line[d] + sol * line_grad[d];
-//       }
-//       return intersection;
-//     } else {
-//       const auto sol0 = solutions[0].first;
-//       const auto sol1 = solutions[1].first;
-//       // assert(maximum(sol0, sol1) >= static_cast<ScalarType>(0));
-//       if (sol0 >= static_cast<ScalarType>(0)) {
-//         const auto sol0_grad = solutions[0].second;
-//         auto intersection =
-//             PtTypeWithGradient(PtBase<ScalarType>(starting_pt + sol0 * line));
-//         for (UnsignedIndex_t d = 0; d < 3; ++d) {
-//           intersection.getData()[d] =
-//               starting_pt_grad[d] + sol0_grad * line[d] + sol0 * line_grad[d];
-//         }
-//         return intersection;
-//       } else {
-//         const auto sol1_grad = solutions[1].second;
-//         auto intersection =
-//             PtTypeWithGradient(PtBase<ScalarType>(starting_pt + sol1 * line));
-//         for (UnsignedIndex_t d = 0; d < 3; ++d) {
-//           intersection.getData()[d] =
-//               starting_pt_grad[d] + sol1_grad * line[d] + sol1 * line_grad[d];
-//         }
-//         return intersection;
-//       }
-//     }
-//   }
-// }
 
 template <class ScalarType>
 inline std::ostream& operator<<(

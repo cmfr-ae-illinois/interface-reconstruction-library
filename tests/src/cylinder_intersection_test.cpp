@@ -516,6 +516,68 @@ TEST(CylinderIntersection, SISCPaperFig5) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
     std::cout << "the " << i << "th volum is :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+    auto temp_moments =
+        getVolumeMoments<Volume>(cubes[i], cylinder);
+    EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), temp_moments.volume());
+    auto temp_param_surface = temp_surface_and_moments.getSurface();
+    auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+    temp_tri_surface.write(surface_filenames[i]);
+  }
+  // int i = 3;
+  //   auto temp_surface_and_moments =
+  //       getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
+  //   std::cout << "the " << i << "th volum is :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+  //   auto temp_param_surface = temp_surface_and_moments.getSurface();
+  //   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+  //   temp_tri_surface.write(surface_filenames[i]);
+
+//   std::cout << "type test : IRL::is_polyhedron<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::PtBase<double> > > >, IRL::VertexQuadratic<IRL::PtBase<double> >, 64u, 64u> >::value : " << IRL::is_polyhedron<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::PtBase<double> > > >, IRL::VertexQuadratic<IRL::PtBase<double> >, 64u, 64u> >::value << std::endl;
+
+//   // Generate approximate triangulation of clipped polyhedron using AMR
+//   for (UnsignedIndex_t i = 0; i < 3; i++) {
+//     HalfEdgePolyhedronQuadratic<Pt> half_edge;
+//     cubes[i].setHalfEdgeVersion(&half_edge);
+//     auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
+//     auto dummy_volume = intersectPolyhedronWithParaboloidAMR<Volume>(
+//         &seg_half_edge, &half_edge, aligned_cylinder, 10,
+//         clipped_faces_filenames[i]);
+//   }
+}
+
+TEST(HyperCylinderIntersection, SISCPaperFig5) {
+  using VolumeAndSuface = AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
+
+  // Defining elliptic paraboloic
+  AlignedCylinder aligned_cylinder({-2.0, 0.5});
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(),
+                        aligned_cylinder.r());
+
+  // Constructing cells for each subfigure
+  auto cubes = std::array<RectangularCuboid, 5>(
+      {RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0),
+                                          Pt(0.8, 0.8, 0.8)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0),
+                                          Pt(1.0, 1.0, 1.0)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0),
+                                          Pt(1.2, 1.2, 1.2)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, -0.5, 0.0),
+                                          Pt(1.0, 0.5, 1.0)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, 0.0),
+                                          Pt(1.0, 1.0, 1.0))});
+  std::array<std::string, 5> surface_filenames(
+      {"surface_a", "surface_b", "surface_c", "surface_d", "surface_e"});
+  std::array<std::string, 5> clipped_faces_filenames(
+      {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e"});
+  // Compute moments and return parametrized surface
+  for (UnsignedIndex_t i = 0; i < 5; i++) {
+    auto temp_surface_and_moments =
+        getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
+    std::cout << "the " << i << "th volum is :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+    auto temp_moments =
+        getVolumeMoments<Volume>(cubes[i], cylinder);
+    EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), temp_moments.volume());
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -582,6 +644,53 @@ TEST(CylinderIntersection, Debug) {
   auto temp_param_surface = temp_surface_and_moments.getSurface();
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);
+
+  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), M_PI / 4.0 + 0.1);
+}
+
+TEST(HyperCylinderIntersection, Debug) {
+  using VolumeAndSuface = AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
+
+  // Defining elliptic paraboloic
+  AlignedCylinder aligned_cylinder({-1.0, 0.0});
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(),
+                        aligned_cylinder.r());
+
+  // Constructing cells for each subfigure
+  std::array<Pt, 8> vertex_list{{Pt(0.0, 0.0, 0.0),
+                                 Pt(0.0, 2.0, 0.0),
+                                 Pt(0.0, 0.0, 2.0),
+                                 Pt(0.0, 2.0, 2.0),
+                                 Pt(-2.0, 0.0, 0.0),
+                                 Pt(-2.0, 2.0, 0.0),
+                                 Pt(-2.0, 0.0, 2.0),
+                                 Pt(-2.0, 2.0, 2.0)}};
+
+  std::array<std::array<UnsignedIndex_t, 4>, 6> face_mapping{
+      {{0, 1, 3, 2},
+       {2, 3, 7, 6},
+       {3, 1, 5, 7},
+       {1, 0, 4, 5},
+       {0, 2, 6, 4},
+       {4, 6, 7, 5}}};
+
+  PolyhedronConnectivity connectivity(face_mapping);
+  GeneralPolyhedron prism(vertex_list, &connectivity);
+  GeneralPolyhedron prism_local_frame(vertex_list, &connectivity);
+  std::string surface_filename= "surface_debug";
+
+  // Compute moments and return parametrized surface
+  auto temp_surface_and_moments =
+      getVolumeMoments<VolumeAndSuface>(prism, cylinder);
+  std::cout << "the volume is   :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+  std::cout << "expected volume :" << std::setprecision(20) << 4.0 << std::endl;
+  auto temp_param_surface = temp_surface_and_moments.getSurface();
+  auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+  temp_tri_surface.write(surface_filename);
+
+  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), 4.0);
 }
 
 TEST(CylinderIntersection, Debug2) {
@@ -589,6 +698,53 @@ TEST(CylinderIntersection, Debug2) {
 
   // Defining elliptic paraboloic
   AlignedCylinder aligned_cylinder({2.0, 1.2});
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(),
+                        aligned_cylinder.r());
+
+  // Constructing cells for each subfigure
+  std::array<Pt, 8> vertex_list{{Pt( 1.5, -0.5, 0.0),
+                                 Pt( 1.5,  0.5, 0.0),
+                                 Pt( 1.0, -0.5, 1.0),
+                                 Pt( 1.0,  0.5, 1.0),
+                                 Pt( 0.5, -0.5, 0.0),
+                                 Pt( 0.5,  0.5, 0.0),
+                                 Pt( 0.0, -0.5, 1.0),
+                                 Pt( 0.0,  0.5, 1.0)}};
+
+  std::array<std::array<UnsignedIndex_t, 4>, 6> face_mapping{
+      {{0, 1, 3, 2},
+       {2, 3, 7, 6},
+       {3, 1, 5, 7},
+       {1, 0, 4, 5},
+       {0, 2, 6, 4},
+       {4, 6, 7, 5}}};
+
+  PolyhedronConnectivity connectivity(face_mapping);
+  GeneralPolyhedron prism(vertex_list, &connectivity);
+  GeneralPolyhedron prism_local_frame(vertex_list, &connectivity);
+  std::string surface_filename= "surface_debug";
+
+  // Compute moments and return parametrized surface
+  auto temp_surface_and_moments =
+      getVolumeMoments<VolumeAndSuface>(prism, cylinder);
+  auto just_volum = 
+      getVolumeMoments<Volume>(prism, cylinder);
+  std::cout << "the volume is (with surface) :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+  std::cout << "the volume is (no   surface) :" << std::setprecision(20) << just_volum.volume() << std::endl;
+  auto temp_param_surface = temp_surface_and_moments.getSurface();
+  auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+  temp_tri_surface.write(surface_filename);
+
+  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), just_volum.volume());
+}
+
+TEST(HyperCylinderIntersection, Debug2) {
+  using VolumeAndSuface = AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
+
+  // Defining elliptic paraboloic
+  AlignedCylinder aligned_cylinder({-2.0, 0.5});
   Pt datum(0, 0, 0);
   ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
   Cylinder cylinder(datum, frame, aligned_cylinder.b(),

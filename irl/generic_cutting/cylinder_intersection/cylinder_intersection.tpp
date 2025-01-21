@@ -367,7 +367,7 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
     #ifdef VALDEBUG
     std::cout << "The cylinder is always above, premature ending" << std::endl;
     #endif
-    if constexpr (has_paraboloid_surface<ReturnType>::value) {
+    if constexpr (has_cylinder_surface<ReturnType>::value) {
       moments.getMoments() =
           ReturnType::moment_type::calculateMoments(a_polytope);
       moments.getSurface().setCylinder(a_cylinder);
@@ -389,48 +389,6 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   }
 
   auto cylinder = a_cylinder;
-  // No gradient here
-  // if constexpr (has_embedded_gradient<ScalarType>::value) {
-  //   const auto& datum = a_paraboloid.getDatum();
-  //   const auto& ref_frame = a_paraboloid.getReferenceFrame();
-  //   const auto& aligned_paraboloid = a_paraboloid.getAlignedParaboloid();
-
-  //   auto datum_with_grad = Pt(ZERO, ZERO, ZERO);
-  //   auto ref_frame_with_grad =
-  //       ReferenceFrame(Normal(ONE, ZERO, ZERO), Normal(ZERO, ONE, ZERO),
-  //                      Normal(ZERO, ZERO, ONE));
-  //   auto A_with_grad = ZERO;
-  //   auto B_with_grad = ZERO;
-
-  //   A_with_grad.value() = aligned_paraboloid.a().value();
-  //   B_with_grad.value() = aligned_paraboloid.b().value();
-  //   datum_with_grad[0].value() = datum[0].value();
-  //   datum_with_grad[1].value() = datum[1].value();
-  //   datum_with_grad[2].value() = datum[2].value();
-  //   ref_frame_with_grad[0][0].value() = ref_frame[0][0].value();
-  //   ref_frame_with_grad[0][1].value() = ref_frame[0][1].value();
-  //   ref_frame_with_grad[0][2].value() = ref_frame[0][2].value();
-  //   ref_frame_with_grad[1][0].value() = ref_frame[1][0].value();
-  //   ref_frame_with_grad[1][1].value() = ref_frame[1][1].value();
-  //   ref_frame_with_grad[1][2].value() = ref_frame[1][2].value();
-  //   ref_frame_with_grad[2][0].value() = ref_frame[2][0].value();
-  //   ref_frame_with_grad[2][1].value() = ref_frame[2][1].value();
-  //   ref_frame_with_grad[2][2].value() = ref_frame[2][2].value();
-
-  //   A_with_grad.gradient().setGradA(FloatType(1));
-  //   B_with_grad.gradient().setGradB(FloatType(1));
-  //   datum_with_grad[0].gradient().setGradTx(FloatType(1));
-  //   datum_with_grad[1].gradient().setGradTy(FloatType(1));
-  //   datum_with_grad[2].gradient().setGradTz(FloatType(1));
-  //   ref_frame_with_grad[1][2].gradient().setGradRx(FloatType(1));
-  //   ref_frame_with_grad[2][1].gradient().setGradRx(-FloatType(1));
-  //   ref_frame_with_grad[2][0].gradient().setGradRy(FloatType(1));
-  //   ref_frame_with_grad[0][2].gradient().setGradRy(-FloatType(1));
-  //   ref_frame_with_grad[0][1].gradient().setGradRz(FloatType(1));
-  //   ref_frame_with_grad[1][0].gradient().setGradRz(-FloatType(1));
-  //   paraboloid = ParaboloidType(datum_with_grad, ref_frame_with_grad,
-  //                               A_with_grad, B_with_grad);
-  // }
 
   // Move into reference frame of the cylinder and compute and approximate
   // length-scale of the polytope
@@ -461,9 +419,9 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   }
 
   // Define scale so that the polyhedron's volume is O(1)
-  const ScalarType inv_scale =
-      maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
-  //const ScalarType inv_scale = ScalarType(ONE);
+  //const ScalarType inv_scale =
+  //    maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
+  const ScalarType inv_scale = ScalarType(ONE);
   const ScalarType inv_volume_scale = inv_scale * inv_scale * inv_scale;
   const ScalarType scale = ScalarType(ONE) / inv_scale;
   const ScalarType volume_scale = scale * scale * scale;
@@ -821,7 +779,7 @@ ReturnType orientAndApplyType3Correction(
     return computeType3Contribution<ReturnType, ScalarType>(a_cylinder, arc,
                                                             face_normal);
 
-  }  // CASE: The arc is from an ellipse
+  }  // CASE: The arc is from an ellipse or hyperbola
   else {
     #ifdef VALDEBUG
     std::cout << "this is an ellipse" << std::endl;
@@ -1065,11 +1023,8 @@ formCylinderIntersectionBases(
 
   const auto& b = a_aligned_cylinder.b();
   const auto& r = a_aligned_cylinder.r();
-  // only doing regular cylinder for now
-  // // Identify elliptic case
-  // const bool elliptic =
-  //     a_aligned_paraboloid.a() * a_aligned_paraboloid.b() > ZERO;
-  const bool elliptic = true;
+  // Identify elliptic case
+  const bool elliptic = b > ZERO;
 
   // First, triangulate faces (if necessary) and compute normals
   // The triangulation criterion is based on face planarity
@@ -1129,17 +1084,15 @@ formCylinderIntersectionBases(
   if (!requires_nudge) {
     // Early termination cases, only possible with elliptic thanks to
     // convexity
-    // if (elliptic && a_aligned_paraboloid.a() > ZERO &&
-    //     number_of_vertices_above == 0) {
-    //   // Whole volume below
-    //   return ReturnType::calculateMoments(a_polytope);
-    // }
+    if (elliptic && number_of_vertices_above == 0) {
+      // Whole volume below
+      return ReturnType::calculateMoments(a_polytope);
+    }
 
-    // if (elliptic && a_aligned_paraboloid.a() < ZERO &&
-    //     number_of_vertices_above == starting_number_of_vertices) {
-    //   // Zero volume - will be current value of full_moments
-    //   return full_moments;
-    // }
+    if (!elliptic && number_of_vertices_above == starting_number_of_vertices) {
+      // Zero volume - will be current value of full_moments
+      return full_moments;
+    }
   } else {
     // Nudge and try again!
     return reformQuadraticIntersectionBases<ReturnType>(
@@ -1541,35 +1494,8 @@ formCylinderIntersectionBases(
   //   }
   // }
 
-  // If no edges are intersected by the paraboloid, our job is done
+  // If no edges are intersected by the cylinder, our job is done
   if (new_intersection_vertices == 0) {
-    // If no intersections at all, gradient need to be updated (otherwise
-    // gradient will stay 0 and minimization algorithms will get "stuck")
-    // if constexpr (has_embedded_gradient<ScalarType>::value) {
-    //   // If volume == 0, then there are no face-only intersections
-    //   if (ReturnScalarType(full_moments.volume()) == ReturnScalarType(0)) {
-    //     // Find vertex closest to the paraboloid
-    //     ScalarType min_dist = ScalarType(DBL_MAX);
-    //     pt_type closest_pt;
-    //     for (UnsignedIndex_t v = 0; v < starting_number_of_vertices; ++v) {
-    //       auto& vertex = *(a_polytope->getVertex(v));
-    //       const ScalarType dist = fabs(signedDistance<ScalarType>(
-    //           vertex.getLocation().getPt(), a_aligned_paraboloid));
-    //       if (dist < min_dist) {
-    //         min_dist = dist;
-    //         closest_pt = vertex.getLocation();
-    //       }
-    //     }
-    //     // Add (normalized) signed distance to the volume
-    //     const auto volume_add_on =
-    //         -(a_aligned_paraboloid.a() * closest_pt[0] * closest_pt[0] +
-    //           a_aligned_paraboloid.b() * closest_pt[1] * closest_pt[1] +
-    //           closest_pt[2]);
-    //     const ScalarType scale =
-    //         pow(ScalarType(a_polytope->calculateVolume()), TWO / THREE);
-    //     full_moments.volume() = volume_add_on * scale;
-    //   }
-    // }
 
     if (number_of_vertices_above == starting_number_of_vertices) {
   #ifdef VALDEBUG
@@ -1770,6 +1696,8 @@ formCylinderIntersectionBases(
   #ifdef VALDEBUG
   std::cout << "the face has more than 2 intersections (i.e. more than 1 arc)" << std::endl;
   #endif
+      // These flags identify the type of the conic section arcs in the face
+      const bool hyperbolic_face = b < MACHINE_EPSILON;
       const bool rectangle_face = fabs(face_normal[0]) < MACHINE_EPSILON;
 
       // If the face is convex and we do not want to output the parametrized
@@ -1778,7 +1706,7 @@ formCylinderIntersectionBases(
       if (face.isTriangle() &&
           std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
         // CASE: the conic section arcs are arcs of an ellipse
-        if (!rectangle_face) {
+        if (!rectangle_face && !hyperbolic_face) {
           // The sign of coeff_a gives us the direction of traversal of the
           // intersection list
           // const bool reverse = a_aligned_paraboloid.a() < ZERO;

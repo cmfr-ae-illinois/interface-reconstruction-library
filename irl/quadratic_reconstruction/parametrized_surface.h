@@ -74,6 +74,16 @@ class NoSurfaceOutput {
 class ParaboloidParametrizedSurfaceOutput;
 class CylinderParametrizedSurfaceOutput;
 
+template <class C>
+struct has_quadratic_surface : std::false_type {};
+
+template <class C>
+struct has_quadratic_surface<const C> : has_quadratic_surface<C> {};
+
+template <class MomentType, class SurfaceOutput>
+struct has_quadratic_surface<AddSurfaceOutput<MomentType, SurfaceOutput>>
+    : std::true_type {};
+
 /// \brief General Parametrized surface defined for quadratic surfaces (paraboloid or cylinder)
 /// rational Bézier arcs
 class ParametrizedSurfaceOutput {

@@ -72,14 +72,6 @@ inline NormalBase<ScalarType> computeAndCorrectTangentVectorAtPt(
     const NormalBase<ScalarType>& a_end_tangent,
     const PtBase<ScalarType>& a_intersection_pt);
 
-// template <class ScalarType, class PtTypeWithGradient>
-// inline PtTypeWithGradient computeAndCorrectTangentVectorAndGradientAtPt(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PtTypeWithGradient& a_plane_normal,
-//     const PtTypeWithGradient& a_origin_pt, const PtTypeWithGradient& a_end_pt,
-//     const PtTypeWithGradient& a_end_tangent,
-//     const PtTypeWithGradient& a_intersection_pt);
-
 template <class ReturnType, class ScalarType,
           class SurfaceOutputType = NoSurfaceOutput, class PtType>
 ReturnType computeType3ContributionWithSplit(
@@ -121,12 +113,6 @@ ReturnType orientAndApplyType3Correction(
     const AlignedCylinderBase<ScalarType>& a_cylinder,
     HalfEdgeType* a_start, HalfEdgeType* a_end, bool* a_requires_nudge,
     SurfaceOutputType* a_surface = nullptr);
-
-// template <class ReturnType, class ScalarType, class HalfEdgeType,
-//           class SurfaceOutputType>
-// ReturnType orientAndApplyType3CorrectionWithGradients(
-//     const AlignedParaboloid& a_paraboloid, HalfEdgeType* a_start,
-//     HalfEdgeType* a_end, SurfaceOutputType* a_surface, bool* a_requires_nudge);
 
 template <class ScalarType, class HalfEdgeType, class PtType>
 Normal determineNudgeDirection(

@@ -135,11 +135,6 @@ inline PtBase<ScalarType> projectPtAlongHalfLineOntoCylinder(
     const NormalBase<ScalarType>& a_line,
     const PtBase<ScalarType>& a_starting_pt);
 
-// template <class PtTypeWithGradient, class ScalarType>
-// inline PtTypeWithGradient projectPtAlongHalfLineOntoParaboloidWithGradient(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PtTypeWithGradient& a_line, const PtTypeWithGradient& a_starting_pt);
-
 template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const CylinderBase<ScalarType>& a_cylinder);

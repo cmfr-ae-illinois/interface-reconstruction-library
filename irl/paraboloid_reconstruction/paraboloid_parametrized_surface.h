@@ -51,8 +51,8 @@ struct has_paraboloid_surface : std::false_type {};
 template <class C>
 struct has_paraboloid_surface<const C> : has_paraboloid_surface<C> {};
 
-template <class MomentType, class SurfaceType>
-struct has_paraboloid_surface<AddSurfaceOutput<MomentType, SurfaceType>>
+template <class MomentType>
+struct has_paraboloid_surface<AddSurfaceOutput<MomentType, ParaboloidParametrizedSurfaceOutput>>
     : std::true_type {};
 
 /// \brief Parametrized surface defined by coeffs A,B of paraboloid + list of
