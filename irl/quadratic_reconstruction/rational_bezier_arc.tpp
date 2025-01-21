@@ -160,9 +160,15 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
       weight_m = HALF * sqrt(A / D);
     }
   }
-
   // Clip weight to avoid variable overflows
-  weight_m = minimum(weight_m, ONE);
+  if (a_cylinder.b() < ZERO) {
+    if (weight_m >= ZERO) {
+      weight_m = minimum(weight_m, ScalarType(1.0 / DBL_EPSILON));
+      weight_m = maximum(weight_m, ONE);
+    }
+  } else {
+    weight_m = minimum(weight_m, ONE);
+  }
 }
 
 template <class ScalarType>
@@ -372,7 +378,14 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
     }
   }
   // Clip weight to avoid variable overflows
-  weight_m = minimum(weight_m, ONE);
+  if (a_cylinder.b() < ZERO) {
+    if (weight_m >= ZERO) {
+      weight_m = minimum(weight_m, ScalarType(1.0 / DBL_EPSILON));
+      weight_m = maximum(weight_m, ONE);
+    }
+  } else {
+    weight_m = minimum(weight_m, ONE);
+  }
 }
 
 template <class ScalarType>

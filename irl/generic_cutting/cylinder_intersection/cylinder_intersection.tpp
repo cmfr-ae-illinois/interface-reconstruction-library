@@ -419,9 +419,9 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   }
 
   // Define scale so that the polyhedron's volume is O(1)
-  //const ScalarType inv_scale =
-  //    maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
-  const ScalarType inv_scale = ScalarType(ONE);
+  const ScalarType inv_scale =
+      maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
+  //const ScalarType inv_scale = ScalarType(ONE);
   const ScalarType inv_volume_scale = inv_scale * inv_scale * inv_scale;
   const ScalarType scale = ScalarType(ONE) / inv_scale;
   const ScalarType volume_scale = scale * scale * scale;
