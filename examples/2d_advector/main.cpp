@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Arguments should be \n";
     std::cout << "Simulation to run. Options: Rotation2D, Oscillation2D, Deformation2D\n";
     std::cout << "Advection method. Options: SemiLagQ, FullLagQ, SemiLagL, FullLagL, FullLagMapping\n";
-    std::cout << "Reconstruction method. Options: ELVIRA, LVIRA, LVIRAQ\n";
+    std::cout << "Reconstruction method. Options: ELVIRA, LVIRA, LVIRAQ, MOF\n";
     std::cout << "Time step size, dt (double)\n";
     std::cout << "Simulation duration(double)\n";
     std::cout
