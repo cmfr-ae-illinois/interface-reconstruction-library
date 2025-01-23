@@ -48,7 +48,9 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          const Data<IRL2D::Parabola>& a_interface,
                          std::chrono::duration<double> a_VOF_duration,
                          std::chrono::duration<double> a_recon_duration,
-                         std::chrono::duration<double> a_write_duration);
+                         std::chrono::duration<double> a_write_duration,
+                         int& counter, double& maxDistanceThisTime,
+                         double& distanceSumThisTime);
 
 /// \brief Generates triangulated surface and writes to provided VTK file
 void writeInterfaceToFile(const Data<IRL2D::Moments>& a_liquid_moments,
@@ -58,7 +60,8 @@ void writeInterfaceToFile(const Data<IRL2D::Moments>& a_liquid_moments,
 
 void printError(const BasicMesh& mesh,
                 const Data<IRL2D::Moments>& liquid_moments,
-                const Data<IRL2D::Moments>& starting_liquid_moments);
+                const Data<IRL2D::Moments>& starting_liquid_moments, const int& total_counter,
+                const double& maxDistanceAllTime, const double& avgDistanceAllTime);
 
 //******************************************************************* //
 //     Template function definitions placed below this.
@@ -127,13 +130,22 @@ int runSimulation(const std::string& a_simulation_type,
   if (!rank) {
 #endif
     writeDiagnosticsHeader();
+    int counter_initial = 0; // for the first iteration
+    double maxDistanceInitial = 0.0;
+    double distanceSumInitial = 0.0;
     writeOutDiagnostics(iteration, a_dt, simulation_time, velU, velV,
                         liquid_moments, interface, advect_VOF_time, recon_time,
-                        write_time);
+                        write_time, counter_initial, maxDistanceInitial,
+                        distanceSumInitial);
 #ifdef USE_MPI
   }
 #endif
   // printError(cc_mesh, liquid_moments, starting_liquid_moments);
+
+  // initializing variables for realizibility and symmetry checks
+  int total_counter = 0;
+  double maxDistanceAllTime = 0.0;
+  double distanceSumAllTime = 0.0;
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
         std::fmin(a_dt, a_end_time - simulation_time);
@@ -148,10 +160,18 @@ int runSimulation(const std::string& a_simulation_type,
 #ifdef USE_MPI
     if (!rank) {
 #endif
+      int counter = 0;
+      double maxDistanceThisTime = 0.0;
+      double distanceSumThisTime = 0.0;
       writeOutDiagnostics(iteration + 1, time_step_to_use,
                           simulation_time + time_step_to_use, velU, velV,
                           liquid_moments, interface, advect_VOF_time,
-                          recon_time, write_time);
+                          recon_time, write_time, counter, maxDistanceThisTime,
+                          distanceSumThisTime);
+
+      total_counter = total_counter + counter; // non-realizable centroids
+      maxDistanceAllTime = std::max(maxDistanceAllTime,maxDistanceThisTime); // max distance
+      distanceSumAllTime = distanceSumAllTime + distanceSumThisTime; // for avg calc
 #ifdef USE_MPI
     }
 #endif
@@ -200,7 +220,8 @@ int runSimulation(const std::string& a_simulation_type,
 #ifdef USE_MPI
   if (!rank) {
 #endif
-    printError(cc_mesh, liquid_moments, ref_liquid_moments);
+    double avgDistanceAllTime = distanceSumAllTime/total_counter;
+    printError(cc_mesh, liquid_moments, ref_liquid_moments, total_counter, maxDistanceAllTime, avgDistanceAllTime);
 #ifdef USE_MPI
   }
 #endif
