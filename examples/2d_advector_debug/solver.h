@@ -22,7 +22,6 @@
 #include "examples/2d_advector_debug/rotation_2d.h"
 #include "examples/2d_advector_debug/vof_advection.h"
 #include "examples/2d_advector_debug/vtk.h"
-#include "examples/2d_advector_debug/output_data.h"
 
 
 /// \brief Handles running and advancing the solution according to provided
@@ -146,6 +145,35 @@ int runSimulation(const std::string& a_simulation_type,
                         liquid_moments, interface, advect_VOF_time, recon_time,
                         write_time, counter_initial, maxDistanceInitial,
                         distanceSumInitial, ij_nonrealizableInitial, volFrac_nonrealizableInitial);
+
+    // outputting interface
+    int interface_count = 0;
+  for (int i  = cc_mesh.imin(); i <= cc_mesh.imax(); ++i){
+    for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j){
+      if (i == 0 && j == 0){
+        //std::cout << "(x,y) = " << "(" << cc_mesh.xm(i) << "," << cc_mesh.ym(j) << ")" << std::endl;
+        //std::cout << "Coefficient: "<< interface(i,j).coeff() << std::endl;
+        //std::cout << "Datum: "<< interface(i,j).datum() << std::endl;
+        //std::cout << "Reference Frame: "<< interface(i,j).frame() << std::endl;
+      }
+      if (liquid_moments(i, j).m0() / cc_mesh.cell_volume() >= IRL::global_constants::VF_LOW &&
+          liquid_moments(i, j).m0() / cc_mesh.cell_volume() <= IRL::global_constants::VF_HIGH){
+            interface_count  = interface_count + 1;
+            //if (interface_count == 1){
+              std::cout << "----------------------------------------" << std::endl;
+              std::cout << "dx = " << cc_mesh.dx() << std::endl;
+              std::cout << "i = " << i << std::endl;
+              std::cout << "j = " << j << std::endl;
+              std::cout << "(x,y) = " << "(" << cc_mesh.xm(i) << "," << cc_mesh.ym(j) << ")" << std::endl;
+              std::cout << "Coefficient: "<< interface(i,j).coeff() << std::endl;
+              std::cout << "Datum: "<< interface(i,j).datum() << std::endl;
+              std::cout << "Reference Frame: "<< interface(i,j).frame() << std::endl;
+            //}
+      }
+    }
+  }
+  std::cout << interface_count << std::endl;
+
 #ifdef USE_MPI
   }
 #endif
@@ -251,27 +279,27 @@ int runSimulation(const std::string& a_simulation_type,
 
     // Printing for debugging ---------------------------------------------------------------------------------------
 
-    // printing the t vector at which we observe non-realizable centroids
-    std::cout << std::endl;
-    std::cout << "t: ";
-    for (double value : t_nonrealizable){
-      std::cout << value << " " ;
-    }
-    std::cout << std::endl;
+    // // printing the t vector at which we observe non-realizable centroids
+    // std::cout << std::endl;
+    // std::cout << "t: ";
+    // for (double value : t_nonrealizable){
+    //   std::cout << value << " " ;
+    // }
+    // std::cout << std::endl;
 
-    // printing i and j for nonrealizable centroids
-    std::cout << "(i,j): ";
-    for (std::pair<int,int> value : ij_nonrealizable){
-      std::cout << "(" << value.first << "," << value.second << ")" << " " ;
-    }
-    std::cout << std::endl;
+    // // printing i and j for nonrealizable centroids
+    // std::cout << "(i,j): ";
+    // for (std::pair<int,int> value : ij_nonrealizable){
+    //   std::cout << "(" << value.first << "," << value.second << ")" << " " ;
+    // }
+    // std::cout << std::endl;
 
-    // printing volfrac for cells that have non-realizable centroids
-    std::cout << "Volume fractions: ";
-    for (double value : volfrac_nonrealizable){
-      std::cout << value << " " ;
-    }
-    std::cout << std::endl;
+    // // printing volfrac for cells that have non-realizable centroids
+    // std::cout << "Volume fractions: ";
+    // for (double value : volfrac_nonrealizable){
+    //   std::cout << value << " " ;
+    // }
+    // std::cout << std::endl;
 
 
 #ifdef USE_MPI

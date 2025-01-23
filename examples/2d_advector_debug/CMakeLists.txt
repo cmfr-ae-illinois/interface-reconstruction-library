@@ -12,7 +12,6 @@ IRLAddExample_cpp(
   "solver.h"
   "vtk.h"
   "irl2d.h"
-  "output_data.h"
   SRCS
   "main.cpp"
   "basic_mesh.cpp"
@@ -24,7 +23,6 @@ IRLAddExample_cpp(
   "deformation_2d.cpp"
   "vtk.cpp"
   "irl2d.cpp"
-  "output_data.cpp"
   OUTPUT_DIR
   "${IRL_EXAMPLES_OUTPUT_DIR}/2d_advector_debug"
   COLLECTION

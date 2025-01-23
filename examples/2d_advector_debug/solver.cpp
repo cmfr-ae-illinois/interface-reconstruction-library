@@ -129,6 +129,17 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
     }
   }
 
+  // interface
+  // int interface_counter = 0
+  // for (int i  = mesh.imin(); i <= mesh.imax(); ++i){
+  //   for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+  //       if (a_liquid_moments(i, j).m0() / mesh.cell_volume() >= IRL::global_constants::VF_LOW &&
+  //         a_liquid_moments(i, j).m0() / mesh.cell_volume() <= IRL::global_constants::VF_HIGH){
+  //           std::cout << mesh.x()
+  //         }
+  //   }
+  // }
+
   // --------------------------------------------------------------------------------------------------
 
   // Save initial values to compare against.
@@ -220,7 +231,7 @@ void printError(const BasicMesh& mesh,
   // std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
   // std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
   // std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
-  std::cout << "Total non-realizable centroids: " << total_counter << std::endl;
-  std::cout << "Maximum distance of centroid from cell edge: "  << maxDistanceAllTime <<" cells" << std::endl;
-  std::cout << "Average distance of centroid from cell edge: " << avgDistanceAllTime <<" cells" << std::endl;
+  //std::cout << "Total non-realizable centroids: " << total_counter << std::endl;
+  //std::cout << "Maximum distance of centroid from cell edge: "  << maxDistanceAllTime <<" cells" << std::endl;
+  //std::cout << "Average distance of centroid from cell edge: " << avgDistanceAllTime <<" cells" << std::endl;
 }

@@ -6,6 +6,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#include <iostream>
+#include <cmath>
+
 #include "examples/2d_advector_debug/reconstruction_types.h"
 
 #include "irl/interface_reconstruction_methods/constrained_optimization_behavior.h"
@@ -43,10 +46,13 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "LVIRAQ") {
     LVIRAQ::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                               a_interface);
+  } else if (a_reconstruction_method == "MOF"){
+    MOF::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
   } else {
     std::cout << "Unknown reconstruction method of : "
               << a_reconstruction_method << '\n';
-    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ. \n";
+    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ, MOF. \n";
     std::exit(-1);
   }
 }
@@ -392,6 +398,114 @@ void LVIRAQ::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
 
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);
+}
+
+// Functor for MOF
+struct MOFFunctor{
+  typedef double Scalar;
+  typedef Eigen::VectorXd InputType;
+  typedef Eigen::VectorXd ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+  enum{
+    InputsAtCompileTime = Eigen::Dynamic,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+
+  // variables
+  const IRL2D::BezierList& cell;
+  const IRL2D::Vec centroid_star;
+  const double f_star;
+  IRL2D::Vec datum;
+  IRL2D::ReferenceFrame frame;
+  double coeff;
+
+  MOFFunctor(const IRL2D::BezierList& cell,
+             const IRL2D::Vec& centroid_star, const double f_star)
+    : cell(cell), centroid_star(centroid_star), f_star(f_star) {
+  }
+  
+  void setframe(const IRL2D::Parabola& guess_plane){
+    coeff = 0;
+    frame = guess_plane.frame();
+    datum = IRL2D::ComputeMoments(cell).m1() / IRL2D::ComputeArea(cell);
+  }
+
+  const IRL2D::Parabola getplane(const Eigen::VectorXd& x) const {
+    const auto rotation = IRL2D::ReferenceFrame(x(0));
+    const auto new_frame = IRL2D::ReferenceFrame(rotation * frame[0], rotation * frame[1]);
+    const auto plane = IRL2D::Parabola(datum, new_frame, 0);
+    return IRL2D::MatchToVolumeFraction(cell, plane, f_star);
+  }
+
+  void errorvec(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    
+    IRL2D::Moments moments = IRL2D::ComputeMoments(cell, IRL2D::Parabola(datum, frame, coeff));
+    IRL2D::Vec centroid_h = moments.m1() / moments.m0();
+    fvec(0) = centroid_star[0] - centroid_h[0];
+    fvec(1) = centroid_star[1] - centroid_h[1];
+  }
+
+  int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    this->errorvec(x, fvec);
+    return 0;
+  }
+
+  int inputs() const { return 1; }
+  int values() const { return 2; }
+
+}; 
+
+
+void MOF::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                            const Data<IRL2D::Moments>& a_gas_moments,
+                            const double a_dt, const Data<double>& a_U,
+                            const Data<double>& a_V,
+                            Data<IRL2D::Parabola>* a_interface){
+  
+  // initial guess
+  ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                            a_interface);
+  
+  const BasicMesh& mesh = a_U.getMesh();
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction = a_liquid_moments(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        
+        IRL2D::Vec x0 = IRL2D::Vec(mesh.xm(i) - mesh.dx()/2.0 , mesh.ym(j) - mesh.dy()/2.0);
+        IRL2D::Vec x1 = IRL2D::Vec(mesh.xm(i) + mesh.dx()/2.0 , mesh.ym(j) + mesh.dy()/2.0);
+        IRL2D::BezierList rectangle = IRL2D::RectangleFromBounds(x0, x1);
+        
+        // matching volume fraction and centroid
+        IRL2D::Vec centroid_star = a_liquid_moments(i,j).m1() / a_liquid_moments(i,j).m0();
+        MOFFunctor myMOFFunctor(rectangle, centroid_star, liquid_volume_fraction);
+        myMOFFunctor.setframe((*a_interface)(i, j));
+        Eigen::NumericalDiff<MOFFunctor> numericalDiffMyFunctor(myMOFFunctor);
+        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MOFFunctor>, double> lm(numericalDiffMyFunctor);
+        // lm.parameters.ftol = 1.0e-15;
+        // lm.parameters.xtol = 1.0e-15;
+        // lm.parameters.maxfev = 100;
+        Eigen::VectorXd x(1);
+        x.setZero();
+        Eigen::LevenbergMarquardtSpace::Status status =
+              lm.minimizeInit(x);
+        do {
+          status = lm.minimizeOneStep(x);
+        } while (status == Eigen::LevenbergMarquardtSpace::Running);
+        const auto plane = IRL2D::MatchToVolumeFractionBisection(
+            rectangle, myMOFFunctor.getplane(x), liquid_volume_fraction, 500);
+        
+        (*a_interface)(i, j) = plane;
+        
+      }
+    }
+  }
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+
 }
 
 void correctInterfaceBorders(Data<IRL2D::Parabola>* a_interface) {

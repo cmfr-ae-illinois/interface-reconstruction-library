@@ -45,6 +45,16 @@ struct LVIRAQ {
                                 Data<IRL2D::Parabola>* a_interface);
 };
 
+struct MOF {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+void RotateReferenceFrame(IRL2D::Parabola& interface, double angle);
+
 void RecenterMoments(IRL2D::Moments* moments, const IRL2D::Vec& center);
 
 void correctInterfaceBorders(Data<IRL2D::Parabola>* a_interface);
