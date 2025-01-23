@@ -210,13 +210,77 @@ class CylinderMomentArcIntegrator {
 /* This compute the first contribution to the moments (arising from the
  * integration of the face plane primitives on the poligonized clipped faces)
  */
+template <class ReturnType, class ScalarType>
+ReturnType computeType2Contribution(
+    const AlignedCylinderBase<ScalarType>& a_aligned_cylinder,
+    const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1) {
+  using ReturnScalarType = typename ReturnType::value_type;
+  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
+    const ScalarType ONESIXTH = ScalarType(1) / ScalarType(6);
+    const ScalarType TWO = ScalarType(2);
+    return ReturnType::fromScalarConstant(ReturnScalarType(
+        ONESIXTH * (a_pt_0[1] - a_pt_1[1]) *
+        (a_pt_0[0] * (TWO * a_pt_0[2] + a_pt_1[2]) +
+         a_pt_1[0] * (TWO * a_pt_1[2] + a_pt_0[2]))));
+  // } else if constexpr (std::is_same_v<ReturnType,
+  //                                     VolumeMomentsBase<ReturnScalarType>>) {
+  //   /* Defining constants and types */
+  //   const ScalarType ZERO = ScalarType(0);
+  //   const ScalarType ONE = ScalarType(1);
+  //   const ScalarType TWO = ScalarType(2);
+  //   const ScalarType THREE = ScalarType(3);
+  //   const ScalarType ONETWELVTH = ONE / ScalarType(12);
+  //   const ScalarType ONE60TH = ONE / ScalarType(60);
+  //   const ScalarType ONE180TH = ONE / ScalarType(180);
+
+  //   /* Function */
+  //   auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+  //   moments.volume() = ReturnScalarType(
+  //       (a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) * ONETWELVTH *
+  //       (-a_pt_0[2] - a_pt_1[2] +
+  //        a_aligned_paraboloid.a() * a_pt_0[0] * a_pt_1[0] +
+  //        a_aligned_paraboloid.b() * a_pt_0[1] * a_pt_1[1]));
+  //   moments.centroid()[0] = ReturnScalarType(
+  //       (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) *
+  //       (TWO * a_aligned_paraboloid.b() * (a_pt_0[1] - a_pt_1[1]) *
+  //            (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) +
+  //        THREE * (a_pt_0[0] + a_pt_1[0]) * (a_pt_0[2] + a_pt_1[2])) *
+  //       ONE60TH);
+  //   moments.centroid()[1] = ReturnScalarType(
+  //       (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) *
+  //       (TWO * a_aligned_paraboloid.a() * (a_pt_0[0] - a_pt_1[0]) *
+  //            (a_pt_1[1] * a_pt_0[0] - a_pt_0[1] * a_pt_1[0]) +
+  //        THREE * (a_pt_0[1] + a_pt_1[1]) * (a_pt_0[2] + a_pt_1[2])) *
+  //       ONE60TH);
+  //   moments.centroid()[2] = ReturnScalarType(
+  //       ((a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) *
+  //        (TWO * a_aligned_paraboloid.a() * a_aligned_paraboloid.b() *
+  //             ((a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1]) *
+  //              (a_pt_1[0] * a_pt_0[1] - a_pt_0[0] * a_pt_1[1])) +
+  //         THREE * a_aligned_paraboloid.a() * a_pt_0[0] * a_pt_1[0] *
+  //             (a_pt_0[2] + a_pt_1[2]) +
+  //         THREE * a_aligned_paraboloid.b() * a_pt_0[1] * a_pt_1[1] *
+  //             (a_pt_0[2] + a_pt_1[2]) -
+  //         THREE * (a_pt_0[2] * a_pt_0[2] + a_pt_0[2] * a_pt_1[2] +
+  //                  a_pt_1[2] * a_pt_1[2]))) *
+  //       ONE180TH);
+  //   return moments;
+  // } else if constexpr (std::is_same_v<
+  //                          ReturnType,
+  //                          GeneralMomentsBase<2, 3, ReturnScalarType>>) {
+  //   return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  } else {
+    std::cout << "Type 2 for moments with order > 1 not yet implemented"
+              << std::endl;
+    return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  }
+}
 
 template <class ContainerType, class ScalarType>
-inline std::array<ContainerType, 3> coeffsVC3SeriesOne(
+inline std::array<ContainerType, 2> coeffsVC3SeriesOne(
     const ContainerType& a_weight) {
-  std::array<ContainerType, 3> coeffs;
+  std::array<ContainerType, 2> coeffs;
   coeffs.fill(ContainerType(ScalarType(0)));
-  coeffs[0]= ScalarType(1)/ScalarType(6);
   ContainerType x(1);
   UnsignedIndex_t i = 0;
   ScalarType max_diff;
@@ -224,7 +288,7 @@ inline std::array<ContainerType, 3> coeffsVC3SeriesOne(
     max_diff = ScalarType(0);
     for (UnsignedIndex_t j = 0; j < 2; ++j) {
       ContainerType add_to_coeff = ScalarType(vc3Series[i][j]) * x;
-      coeffs[j+1] += add_to_coeff;
+      coeffs[j] += add_to_coeff;
       max_diff = maximum(max_diff, fabs(add_to_coeff));
     }
     if (max_diff < ScalarType(DBL_EPSILON)) {
@@ -282,7 +346,7 @@ inline std::array<ContainerType, 3> coeffsVC3SeriesOne(
 // }
 
 template <class ContainerType, class ScalarType>
-inline std::array<ContainerType, 3> coeffsVC3Exact(
+inline std::array<ContainerType, 2> coeffsVC3Exact(
     const ContainerType& a_weight) {
   /* Defining constants and types */
   const ScalarType ONE = ScalarType(1);
@@ -304,14 +368,13 @@ inline std::array<ContainerType, 3> coeffsVC3Exact(
   const auto T = (a_weight < ContainerType(ONE))
                      ? atan((ContainerType(ONE) - a_weight) / S) / S
                      : atanh((a_weight - ContainerType(ONE)) / S) / S;
-  return std::array<ContainerType, 3>(
-      { ONE / ScalarType(6),
-       (TWO * w4 - ScalarType(5) * w2 + 
+  return std::array<ContainerType, 2>(
+      {(TWO * w4 - ScalarType(5) * w2 + 
          SIX * a_weight * T) *
-           L2 / ScalarType(12),
-       (THREE * w2 -
-        (FOUR * w3 + TWO * a_weight) * T) *
-           L2 / FOUR});
+           L2 / SIX,
+       (TWO * w2 + w4 -
+        SIX * w3 * T) *
+           L2 / THREE});
 }
 
 // template <class ContainerType, class ScalarType>
@@ -425,6 +488,10 @@ ReturnType computeType3Contribution(
     const auto& cp = a_arc.control_point();
     const auto& pt_1 = a_arc.end_point();
     const auto& weight = a_arc.weight();
+    const ScalarType area_proj_triangle = 
+        HALF * (pt_0[1] * (pt_1[2] - cp[2]) +
+                pt_1[1] * (cp[2] - pt_0[2]) +
+                cp[1] * (pt_0[2] - pt_1[2]));
 
 
     #ifdef VALDEBUG
@@ -433,10 +500,11 @@ ReturnType computeType3Contribution(
     std::cout << "x* : " << cp << std::endl;
     std::cout << "x1 : " << pt_1 << std::endl;
     std::cout << "w : " << weight << std::endl;
+    std::cout << "area : " << area_proj_triangle << std::endl;
     #endif
 
     assert(weight >= ZERO);
-    std::array<ScalarType, 3> coeffs;
+    std::array<ScalarType, 2> coeffs;
     if (weight < ScalarType(0.35)) { // We use the exact expressions
     #ifdef VALDEBUG
     std::cout << "weight is low, using exact value" << std::endl;
@@ -458,35 +526,24 @@ ReturnType computeType3Contribution(
     #ifdef VALDEBUG
     std::cout << "weight is BIG, using limite" << std::endl;
     #endif
-      coeffs = std::array<ScalarType, 3>({ONE / SIX, ONE / SIX, ZERO});
+      coeffs = std::array<ScalarType, 2>({ONE / THREE, ONE / THREE});
     }
 
     #ifdef VALDEBUG
     std::cout << "coeffs :" << std::endl;
     std::cout << "0 : " << coeffs[0] << std::endl;
     std::cout << "1 : " << coeffs[1] << std::endl;
-    std::cout << "2 : " << coeffs[2] << std::endl;
     #endif
-
-    const auto& C11 = (pt_1[1]-pt_0[1]) * 
-        (TWO * pt_0[0] * pt_0[2] + TWO * pt_1[0] * pt_1[2] +
-          pt_0[0] * pt_1[2] + pt_1[0] * pt_0[2]);
-    const auto& C12 = (pt_0[0] + pt_1[0] + cp[0]) *
-        (pt_0[1] * (pt_1[2] - cp[2]) + pt_1[1] * (cp[2] - pt_0[2]) + 
-         cp[1] * (pt_0[2] - pt_1[2]));
-    const auto& C13 = cp[0] * 
-        (pt_0[1] * (pt_1[2] - cp[2]) + pt_1[1] * (cp[2] - pt_0[2]) + 
-         cp[1] * (pt_0[2] - pt_1[2]));
+    const auto& C11 = (pt_0[0] + pt_1[0]);
+    const auto& C12 = cp[0];
     #ifdef VALDEBUG
     std::cout << "C vector :" << std::endl;
     std::cout << "C11 : " << C11 << std::endl;
     std::cout << "C12 : " << C12 << std::endl;
-    std::cout << "C13 : " << C13 << std::endl;
     #endif
     return ReturnType::fromScalarConstant(ReturnScalarType(
-        (coeffs[0] * C11 +
-         coeffs[1] * C12 +
-         coeffs[2] * C13)));
+        area_proj_triangle * (coeffs[0] * C11 +
+         coeffs[1] * C12)));
   // } else if constexpr (std::is_same_v<ReturnType,
   //                                     VolumeMomentsBase<ReturnScalarType>>) {
   //   /* Defining constants and types */
