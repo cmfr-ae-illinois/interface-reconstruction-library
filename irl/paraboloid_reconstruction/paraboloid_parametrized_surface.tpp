@@ -13,14 +13,14 @@
 #include <fstream>
 #include <iomanip>
 
-#define IRL_USE_EARCUT
+// #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
-// #define IRL_USE_CGAL
+#define IRL_USE_CGAL
 // #define IRL_USE_GEOGRAM
 
 #include "external/NumericalIntegration/NumericalIntegration.h"
-#include "irl/quadratic_reconstruction/parametrized_surface.h"
 #include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
 
 namespace IRL {
 
@@ -175,25 +175,24 @@ void reMeshPolygon(VertexList& vertices, EdgeList& edges, TriList& triangles,
   }
 }
 
-inline ParaboloidParametrizedSurfaceOutput::ParaboloidParametrizedSurfaceOutput()
+inline ParaboloidParametrizedSurfaceOutput::
+    ParaboloidParametrizedSurfaceOutput()
     : ParametrizedSurfaceOutput{} {}
 
 inline ParaboloidParametrizedSurfaceOutput::ParaboloidParametrizedSurfaceOutput(
     const Paraboloid& a_paraboloid)
-    : paraboloid_m{a_paraboloid},
-      ParametrizedSurfaceOutput{} {}
+    : paraboloid_m{a_paraboloid}, ParametrizedSurfaceOutput{} {}
 
 inline ParaboloidParametrizedSurfaceOutput::ParaboloidParametrizedSurfaceOutput(
     ParaboloidParametrizedSurfaceOutput&& a_rhs)
-    : ParametrizedSurfaceOutput(a_rhs),
-    paraboloid_m(a_rhs.paraboloid_m) {}
+    : ParametrizedSurfaceOutput(a_rhs), paraboloid_m(a_rhs.paraboloid_m) {}
 
 inline ParaboloidParametrizedSurfaceOutput::ParaboloidParametrizedSurfaceOutput(
     const ParaboloidParametrizedSurfaceOutput& a_rhs)
-    : ParametrizedSurfaceOutput(a_rhs),
-    paraboloid_m(a_rhs.paraboloid_m) {}
+    : ParametrizedSurfaceOutput(a_rhs), paraboloid_m(a_rhs.paraboloid_m) {}
 
-inline ParaboloidParametrizedSurfaceOutput& ParaboloidParametrizedSurfaceOutput::operator=(
+inline ParaboloidParametrizedSurfaceOutput&
+ParaboloidParametrizedSurfaceOutput::operator=(
     ParaboloidParametrizedSurfaceOutput&& a_rhs) {
   if (this != &a_rhs) {
     paraboloid_m = a_rhs.paraboloid_m;
@@ -212,7 +211,8 @@ inline ParaboloidParametrizedSurfaceOutput& ParaboloidParametrizedSurfaceOutput:
   return *this;
 }
 
-inline ParaboloidParametrizedSurfaceOutput& ParaboloidParametrizedSurfaceOutput::operator=(
+inline ParaboloidParametrizedSurfaceOutput&
+ParaboloidParametrizedSurfaceOutput::operator=(
     const ParaboloidParametrizedSurfaceOutput& a_rhs) {
   if (this != &a_rhs) {
     paraboloid_m = a_rhs.paraboloid_m;
@@ -235,11 +235,13 @@ inline void ParaboloidParametrizedSurfaceOutput::setParaboloid(
   paraboloid_m = a_paraboloid;
 }
 
-inline const Paraboloid& ParaboloidParametrizedSurfaceOutput::getParaboloid(void) const {
+inline const Paraboloid& ParaboloidParametrizedSurfaceOutput::getParaboloid(
+    void) const {
   return paraboloid_m;
 }
 
-inline ParaboloidParametrizedSurfaceOutput::~ParaboloidParametrizedSurfaceOutput(void) {
+inline ParaboloidParametrizedSurfaceOutput::
+    ~ParaboloidParametrizedSurfaceOutput(void) {
   for (auto elem : pt_from_bezier_split_m) {
     delete elem;
   }
@@ -247,8 +249,8 @@ inline ParaboloidParametrizedSurfaceOutput::~ParaboloidParametrizedSurfaceOutput
 
 class ArcContributionToParaboloidSurfaceArea_Functor {
  public:
-  ArcContributionToParaboloidSurfaceArea_Functor(const RationalBezierArc& a_arc,
-                                       const AlignedParaboloid& a_paraboloid)
+  ArcContributionToParaboloidSurfaceArea_Functor(
+      const RationalBezierArc& a_arc, const AlignedParaboloid& a_paraboloid)
       : arc_m(a_arc), paraboloid_m(a_paraboloid) {}
 
   double operator()(double a_t) const {
@@ -385,8 +387,8 @@ class ArcContributionToParaboloidSurfaceArea_Functor {
 
 class ArcContributionToParaboloidNormalX_Functor {
  public:
-  ArcContributionToParaboloidNormalX_Functor(const RationalBezierArc& a_arc,
-                                   const AlignedParaboloid& a_paraboloid)
+  ArcContributionToParaboloidNormalX_Functor(
+      const RationalBezierArc& a_arc, const AlignedParaboloid& a_paraboloid)
       : arc_m(a_arc), paraboloid_m(a_paraboloid) {}
 
   double operator()(double a_t) const {
@@ -418,8 +420,8 @@ class ArcContributionToParaboloidNormalX_Functor {
 
 class ArcContributionToParaboloidNormalY_Functor {
  public:
-  ArcContributionToParaboloidNormalY_Functor(const RationalBezierArc& a_arc,
-                                   const AlignedParaboloid& a_paraboloid)
+  ArcContributionToParaboloidNormalY_Functor(
+      const RationalBezierArc& a_arc, const AlignedParaboloid& a_paraboloid)
       : arc_m(a_arc), paraboloid_m(a_paraboloid) {}
 
   double operator()(double a_t) const {
@@ -451,8 +453,8 @@ class ArcContributionToParaboloidNormalY_Functor {
 
 class ArcContributionToParaboloidNormalZ_Functor {
  public:
-  ArcContributionToParaboloidNormalZ_Functor(const RationalBezierArc& a_arc,
-                                   const AlignedParaboloid& a_paraboloid)
+  ArcContributionToParaboloidNormalZ_Functor(
+      const RationalBezierArc& a_arc, const AlignedParaboloid& a_paraboloid)
       : arc_m(a_arc), paraboloid_m(a_paraboloid) {}
 
   double operator()(double a_t) const {
@@ -480,8 +482,8 @@ class ArcContributionToParaboloidNormalZ_Functor {
 
 class ArcContributionToParaboloidMeanCurvature_Functor {
  public:
-  ArcContributionToParaboloidMeanCurvature_Functor(const RationalBezierArc& a_arc,
-                                         const AlignedParaboloid& a_paraboloid)
+  ArcContributionToParaboloidMeanCurvature_Functor(
+      const RationalBezierArc& a_arc, const AlignedParaboloid& a_paraboloid)
       : arc_m(a_arc), paraboloid_m(a_paraboloid) {}
 
   double operator()(double a_t) const {
@@ -629,8 +631,8 @@ inline double ParaboloidParametrizedSurfaceOutput::getSurfaceArea(void) {
     auto& aligned_paraboloid = paraboloid_m.getAlignedParaboloid();
     for (std::size_t t = 0; t < nArcs; ++t) {
       // Define the functor
-      ArcContributionToParaboloidSurfaceArea_Functor functor(arc_list_m[t],
-                                                   aligned_paraboloid);
+      ArcContributionToParaboloidSurfaceArea_Functor functor(
+          arc_list_m[t], aligned_paraboloid);
 
       // Define the integrator.
       Eigen::Integrator<double> integrator(limit);
@@ -660,11 +662,11 @@ inline Normal ParaboloidParametrizedSurfaceOutput::getAverageNormal(void) {
     for (std::size_t t = 0; t < nArcs; ++t) {
       // Define the functor
       ArcContributionToParaboloidNormalX_Functor functorx(arc_list_m[t],
-                                                aligned_paraboloid);
+                                                          aligned_paraboloid);
       ArcContributionToParaboloidNormalY_Functor functory(arc_list_m[t],
-                                                aligned_paraboloid);
+                                                          aligned_paraboloid);
       ArcContributionToParaboloidNormalZ_Functor functorz(arc_list_m[t],
-                                                aligned_paraboloid);
+                                                          aligned_paraboloid);
 
       // Define the integrator.
       Eigen::Integrator<double> integrator(limit);
@@ -687,7 +689,8 @@ inline Normal ParaboloidParametrizedSurfaceOutput::getAverageNormal(void) {
   return avg_normal_m;
 }
 
-inline Normal ParaboloidParametrizedSurfaceOutput::getAverageNormalNonAligned(void) {
+inline Normal ParaboloidParametrizedSurfaceOutput::getAverageNormalNonAligned(
+    void) {
   auto aligned_normal = this->getAverageNormal();
   const auto& ref_frame = this->getParaboloid().getReferenceFrame();
   auto normal = Normal();
@@ -699,7 +702,8 @@ inline Normal ParaboloidParametrizedSurfaceOutput::getAverageNormalNonAligned(vo
   return normal;
 }
 
-inline double ParaboloidParametrizedSurfaceOutput::getMeanCurvatureIntegral(void) {
+inline double ParaboloidParametrizedSurfaceOutput::getMeanCurvatureIntegral(
+    void) {
   if (!knows_int_mean_curv_m) {
     const UnsignedIndex_t nArcs = this->size();
     int_mean_curv_m = 0.0;
@@ -710,8 +714,8 @@ inline double ParaboloidParametrizedSurfaceOutput::getMeanCurvatureIntegral(void
     auto& aligned_paraboloid = paraboloid_m.getAlignedParaboloid();
     for (std::size_t t = 0; t < nArcs; ++t) {
       // Define the functor
-      ArcContributionToParaboloidMeanCurvature_Functor functor(arc_list_m[t],
-                                                     aligned_paraboloid);
+      ArcContributionToParaboloidMeanCurvature_Functor functor(
+          arc_list_m[t], aligned_paraboloid);
 
       // Define the integrator.
       Eigen::Integrator<double> integrator(limit);
@@ -729,7 +733,8 @@ inline double ParaboloidParametrizedSurfaceOutput::getMeanCurvatureIntegral(void
   return int_mean_curv_m;
 }
 
-inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureIntegral(void) {
+inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureIntegral(
+    void) {
   if (!knows_int_gaussian_curv_m) {
     const UnsignedIndex_t nArcs = this->size();
     int_gaussian_curv_m = 0.0;
@@ -740,8 +745,8 @@ inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureIntegral(
     auto& aligned_paraboloid = paraboloid_m.getAlignedParaboloid();
     for (std::size_t t = 0; t < nArcs; ++t) {
       // Define the functor
-      ArcContributionToParaboloidGaussianCurvature_Functor functor(arc_list_m[t],
-                                                         aligned_paraboloid);
+      ArcContributionToParaboloidGaussianCurvature_Functor functor(
+          arc_list_m[t], aligned_paraboloid);
 
       // Define the integrator.
       Eigen::Integrator<double> integrator(limit);
@@ -759,14 +764,16 @@ inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureIntegral(
   return int_gaussian_curv_m;
 }
 
-inline Normal ParaboloidParametrizedSurfaceOutput::getNormalAligned(const Pt a_pt) {
+inline Normal ParaboloidParametrizedSurfaceOutput::getNormalAligned(
+    const Pt a_pt) {
   auto& aligned_paraboloid = this->getParaboloid().getAlignedParaboloid();
   auto aligned_normal = getParaboloidSurfaceNormal(aligned_paraboloid, a_pt);
   aligned_normal.normalize();
   return aligned_normal;
 }
 
-inline Normal ParaboloidParametrizedSurfaceOutput::getNormalNonAligned(const Pt a_pt) {
+inline Normal ParaboloidParametrizedSurfaceOutput::getNormalNonAligned(
+    const Pt a_pt) {
   const auto& datum = this->getParaboloid().getDatum();
   const auto& ref_frame = this->getParaboloid().getReferenceFrame();
   // assert(ref_frame.isOrthonormalBasis());
@@ -831,7 +838,8 @@ inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureAligned(
                (a_pt[1] * a_pt[1])));
 }
 
-inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
+inline double
+ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
     const Pt a_pt) {
   const auto& datum = this->getParaboloid().getDatum();
   const auto& ref_frame = this->getParaboloid().getReferenceFrame();
@@ -844,7 +852,8 @@ inline double ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligne
   return this->getGaussianCurvatureAligned(aligned_pt);
 }
 
-inline TriangulatedSurfaceOutput ParaboloidParametrizedSurfaceOutput::triangulate(
+inline TriangulatedSurfaceOutput
+ParaboloidParametrizedSurfaceOutput::triangulate(
     const double a_length_scale, const UnsignedIndex_t a_nsplit) const {
   TriangulatedSurfaceOutput returned_surface;
   this->triangulate_fromPtr(a_length_scale, a_nsplit, &returned_surface);

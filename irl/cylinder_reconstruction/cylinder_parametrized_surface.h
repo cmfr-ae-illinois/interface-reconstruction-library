@@ -13,9 +13,9 @@
 #include <vector>
 #include "irl/quadratic_reconstruction/parametrized_surface.h"
 
-#define IRL_USE_EARCUT
+// #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
-// #define IRL_USE_CGAL
+#define IRL_USE_CGAL
 // #define IRL_USE_GEOGRAM
 
 #ifdef IRL_USE_EARCUT
@@ -37,9 +37,9 @@
 #include "external/geogram.psm.Delaunay/Delaunay_psm.h"
 #endif
 
+#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
-#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
@@ -63,11 +63,14 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   CylinderParametrizedSurfaceOutput(void);
   CylinderParametrizedSurfaceOutput(const Cylinder& a_cylinder);
 
-  CylinderParametrizedSurfaceOutput(const CylinderParametrizedSurfaceOutput& a_rhs);
+  CylinderParametrizedSurfaceOutput(
+      const CylinderParametrizedSurfaceOutput& a_rhs);
   CylinderParametrizedSurfaceOutput(CylinderParametrizedSurfaceOutput&& a_rhs);
 
-  CylinderParametrizedSurfaceOutput& operator=(const CylinderParametrizedSurfaceOutput& a_rhs);
-  CylinderParametrizedSurfaceOutput& operator=(CylinderParametrizedSurfaceOutput&& a_rhs);
+  CylinderParametrizedSurfaceOutput& operator=(
+      const CylinderParametrizedSurfaceOutput& a_rhs);
+  CylinderParametrizedSurfaceOutput& operator=(
+      CylinderParametrizedSurfaceOutput&& a_rhs);
 
   void setCylinder(const Cylinder& a_cylinder);
 
@@ -99,7 +102,8 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
 };
 
 inline std::ostream& operator<<(
-    std::ostream& out, const CylinderParametrizedSurfaceOutput& a_cylinder_parametrized_surface);
+    std::ostream& out,
+    const CylinderParametrizedSurfaceOutput& a_cylinder_parametrized_surface);
 
 }  // namespace IRL
 

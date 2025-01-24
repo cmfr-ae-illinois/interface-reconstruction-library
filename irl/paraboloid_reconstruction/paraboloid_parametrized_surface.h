@@ -13,9 +13,9 @@
 #include <vector>
 #include "irl/quadratic_reconstruction/parametrized_surface.h"
 
-#define IRL_USE_EARCUT
+// #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
-// #define IRL_USE_CGAL
+#define IRL_USE_CGAL
 // #define IRL_USE_GEOGRAM
 
 #ifdef IRL_USE_EARCUT
@@ -38,8 +38,8 @@
 #endif
 
 #include "irl/geometry/general/normal.h"
-#include "irl/quadratic_reconstruction/ellipse.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/quadratic_reconstruction/ellipse.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
@@ -63,11 +63,15 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   ParaboloidParametrizedSurfaceOutput(void);
   ParaboloidParametrizedSurfaceOutput(const Paraboloid& a_paraboloid);
 
-  ParaboloidParametrizedSurfaceOutput(const ParaboloidParametrizedSurfaceOutput& a_rhs);
-  ParaboloidParametrizedSurfaceOutput(ParaboloidParametrizedSurfaceOutput&& a_rhs);
+  ParaboloidParametrizedSurfaceOutput(
+      const ParaboloidParametrizedSurfaceOutput& a_rhs);
+  ParaboloidParametrizedSurfaceOutput(
+      ParaboloidParametrizedSurfaceOutput&& a_rhs);
 
-  ParaboloidParametrizedSurfaceOutput& operator=(const ParaboloidParametrizedSurfaceOutput& a_rhs);
-  ParaboloidParametrizedSurfaceOutput& operator=(ParaboloidParametrizedSurfaceOutput&& a_rhs);
+  ParaboloidParametrizedSurfaceOutput& operator=(
+      const ParaboloidParametrizedSurfaceOutput& a_rhs);
+  ParaboloidParametrizedSurfaceOutput& operator=(
+      ParaboloidParametrizedSurfaceOutput&& a_rhs);
 
   void setParaboloid(const Paraboloid& a_paraboloid);
 
@@ -98,8 +102,9 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   Paraboloid paraboloid_m;
 };
 
-inline std::ostream& operator<<(
-    std::ostream& out, const ParaboloidParametrizedSurfaceOutput& a_paraboloid_parametrized_surface);
+inline std::ostream& operator<<(std::ostream& out,
+                                const ParaboloidParametrizedSurfaceOutput&
+                                    a_paraboloid_parametrized_surface);
 
 }  // namespace IRL
 

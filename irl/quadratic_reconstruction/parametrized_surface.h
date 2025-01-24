@@ -12,9 +12,9 @@
 
 #include <vector>
 
-#define IRL_USE_EARCUT
+// #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
-// #define IRL_USE_CGAL
+#define IRL_USE_CGAL
 // #define IRL_USE_GEOGRAM
 
 #ifdef IRL_USE_EARCUT
@@ -84,8 +84,8 @@ template <class MomentType, class SurfaceOutput>
 struct has_quadratic_surface<AddSurfaceOutput<MomentType, SurfaceOutput>>
     : std::true_type {};
 
-/// \brief General Parametrized surface defined for quadratic surfaces (paraboloid or cylinder)
-/// rational Bézier arcs
+/// \brief General Parametrized surface defined for quadratic surfaces
+/// (paraboloid or cylinder) rational Bézier arcs
 class ParametrizedSurfaceOutput {
  public:
   /// \brief Default constructor.
@@ -109,7 +109,7 @@ class ParametrizedSurfaceOutput {
   void addPt(Pt* a_pt);
   void clearArcs(void);
   void clearPts(void);
-  void clear(void);  
+  void clear(void);
   virtual inline Normal getNormalAligned(const Pt a_pt) = 0;
   virtual inline Normal getNormalNonAligned(const Pt a_pt) = 0;
   virtual inline double getMeanCurvatureAligned(const Pt a_pt) = 0;
