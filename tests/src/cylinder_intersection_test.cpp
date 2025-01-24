@@ -486,7 +486,7 @@ using namespace IRL;
 // }
 
 TEST(CylinderIntersection, SISCPaperFig5) {
-  using VolumeAndSuface = AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
+  using VolumeAndSuface = AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
 
   // Defining elliptic paraboloic
   AlignedCylinder aligned_cylinder({2.0, 1.2});
@@ -515,10 +515,17 @@ TEST(CylinderIntersection, SISCPaperFig5) {
   for (UnsignedIndex_t i = 0; i < 5; i++) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
-    std::cout << "the " << i << "th volum is :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
+    std::cout << "the " << i << "th volume is :" 
+        << std::setprecision(20) << temp_surface_and_moments.getMoments().volume().volume() << std::endl;
+    std::cout << "the " << i << "th centroid is :" 
+        << temp_surface_and_moments.getMoments().centroid() << std::endl;
+    auto& centroid = temp_surface_and_moments.getMoments().centroid();
+    centroid /= temp_surface_and_moments.getMoments().volume().volume();
+    std::cout << "the " << i << "th center of mass is :" 
+        << centroid << std::endl;
     auto temp_moments =
         getVolumeMoments<Volume>(cubes[i], cylinder);
-    EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), temp_moments.volume());
+    EXPECT_EQ(temp_surface_and_moments.getMoments().volume().volume(), temp_moments.volume());
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -604,7 +611,7 @@ TEST(HyperCylinderIntersection, SISCPaperFig5) {
 }
 
 TEST(CylinderIntersection, Debug) {
-  using VolumeAndSuface = AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
+  using VolumeAndSuface = AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
 
   // Defining elliptic paraboloic
   AlignedCylinder aligned_cylinder({1.0, 1.0});
@@ -636,16 +643,32 @@ TEST(CylinderIntersection, Debug) {
   GeneralPolyhedron prism_local_frame(vertex_list, &connectivity);
   std::string surface_filename= "surface_debug";
 
+  double th_volume_cylinder = M_PI / 4.0;
+  double th_volume_triangle = 0.1;
+  double th_volume_total = th_volume_cylinder + th_volume_triangle;
+  std::array<double, 2> theoretical_centroid = {
+    ((- 0.2 / 3.0 ) * th_volume_triangle +
+     (4.0 / (3.0 * M_PI)) * th_volume_cylinder) / th_volume_total,
+    ((1.0 / 3.0 ) * th_volume_triangle +
+     (4.0 / (3.0 * M_PI)) * th_volume_cylinder) / th_volume_total
+  }; // the x component of the centroid is not trivial
+
   // Compute moments and return parametrized surface
   auto temp_surface_and_moments =
       getVolumeMoments<VolumeAndSuface>(prism, cylinder);
-  std::cout << "the volume is   :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume() << std::endl;
-  std::cout << "expected volume :" << std::setprecision(20) << M_PI / 4.0 + 0.1 << std::endl;
+  std::cout << "the volume is   :" << std::setprecision(20) << temp_surface_and_moments.getMoments().volume().volume() << std::endl;
+  std::cout << "expected volume :" << th_volume_total << std::endl;
+  auto& centroid = temp_surface_and_moments.getMoments().centroid();
+  centroid /= temp_surface_and_moments.getMoments().volume().volume();
+  std::cout << "the normalize centroid is :" 
+      << centroid << std::endl;
+  std::cout << "expected centroid         :( ?, "
+      << theoretical_centroid[0] << ", " << theoretical_centroid[1] << ")\n";
   auto temp_param_surface = temp_surface_and_moments.getSurface();
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);
 
-  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), M_PI / 4.0 + 0.1);
+  EXPECT_EQ(temp_surface_and_moments.getMoments().volume().volume(), th_volume_total);
 }
 
 TEST(HyperCylinderIntersection, Debug) {
