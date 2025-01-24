@@ -402,9 +402,9 @@ inline std::array<ContainerType, 6> coeffsVC3andCC3Exact(
           - SIX * T * (THREE * a_weight
                        + TWO * w3)) *
             L3 / ScalarType(96),
-       (FIVE * w2 - ScalarType(7) * w4 +
-          TWO * w6 + SIX * T * (a_weight + w3)) *
-            L3 / ScalarType(48),
+       (- FIVE * w2 +
+          TWO * w4 + SIX * T * a_weight) *
+            L2 / ScalarType(48),
        (- ScalarType(8) * w2 - ScalarType(9) * w4 +
           TWO * w6 + ScalarType(30) * T * w3) *
             L3 / ScalarType(24),
