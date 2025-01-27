@@ -72,19 +72,43 @@ TEST(CylinderIntersection, SISCPaperFig5) {
       {"surface_a", "surface_b", "surface_c", "surface_d", "surface_e"});
   std::array<std::string, 5> clipped_faces_filenames(
       {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e"});
+
+
+  std::array<HalfEdgePolyhedronQuadratic<Pt>, 5> half_edges;
+  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>, IRL::VertexQuadratic<IRL::Pt>>, 5> seg_half_edges;
+  for (UnsignedIndex_t i = 0; i < 5; i++) {
+    cubes[i].setHalfEdgeVersion(&(half_edges[i]));
+    seg_half_edges[i] = half_edges[i].generateSegmentedPolyhedron();
+  }
+  const UnsignedIndex_t nlevels = 10;
+
   // Compute moments and return parametrized surface
   for (UnsignedIndex_t i = 0; i < 5; i++) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
-    std::cout << "the " << i << "th volume is :" << std::setprecision(20)
+    auto amr_moments =
+        intersectPolyhedronWithCylinderAMR<VolumeMoments>(
+            &(seg_half_edges[i]), &(half_edges[i]), aligned_cylinder, nlevels, clipped_faces_filenames[i]);
+    std::cout << "the " << i << "th computed volume is :" << std::setprecision(20)
               << temp_surface_and_moments.getMoments().volume().volume()
               << std::endl;
-    std::cout << "the " << i << "th centroid is :"
+    std::cout << "the " << i << "th amr      volume is :"
+              << amr_moments.volume().volume()
+              << std::endl;
+    std::cout << "the " << i << "th computed centroid is :"
               << temp_surface_and_moments.getMoments().centroid() << std::endl;
+    std::cout << "the " << i << "th amr      centroid is :"
+              << amr_moments.centroid() << std::endl;
     auto& centroid = temp_surface_and_moments.getMoments().centroid();
     centroid /= temp_surface_and_moments.getMoments().volume().volume();
-    std::cout << "the " << i << "th center of mass is :" << centroid
+    auto& amr_centroid = amr_moments.centroid();
+    amr_centroid /= amr_moments.volume().volume();
+    std::cout << "the " << i << "th computed center of mass is :" << centroid
               << std::endl;
+    std::cout << "the " << i << "th amr      center of mass is :" << amr_centroid
+              << std::endl << std::endl;
+
+
     auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
     EXPECT_EQ(temp_surface_and_moments.getMoments().volume().volume(),
               temp_moments.volume());
@@ -157,8 +181,11 @@ TEST(CylinderIntersection, Debug) {
 
   PolyhedronConnectivity connectivity(face_mapping);
   GeneralPolyhedron prism(vertex_list, &connectivity);
-  GeneralPolyhedron prism_local_frame(vertex_list, &connectivity);
   std::string surface_filename = "surface_debug";
+
+  HalfEdgePolyhedronQuadratic<Pt> half_edge;
+  prism.setHalfEdgeVersion(&half_edge);
+  auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
 
   double th_volume_cylinder = M_PI / 4.0;
   double th_volume_triangle = 0.1;
@@ -177,11 +204,21 @@ TEST(CylinderIntersection, Debug) {
   std::cout << "the volume is   :" << std::setprecision(20)
             << temp_surface_and_moments.getMoments().volume() << std::endl;
   std::cout << "expected volume :" << th_volume_total << std::endl;
+  const int nlevels = 8;
+  auto amr_volumeMoments = intersectPolyhedronWithCylinderAMR<VolumeMoments>(
+      &seg_half_edge, &half_edge, aligned_cylinder, nlevels, "_cube_debug");
+  std::cout << "the amr volume  :"
+            << amr_volumeMoments.volume().volume() << std::endl;
   auto& centroid = temp_surface_and_moments.getMoments().centroid();
   centroid /= temp_surface_and_moments.getMoments().volume();
+  auto& amr_centroid = amr_volumeMoments.centroid();
+  amr_centroid /= amr_volumeMoments.volume();
   std::cout << "the normalize centroid is :" << centroid << std::endl;
-  std::cout << "expected centroid         :( ?, " << theoretical_centroid[0]
+  std::cout << "expected centroid         :( ??????????????????, " << theoretical_centroid[0]
             << ", " << theoretical_centroid[1] << ")\n";
+  std::cout << "the amr centroid is       :" << amr_centroid << std::endl;
+
+
   auto temp_param_surface = temp_surface_and_moments.getSurface();
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);

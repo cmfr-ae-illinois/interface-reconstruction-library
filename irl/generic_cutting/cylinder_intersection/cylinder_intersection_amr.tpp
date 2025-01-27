@@ -87,6 +87,139 @@ inline Volume computeMomentContributionClippedTriangle<Volume>(
   return A;
 }
 
+class ClippedTriangleCylinderXCentroid_Functor {
+ public:
+  ClippedTriangleCylinderXCentroid_Functor(const Pt& p0, const Pt& p1,
+                                        const Pt& p2,
+                                        const AlignedCylinder& cylinder)
+      : x0(p0[0]),
+        y0(p0[1]),
+        x1(p1[0]),
+        y1(p1[1]),
+        x2(p2[0]),
+        y2(p2[1]),
+        b(cylinder.b()),
+        r(cylinder.r()) {}
+
+  double operator()(double t) const {
+    const double HALF = 1.0 / 2.0;
+    const double z01 = maximum(
+        0.0, r - ((1.0 - t) * y0 + t * y1) * ((1.0 - t) * y0 + t * y1) * b);
+    const double z12 = maximum(
+        0.0, r - ((1.0 - t) * y1 + t * y2) * ((1.0 - t) * y1 + t * y2) * b);
+    const double z20 = maximum(
+        0.0, r - ((1.0 - t) * y2 + t * y0) * ((1.0 - t) * y2 + t * y0) * b);
+    const double lx01 = (1.0 - t) * x0 + t * x1;
+    const double lx12 = (1.0 - t) * x1 + t * x2;
+    const double lx20 = (1.0 - t) * x2 + t * x0;
+    return (HALF * lx01 * lx01 * (y1 - y0) * sqrt(z01) +
+            HALF * lx12 * lx12 * (y2 - y1) * sqrt(z12) +
+            HALF * lx20 * lx20 * (y0 - y2) * sqrt(z20));
+  }
+
+ private:
+  const double x0, y0, x1, y1, x2, y2, b, r;
+};
+
+class ClippedTriangleCylinderYCentroid_Functor {
+ public:
+  ClippedTriangleCylinderYCentroid_Functor(const Pt& p0, const Pt& p1,
+                                        const Pt& p2,
+                                        const AlignedCylinder& cylinder)
+      : x0(p0[0]),
+        y0(p0[1]),
+        x1(p1[0]),
+        y1(p1[1]),
+        x2(p2[0]),
+        y2(p2[1]),
+        b(cylinder.b()),
+        r(cylinder.r()) {}
+
+  double operator()(double t) const {
+    const double z01 = maximum(
+        0.0, r - ((1.0 - t) * y0 + t * y1) * ((1.0 - t) * y0 + t * y1) * b);
+    const double z12 = maximum(
+        0.0, r - ((1.0 - t) * y1 + t * y2) * ((1.0 - t) * y1 + t * y2) * b);
+    const double z20 = maximum(
+        0.0, r - ((1.0 - t) * y2 + t * y0) * ((1.0 - t) * y2 + t * y0) * b);
+    const double lx01 = (1.0 - t) * x0 + t * x1;
+    const double lx12 = (1.0 - t) * x1 + t * x2;
+    const double lx20 = (1.0 - t) * x2 + t * x0;
+    const double ly01 = (1.0 - t) * y0 + t * y1;
+    const double ly12 = (1.0 - t) * y1 + t * y2;
+    const double ly20 = (1.0 - t) * y2 + t * y0;
+    return (lx01 * ly01 * (y1 - y0) * sqrt(z01) +
+            lx12 * ly12 * (y2 - y1) * sqrt(z12) +
+            lx20 * ly20 * (y0 - y2) * sqrt(z20));
+  }
+
+ private:
+  const double x0, y0, x1, y1, x2, y2, b, r;
+};
+
+template <>
+inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments>(
+    const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
+    const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
+    const bool a_print) {
+  if (a_print) {
+    amr_triangles_clipped.insert(
+        amr_triangles_clipped.end(),
+        {a_pt_0[0], a_pt_0[1], a_pt_0[2], a_pt_1[0], a_pt_1[1], a_pt_1[2],
+         a_pt_2[0], a_pt_2[1], a_pt_2[2]});
+  }
+
+  // Using Gauss-Konrod adaptive quadrature
+  const double epsabs = 10.0 * DBL_EPSILON;
+  const double epsrel = 0.0;
+  const int limit = 64;
+
+  auto moments = VolumeMoments::fromScalarConstant(0.0);
+
+  // Volume
+
+  // Define the functor
+  ClippedTriangleCylinderVolume_Functor functor(a_pt_0, a_pt_1, a_pt_2,
+                                                a_aligned_cylinder);
+  // Define the integrator.
+  Eigen::Integrator<double> integrator(limit);
+  // Integrate.
+  moments.volume() =
+      integrator.quadratureAdaptive(functor, 0.0, 1.0, epsabs, epsrel,
+                                    Eigen::Integrator<double>::GaussKronrod21);
+
+  // Moments
+
+  // Define the functor
+  ClippedTriangleCylinderXCentroid_Functor functorX(a_pt_0, a_pt_1, a_pt_2,
+                                                a_aligned_cylinder);
+  // Define the integrator.
+  Eigen::Integrator<double> integratorX(limit);
+
+  ClippedTriangleCylinderYCentroid_Functor functorY(a_pt_0, a_pt_1, a_pt_2,
+                                                a_aligned_cylinder);
+
+  // Define the integrator.
+  Eigen::Integrator<double> integratorY(limit);
+
+  // Integrate.
+  moments.centroid()[0] =
+      integratorX.quadratureAdaptive(functorX, 0.0, 1.0, epsabs, epsrel,
+                                    Eigen::Integrator<double>::GaussKronrod21);
+  moments.centroid()[1] =
+      integratorY.quadratureAdaptive(functorY, 0.0, 1.0, epsabs, epsrel,
+                                    Eigen::Integrator<double>::GaussKronrod21);
+
+  // Z component has an simple analitic expression
+  moments.centroid()[2] = a_signed_area *
+        (6.0 * a_aligned_cylinder.r() -
+          (a_pt_0[1] * a_pt_0[1] + a_pt_1[1] * a_pt_1[1] + a_pt_2[1] * a_pt_2[1] +
+           a_pt_0[1] * a_pt_1[1] + a_pt_1[1] * a_pt_2[1] + a_pt_2[1] * a_pt_0[1]) *
+          a_aligned_cylinder.b()) / 12.0;
+
+  return moments;
+}
+
 template <>
 inline Volume computeMomentContributionUnclippedTriangle<Volume>(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
@@ -99,6 +232,39 @@ inline Volume computeMomentContributionUnclippedTriangle<Volume>(
          a_pt_2[0], a_pt_2[1], a_pt_2[2]});
   }
   return (a_pt_0[2] + a_pt_1[2] + a_pt_2[2]) * a_signed_area / 3.0;
+}
+
+template <>
+inline VolumeMoments
+computeMomentContributionUnclippedTriangle<VolumeMoments>(
+    const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
+    const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
+    const bool a_print) {
+  if (a_print) {
+    amr_triangles_unclipped.insert(
+        amr_triangles_unclipped.end(),
+        {a_pt_0[0], a_pt_0[1], a_pt_0[2], a_pt_1[0], a_pt_1[1], a_pt_1[2],
+         a_pt_2[0], a_pt_2[1], a_pt_2[2]});
+  }
+  auto moments = VolumeMoments::fromScalarConstant(0.0);
+  moments.volume() = (a_pt_0[2] + a_pt_1[2] + a_pt_2[2]) * a_signed_area / 3.0;
+  moments.centroid()[0] = (2. * a_pt_0[0] * a_pt_0[2] + a_pt_1[0] * a_pt_0[2] +
+                           a_pt_2[0] * a_pt_0[2] + a_pt_0[0] * a_pt_1[2] +
+                           2. * a_pt_1[0] * a_pt_1[2] + a_pt_2[0] * a_pt_1[2] +
+                           a_pt_0[0] * a_pt_2[2] + a_pt_1[0] * a_pt_2[2] +
+                           2. * a_pt_2[0] * a_pt_2[2]) *
+                          a_signed_area / 12.0;
+  moments.centroid()[1] = (2. * a_pt_0[1] * a_pt_0[2] + a_pt_1[1] * a_pt_0[2] +
+                           a_pt_2[1] * a_pt_0[2] + a_pt_0[1] * a_pt_1[2] +
+                           2. * a_pt_1[1] * a_pt_1[2] + a_pt_2[1] * a_pt_1[2] +
+                           a_pt_0[1] * a_pt_2[2] + a_pt_1[1] * a_pt_2[2] +
+                           2. * a_pt_2[1] * a_pt_2[2]) *
+                          a_signed_area / 12.0;
+  moments.centroid()[2] =
+      (a_pt_0[2] * a_pt_0[2] + a_pt_0[2] * a_pt_1[2] + a_pt_1[2] * a_pt_1[2] +
+       a_pt_0[2] * a_pt_2[2] + a_pt_1[2] * a_pt_2[2] + a_pt_2[2] * a_pt_2[2]) *
+      a_signed_area / 12.0;
+  return moments;
 }
 
 bool vertexBelowCylinderAMR(const Pt& a_pt, const AlignedCylinder& a_cylinder) {
@@ -350,6 +516,7 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
                                    const AlignedCylinder& a_cylinder,
                                    const UnsignedIndex_t a_max_amr_level,
                                    const std::string& a_filename) {
+  using ReturnScalarType = typename ReturnType::value_type;
   const bool print = !a_filename.empty();
 
   // We have 1 strategies for computing the moments (and will later on choose
@@ -423,6 +590,25 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
       UnitQuaternion x_rotation(-rotation_list[i], frame[0]);
       x_rotation.normalize();
       frame = x_rotation * frame;
+      // also need to rotate the centroid
+      if constexpr (std::is_same_v<ReturnType,
+                                      VolumeMomentsBase<ReturnScalarType>>) {
+        // std::cout << "hmm " << full_moments[0].first.centroid() << std::endl;
+        Pt centroid01(full_moments[0].first.centroid()[0], 
+          full_moments[0].first.centroid()[1], full_moments[0].first.centroid()[2]);
+        Pt centroid02(full_moments[0].second.centroid()[0],
+          full_moments[0].second.centroid()[1], full_moments[0].second.centroid()[2]);
+        Pt centroid11(full_moments[1].first.centroid()[0],
+          full_moments[1].first.centroid()[1], full_moments[1].first.centroid()[2]);
+        Pt centroid12(full_moments[1].second.centroid()[0],
+          full_moments[1].second.centroid()[1], full_moments[1].second.centroid()[2]);
+        for (UnsignedIndex_t n = 0; n < 3; ++n) {
+          full_moments[0].first.centroid()[n] = frame[n] * centroid01;
+          full_moments[0].second.centroid()[n] = frame[n] * centroid02;
+          full_moments[1].first.centroid()[n] = frame[n] * centroid11;
+          full_moments[1].second.centroid()[n] = frame[n] * centroid12;
+        }
+      }
       for (UnsignedIndex_t v = 0; v < polytope->getNumberOfVertices(); ++v) {
         const Pt original_pt = polytope->getVertex(v)->getLocation().getPt();
         Pt pt(0, 0, 0);
@@ -486,6 +672,23 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
       x_rotation = UnitQuaternion(rotation_list[i], frame[0]);
       x_rotation.normalize();
       frame = x_rotation * frame;
+      if constexpr (std::is_same_v<ReturnType,
+                                      VolumeMomentsBase<ReturnScalarType>>) {
+        Pt centroid01(full_moments[0].first.centroid()[0], 
+          full_moments[0].first.centroid()[1], full_moments[0].first.centroid()[2]);
+        Pt centroid02(full_moments[0].second.centroid()[0],
+          full_moments[0].second.centroid()[1], full_moments[0].second.centroid()[2]);
+        Pt centroid11(full_moments[1].first.centroid()[0],
+          full_moments[1].first.centroid()[1], full_moments[1].first.centroid()[2]);
+        Pt centroid12(full_moments[1].second.centroid()[0],
+          full_moments[1].second.centroid()[1], full_moments[1].second.centroid()[2]);
+        for (UnsignedIndex_t n = 0; n < 3; ++n) {
+          full_moments[0].first.centroid()[n] = frame[n] * centroid01;
+          full_moments[0].second.centroid()[n] = frame[n] * centroid02;
+          full_moments[1].first.centroid()[n] = frame[n] * centroid11;
+          full_moments[1].second.centroid()[n] = frame[n] * centroid12;
+        }
+      }
       for (UnsignedIndex_t v = 0; v < polytope->getNumberOfVertices(); ++v) {
         const Pt original_pt = polytope->getVertex(v)->getLocation().getPt();
         Pt pt(0, 0, 0);
