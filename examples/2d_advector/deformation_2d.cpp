@@ -24,9 +24,9 @@
 constexpr int GC = 15;
 constexpr IRL2D::Vec lower_domain(-0.5, -0.5);
 constexpr IRL2D::Vec upper_domain(0.5, 0.5);
-constexpr double T = 8;
-constexpr double U = 0;
-constexpr double V = 0;
+constexpr double T = 8.0;
+constexpr double U = 0.0;
+constexpr double V = 0.0;
 
 BasicMesh Deformation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
