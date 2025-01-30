@@ -161,8 +161,9 @@ std::array<Pt, 2> SegmentedHalfEdgePolytope<
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
+template <class ScalarType>
 int SegmentedHalfEdgePolytope<FaceType, VertexType, kMaxFaces, kMaxVertices>::
-    calculateAndStoreDistanceToVertices(const Plane& a_plane) {
+    calculateAndStoreDistanceToVertices(const PlaneBase<ScalarType>& a_plane) {
   // No actual object
   if (this->getNumberOfVertices() == 0) {
     return -1;

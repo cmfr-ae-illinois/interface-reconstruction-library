@@ -55,19 +55,19 @@ truncateHalfEdgePolytope(SegmentedHalfEdgePolygonType* a_polytope,
                          const Plane& a_plane,
 			 const double a_volume_tolerance);			 
   
-template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType>
+template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType, class ScalarType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value>
 splitHalfEdgePolytope(SegmentedHalfEdgePolyhedronType* a_polytope,
                       SegmentedHalfEdgePolyhedronType* a_clipped_polytope,
                       HalfEdgePolytopeType* a_complete_polytope,
-                      const Plane& a_plane);
+                      const PlaneBase<ScalarType>& a_plane);
 
-template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType>
+template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType, class ScalarType>
 enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value>
 splitHalfEdgePolytope(SegmentedHalfEdgePolygonType* a_polytope,
                       SegmentedHalfEdgePolygonType* a_clipped_polytope,
                       HalfEdgePolytopeType* a_complete_polytope,
-                      const Plane& a_plane);
+                      const PlaneBase<ScalarType>& a_plane);
 
 template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value>

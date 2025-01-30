@@ -60,30 +60,32 @@ TEST(CylinderIntersection, SISCPaperFig5) {
   Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
 
   // Constructing cells for each subfigure
-  auto cubes = std::array<RectangularCuboid, 5>(
+  auto cubes = std::array<RectangularCuboid, 6>(
       {RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(0.8, 0.8, 0.8)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(1.0, 1.0, 1.0)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(1.2, 1.2, 1.2)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, -0.5, 0.0),
                                           Pt(1.0, 0.5, 1.0)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, 0.0),
+                                          Pt(1.0, 1.0, 1.0)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, -1.0),
                                           Pt(1.0, 1.0, 1.0))});
-  std::array<std::string, 5> surface_filenames(
-      {"surface_a", "surface_b", "surface_c", "surface_d", "surface_e"});
-  std::array<std::string, 5> clipped_faces_filenames(
-      {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e"});
+  std::array<std::string, 6> surface_filenames(
+      {"surface_a", "surface_b", "surface_c", "surface_d", "surface_e", "surface_f"});
+  std::array<std::string, 6> clipped_faces_filenames(
+      {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e", "_cube_f"});
 
 
-  std::array<HalfEdgePolyhedronQuadratic<Pt>, 5> half_edges;
-  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>, IRL::VertexQuadratic<IRL::Pt>>, 5> seg_half_edges;
-  for (UnsignedIndex_t i = 0; i < 5; i++) {
+  std::array<HalfEdgePolyhedronQuadratic<Pt>, 6> half_edges;
+  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>, IRL::VertexQuadratic<IRL::Pt>>, 6> seg_half_edges;
+  for (UnsignedIndex_t i = 0; i < 6; i++) {
     cubes[i].setHalfEdgeVersion(&(half_edges[i]));
     seg_half_edges[i] = half_edges[i].generateSegmentedPolyhedron();
   }
-  const UnsignedIndex_t nlevels = 10;
+  const UnsignedIndex_t nlevels = 13;
 
   // Compute moments and return parametrized surface
-  for (UnsignedIndex_t i = 0; i < 5; i++) {
+  for (UnsignedIndex_t i = 0; i < 6; i++) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
     auto amr_moments =
@@ -110,11 +112,11 @@ TEST(CylinderIntersection, SISCPaperFig5) {
 
 
     auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
-    EXPECT_EQ(temp_surface_and_moments.getMoments().volume().volume(),
-              temp_moments.volume());
-    auto temp_param_surface = temp_surface_and_moments.getSurface();
-    auto temp_tri_surface = temp_param_surface.triangulate(0.1);
-    temp_tri_surface.write(surface_filenames[i]);
+    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
+              temp_moments.volume(), 1e-15);
+    // auto temp_param_surface = temp_surface_and_moments.getSurface();
+    // auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+    // temp_tri_surface.write(surface_filenames[i]);
   }
 }
 

@@ -952,11 +952,11 @@ template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneCylinderType,
           class SurfaceOutputType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
-formCylinderIntersectionBases(
+formCylinderIntersectionBasesClipped(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
     const AligneCylinderType& a_aligned_cylinder,
-    const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface) {
+    const UnsignedIndex_t a_nudge_iter, bool* requires_nudge, SurfaceOutputType* a_surface) {
   using vertex_type = typename SegmentedHalfEdgePolyhedronType::vertex_type;
   using pt_type = typename vertex_type::pt_type;
   using face_type = typename SegmentedHalfEdgePolyhedronType::face_type;
@@ -992,33 +992,12 @@ formCylinderIntersectionBases(
   std::cout << "========= nb iter : " << a_nudge_iter << " ==========" << std::endl;
   #endif
 
-  assert(!(a_surface != nullptr &&
-           std::is_same<SurfaceOutputType, NoSurfaceOutput>::value));
-
   // Initialize moments to 0
   ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
 
   // Initialising variables for handling degenerate cases
-  bool requires_nudge = false;
   const ScalarType nudge_epsilon = DISTANCE_EPSILON;
   const ScalarType nudge_epsilon_sq = nudge_epsilon * nudge_epsilon;
-
-  if constexpr (std::is_same_v<FloatType, Quad_t>) {
-    // We only check this in QP for performance purposes
-    // (i.e. when a_nudge_iter > 0)
-    if (a_nudge_iter >= 100) {
-      std::cout << "ERROR: Nudged more than 100 times. Moments returned "
-                   "are wrong -> Context: b = "
-                << a_aligned_cylinder.b()
-                << ", r = " << a_aligned_cylinder.r() << std::endl;
-      std::ofstream myfile("failed_nudge_comparison_cell.vtu");
-      if (myfile.is_open()) {
-        myfile << *a_polytope;
-        myfile.close();
-      }
-      return ReturnType::fromScalarConstant(-ReturnScalarType(DBL_MAX));
-    }
-  }
 
   const auto& b = a_aligned_cylinder.b();
   const auto& r = a_aligned_cylinder.r();
@@ -1027,8 +1006,11 @@ formCylinderIntersectionBases(
 
   // First, triangulate faces (if necessary) and compute normals
   // The triangulation criterion is based on face planarity
+  #ifdef VALDEBUG
+  std::cout << "triangulating" << std::endl;
+  #endif
   triangulatePolytopeAndComputeNormals(a_polytope, a_complete_polytope,
-                                       nudge_epsilon, &requires_nudge);
+                                       nudge_epsilon, requires_nudge);
 
   // Mark vertices clipped(= above paraboloid) or unclipped(= below
   // paraboloid)
@@ -1061,7 +1043,7 @@ formCylinderIntersectionBases(
   #ifdef VALDEBUG
   std::cout << "too close, gona nudge" << std::endl;
   #endif
-      requires_nudge = true;
+      *requires_nudge = true;
       break;
     } else if (dist_function < ZERO) {
   #ifdef VALDEBUG
@@ -1080,23 +1062,28 @@ formCylinderIntersectionBases(
   #ifdef VALDEBUG
   std::cout << "number_of_vertices above : " << number_of_vertices_above << std::endl;
   #endif
-  if (!requires_nudge) {
+  if (!*requires_nudge) {
     // Early termination cases, only possible with elliptic thanks to
     // convexity
     if (elliptic && number_of_vertices_above == 0) {
       // Whole volume below
+      #ifdef VALDEBUG
+      std::cout << "quick end : no vertices above\n";
+      #endif
       return ReturnType::calculateMoments(a_polytope);
     }
 
     if (!elliptic && number_of_vertices_above == starting_number_of_vertices) {
       // Zero volume - will be current value of full_moments
+      #ifdef VALDEBUG
+      std::cout << "quick end : no vertices below\n";
+      #endif
       return full_moments;
     }
   } else {
     // Nudge and try again!
-    return reformQuadraticIntersectionBases<ReturnType>(
-        a_polytope, a_complete_polytope, a_aligned_cylinder, a_nudge_iter,
-        a_surface);
+    
+    return full_moments;
   }
 
   // Clear visitation knowledge from polytope.
@@ -1163,7 +1150,7 @@ formCylinderIntersectionBases(
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
-            requires_nudge = true;
+            *requires_nudge = true;
   #ifdef VALDEBUG
   std::cout << "gonna nudge" << std::endl;
   #endif
@@ -1196,7 +1183,7 @@ formCylinderIntersectionBases(
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
-            requires_nudge = true;
+            *requires_nudge = true;
   #ifdef VALDEBUG
   std::cout << "gonna nudge" << std::endl;
   #endif
@@ -1276,7 +1263,7 @@ formCylinderIntersectionBases(
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
-            requires_nudge = true;
+            *requires_nudge = true;
   #ifdef VALDEBUG
   std::cout << "gonna nudge" << std::endl;
   #endif
@@ -1310,7 +1297,7 @@ formCylinderIntersectionBases(
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
-            requires_nudge = true;
+            *requires_nudge = true;
   #ifdef VALDEBUG
   std::cout << "gonna nudge" << std::endl;
   #endif
@@ -1342,7 +1329,7 @@ formCylinderIntersectionBases(
     }
     // If nudge is requested, we exit loop and mark unvisited vertices
     // as visited
-    if (requires_nudge) {
+    if (*requires_nudge) {
       for (UnsignedIndex_t i = v + 1; i < starting_number_of_vertices; ++i) {
         a_polytope->getVertex(i)->setToSeek();
       }
@@ -1375,7 +1362,7 @@ formCylinderIntersectionBases(
 
   // If intersection is too close to corners, switch to QP,
   // shift and rotate polyhedron randomly, and try again
-  if (requires_nudge) {
+  if (*requires_nudge) {
     // Clean half-edge structure by removing intersections
     assert(a_polytope->checkValidHalfEdgeStructure());
     if (new_intersection_vertices > 0) {
@@ -1385,9 +1372,7 @@ formCylinderIntersectionBases(
     assert(a_polytope->checkValidHalfEdgeStructure());
 
     // Nudge and try again!
-    return reformQuadraticIntersectionBases<ReturnType>(
-        a_polytope, a_complete_polytope, a_aligned_cylinder, a_nudge_iter,
-        a_surface);
+    return full_moments;
   }
 
   // impossible for a cylinder
@@ -1429,7 +1414,7 @@ formCylinderIntersectionBases(
   //         // Get ellipse on this face
   //         if (ellipseContainedInFace<ScalarType>(a_aligned_paraboloid,
   //                                                face_plane, starting_half_edge,
-  //                                                &requires_nudge)) {
+  //                                                requires_nudge)) {
   //           full_moments += computeFaceOnlyContribution<ReturnType, ScalarType>(
   //               a_aligned_paraboloid, face_plane,
   //               starting_half_edge->getVertex()->getLocation());
@@ -1478,7 +1463,7 @@ formCylinderIntersectionBases(
   //         // Get ellipse on this face
   //         if (ellipseContainedInFace<ScalarType>(a_aligned_paraboloid,
   //                                                face_plane, starting_half_edge,
-  //                                                &requires_nudge)) {
+  //                                                requires_nudge)) {
   //           full_moments += computeFaceOnlyContribution<ReturnType, ScalarType>(
   //               a_aligned_paraboloid, face_plane,
   //               starting_half_edge->getVertex()->getLocation());
@@ -1550,7 +1535,7 @@ formCylinderIntersectionBases(
     const auto intersection_size = face.getNumberOfIntersections();
     if (intersection_size % 2 == 1) {
       // Discrete topology is ambiguous, let's shake things up
-      requires_nudge = true;
+      *requires_nudge = true;
       break;
     }
 
@@ -1682,7 +1667,7 @@ formCylinderIntersectionBases(
       // We can now compute the type 2 and 3 moment contribution
           const auto& type3contribution = computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
           a_aligned_cylinder, ref_pt, starting_half_edge, exit_half_edge,
-          &skip_first, face_normal, max_component_index, false, &requires_nudge,
+          &skip_first, face_normal, max_component_index, false, requires_nudge,
           a_surface);
   #ifdef VALDEBUG
   std::cout << "\nType 3 contribution of the face : " << type3contribution << std::endl;
@@ -1733,7 +1718,7 @@ formCylinderIntersectionBases(
                   computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                       a_aligned_cylinder, ref_pt, current_edge,
                       exit_half_edge, &skip_first, face_normal,
-                      max_component_index, false, &requires_nudge, a_surface);
+                      max_component_index, false, requires_nudge, a_surface);
               current_edge = exit_half_edge->getNextHalfEdge();
               while (current_edge->getVertex()->needsToSeek()) {
                 current_edge = current_edge->getNextHalfEdge();
@@ -1747,7 +1732,7 @@ formCylinderIntersectionBases(
                   computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                       a_aligned_cylinder, ref_pt, current_edge,
                       exit_half_edge, &skip_first, face_normal,
-                      max_component_index, false, &requires_nudge, a_surface);
+                      max_component_index, false, requires_nudge, a_surface);
             }
             found_intersections += 2;
           } while (found_intersections != intersection_size);
@@ -1756,7 +1741,7 @@ formCylinderIntersectionBases(
         else {
           // i don't know how to do that for now :)
           // let's just nudge
-          requires_nudge = true;
+          *requires_nudge = true;
           break;
         }
         // else {
@@ -1878,7 +1863,7 @@ formCylinderIntersectionBases(
         //         computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
         //             a_aligned_paraboloid, ref_pt, entry_half_edge,
         //             exit_half_edge, &first_entry, face_normal,
-        //             max_component_index, false, &requires_nudge, a_surface);
+        //             max_component_index, false, requires_nudge, a_surface);
         //     first_entry = false;
         //   }
         //   // Clear list of intersections
@@ -2111,7 +2096,7 @@ formCylinderIntersectionBases(
               }
               // If all sorts have failed, switch to QP and try again
               if (re_re_restart_sort) {
-                requires_nudge = true;
+                *requires_nudge = true;
                 break;
               }
             }
@@ -2121,7 +2106,7 @@ formCylinderIntersectionBases(
         else 
         {
           // pour l'instant on skip
-          requires_nudge = true;
+          *requires_nudge = true;
           break;
         }
         // if (hyperbolic_face) {
@@ -2191,7 +2176,7 @@ formCylinderIntersectionBases(
         //   if (fabs(gamma_face) < ONE_HUNDRED * MACHINE_EPSILON ||
         //       fabs(z_center_plane - z_center_paraboloid) <
         //           ONE_HUNDRED * MACHINE_EPSILON) {
-        //     requires_nudge = true;
+        //     *requires_nudge = true;
         //     break;
         //   }
         //   // If the sorted intersections are too close to each other, we
@@ -2201,7 +2186,7 @@ formCylinderIntersectionBases(
         //       if (fabs(intersection_copy[i].second -
         //                intersection_copy[i + 1].second) <
         //           ONE_HUNDRED * MACHINE_EPSILON) {
-        //         requires_nudge = true;
+        //         *requires_nudge = true;
         //         break;
         //       }
         //     }
@@ -2228,7 +2213,7 @@ formCylinderIntersectionBases(
         //           intersection_avg[1];
         //   // If we can't determine that accurately enough, we switch to QP
         //   if (fabs(z_diff) < ONE_HUNDRED * MACHINE_EPSILON) {
-        //     requires_nudge = true;
+        //     *requires_nudge = true;
         //     break;
         //   }
         //   // Find dominant face normal direction
@@ -2392,7 +2377,7 @@ formCylinderIntersectionBases(
         //   if (fabs(gamma_face) < ONE_HUNDRED * MACHINE_EPSILON ||
         //       fabs(z_center_plane - z_center_paraboloid) <
         //           ONE_HUNDRED * MACHINE_EPSILON) {
-        //     requires_nudge = true;
+        //     *requires_nudge = true;
         //     break;
         //   }
         //   // If the sorted intersections are too close to each other, we
@@ -2402,7 +2387,7 @@ formCylinderIntersectionBases(
         //       if (fabs(intersection_copy[i].second -
         //                intersection_copy[i + 1].second) <
         //           ONE_HUNDRED * MACHINE_EPSILON) {
-        //         requires_nudge = true;
+        //         *requires_nudge = true;
         //         break;
         //       }
         //     }
@@ -2429,7 +2414,7 @@ formCylinderIntersectionBases(
         //           intersection_avg[1];
         //   // If we can't determine that accurately enough, we switch to QP
         //   if (fabs(z_diff) < ONE_HUNDRED * MACHINE_EPSILON) {
-        //     requires_nudge = true;
+        //     *requires_nudge = true;
         //     break;
         //   }
         //   // Find dominant face normal direction
@@ -2528,13 +2513,13 @@ formCylinderIntersectionBases(
         //         if (fabs(intersections[i].second -
         //                  intersections[i + 1].second) <
         //             ONE_HUNDRED * MACHINE_EPSILON) {
-        //           requires_nudge = true;
+        //           *requires_nudge = true;
         //         }
         //       }
         //     } else {
         //       // Is convex hull incomplete? Then error out
         //       if (hull_size != intersection_size) {
-        //         requires_nudge = true;
+        //         *requires_nudge = true;
         //       }
         //       // Else: update intersection with ordered list
         //       if (invert > ZERO) {
@@ -2547,7 +2532,7 @@ formCylinderIntersectionBases(
         //       }
         //     }
         //   } else {
-        //     requires_nudge = true;
+        //     *requires_nudge = true;
         //     break;
         //   }
         // }
@@ -2556,7 +2541,7 @@ formCylinderIntersectionBases(
         //     } else {
         //       // Is convex hull incomplete? Then error out
         //       if (hull_size != intersection_size) {
-        //         requires_nudge = true;
+        //         *requires_nudge = true;
         //       }
         //       // Else: update intersection with ordered list
         //       if (invert > ZERO) {
@@ -2569,7 +2554,7 @@ formCylinderIntersectionBases(
         //       }
         //     }
         //   } else {
-        //     requires_nudge = true;
+        //     *requires_nudge = true;
         //     break;
         //   }
         // }
@@ -2594,7 +2579,7 @@ formCylinderIntersectionBases(
               computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                   a_aligned_cylinder, ref_pt, entry_half_edge, exit_half_edge,
                   &entry_first, face_normal, max_component_index,
-                  ignore_type3_contributions, &requires_nudge, a_surface);
+                  ignore_type3_contributions, requires_nudge, a_surface);
         }
         // Clear list of intersections
         intersections.clear();
@@ -2603,24 +2588,189 @@ formCylinderIntersectionBases(
     // #endif
     // If some ambiguous configuration has been detected, switch to QP and
     // shake things up
-    if (requires_nudge) {
+    if (*requires_nudge) {
       break;
     }
   }  // End loop over faces
-
-  // Last call for the nudge
-  if (requires_nudge) {
+  if (*requires_nudge) {
     resetPolyhedron(a_polytope, a_complete_polytope);
+    assert(a_polytope->getNumberOfVertices() == starting_number_of_vertices);
+  }
+  return full_moments;
+}
+
+// #define regen
+
+template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
+          class HalfEdgePolytopeType, class AligneCylinderType,
+          class SurfaceOutputType>
+enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
+formCylinderIntersectionBases(
+    SegmentedHalfEdgePolyhedronType* a_polytope,
+    HalfEdgePolytopeType* a_complete_polytope,
+    const AligneCylinderType& a_aligned_cylinder,
+    const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface) {
+  using vertex_type = typename SegmentedHalfEdgePolyhedronType::vertex_type;
+  using pt_type = typename vertex_type::pt_type;
+  using face_type = typename SegmentedHalfEdgePolyhedronType::face_type;
+  using half_edge_type = typename HalfEdgePolytopeType::half_edge_type;
+
+  // Defining type aliases (needed to ensure precision is consistent)
+  using ScalarType = typename pt_type::value_type;
+  using FloatType = float_type<ScalarType>;
+  using ReturnScalarType = typename ReturnType::value_type;
+  static_assert(std::is_same_v<typename pt_type::value_type, ScalarType>);
+  static_assert(
+      std::is_same_v<typename half_edge_type::value_type, ScalarType>);
+  static_assert(std::is_same_v<typename face_type::value_type, ScalarType>);
+  using Pt = PtBase<ScalarType>;
+  using Normal = NormalBase<ScalarType>;
+  using Plane = PlaneBase<ScalarType>;
+  using AlignedCylinder = AlignedCylinderBase<ScalarType>;
+
+  assert(!(a_surface != nullptr &&
+           std::is_same<SurfaceOutputType, NoSurfaceOutput>::value));
+
+  if constexpr (std::is_same_v<FloatType, Quad_t>) {
+    // We only check this in QP for performance purposes
+    // (i.e. when a_nudge_iter > 0)
+    if (a_nudge_iter >= 100) {
+      std::cout << "ERROR: Nudged more than 100 times. Moments returned "
+                   "are wrong -> Context: b = "
+                << a_aligned_cylinder.b()
+                << ", r = " << a_aligned_cylinder.r() << std::endl;
+      std::ofstream myfile("failed_nudge_comparison_cell.vtu");
+      if (myfile.is_open()) {
+        myfile << *a_polytope;
+        myfile.close();
+      }
+      return ReturnType::fromScalarConstant(-ReturnScalarType(DBL_MAX));
+    }
+  }
+
+  #ifdef VALDEBUG
+  std::cout << "computing the volume \n";
+  #endif
+
+  HalfEdgePolytopeType a_complete_polytope_backup;
+  a_complete_polytope_backup = (*a_complete_polytope);
+  #ifdef regen
+  SegmentedHalfEdgePolyhedronType a_polytope_backup = a_complete_polytope_backup.generateSegmentedPolyhedron();
+  #else
+  SegmentedHalfEdgePolyhedronType a_polytope_backup;
+  a_polytope_backup = (*a_polytope);
+  #endif
+  bool require_nudge = false; 
+
+  ReturnType total_moments = ReturnType::fromScalarConstant(0.0);
+
+  const auto& starting_number_of_vertices = a_polytope->getNumberOfVertices();
+
+  UnsignedIndex_t nb_polytope = 2;
+
+  #ifdef VALDEBUG
+  std::cout << "splitting the polytope\n";
+  #endif
+
+  std::array<AlignedCylinder, 2> cylinder_list = {a_aligned_cylinder, a_aligned_cylinder};
+  std::array<double, 2> rotation_list = {0.0, M_PI};
+
+  for (UnsignedIndex_t i = 0; i < nb_polytope; i++) {
+  #ifdef VALDEBUG
+  std::cout << "rotating polytope\n";
+  #endif
+    // rotating the polytop
+    auto& cylinder = cylinder_list[i];
+
+    // skip if there is no vertices
+    if (a_polytope->getNumberOfVertices() == 0) {
+      continue;
+    }
+
+    if (a_polytope != nullptr) {
+      // Rotate polytope
+      ReferenceFrameBase<ScalarType> frame(NormalBase<ScalarType>(1, 0, 0), NormalBase<ScalarType>(0, 1, 0), NormalBase<ScalarType>(0, 0, 1));
+      UnitQuaternionBase<ScalarType> x_rotation(-rotation_list[i], frame[0]);
+      x_rotation.normalize();
+
+      frame = x_rotation * frame;
+      for (UnsignedIndex_t v = 0; v < a_polytope->getNumberOfVertices(); ++v) {
+        const Pt original_pt = a_polytope->getVertex(v)->getLocation().getPt();
+        Pt pt(0, 0, 0);
+        for (UnsignedIndex_t n = 0; n < 3; ++n) {
+          pt[n] = frame[n] * original_pt;
+        }
+        a_polytope->getVertex(v)->setLocation(pt);
+      }
+      SegmentedHalfEdgePolyhedronType p2;
+      splitHalfEdgePolytope(
+          a_polytope, &p2, a_complete_polytope,
+          Plane(Normal(0.0, 0.0, -1.0), 0.0));
+      #ifdef VALDEBUG
+      std::cout << "computing the contribution\n";
+      #endif
+
+      ReturnType moments = formCylinderIntersectionBasesClipped<ReturnType>(
+        a_polytope, a_complete_polytope, cylinder, a_nudge_iter, &require_nudge, a_surface);
+
+      if (require_nudge) {
+        break;
+      }
+
+  #ifdef VALDEBUG
+  std::cout << "reverting the polytope\n";
+  #endif
+      // // Revert rotate polytope
+      frame = ReferenceFrameBase<ScalarType>(NormalBase<ScalarType>(1, 0, 0), NormalBase<ScalarType>(0, 1, 0), NormalBase<ScalarType>(0, 0, 1));
+      x_rotation = UnitQuaternionBase<ScalarType>(rotation_list[i], frame[0]);
+      x_rotation.normalize();
+      frame = x_rotation * frame;
+      if constexpr (std::is_same_v<ReturnType,
+                                      VolumeMomentsBase<ReturnScalarType>>) {
+        Pt centroid01(moments.centroid()[0], 
+          moments.centroid()[1], moments.centroid()[2]);
+        for (UnsignedIndex_t n = 0; n < 3; ++n) {
+          moments.centroid()[n] = frame[n] * centroid01;
+        }
+      }
+      // for (UnsignedIndex_t v = 0; v < polytope->getNumberOfVertices(); ++v) {
+      //   const Pt original_pt = polytope->getVertex(v)->getLocation().getPt();
+      //   Pt pt(0, 0, 0);
+      //   for (UnsignedIndex_t n = 0; n < 3; ++n) {
+      //     pt[n] = frame[n] * original_pt;
+      //   }
+      //   polytope->getVertex(v)->setLocation(pt);
+      // }
+      *a_polytope = a_polytope_backup;
+      *a_complete_polytope = a_complete_polytope_backup;
+      total_moments += moments;
+    }
+  }
+
+
+  if (require_nudge) {
+    #ifdef regen
+      assert(a_polytope_backup.getNumberOfVertices() == starting_number_of_vertices);
+
+      // Nudge and try again!
+      return reformQuadraticIntersectionBases<ReturnType>(
+          &a_polytope_backup, &a_complete_polytope_backup, a_aligned_cylinder, a_nudge_iter,
+          a_surface);
+    #else
+    // reset a_polytope and a_complete polytope to the saved value;
+    *a_polytope = a_polytope_backup;
+    *a_complete_polytope = a_complete_polytope_backup;
     assert(a_polytope->getNumberOfVertices() == starting_number_of_vertices);
 
     // Nudge and try again!
     return reformQuadraticIntersectionBases<ReturnType>(
         a_polytope, a_complete_polytope, a_aligned_cylinder, a_nudge_iter,
         a_surface);
+    #endif
   }
 
-  return full_moments;
-}
+  return total_moments;
+    }
 }  // namespace IRL
 
 #endif  // IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_TPP_
