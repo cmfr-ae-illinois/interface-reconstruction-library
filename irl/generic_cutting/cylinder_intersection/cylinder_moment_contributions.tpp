@@ -721,127 +721,72 @@ ReturnType computeType3Contribution(
 //   }
 // }
 
-// template <class ReturnType, class ScalarType>
-// ReturnType computeTriangleCorrection(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
-//     const PtBase<ScalarType>& a_pt_2) {
-//   using ReturnScalarType = typename ReturnType::value_type;
-//   if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
-//     return ReturnType::fromScalarConstant(ReturnScalarType(
-//         (-a_paraboloid.a() * (a_pt_0[0] + a_pt_1[0]) * (a_pt_1[0] + a_pt_2[0]) +
-//          -a_paraboloid.b() * (a_pt_0[1] + a_pt_1[1]) * (a_pt_1[1] + a_pt_2[1]) -
-//          a_pt_0[2] - ScalarType(2) * a_pt_1[2] - a_pt_2[2]) /
-//         ScalarType(12) *
-//         ((a_pt_1[1] - a_pt_2[1]) * a_pt_0[0] +
-//          (a_pt_2[1] - a_pt_0[1]) * a_pt_1[0] +
-//          (a_pt_0[1] - a_pt_1[1]) * a_pt_2[0])));
-//     return ReturnType::fromScalarConstant(ReturnScalarType(0));
-//   } else if constexpr (std::is_same_v<ReturnType,
-//                                       VolumeMomentsBase<ReturnScalarType>>) {
-//     /* Defining constants and types */
-//     const ScalarType ZERO = ScalarType(0);
-//     const ScalarType ONE = ScalarType(1);
-//     const ScalarType TWO = ScalarType(2);
-//     const ScalarType THREE = ScalarType(3);
-//     const ScalarType FOUR = ScalarType(4);
-//     const ScalarType FIVE = ScalarType(5);
-//     const ScalarType SIX = ScalarType(6);
-//     const ScalarType HALF = ONE / TWO;
+template <class ReturnType, class ScalarType>
+ReturnType computeTriangleCorrection(
+    const AlignedCylinderBase<ScalarType>& a_cylinder,
+    const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
+    const PtBase<ScalarType>& a_pt_2) {
+  using ReturnScalarType = typename ReturnType::value_type;
+  /* Defining constants and types */
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
+  const ScalarType THREE = ScalarType(3);
+  const ScalarType FOUR = ScalarType(4);
+  const ScalarType FIVE = ScalarType(5);
+  const ScalarType SIX = ScalarType(6);
+  const ScalarType HALF = ONE / TWO;
+  const ScalarType SIXTH = ONE / SIX;
+  const ScalarType X0 = a_pt_0[0], X1 = a_pt_1[0], X2 = a_pt_2[0];
+  const ScalarType Y0 = a_pt_0[1], Y1 = a_pt_1[1], Y2 = a_pt_2[1];
+  const ScalarType Z0 = a_pt_0[2], Z1 = a_pt_1[2], Z2 = a_pt_2[2];
+  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
+    return ReturnType::fromScalarConstant(ReturnScalarType(
+        ((Y1 - Y0) * (X0 * (TWO * Z0 + Z1) + X1 * (Z0 + TWO * Z1)) +
+         (Y0 - Y2) * (X2 * (TWO * Z2 + Z0) + X0 * (Z2 + TWO * Z0)) +
+         (Y2 - Y1) * (X1 * (TWO * Z1 + Z2) + X2 * (Z1 + TWO * Z2))) * SIXTH));
+    return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeMomentsBase<ReturnScalarType>>) {
 
-//     /* Function */
-//     auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
-//     const ScalarType A = a_paraboloid.a(), B = a_paraboloid.b();
-//     const ScalarType X0 = a_pt_0[0], X1 = a_pt_1[0], X2 = a_pt_2[0];
-//     const ScalarType Y0 = a_pt_0[1], Y1 = a_pt_1[1], Y2 = a_pt_2[1];
-//     const ScalarType Z0 = a_pt_0[2], Z1 = a_pt_1[2], Z2 = a_pt_2[2];
-//     const ScalarType triangle_area =
-//         HALF * ((a_pt_1[1] - a_pt_2[1]) * a_pt_0[0] +
-//                 (a_pt_2[1] - a_pt_0[1]) * a_pt_1[0] +
-//                 (a_pt_0[1] - a_pt_1[1]) * a_pt_2[0]);
-//     moments.volume() = ReturnScalarType(
-//         (-a_paraboloid.a() * (a_pt_0[0] + a_pt_1[0]) * (a_pt_1[0] + a_pt_2[0]) +
-//          -a_paraboloid.b() * (a_pt_0[1] + a_pt_1[1]) * (a_pt_1[1] + a_pt_2[1]) -
-//          a_pt_0[2] - TWO * a_pt_1[2] - a_pt_2[2]) *
-//         triangle_area / SIX);
-//     moments.centroid()[0] = ReturnScalarType(
-//         triangle_area *
-//         ((A * (-(X0 * X0 * X0) - X1 * X1 * X1 - X1 * X1 * X2 - X1 * (X2 * X2) -
-//                X2 * X2 * X2 - X0 * X0 * (X1 + X2) -
-//                X0 * (X1 * X1 + X1 * X2 + X2 * X2))) /
-//              ScalarType(10) +
-//          (B * (-(X1 * (Y0 * Y0 + TWO * Y0 * Y1 + THREE * (Y1 * Y1) + Y0 * Y2 +
-//                        TWO * Y1 * Y2 + Y2 * Y2)) -
-//                X2 * (Y0 * Y0 + Y0 * Y1 + Y1 * Y1 + TWO * Y0 * Y2 +
-//                      TWO * Y1 * Y2 + THREE * (Y2 * Y2)) -
-//                X0 * (THREE * (Y0 * Y0) + Y1 * Y1 + Y1 * Y2 + Y2 * Y2 +
-//                      TWO * Y0 * (Y1 + Y2)))) /
-//              ScalarType(30) +
-//          (-(X0 * (TWO * Z0 + Z1 + Z2)) - X1 * (Z0 + TWO * Z1 + Z2) -
-//           X2 * (Z0 + Z1 + TWO * Z2)) /
-//              ScalarType(12)));
-//     moments.centroid()[1] = ReturnScalarType(
-//         -triangle_area *
-//         ((B * (Y0 * Y0 * Y0 + Y1 * Y1 * Y1 + Y1 * Y1 * Y2 + Y1 * (Y2 * Y2) +
-//                Y2 * Y2 * Y2 + Y0 * Y0 * (Y1 + Y2) +
-//                Y0 * (Y1 * Y1 + Y1 * Y2 + Y2 * Y2))) /
-//              ScalarType(10) +
-//          (A *
-//           (X0 * X0 * (THREE * Y0 + Y1 + Y2) + X1 * X1 * (Y0 + THREE * Y1 + Y2) +
-//            X2 * X2 * (Y0 + Y1 + THREE * Y2) + X1 * X2 * (Y0 + TWO * (Y1 + Y2)) +
-//            X0 * (X1 * (TWO * Y0 + TWO * Y1 + Y2) +
-//                  X2 * (TWO * Y0 + Y1 + TWO * Y2)))) /
-//              ScalarType(30) +
-//          (Y0 * (TWO * Z0 + Z1 + Z2) + Y1 * (Z0 + TWO * Z1 + Z2) +
-//           Y2 * (Z0 + Z1 + TWO * Z2)) /
-//              ScalarType(12)));
-//     moments.centroid()[2] = ReturnScalarType(
-//         triangle_area *
-//         ((A * A *
-//           (X0 * X0 * X0 * X0 + X1 * X1 * X1 * X1 + X1 * X1 * X1 * X2 +
-//            X1 * X1 * (X2 * X2) + X1 * (X2 * X2 * X2) + X2 * X2 * X2 * X2 +
-//            X0 * X0 * X0 * (X1 + X2) + X0 * X0 * (X1 * X1 + X1 * X2 + X2 * X2) +
-//            X0 *
-//                (X1 * X1 * X1 + X1 * X1 * X2 + X1 * (X2 * X2) + X2 * X2 * X2))) /
-//              ScalarType(30) +
-//          (B * B *
-//           (Y0 * Y0 * Y0 * Y0 + Y1 * Y1 * Y1 * Y1 + Y1 * Y1 * Y1 * Y2 +
-//            Y1 * Y1 * (Y2 * Y2) + Y1 * (Y2 * Y2 * Y2) + Y2 * Y2 * Y2 * Y2 +
-//            Y0 * Y0 * Y0 * (Y1 + Y2) + Y0 * Y0 * (Y1 * Y1 + Y1 * Y2 + Y2 * Y2) +
-//            Y0 *
-//                (Y1 * Y1 * Y1 + Y1 * Y1 * Y2 + Y1 * (Y2 * Y2) + Y2 * Y2 * Y2))) /
-//              ScalarType(30) +
-//          (A * B *
-//           (X1 * X2 *
-//                (Y0 * Y0 + THREE * (Y1 * Y1) + FOUR * Y1 * Y2 +
-//                 THREE * (Y2 * Y2) + TWO * Y0 * (Y1 + Y2)) +
-//            X0 * X0 *
-//                (SIX * (Y0 * Y0) + Y1 * Y1 + Y1 * Y2 + Y2 * Y2 +
-//                 THREE * Y0 * (Y1 + Y2)) +
-//            X1 * X1 *
-//                (Y0 * Y0 + SIX * (Y1 * Y1) + THREE * Y1 * Y2 + Y2 * Y2 +
-//                 Y0 * (THREE * Y1 + Y2)) +
-//            X2 * X2 *
-//                (Y0 * Y0 + Y1 * Y1 + THREE * Y1 * Y2 + SIX * (Y2 * Y2) +
-//                 Y0 * (Y1 + THREE * Y2)) +
-//            X0 * (X1 * (THREE * (Y0 * Y0) + FOUR * Y0 * Y1 + THREE * (Y1 * Y1) +
-//                        TWO * Y0 * Y2 + TWO * Y1 * Y2 + Y2 * Y2) +
-//                  X2 * (THREE * (Y0 * Y0) + TWO * Y0 * Y1 + Y1 * Y1 +
-//                        FOUR * Y0 * Y2 + TWO * Y1 * Y2 + THREE * (Y2 * Y2))))) /
-//              ScalarType(90) +
-//          (-(Z0 * Z0) - Z1 * Z1 - Z1 * Z2 - Z2 * Z2 - Z0 * (Z1 + Z2)) /
-//              ScalarType(12)));
-//     return moments;
-//   } else if constexpr (std::is_same_v<
-//                            ReturnType,
-//                            GeneralMomentsBase<2, 3, ReturnScalarType>>) {
-//     return ReturnType::fromScalarConstant(ReturnScalarType(0));
-//   } else {
-//     std::cout << "Type 5 for moments with order > 2 not yet implemented"
-//               << std::endl;
-//     return ReturnType::fromScalarConstant(ReturnScalarType(0));
-//   }
-// }
+    /* Function */
+    auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+    moments.volume() = ReturnScalarType(
+        ((Y1 - Y0) * (X0 * (TWO * Z0 + Z1) + X1 * (Z0 + TWO * Z1)) +
+         (Y0 - Y2) * (X2 * (TWO * Z2 + Z0) + X0 * (Z2 + TWO * Z0)) +
+         (Y2 - Y1) * (X1 * (TWO * Z1 + Z2) + X2 * (Z1 + TWO * Z2))) * SIXTH);
+    moments.centroid()[0] = ReturnScalarType(
+        ((Y1 - Y0) * ((X0 + X1) * (X0 + X1) * (Z0 + Z1) + 
+                          TWO * X0 * X0 * Z0 + TWO * X1 * X1 * Z1) + 
+         (Y0 - Y2) * ((X2 + X0) * (X2 + X0) * (Z2 + Z0) + 
+                          TWO * X2 * X2 * Z2 + TWO * X0 * X0 * Z0) + 
+         (Y2 - Y1) * ((X1 + X2) * (X1 + X2) * (Z1 + Z2) + 
+                          TWO * X1 * X1 * Z1 + TWO * X2 * X2 * Z2)) / ScalarType(24));
+    moments.centroid()[1] = ReturnScalarType(
+        ((Y1 - Y0) * ((X0 + X1) * (Y0 + Y1) * (Z0 + Z1) + 
+                          TWO * X0 * Y0 * Z0 + TWO * X1 * Y1 * Z1) + 
+         (Y0 - Y2) * ((X2 + X0) * (Y2 + Y0) * (Z2 + Z0) + 
+                          TWO * X2 * Y2 * Z2 + TWO * X0 * Y0 * Z0) + 
+         (Y2 - Y1) * ((X1 + X2) * (Y1 + Y2) * (Z1 + Z2) + 
+                          TWO * X1 * Y1 * Z1 + TWO * X2 * Y2 * Z2)) / ScalarType(12));
+    moments.centroid()[2] = ReturnScalarType(
+        ((Y1 - Y0) * ((X0 + X1) * (Z0 + Z1) * (Z0 + Z1) + 
+                          TWO * X0 * Z0 * Z0 + TWO * X1 * Z1 * Z1) + 
+         (Y0 - Y2) * ((X2 + X0) * (Z2 + Z0) * (Z2 + Z0) + 
+                          TWO * X2 * Z2 * Z2 + TWO * X0 * Z0 * Z0) + 
+         (Y2 - Y1) * ((X1 + X2) * (Z1 + Z2) * (Z1 + Z2) + 
+                          TWO * X1 * Z1 * Z1 + TWO * X2 * Z2 * Z2)) / ScalarType(24));
+    return moments;
+  } else if constexpr (std::is_same_v<
+                           ReturnType,
+                           GeneralMomentsBase<2, 3, ReturnScalarType>>) {
+    return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  } else {
+    std::cout << "Type 5 for moments with order > 2 not yet implemented"
+              << std::endl;
+    return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  }
+}
 
 }  // namespace IRL
 

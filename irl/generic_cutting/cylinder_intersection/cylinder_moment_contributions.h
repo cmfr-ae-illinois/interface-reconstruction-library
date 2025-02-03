@@ -54,19 +54,17 @@ ReturnType computeType3Contribution(
     const AlignedCylinderBase<ScalarType>& a_cylinder,
     const RationalBezierArcBase<ScalarType>& a_arc);
 
-// Don't know what these two function do sooooooo.
-
 // template <class ReturnType, class ScalarType>
 // ReturnType computeFaceOnlyContribution(
 //     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
 //     const PlaneBase<ScalarType>& a_face_plane,
 //     const PtBase<ScalarType>& a_pt_ref);
 
-// template <class ReturnType, class ScalarType>
-// ReturnType computeTriangleCorrection(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
-//     const PtBase<ScalarType>& a_pt_2);
+template <class ReturnType, class ScalarType>
+ReturnType computeTriangleCorrection(
+    const AlignedCylinderBase<ScalarType>& a_cylinder,
+    const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
+    const PtBase<ScalarType>& a_pt_2);
 
 // renaming this vc3 for volume cylinder 3
 // to distinguish with v3 for paraboloid

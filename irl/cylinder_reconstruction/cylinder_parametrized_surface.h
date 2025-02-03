@@ -73,8 +73,9 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       CylinderParametrizedSurfaceOutput&& a_rhs);
 
   void setCylinder(const Cylinder& a_cylinder);
+  void resetCylinder(void);
+  void setScale(double a_scale);
 
-  const Cylinder& getCylinder(void) const;
   inline double getSurfaceArea(void);
   inline double getMeanCurvatureIntegral(void);
   inline double getGaussianCurvatureIntegral(void);
@@ -98,7 +99,9 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   ~CylinderParametrizedSurfaceOutput(void);
 
  private:
-  Cylinder cylinder_m;
+  std::vector<int> indexes_of_flip;
+  std::vector<Cylinder> cylinder_m;
+  double scale_m;
 };
 
 inline std::ostream& operator<<(
