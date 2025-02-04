@@ -429,6 +429,7 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
 #ifdef IRL_USE_EARCUT
     // The number type to use for tessellation
     using Coord = double;
+    auto aligned_cylinder = cylinder_m[0].getAlignedCylinder();
     // The index type. Defaults to uint32_t, but you can also
     // pass uint16_t if you know that your data won't have
     // more than 65536 vertices.
@@ -575,8 +576,8 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
     }
 
     // Translate and rotate triangulated surface vertices
-    const auto& datum = cylinder_m.getDatum();
-    const auto& ref_frame = cylinder_m.getReferenceFrame();
+    const auto& datum = cylinder_m[0].getDatum();
+    const auto& ref_frame = cylinder_m[0].getReferenceFrame();
     for (auto& vertex : vlist) {
       const Pt base_pt = vertex;
       vertex = Pt(0.0, 0.0, 0.0);

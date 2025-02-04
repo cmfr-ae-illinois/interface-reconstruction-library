@@ -82,10 +82,11 @@ TEST(CylinderIntersection, SISCPaperFig5) {
     cubes[i].setHalfEdgeVersion(&(half_edges[i]));
     seg_half_edges[i] = half_edges[i].generateSegmentedPolyhedron();
   }
-  const UnsignedIndex_t nlevels = 13;
+  const UnsignedIndex_t nlevels = 10;
 
   // Compute moments and return parametrized surface
   for (UnsignedIndex_t i = 0; i < 6; i++) {
+    auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
     auto amr_moments =
@@ -111,12 +112,11 @@ TEST(CylinderIntersection, SISCPaperFig5) {
               << std::endl << std::endl;
 
 
-    auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
     EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
               temp_moments.volume(), 1e-15);
-    // auto temp_param_surface = temp_surface_and_moments.getSurface();
-    // auto temp_tri_surface = temp_param_surface.triangulate(0.1);
-    // temp_tri_surface.write(surface_filenames[i]);
+    auto temp_param_surface = temp_surface_and_moments.getSurface();
+    auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+    temp_tri_surface.write(surface_filenames[i]);
   }
 }
 

@@ -37,6 +37,10 @@
 // this enable a lot of debug text when computing
 //#define VALDEBUG
 
+#ifdef VALDEBUG
+#define NUDGE_REGION
+#endif
+
 namespace IRL {
 
 /******************** Tangent to surface at given point ********************/
@@ -179,13 +183,18 @@ ReturnType computeType3ContributionWithSplit(
     (*a_split_counter)++;
     // Compute average point and tangent
     const Pt average_pt = HALF * (pt_0 + pt_1);
-    auto average_tangent = Normal(HALF * (a_tangent_0 + a_tangent_1));
+    auto average_tangent = Normal(HALF * (a_tangent_0 - a_tangent_1));
+
+    #ifdef VALDEBUG
+    std::cout << "average point is : " << average_pt << std::endl;
+    std::cout << "its tangent is   : " << average_tangent << std::endl;
+    #endif
     // If the norm of the average tangent is very small (meaning that the
     // tangents are aligned), then we switch to QP and shake the polytope
-    if (squaredMagnitude(average_tangent) < DISTANCE_EPSILON) {
-      *a_requires_nudge = true;
-      return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
-    }
+    // if (squaredMagnitude(average_tangent) < DISTANCE_EPSILON) {
+    //   *a_requires_nudge = true;
+    //   return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+    // }
     // Let's make sure the average tangent belongs to the plane of the face
     const ScalarType normal_correction = average_tangent * a_plane_normal;
     average_tangent = average_tangent - normal_correction * a_plane_normal;
@@ -197,6 +206,9 @@ ReturnType computeType3ContributionWithSplit(
         a_cylinder, average_tangent, average_pt);
     // If this point could not be found, switch to QP and shake the polytope
     if (projected_pt[0] == ScalarType(DBL_MAX)) {
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because projection didn't work" << std::endl;
+      #endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
@@ -204,11 +216,17 @@ ReturnType computeType3ContributionWithSplit(
     // to QP and shake the polytope
     if constexpr (std::is_same_v<FloatType, double>) {
       if (*a_split_counter > 5) {
+      #ifdef NUDGE_REGION
+      std::cout << "nudging splitting too much (double)" << std::endl;
+      #endif
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     } else {
       if (*a_split_counter > 10) {
+      #ifdef NUDGE_REGION
+      std::cout << "nudging splitting too much (quad)" << std::endl;
+      #endif
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
@@ -283,6 +301,9 @@ ReturnType computeType3ContributionWithSplit(
     #ifdef VALDEBUG
     std::cout << "the arc is computed with negative weight, nudging" << std::endl;
     #endif
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because the arc has a negative weight" << std::endl;
+      #endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
@@ -747,6 +768,9 @@ ReturnType orientAndApplyType3Correction(
   // polytope
   if ((tgt_0[0] == ZERO && tgt_0[1] == ZERO && tgt_0[2] == ZERO) ||
       (tgt_1[0] == ZERO && tgt_1[1] == ZERO && tgt_1[2] == ZERO)) {
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because tangente can't be compute" << std::endl;
+      #endif
     *a_requires_nudge = true;
     return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
   }
@@ -754,6 +778,9 @@ ReturnType orientAndApplyType3Correction(
   // If the start and end points almost coincide, switch to QP
   if constexpr (std::is_same_v<ScalarType, double>) {
     if (squaredMagnitude(edge_vector) < DISTANCE_EPSILON * DISTANCE_EPSILON) {
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because both point are at the same place" << std::endl;
+      #endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
@@ -815,6 +842,9 @@ ReturnType orientAndApplyType3Correction(
     else {
       // If we are in DP, we directly switch to QP
       if constexpr (std::is_same_v<ScalarType, double>) {
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because we are in double and can't orientate the tangents" << std::endl;
+      #endif
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
@@ -862,8 +892,8 @@ ReturnType orientAndApplyType3Correction(
           tgt_1 = -tgt_1;
         }
       } else {
-        *a_requires_nudge = true;
-        return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+        // *a_requires_nudge = true;
+        // return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
         // if (a_paraboloid.a() < ZERO) {
         //   tgt_0 = -tgt_0;
         //   tgt_1 = -tgt_1;
@@ -1050,8 +1080,8 @@ formCylinderIntersectionBasesClipped(
     if (fabs(dist_function) < nudge_epsilon) {
       // If a polytope vertex lies within nudge_eps of the paraboloid
       // we directly require a nudge and switch to QP
-  #ifdef VALDEBUG
-  std::cout << "too close, gona nudge" << std::endl;
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because a point is too close to the cylinder" << std::endl;
   #endif
       *requires_nudge = true;
       break;
@@ -1161,8 +1191,8 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef VALDEBUG
-  std::cout << "gonna nudge" << std::endl;
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
   #endif
             break;
           }
@@ -1194,8 +1224,8 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef VALDEBUG
-  std::cout << "gonna nudge" << std::endl;
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
   #endif
             break;
           }
@@ -1274,8 +1304,8 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef VALDEBUG
-  std::cout << "gonna nudge" << std::endl;
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
   #endif
             break;
           }
@@ -1297,8 +1327,8 @@ formCylinderIntersectionBasesClipped(
           opposite_face->markAsVisited();
           opposite_face->addIntersection();
         } else if (edge_intercepts.size() == 2) {
-  #ifdef VALDEBUG
-  std::cout << "two intersection find at " << edge_intercepts[0] << " and " << edge_intercepts[1] << std::endl;
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
   #endif
           // Check for intersection near end point
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
@@ -1545,6 +1575,9 @@ formCylinderIntersectionBasesClipped(
     const auto intersection_size = face.getNumberOfIntersections();
     if (intersection_size % 2 == 1) {
       // Discrete topology is ambiguous, let's shake things up
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because the number of intersection is wrong)" << std::endl;
+  #endif
       *requires_nudge = true;
       break;
     }
@@ -1700,7 +1733,7 @@ formCylinderIntersectionBasesClipped(
       if (face.isTriangle() &&
           std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
         // CASE: the conic section arcs are arcs of an ellipse
-        if (!rectangle_face && !hyperbolic_face) {
+        if (!hyperbolic_face) {
           // The sign of coeff_a gives us the direction of traversal of the
           // intersection list
           // const bool reverse = a_aligned_paraboloid.a() < ZERO;
@@ -1751,6 +1784,9 @@ formCylinderIntersectionBasesClipped(
         else {
           // i don't know how to do that for now :)
           // let's just nudge
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because I have a rectangle face and not printing the surface" << std::endl;
+  #endif
           *requires_nudge = true;
           break;
         }
@@ -2106,6 +2142,9 @@ formCylinderIntersectionBasesClipped(
               }
               // If all sorts have failed, switch to QP and try again
               if (re_re_restart_sort) {
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because we can sort the edges" << std::endl;
+  #endif
                 *requires_nudge = true;
                 break;
               }
@@ -2116,6 +2155,9 @@ formCylinderIntersectionBasesClipped(
         else 
         {
           // pour l'instant on skip
+  #ifdef NUDGE_REGION
+  std::cout << "nudging because the section is a hyperbolique" << std::endl;
+  #endif
           *requires_nudge = true;
           break;
         }
@@ -2800,21 +2842,21 @@ std::cout << "reverting the polytope\n";
 
 
   if (require_nudge) {
+    if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
+        a_surface->resetCylinder();
+    }
     #ifdef regen
       assert(a_polytope_backup.getNumberOfVertices() == starting_number_of_vertices);
 
       // Nudge and try again!
       return reformQuadraticIntersectionBases<ReturnType>(
           &a_polytope_backup, &a_complete_polytope_backup, a_aligned_cylinder, a_nudge_iter,
-          a_surface);
+          a_surface, a_datum, a_frame);
     #else
     // reset a_polytope and a_complete polytope to the saved value;
     *a_polytope = a_polytope_backup;
     *a_complete_polytope = a_complete_polytope_backup;
     assert(a_polytope->getNumberOfVertices() == starting_number_of_vertices);
-    if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
-        a_surface->resetCylinder();
-    }
 
     // Nudge and try again!
     return reformQuadraticIntersectionBases<ReturnType>(
