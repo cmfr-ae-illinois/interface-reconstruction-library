@@ -168,6 +168,7 @@ template <class ScalarType>
 inline ScalarType maximum(const ScalarType a_scalar1,
                           const ScalarType a_scalar2);
 
+
 }  // namespace IRL
 
 #include "irl/helpers/mymath.tpp"

@@ -23,13 +23,13 @@ using Byte_t = unsigned char;
 using Quad_t = __float128;
 
 inline std::ostream& operator<<(std::ostream& out, const Quad_t a_scalar) {
-#ifndef NDEBUG
+/*#ifndef NDEBUG
   char* scalar_to_char = new char[30];
   quadmath_snprintf(scalar_to_char, 30, "%+.20Qe", a_scalar);
   out << "\033[44m(__float128) " << scalar_to_char << "\033[0m";
-#else
+#else*/
   out << static_cast<double>(a_scalar);
-#endif
+//#endif
   return out;
 }
 }  // namespace IRL

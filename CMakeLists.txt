@@ -58,7 +58,11 @@ message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
 
 # Find external packages needed by IRL
 find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
-find_package(CGAL)
+#find_package(CGAL)
+find_package(Torch REQUIRED)
+include_directories(SYSTEM ${TORCH_INCLUDE_DIRS})
+set(CMAKE_PREFIX_PATH "/home/quirin/mlcfd/Repositories/libtorch/share/cmake/Torch")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 # Add packages IRL stores in external
 set(IRL_USE_ABSL ON)
@@ -112,7 +116,7 @@ endif()
 # C++ IRL Base
 target_include_directories(irl PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(irl INTERFACE PUBLIC Eigen3::Eigen)
-target_link_libraries(irl INTERFACE PUBLIC CGAL)
+#target_link_libraries(irl INTERFACE PUBLIC CGAL)
 target_link_libraries(irl PUBLIC quadmath)
 
 if(IRL_USE_ABSL)
