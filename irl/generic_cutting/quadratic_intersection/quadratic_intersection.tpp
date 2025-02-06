@@ -341,6 +341,100 @@ UnsignedIndex_t positionInMapping(const std::vector<MappingContainer> a_mapping,
   return static_cast<UnsignedIndex_t>(position - a_mapping.begin());
 }
 
+template <class SegmentedHalfEdgePolytopeType,
+          class HalfEdgePolytopeType>
+void fullCopyOfCompletePolytope(
+    SegmentedHalfEdgePolytopeType* a_polytope,
+    HalfEdgePolytopeType* a_complete_polytope,
+    HalfEdgePolytopeType* a_copy_polytope) {
+  // Convert polytope type
+  using face_type = typename SegmentedHalfEdgePolytopeType::face_type;
+  using half_edge_type = typename face_type::half_edge_type;
+  using vertex_type = typename half_edge_type::vertex_type;
+  using pt_type = typename vertex_type::pt_type;
+  using scalar_type = typename pt_type::value_type;
+
+  assert(a_polytope->checkValidHalfEdgeStructure());
+
+  // Calculate number of half edges, vertices and faces
+  const UnsignedIndex_t number_of_vertices = a_polytope->getNumberOfVertices();
+  const UnsignedIndex_t number_of_faces = a_polytope->getNumberOfFaces();
+  UnsignedIndex_t number_of_half_edges = 0;
+  std::vector<face_type*> face_mapping;
+  face_mapping.resize(number_of_faces);
+  std::vector<half_edge_type*> hald_edge_mapping;
+  hald_edge_mapping.resize(0);
+  std::vector<vertex_type*> vertex_mapping;
+  vertex_mapping.resize(number_of_vertices);
+
+  UnsignedIndex_t f = 0;
+  for (const auto& face : (*a_polytope)) {
+    face_mapping[f++] = face;
+    const auto starting_half_edge = face->getStartingHalfEdge();
+    auto current_half_edge = starting_half_edge;
+    do {
+      hald_edge_mapping.push_back(current_half_edge);
+      number_of_half_edges++;
+      current_half_edge = current_half_edge->getNextHalfEdge();
+    } while (current_half_edge != starting_half_edge);
+  }
+  for (UnsignedIndex_t v = 0; v < number_of_vertices; ++v) {
+    vertex_mapping[v] = a_polytope->getVertex(v);
+  }
+
+  a_copy_polytope->resize(number_of_half_edges, number_of_vertices,
+                               number_of_faces);
+  for (UnsignedIndex_t v = 0; v < number_of_vertices; ++v) {
+    const auto old_pt = a_polytope->getVertex(v)->getLocation();
+    auto& new_pt = a_copy_polytope->getVertex(v).getLocation();
+    for (UnsignedIndex_t d = 0; d < 3; ++d) {
+      new_pt[d] = old_pt[d];
+    }
+  }
+
+  UnsignedIndex_t e = 0;
+  for (const auto& half_edge_DP : hald_edge_mapping) {
+    // Pointer to QP halfedge
+    half_edge_type* half_edge_QP =
+        &a_copy_polytope->getHalfEdge(e++);
+
+    // Find QP face on which it lies
+    const auto face_DP = half_edge_DP->getFace();
+    const UnsignedIndex_t index_face = positionInMapping(face_mapping, face_DP);
+    face_type* face_QP = &a_copy_polytope->getFace(index_face);
+
+    // Find end-point vertex
+    const auto vertex_DP = half_edge_DP->getVertex();
+    const UnsignedIndex_t index_vertex =
+        positionInMapping(vertex_mapping, vertex_DP);
+    vertex_type* vertex_QP =
+        &a_copy_polytope->getVertex(index_vertex);
+
+    // Find previous, next and opposite QP halfedges
+    const auto previous_DP = half_edge_DP->getPreviousHalfEdge();
+    const UnsignedIndex_t index_previous =
+        positionInMapping(hald_edge_mapping, previous_DP);
+    half_edge_type* previous_QP =
+        &a_copy_polytope->getHalfEdge(index_previous);
+    const auto next_DP = half_edge_DP->getNextHalfEdge();
+    const UnsignedIndex_t index_next =
+        positionInMapping(hald_edge_mapping, next_DP);
+    half_edge_type* next_QP =
+        &a_copy_polytope->getHalfEdge(index_next);
+    const auto opposite_DP = half_edge_DP->getOppositeHalfEdge();
+    const UnsignedIndex_t index_opposite =
+        positionInMapping(hald_edge_mapping, opposite_DP);
+    half_edge_type* opposite_QP =
+        &a_copy_polytope->getHalfEdge(index_opposite);
+
+    *half_edge_QP =
+        half_edge_type(vertex_QP, previous_QP, next_QP, face_QP);
+    vertex_QP->setHalfEdge(half_edge_QP);
+    half_edge_QP->setOppositeHalfEdge(opposite_QP);
+    face_QP->setStartingHalfEdge(half_edge_QP);
+  }
+}
+
 template <class DoubleSegmentedHalfEdgePolytopeType,
           class DoubleHalfEdgePolytopeType, class QuadHalfEdgePolytopeType>
 void convertPolytopeFromDoubleToQuadPrecision(

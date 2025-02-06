@@ -96,30 +96,111 @@ class HalfEdgeStorage {
     return capacity;
   }
 
-  // NOTE: ONLY EVER COPIES FIRST BLOCK FROM RHS.
   HalfEdgeStorage(const HalfEdgeStorage& a_rhs) noexcept {
-    this->resize(a_rhs.size());
-    assert(this->size() == a_rhs.size());
-    if (a_rhs.size() > 0) {
-      assert(a_rhs.size() <= a_rhs.blockSize(0));
-      this->copyData(a_rhs.data_blocks_start_m[0], data_blocks_start_m[0],
-                     a_rhs.size());
+    // this->resize(a_rhs.size());
+    // assert(this->size() == a_rhs.size());
+    // if (a_rhs.size() > 0) {
+    //   assert(a_rhs.size() <= a_rhs.blockSize(0));
+    //   this->copyData(a_rhs.data_blocks_start_m[0], data_blocks_start_m[0],
+    //                  a_rhs.size());
+    // }
+    for (auto& block : data_blocks_start_m) {
+        ::operator delete(block);
+        block = nullptr;
     }
+    this->data_blocks_start_m.resize(0);
+    this->block_size_m.resize(0);
+    for (std::size_t n = 0; n < a_rhs.data_blocks_start_m.size(); ++n) {
+      std::size_t new_block_size = a_rhs.block_size_m[n];
+      this->data_blocks_start_m.push_back(
+          static_cast<char*>(::operator new(new_block_size)));
+      this->block_size_m.push_back(new_block_size);
+      if (n != a_rhs.open_block_m) {
+        this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+                        block_size_m[n]);
+      } else {
+        this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+                        a_rhs.free_location_m - a_rhs.data_blocks_start_m[n]);
+      }
+    }
+    if (a_rhs.open_block_m != -1) {
+      this->open_block_m = a_rhs.open_block_m;
+      this->open_block_end_m = a_rhs.open_block_end_m - 
+              a_rhs.data_blocks_start_m[a_rhs.open_block_m] + this->data_blocks_start_m[this->open_block_m];
+      this->free_location_m = a_rhs.free_location_m - 
+              a_rhs.data_blocks_start_m[a_rhs.open_block_m] + this->data_blocks_start_m[this->open_block_m];
+    } else {
+      this->open_block_m = static_cast<std::size_t>(-1);
+      this->open_block_end_m = nullptr;
+      this->free_location_m = nullptr;
+    }
+    assert(this->size() == a_rhs.size());
   }
 
   // NOTE: ONLY EVER COPIES FIRST BLOCK FROM RHS.
   HalfEdgeStorage(const HalfEdgeStorage&& a_rhs) noexcept = delete;
 
-  // NOTE: ONLY EVER COPIES FIRST BLOCK FROM RHS.
   HalfEdgeStorage& operator=(const HalfEdgeStorage& a_rhs) noexcept {
     if (this != &a_rhs) {
-      this->resize(a_rhs.size());
-      assert(this->size() == a_rhs.size());
-      if (a_rhs.size() > 0) {
-        assert(a_rhs.size() <= a_rhs.blockSize(0));
-        this->copyData(a_rhs.data_blocks_start_m[0], data_blocks_start_m[0],
-                       a_rhs.size());
+      // this->resize(a_rhs.size());
+      // assert(this->size() == a_rhs.size());
+      // if (a_rhs.size() > 0) {
+      //   assert(a_rhs.size() <= a_rhs.blockSize(0));
+      //   for (std::size_t n = 0; n < data_blocks_start_m.size(); ++n) {
+      //     this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+      //                   block_size_m[n]);
+      //   }
+      // }
+      std::size_t old_size = this->data_blocks_start_m.size();
+      std::size_t smaller_value = old_size <= a_rhs.data_blocks_start_m.size() ? old_size : a_rhs.data_blocks_start_m.size();
+      for (std::size_t n = 0; n < smaller_value; n++) {
+        if (a_rhs.block_size_m[n] != this->block_size_m[n]) {
+          ::operator delete(this->data_blocks_start_m[n]);
+          std::size_t new_block_size = a_rhs.block_size_m[n];
+          this->data_blocks_start_m[n] = static_cast<char*>(::operator new(new_block_size));
+          this->block_size_m[n] = new_block_size;
+        }
+        if (n != a_rhs.open_block_m) {
+          this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+                          a_rhs.block_size_m[n]);
+        } else {
+          this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+                          a_rhs.free_location_m - a_rhs.data_blocks_start_m[n]);
+        }
       }
+      if (old_size <= a_rhs.data_blocks_start_m.size()) {
+        for (std::size_t n = old_size; n < a_rhs.data_blocks_start_m.size(); ++n) {
+          std::size_t new_block_size = a_rhs.block_size_m[n];
+          this->data_blocks_start_m.push_back(
+              static_cast<char*>(::operator new(new_block_size)));
+          this->block_size_m.push_back(new_block_size);
+          if (n != a_rhs.open_block_m) {
+            this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+                            block_size_m[n]);
+          } else {
+            this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
+                            a_rhs.free_location_m - a_rhs.data_blocks_start_m[n]);
+          }
+        }
+      } else {
+        for (std::size_t n = smaller_value; n < old_size; ++n) {
+          ::operator delete(this->data_blocks_start_m[n]);
+        }
+        this->data_blocks_start_m.resize(a_rhs.data_blocks_start_m.size());
+        this->block_size_m.resize(a_rhs.data_blocks_start_m.size());
+      }
+      if (a_rhs.open_block_m != -1) {
+        this->open_block_m = a_rhs.open_block_m;
+        this->open_block_end_m = a_rhs.open_block_end_m - 
+                a_rhs.data_blocks_start_m[a_rhs.open_block_m] + this->data_blocks_start_m[this->open_block_m];
+        this->free_location_m = a_rhs.free_location_m - 
+                a_rhs.data_blocks_start_m[a_rhs.open_block_m] + this->data_blocks_start_m[this->open_block_m];
+      } else {
+        this->open_block_m = static_cast<std::size_t>(-1);
+        this->open_block_end_m = nullptr;
+        this->free_location_m = nullptr;
+      }
+      assert(this->size() == a_rhs.size());
     }
     return (*this);
   }

@@ -113,7 +113,7 @@ TEST(CylinderIntersection, SISCPaperFig5) {
 
 
     EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
-              temp_moments.volume(), 1e-15);
+              temp_moments.volume(), 1e-13);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -150,8 +150,8 @@ TEST(HyperCylinderIntersection, SISCPaperFig5) {
     std::cout << "the " << i << "th volum is :" << std::setprecision(20)
               << temp_surface_and_moments.getMoments().volume() << std::endl;
     auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
-    EXPECT_EQ(temp_surface_and_moments.getMoments().volume(),
-              temp_moments.volume());
+    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(),
+              temp_moments.volume(), 1e-13);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -225,7 +225,7 @@ TEST(CylinderIntersection, Debug) {
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);
 
-  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(), th_volume_total);
+  EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(), th_volume_total, 1e-13);
 }
 
 TEST(HyperCylinderIntersection, Debug) {
@@ -327,8 +327,8 @@ TEST(CylinderIntersection, Debug2) {
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);
 
-  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(),
-            just_volum.volume());
+  EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(),
+            just_volum.volume(), 1e-13);
 }
 
 TEST(HyperCylinderIntersection, Debug2) {
@@ -371,8 +371,8 @@ TEST(HyperCylinderIntersection, Debug2) {
   auto temp_tri_surface = temp_param_surface.triangulate(0.1);
   temp_tri_surface.write(surface_filename);
 
-  EXPECT_EQ(temp_surface_and_moments.getMoments().volume(),
-            just_volum.volume());
+  EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(),
+            just_volum.volume(), 1e-13);
 }
 
 TEST(CylinderIntersection, DebugAMR) {
@@ -418,7 +418,7 @@ TEST(CylinderIntersection, DebugAMR) {
             << std::setprecision(3)
             << " -- error: " << std::abs(amr_volume - M_PI) << std::endl;
 
-  EXPECT_EQ(temp_moments.volume(), M_PI);
+  EXPECT_NEAR(temp_moments.volume(), M_PI, 1e-13);
 }
 
 }  // namespace

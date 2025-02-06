@@ -106,7 +106,7 @@ ReturnType computeType3ContributionWithSplit(
   using Pt = PtBase<ScalarType>;
   using Normal = NormalBase<ScalarType>;
   using Plane = PlaneBase<ScalarType>;
-  using AlignedParaboloid = AlignedParaboloidBase<ScalarType>;
+  using AlignedCylinder = AlignedCylinderBase<ScalarType>;
   using FloatType = float_type<ScalarType>;
   const ScalarType MACHINE_EPSILON = machine_epsilon<ScalarType>();
   const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
@@ -122,20 +122,20 @@ ReturnType computeType3ContributionWithSplit(
   const ScalarType THREEQUARTERS = HALF + ONEQUARTER;
   const ScalarType ONE_HUNDRED = ScalarType(100);
 
-    #ifdef VALDEBUG
-    std::cout << "trying to compute Type 3 Contri, counter : " << *a_split_counter << std::endl;
-    #endif
+  #ifdef VALDEBUG
+  std::cout << "trying to compute Type 3 Contri, counter : " << *a_split_counter << std::endl;
+  #endif
 
   // Store reference point, start point and end point of arc
   const Pt& pt_ref = a_pt_ref.getPt();
   const Pt& pt_0 = a_pt_0.getPt();
   const Pt& pt_1 = a_pt_1.getPt();
-    #ifdef VALDEBUG
-    std::cout << "going from " << pt_0 << std::endl;
-    std::cout << "to " << pt_1 << std::endl;
-    std::cout << "with tangents " << a_tangent_0 << std::endl;
-    std::cout << "and " << a_tangent_1 << std::endl;
-    #endif
+  #ifdef VALDEBUG
+  std::cout << "going from " << pt_0 << std::endl;
+  std::cout << "to " << pt_1 << std::endl;
+  std::cout << "with tangents " << a_tangent_0 << std::endl;
+  std::cout << "and " << a_tangent_1 << std::endl;
+  #endif
 
   // Calculate edge vector and its normalized version
   const Normal edge_vector = pt_1 - pt_0;
@@ -153,6 +153,10 @@ ReturnType computeType3ContributionWithSplit(
       fabs(ONE + tgt1_dot_edge) < ANGLE_EPSILON) {
     // For completeness, we update the parametric surface boundary with a
     // straight Bezier arc
+
+    #ifdef VALDEBUG
+    std::cout << "the arc is too small, return 0" << std::endl;
+    #endif
     if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
       auto surface_arc = RationalBezierArc(
           pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
@@ -183,7 +187,7 @@ ReturnType computeType3ContributionWithSplit(
     (*a_split_counter)++;
     // Compute average point and tangent
     const Pt average_pt = HALF * (pt_0 + pt_1);
-    auto average_tangent = Normal(HALF * (a_tangent_0 - a_tangent_1));
+    auto average_tangent = Normal(HALF * (a_tangent_0 + a_tangent_1));
 
     #ifdef VALDEBUG
     std::cout << "average point is : " << average_pt << std::endl;
@@ -298,9 +302,9 @@ ReturnType computeType3ContributionWithSplit(
     // If the rational Bezier weight is negative, we switch to QP and shake
     // the polytope
     if (arc.weight() < ZERO) {
-    #ifdef VALDEBUG
-    std::cout << "the arc is computed with negative weight, nudging" << std::endl;
-    #endif
+      #ifdef VALDEBUG
+      std::cout << "the arc is computed with negative weight, nudging" << std::endl;
+      #endif
       #ifdef NUDGE_REGION
       std::cout << "nudging because the arc has a negative weight" << std::endl;
       #endif
@@ -316,8 +320,16 @@ ReturnType computeType3ContributionWithSplit(
     // // If the arc was split, then we need to add the contribution of the
     // // space between the splitted arcs and the orignial arc
     if (!(&a_pt_ref == &a_pt_0 || &a_pt_ref == &a_pt_1)) {
-      moments += computeTriangleCorrection<ReturnType, ScalarType>(
+
+      #ifdef VALDEBUG
+      std::cout << "there was a split, computing correction" << std::endl;
+      #endif
+      auto moment_correction = computeTriangleCorrection<ReturnType, ScalarType>(
           a_cylinder, pt_0, pt_1, pt_ref);
+      #ifdef VALDEBUG
+      std::cout << "correction is " << moment_correction << std::endl;
+      #endif
+      moments += moment_correction;
     }
     return moments;
   }
@@ -369,7 +381,7 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   using Normal = NormalBase<ScalarType>;
   using ReferenceFrame = ReferenceFrameBase<ScalarType>;
   using Plane = PlaneBase<ScalarType>;
-  using AlignedParaboloid = AlignedParaboloidBase<ScalarType>;
+  using AlignedCylinder = AlignedCylinderBase<ScalarType>;
 
   // Defining constants
   const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
@@ -720,7 +732,7 @@ ReturnType orientAndApplyType3Correction(
   using Pt = PtBase<ScalarType>;
   using Normal = NormalBase<ScalarType>;
   using Plane = PlaneBase<ScalarType>;
-  using AlignedParaboloid = AlignedParaboloidBase<ScalarType>;
+  using AlignedCylinder = AlignedCylinderBase<ScalarType>;
   const ScalarType MACHINE_EPSILON = machine_epsilon<ScalarType>();
   const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
   const ScalarType ANGLE_EPSILON = angle_epsilon<ScalarType>();
@@ -731,9 +743,9 @@ ReturnType orientAndApplyType3Correction(
   const ScalarType TEN = ScalarType(10);
   const ScalarType ONE_HUNDRED = ScalarType(100);
   
-    #ifdef VALDEBUG
-    std::cout << "Start computing M3" << std::endl;
-    #endif
+  #ifdef VALDEBUG
+  std::cout << "Start computing M3" << std::endl;
+  #endif
 
   // Store start and end points, end-start vector, and plane properties
   const auto& pt_0 = a_start->getVertex()->getLocation().getPt();
@@ -742,13 +754,13 @@ ReturnType orientAndApplyType3Correction(
   const auto& face_plane = a_end->getFace()->getPlane();
   const auto& face_normal = face_plane.normal();
 
-    #ifdef VALDEBUG
-    std::cout << "pt0 " << pt_0 << std::endl;
-    std::cout << "pt1 " << pt_1 << std::endl;
-    std::cout << "edge_vector " << edge_vector << std::endl;
-    std::cout << "face_plane " << face_plane << std::endl;
-    std::cout << "face_normal " << face_normal << std::endl;
-    #endif
+  #ifdef VALDEBUG
+  std::cout << "pt0 " << pt_0 << std::endl;
+  std::cout << "pt1 " << pt_1 << std::endl;
+  std::cout << "edge_vector " << edge_vector << std::endl;
+  std::cout << "face_plane " << face_plane << std::endl;
+  std::cout << "face_normal " << face_normal << std::endl;
+  #endif
 
   // Compute tangents at start and end points. THEY ARE NOT YET NORMALIZED!
   Normal tgt_0 =
@@ -756,10 +768,10 @@ ReturnType orientAndApplyType3Correction(
   Normal tgt_1 =
       computeTangentVectorAtPoint<ScalarType>(a_cylinder, face_normal, pt_1);
   
-    #ifdef VALDEBUG
-    std::cout << "tgt_0 " << tgt_0 << std::endl;
-    std::cout << "tgt_1 " << tgt_1 << std::endl;
-    #endif
+  #ifdef VALDEBUG
+  std::cout << "tgt_0 " << tgt_0 << std::endl;
+  std::cout << "tgt_1 " << tgt_1 << std::endl;
+  #endif
 
   // Is the arc from an ellipse (hence could require splittin)?
   const bool elliptic_face = fabs(face_normal[0]) > MACHINE_EPSILON;
@@ -1566,7 +1578,7 @@ formCylinderIntersectionBasesClipped(
     }
 
     // The starting half-edge is, by construction, an intersection which is
-    // an entry (i.e. goes from above to below paraboloid, following the
+    // an entry (i.e. goes from outside to inside the cylinder, following the
     // half-edge structure)
     auto starting_half_edge = face.getStartingHalfEdge();
 
@@ -1645,9 +1657,9 @@ formCylinderIntersectionBasesClipped(
     // This face has not intersections so the moment contribution is only of
     // type 1
     if (intersection_size == 0) {
-  #ifdef VALDEBUG
-  std::cout << "the face has no intersection" << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "the face has no intersection" << std::endl;
+      #endif
       // The face is entirely below (= unclipped)
       if (starting_half_edge->getVertex()->isNotClipped()) {
         // We need a reference point for the type 1 moment contribution
@@ -1655,47 +1667,47 @@ formCylinderIntersectionBasesClipped(
         auto current_half_edge = starting_half_edge;
         auto prev_pt = current_half_edge->getPreviousVertex()->getLocation();
         bool skip_first = true;  // This avoid calculating a type 1 equal to 0
-  #ifdef VALDEBUG
-  std::cout << "it is below the cylinder" << std::endl;
-  std::cout << "ref point : " << ref_pt << std::endl;
-  #endif
+        #ifdef VALDEBUG
+        std::cout << "it is inside the cylinder" << std::endl;
+        std::cout << "ref point : " << ref_pt << std::endl;
+        #endif
         do {
           const auto& curr_pt = current_half_edge->getVertex()->getLocation();
 
-  #ifdef VALDEBUG
-  std::cout << "\ncomputing contribution of edge" << std::endl;
-  std::cout << "current point : " << curr_pt << std::endl;
-  std::cout << "previous point : " << prev_pt << std::endl;
-  std::cout << "face normal : " << face_normal << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "\ncomputing contribution of edge" << std::endl;
+          std::cout << "current point : " << curr_pt << std::endl;
+          std::cout << "previous point : " << prev_pt << std::endl;
+          std::cout << "face normal : " << face_normal << std::endl;
+          #endif
           const auto& type1contribution = computeType1Contribution<ReturnType, ScalarType>(
               ref_pt, prev_pt, curr_pt, &skip_first, false, face_normal,
               max_component_index);
-  #ifdef VALDEBUG
-  std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
+          #endif
           full_moments += type1contribution;
           prev_pt = curr_pt;
           current_half_edge = current_half_edge->getNextHalfEdge();
         } while (current_half_edge != starting_half_edge);
       }
       else {
-  #ifdef VALDEBUG
-  std::cout << "it is above the cylinder, skip" << std::endl;
-  #endif
+        #ifdef VALDEBUG
+        std::cout << "it is above the cylinder, skip" << std::endl;
+        #endif
       }
     }
     // #endif
     // The face has 2 intersections (i.e. 1 arc): we start from the entry
     else if (intersection_size == 2) {
-  #ifdef VALDEBUG
-  std::cout << "the face has 2 intersections" << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "the face has 2 intersections" << std::endl;
+      #endif
       // We need a reference point for the type 1 moment contribution
       const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
-  #ifdef VALDEBUG
-  std::cout << "the ref point will be : " << ref_pt << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "the ref point will be : " << ref_pt << std::endl;
+      #endif
       // We first traverse straight boundary arcs and return the second
       // intersection (i.e. the exit)
       half_edge_type* exit_half_edge;
@@ -1703,26 +1715,26 @@ formCylinderIntersectionBasesClipped(
           const auto& type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
               ref_pt, starting_half_edge, exit_half_edge,
               &skip_first, face_normal, max_component_index);
-  #ifdef VALDEBUG
-  std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
+      #endif
       full_moments += type1contribution;
       // We can now compute the type 2 and 3 moment contribution
           const auto& type3contribution = computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
           a_aligned_cylinder, ref_pt, starting_half_edge, exit_half_edge,
           &skip_first, face_normal, max_component_index, false, requires_nudge,
           a_surface);
-  #ifdef VALDEBUG
-  std::cout << "\nType 3 contribution of the face : " << type3contribution << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "\nType 3 contribution of the face : " << type3contribution << std::endl;
+      #endif
       full_moments += type3contribution;
     }
     // The face has more than 2 intersections (i.e. more than 1 arc). We
     // need to discriminate elliptic/hyperbolic/parabolic cases
     else {
-  #ifdef VALDEBUG
-  std::cout << "the face has more than 2 intersections (i.e. more than 1 arc)" << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "the face has more than 2 intersections (i.e. more than 1 arc)" << std::endl;
+      #endif
       // These flags identify the type of the conic section arcs in the face
       const bool hyperbolic_face = b < MACHINE_EPSILON;
       const bool rectangle_face = fabs(face_normal[0]) < MACHINE_EPSILON;
@@ -1731,65 +1743,54 @@ formCylinderIntersectionBasesClipped(
       // surface, we don't need to sort the intersections to avoid
       // overlapping conic section arcs
       if (face.isTriangle() &&
-          std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
-        // CASE: the conic section arcs are arcs of an ellipse
-        if (!hyperbolic_face) {
-          // The sign of coeff_a gives us the direction of traversal of the
-          // intersection list
-          // const bool reverse = a_aligned_paraboloid.a() < ZERO;
-          const bool reverse = false;
-          // We need a reference point for the type 1 moment contribution
-          const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
-          half_edge_type* exit_half_edge;
-          auto current_edge = starting_half_edge;
-          bool skip_first = true;  // This avoid calculating a type 1
-                                   // contrib that we know is equal to 0
-          std::size_t found_intersections = 0;
-          // We traverse the half-edge structure of the face
-          do {
-            full_moments +=
-                computeUnclippedSegmentType1Contribution<ReturnType,
-                                                         ScalarType>(
-                    ref_pt, current_edge, exit_half_edge,
-                    &skip_first, face_normal, max_component_index);
+        std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
+        // The sign of coeff_a gives us the direction of traversal of the
+        // intersection list
+        // const bool reverse = a_aligned_paraboloid.a() < ZERO;
+        const bool reverse = hyperbolic_face;
+        // We need a reference point for the type 1 moment contribution
+        const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
+        half_edge_type* exit_half_edge;
+        auto current_edge = starting_half_edge;
+        bool skip_first = true;  // This avoid calculating a type 1
+                                  // contrib that we know is equal to 0
+        std::size_t found_intersections = 0;
+        // We traverse the half-edge structure of the face
+        do {
+          full_moments +=
+              computeUnclippedSegmentType1Contribution<ReturnType,
+                                                        ScalarType>(
+                  ref_pt, current_edge, exit_half_edge,
+                  &skip_first, face_normal, max_component_index);
 
-            // From the exit intersection, we move to the next entry and
-            // compute type 2 and 3 moment contributions
-            skip_first = false;
-            if (reverse) {
-              full_moments +=
-                  computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
-                      a_aligned_cylinder, ref_pt, current_edge,
-                      exit_half_edge, &skip_first, face_normal,
-                      max_component_index, false, requires_nudge, a_surface);
-              current_edge = exit_half_edge->getNextHalfEdge();
-              while (current_edge->getVertex()->needsToSeek()) {
-                current_edge = current_edge->getNextHalfEdge();
-              }
-            } else {
-              current_edge = exit_half_edge->getNextHalfEdge();
-              while (current_edge->getVertex()->needsToSeek()) {
-                current_edge = current_edge->getNextHalfEdge();
-              }
-              full_moments +=
-                  computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
-                      a_aligned_cylinder, ref_pt, current_edge,
-                      exit_half_edge, &skip_first, face_normal,
-                      max_component_index, false, requires_nudge, a_surface);
+          // From the exit intersection, we move to the next entry and
+          // compute type 2 and 3 moment contributions
+          skip_first = false;
+          if (reverse) {
+            full_moments +=
+                computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
+                    a_aligned_cylinder, ref_pt, current_edge,
+                    exit_half_edge, &skip_first, face_normal,
+                    max_component_index, false, requires_nudge, a_surface);
+            current_edge = exit_half_edge->getNextHalfEdge();
+            while (current_edge->getVertex()->needsToSeek()) {
+              current_edge = current_edge->getNextHalfEdge();
             }
-            found_intersections += 2;
-          } while (found_intersections != intersection_size);
-        }
+          } else {
+            current_edge = exit_half_edge->getNextHalfEdge();
+            while (current_edge->getVertex()->needsToSeek()) {
+              current_edge = current_edge->getNextHalfEdge();
+            }
+            full_moments +=
+                computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
+                    a_aligned_cylinder, ref_pt, current_edge,
+                    exit_half_edge, &skip_first, face_normal,
+                    max_component_index, false, requires_nudge, a_surface);
+          }
+          found_intersections += 2;
+        } while (found_intersections != intersection_size);
+        
         // CASE: the intersection are parrallllele lines
-        else {
-          // i don't know how to do that for now :)
-          // let's just nudge
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because I have a rectangle face and not printing the surface" << std::endl;
-  #endif
-          *requires_nudge = true;
-          break;
-        }
         // else {
         //   // The half-edges ending at an intersection will be stores in this
         //   // vector
@@ -1919,9 +1920,9 @@ formCylinderIntersectionBasesClipped(
       // The face is not convex, or we want to output the clipped surface.
       // We then need to sort the intersections
       else {
-  #ifdef VALDEBUG
-  std::cout << "we are going to sort the intersection" << std::endl;
-  #endif
+        #ifdef VALDEBUG
+        std::cout << "we are going to sort the intersection" << std::endl;
+        #endif
         // This flag is there to prevent degenerate configuration with
         // overlapping arcs
         bool ignore_type3_contributions = false;
@@ -1932,125 +1933,175 @@ formCylinderIntersectionBasesClipped(
         intersections.resize(0);
         // Find intersections and determine status
         auto current_edge = starting_half_edge;
-        bool reverse_order = false;
+        bool reverse_order = hyperbolic_face;
         half_edge_type* exit_half_edge;
         std::size_t found_intersections = 0;
         const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
-  #ifdef VALDEBUG
-  std::cout << "we starting with the edge : " << *current_edge << std::endl;
-  std::cout << "the ref point is : " << ref_pt << std::endl;
-  #endif
+        #ifdef VALDEBUG
+        std::cout << "we starting with the edge : " << *current_edge << std::endl;
+        std::cout << "the ref point is : " << ref_pt << std::endl;
+        #endif
         bool skip_first = true;
         do {
           auto type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
                   ref_pt, current_edge, exit_half_edge,
                   &skip_first, face_normal, max_component_index);
-  #ifdef VALDEBUG
-  std::cout << "type 1 contribution : " << type1contribution << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "type 1 contribution : " << type1contribution << std::endl;
+          #endif
           full_moments += type1contribution;
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {current_edge, ScalarType(0)}));
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {exit_half_edge, ScalarType(0)}));
-  #ifdef VALDEBUG
-  std::cout << "adding intersections : " << *current_edge << std::endl;
-  std::cout << "and exit : " << *exit_half_edge << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "adding intersections : " << *current_edge << std::endl;
+          std::cout << "and exit : " << *exit_half_edge << std::endl;
+          #endif
           current_edge = exit_half_edge->getNextHalfEdge();
-  #ifdef VALDEBUG
-  std::cout << "next edge is : " << *current_edge << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "next edge is : " << *current_edge << std::endl;
+          #endif
           while (current_edge->getVertex()->needsToSeek()) {
-  #ifdef VALDEBUG
-  std::cout << "next edge is is skiped " << *current_edge << std::endl;
-  #endif
+            #ifdef VALDEBUG
+            std::cout << "next edge is is skiped " << *current_edge << std::endl;
+            #endif
             current_edge = current_edge->getNextHalfEdge();
-  #ifdef VALDEBUG
-  std::cout << "next edge is  : " << *current_edge << std::endl;
-  #endif
+            #ifdef VALDEBUG
+            std::cout << "next edge is  : " << *current_edge << std::endl;
+            #endif
           }
           found_intersections += 2;
           skip_first = false;
         } while (found_intersections != intersection_size);
-  #ifdef VALDEBUG
-  std::cout << "ended with " << found_intersections << " intersections" << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "ended with " << found_intersections << " intersections" << std::endl;
+          #endif
 
-        // Here also, we need to discriminate elliptic/hyperbolic/parabolic
-        // conic sections First: we start with elliptic conic section arcs
-        if (true) {
-          // Compute the center of this ellipse
-          // const std::array<ScalarType, 2> conic_center{
-          //     { face.getPlane().distance() /
-          //          face_normal[0],
-          //       ScalarType(0)}};
-  #ifdef VALDEBUG
-  std::cout << "we don't have rectangle intersection" << std::endl;
-  std::cout << "these are our intersections (befor sorting) : " << std::endl;
-  #endif
-          // const ScalarType invert =
-          //     a_aligned_paraboloid.a() < ZERO ? -normal_invert : normal_invert;
-          // Store angular position of intersection on the ellipse
-          const ScalarType invert = rectangle_face ? copysign(ONE, face_normal[2]) : copysign(ONE, face_normal[0]);
-          if (rectangle_face) {
-            for (auto& element : intersections) {
-              const auto& pt = element.first->getVertex()->getLocation().getPt();
-              element.second = invert * atan2(pt[1],
-                                              pt[0]);
-    #ifdef VALDEBUG
-    std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
-    #endif
-            }
-          } else {
-            for (auto& element : intersections) {
-              const auto& pt = element.first->getVertex()->getLocation().getPt();
-              element.second = invert * atan2(pt[2],
-                                              pt[1]);
-    #ifdef VALDEBUG
-    std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
-    #endif
+        // Compute the center of this ellipse
+        // const std::array<ScalarType, 2> conic_center{
+        //     { face.getPlane().distance() /
+        //          face_normal[0],
+        //       ScalarType(0)}};
+        #ifdef VALDEBUG
+        std::cout << "these are our intersections (befor sorting) : " << std::endl;
+        #endif
+        // const ScalarType invert =
+        //     a_aligned_paraboloid.a() < ZERO ? -normal_invert : normal_invert;
+        // Store angular position of intersection on the ellipse
+        const ScalarType invert = rectangle_face ? copysign(ONE, face_normal[2]) : copysign(ONE, face_normal[0]);
+        if (rectangle_face) {
+          for (auto& element : intersections) {
+            const auto& pt = element.first->getVertex()->getLocation().getPt();
+            element.second = invert * atan2(pt[1],
+                                            pt[0]);
+            #ifdef VALDEBUG
+            std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
+            #endif
+          }
+        } else {
+          for (auto& element : intersections) {
+            const auto& pt = element.first->getVertex()->getLocation().getPt();
+            element.second = invert * atan2(pt[2],
+                                            pt[1]);
+            #ifdef VALDEBUG
+            std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
+            #endif
+          }
+        }
+        // Sort intersections
+        std::sort(intersections.begin(), intersections.end(),
+                  [](const stype& a, const stype& b) {
+                    return a.second < b.second;
+                  });
+
+        // Backdoor for case where two angles are equal (because
+        // of floating-point errors)
+        bool restart_sort = false;
+        for (std::size_t i = 0; i < intersection_size - 1; ++i) {
+          if (fabs(intersections[i].second - intersections[i + 1].second) <
+              ONE_HUNDRED * MACHINE_EPSILON) {
+            restart_sort = true;
+            break;
+          }
+        }
+        // restart_sort = true;
+        // If this sorting failed, we now sort based on Y positions
+        if (restart_sort) {
+          SmallVector<stype, 6> intersection_copy;
+          intersection_copy.resize(intersections.size());
+          // We split in X direction
+          UnsignedIndex_t split_ind = 0;
+          UnsignedIndex_t store_ind = 1;
+          UnsignedIndex_t pos_end = 0;
+          UnsignedIndex_t neg_end = 0;
+          // Each half of the ellipse (X positive and X negative) will be
+          // sorted separately
+          for (auto& element : intersections) {
+            const auto& pt =
+                element.first->getVertex()->getLocation().getPt();
+            if (pt[split_ind] > ZERO) {
+              const auto loc = pos_end++;
+              intersection_copy[loc].first = element.first;
+              intersection_copy[loc].second = invert * pt[store_ind];
+            } else {
+              const auto loc = intersection_size - 1 - (neg_end++);
+              intersection_copy[loc].first = element.first;
+              intersection_copy[loc].second = -invert * pt[store_ind];
             }
           }
-          // Sort intersections
-          std::sort(intersections.begin(), intersections.end(),
+          // Sort each ellipse half
+          std::sort(intersection_copy.begin(),
+                    intersection_copy.begin() + pos_end,
                     [](const stype& a, const stype& b) {
                       return a.second < b.second;
                     });
-
-          // Backdoor for case where two angles are equal (because
-          // of floating-point errors)
-          bool restart_sort = false;
-          for (std::size_t i = 0; i < intersection_size - 1; ++i) {
+          std::sort(intersection_copy.begin() + pos_end,
+                    intersection_copy.end(),
+                    [](const stype& a, const stype& b) {
+                      return a.second < b.second;
+                    });
+          intersections = intersection_copy;
+          // Let's check if that sort was successful
+          bool re_restart_sort = false;
+          if (pos_end > 0) {
+            for (UnsignedIndex_t i = 0; i < pos_end - 1; ++i) {
+              if (fabs(intersections[i].second -
+                        intersections[i + 1].second) <
+                  ONE_HUNDRED * MACHINE_EPSILON) {
+                re_restart_sort = true;
+                break;
+              }
+            }
+          }
+          for (UnsignedIndex_t i = pos_end; i < intersection_size - 1; ++i) {
             if (fabs(intersections[i].second - intersections[i + 1].second) <
                 ONE_HUNDRED * MACHINE_EPSILON) {
-              restart_sort = true;
+              re_restart_sort = true;
               break;
             }
           }
-          // restart_sort = true;
-          // If this sorting failed, we now sort based on Y positions
-          if (restart_sort) {
-            SmallVector<stype, 6> intersection_copy;
-            intersection_copy.resize(intersections.size());
-            // We split in X direction
-            UnsignedIndex_t split_ind = 0;
-            UnsignedIndex_t store_ind = 1;
-            UnsignedIndex_t pos_end = 0;
-            UnsignedIndex_t neg_end = 0;
-            // Each half of the ellipse (X positive and X negative) will be
-            // sorted separately
+
+          // If this sorting failed, we now sort based on X positions
+          if (re_restart_sort) {
+            // We split in Y direction
+            split_ind = 1;
+            store_ind = 0;
+            pos_end = 0;
+            neg_end = 0;
+            // Each half of the ellipse (Y positive and Y negative) will
+            // be sorted separately
             for (auto& element : intersections) {
               const auto& pt =
                   element.first->getVertex()->getLocation().getPt();
               if (pt[split_ind] > ZERO) {
                 const auto loc = pos_end++;
                 intersection_copy[loc].first = element.first;
-                intersection_copy[loc].second = invert * pt[store_ind];
+                intersection_copy[loc].second = -invert * pt[store_ind];
               } else {
                 const auto loc = intersection_size - 1 - (neg_end++);
                 intersection_copy[loc].first = element.first;
-                intersection_copy[loc].second = -invert * pt[store_ind];
+                intersection_copy[loc].second = invert * pt[store_ind];
               }
             }
             // Sort each ellipse half
@@ -2066,100 +2117,35 @@ formCylinderIntersectionBasesClipped(
                       });
             intersections = intersection_copy;
             // Let's check if that sort was successful
-            bool re_restart_sort = false;
+            bool re_re_restart_sort = false;
             if (pos_end > 0) {
               for (UnsignedIndex_t i = 0; i < pos_end - 1; ++i) {
                 if (fabs(intersections[i].second -
-                         intersections[i + 1].second) <
-                    ONE_HUNDRED * MACHINE_EPSILON) {
-                  re_restart_sort = true;
-                  break;
-                }
-              }
-            }
-            for (UnsignedIndex_t i = pos_end; i < intersection_size - 1; ++i) {
-              if (fabs(intersections[i].second - intersections[i + 1].second) <
-                  ONE_HUNDRED * MACHINE_EPSILON) {
-                re_restart_sort = true;
-                break;
-              }
-            }
-
-            // If this sorting failed, we now sort based on X positions
-            if (re_restart_sort) {
-              // We split in Y direction
-              split_ind = 1;
-              store_ind = 0;
-              pos_end = 0;
-              neg_end = 0;
-              // Each half of the ellipse (Y positive and Y negative) will
-              // be sorted separately
-              for (auto& element : intersections) {
-                const auto& pt =
-                    element.first->getVertex()->getLocation().getPt();
-                if (pt[split_ind] > ZERO) {
-                  const auto loc = pos_end++;
-                  intersection_copy[loc].first = element.first;
-                  intersection_copy[loc].second = -invert * pt[store_ind];
-                } else {
-                  const auto loc = intersection_size - 1 - (neg_end++);
-                  intersection_copy[loc].first = element.first;
-                  intersection_copy[loc].second = invert * pt[store_ind];
-                }
-              }
-              // Sort each ellipse half
-              std::sort(intersection_copy.begin(),
-                        intersection_copy.begin() + pos_end,
-                        [](const stype& a, const stype& b) {
-                          return a.second < b.second;
-                        });
-              std::sort(intersection_copy.begin() + pos_end,
-                        intersection_copy.end(),
-                        [](const stype& a, const stype& b) {
-                          return a.second < b.second;
-                        });
-              intersections = intersection_copy;
-              // Let's check if that sort was successful
-              bool re_re_restart_sort = false;
-              if (pos_end > 0) {
-                for (UnsignedIndex_t i = 0; i < pos_end - 1; ++i) {
-                  if (fabs(intersections[i].second -
-                           intersections[i + 1].second) <
-                      ONE_HUNDRED * MACHINE_EPSILON) {
-                    re_re_restart_sort = true;
-                    break;
-                  }
-                }
-              }
-              for (UnsignedIndex_t i = pos_end; i < intersection_size - 1;
-                   ++i) {
-                if (fabs(intersections[i].second -
-                         intersections[i + 1].second) <
+                          intersections[i + 1].second) <
                     ONE_HUNDRED * MACHINE_EPSILON) {
                   re_re_restart_sort = true;
                   break;
                 }
               }
-              // If all sorts have failed, switch to QP and try again
-              if (re_re_restart_sort) {
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because we can sort the edges" << std::endl;
-  #endif
-                *requires_nudge = true;
+            }
+            for (UnsignedIndex_t i = pos_end; i < intersection_size - 1;
+                  ++i) {
+              if (fabs(intersections[i].second -
+                        intersections[i + 1].second) <
+                  ONE_HUNDRED * MACHINE_EPSILON) {
+                re_re_restart_sort = true;
                 break;
               }
             }
+            // If all sorts have failed, switch to QP and try again
+            if (re_re_restart_sort) {
+              #ifdef NUDGE_REGION
+              std::cout << "nudging because we can sort the edges" << std::endl;
+              #endif
+              *requires_nudge = true;
+              break;
+            }
           }
-        }
-        // The section is a hyperbolique
-        else 
-        {
-          // pour l'instant on skip
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because the section is a hyperbolique" << std::endl;
-  #endif
-          *requires_nudge = true;
-          break;
         }
         // if (hyperbolic_face) {
         //   // We will sort each hyperbola branch separately
@@ -2627,11 +2613,16 @@ formCylinderIntersectionBasesClipped(
           const UnsignedIndex_t exit_index =
               i != 0 ? i - 1 : intersection_size - 1;
           const auto exit_half_edge = intersections[exit_index].first;
-          full_moments +=
+          auto moment_contribution =
               computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                   a_aligned_cylinder, ref_pt, entry_half_edge, exit_half_edge,
                   &entry_first, face_normal, max_component_index,
                   ignore_type3_contributions, requires_nudge, a_surface);
+
+          #ifdef VALDEBUG
+          std::cout << "moment contribution (1, 2 and 3) : " << moment_contribution << std::endl;
+          #endif
+          full_moments += moment_contribution;
         }
         // Clear list of intersections
         intersections.clear();
@@ -2708,14 +2699,14 @@ formCylinderIntersectionBases(
   // only cut in quarter if ouputing a elliptic cylinder surface
   bool quad_cut = (a_aligned_cylinder.b() > 0) && std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value;
 
-  HalfEdgePolytopeType a_complete_polytope_backup;
-  a_complete_polytope_backup = (*a_complete_polytope);
-  #ifdef regen
-  SegmentedHalfEdgePolyhedronType a_polytope_backup = a_complete_polytope_backup.generateSegmentedPolyhedron();
-  #else
-  SegmentedHalfEdgePolyhedronType a_polytope_backup;
-  a_polytope_backup = (*a_polytope);
-  #endif
+  // HalfEdgePolytopeType a_complete_polytope_backup;
+  // a_complete_polytope_backup = (*a_complete_polytope);
+  // #ifdef regen
+  // SegmentedHalfEdgePolyhedronType a_polytope_backup = a_complete_polytope_backup.generateSegmentedPolyhedron();
+  // #else
+  // SegmentedHalfEdgePolyhedronType a_polytope_backup;
+  // a_polytope_backup = (*a_polytope);
+  // #endif
   bool require_nudge = false; 
 
   ReturnType total_moments = ReturnType::fromScalarConstant(0.0);
@@ -2743,6 +2734,9 @@ formCylinderIntersectionBases(
   }
 
   for (UnsignedIndex_t i = 0; i < nb_polytope; i++) {
+    HalfEdgePolytopeType a_complete_polytope_copy;
+    fullCopyOfCompletePolytope(a_polytope, a_complete_polytope, &a_complete_polytope_copy);
+    auto a_polytope_copy = a_complete_polytope_copy.generateSegmentedPolyhedron();
   #ifdef VALDEBUG
   std::cout << "rotating polytope\n";
   #endif
@@ -2760,29 +2754,29 @@ formCylinderIntersectionBases(
     x_rotation.normalize();
 
     frame = x_rotation * frame;
-    for (UnsignedIndex_t v = 0; v < a_polytope->getNumberOfVertices(); ++v) {
-      const Pt original_pt = a_polytope->getVertex(v)->getLocation().getPt();
+    for (UnsignedIndex_t v = 0; v < a_polytope_copy.getNumberOfVertices(); ++v) {
+      const Pt original_pt = a_polytope_copy.getVertex(v)->getLocation().getPt();
       Pt pt(0, 0, 0);
       for (UnsignedIndex_t n = 0; n < 3; ++n) {
         pt[n] = frame[n] * original_pt;
       }
-      a_polytope->getVertex(v)->setLocation(pt);
+      a_polytope_copy.getVertex(v)->setLocation(pt);
     }
 
     if (quad_cut) {
       SegmentedHalfEdgePolyhedronType p2;
       splitHalfEdgePolytope(
-          a_polytope, &p2, a_complete_polytope,
+          &a_polytope_copy, &p2, &a_complete_polytope_copy,
           Plane(Normal(0.0, 1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
       SegmentedHalfEdgePolyhedronType p3;
       splitHalfEdgePolytope(
-          a_polytope, &p3, a_complete_polytope,
+          &a_polytope_copy, &p3, &a_complete_polytope_copy,
           Plane(Normal(0.0, -1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
 
     } else {
       SegmentedHalfEdgePolyhedronType p2;
       splitHalfEdgePolytope(
-          a_polytope, &p2, a_complete_polytope,
+          &a_polytope_copy, &p2, &a_complete_polytope_copy,
           Plane(Normal(0.0, 0.0, -1.0), 0.0));
     }
 
@@ -2804,7 +2798,7 @@ formCylinderIntersectionBases(
     }
 
     ReturnType moments = formCylinderIntersectionBasesClipped<ReturnType>(
-      a_polytope, a_complete_polytope, cylinder, a_nudge_iter, &require_nudge, a_surface);
+      &a_polytope_copy, &a_complete_polytope_copy, cylinder, a_nudge_iter, &require_nudge, a_surface);
 
     if (require_nudge) {
       break;
@@ -2834,8 +2828,8 @@ std::cout << "reverting the polytope\n";
     //   }
     //   polytope->getVertex(v)->setLocation(pt);
     // }
-    *a_polytope = a_polytope_backup;
-    *a_complete_polytope = a_complete_polytope_backup;
+    // *a_polytope = a_polytope_backup;
+    // *a_complete_polytope = a_complete_polytope_backup;
     total_moments += moments;
     
   }
@@ -2854,8 +2848,8 @@ std::cout << "reverting the polytope\n";
           a_surface, a_datum, a_frame);
     #else
     // reset a_polytope and a_complete polytope to the saved value;
-    *a_polytope = a_polytope_backup;
-    *a_complete_polytope = a_complete_polytope_backup;
+    // *a_polytope = a_polytope_backup;
+    // *a_complete_polytope = a_complete_polytope_backup;
     assert(a_polytope->getNumberOfVertices() == starting_number_of_vertices);
 
     // Nudge and try again!

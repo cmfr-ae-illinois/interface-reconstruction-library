@@ -453,26 +453,26 @@ ReturnType computeType3Contribution(
     assert(weight >= ZERO);
     std::array<ScalarType, 2> coeffs;
     if (weight < ScalarType(0.35)) { // We use the exact expressions
-    #ifdef VALDEBUG
-    std::cout << "weight is low, using exact value" << std::endl;
-    #endif
+      #ifdef VALDEBUG
+      std::cout << "weight is low, using exact value" << std::endl;
+      #endif
       coeffs = coeffsVC3Exact<ScalarType, ScalarType>(weight);
     } else if (weight <
              ScalarType(1.7)) { // We use the 40th order Taylor series (w -> 1)
-    #ifdef VALDEBUG
-    std::cout << "weight is close to 1, using Taylor series" << std::endl;
-    #endif
+      #ifdef VALDEBUG
+      std::cout << "weight is close to 1, using Taylor series" << std::endl;
+      #endif
       coeffs = coeffsVC3SeriesOne<ScalarType, ScalarType>(weight);
     } else if (weight <
              ScalarType(1.0e9)) { // We use the series expansion (w -> infty)
-    #ifdef VALDEBUG
-    std::cout << "weight is high, using exact value" << std::endl;
-    #endif
+      #ifdef VALDEBUG
+      std::cout << "weight is high, using exact value" << std::endl;
+      #endif
       coeffs = coeffsVC3Exact<ScalarType, ScalarType>(weight);
     } else { // This is within EPSILON of the actual value
-    #ifdef VALDEBUG
-    std::cout << "weight is BIG, using limite" << std::endl;
-    #endif
+      #ifdef VALDEBUG
+      std::cout << "weight is BIG, using limite" << std::endl;
+      #endif
       coeffs = std::array<ScalarType, 2>({ONE / THREE, ONE / THREE});
     }
 
@@ -515,24 +515,44 @@ ReturnType computeType3Contribution(
     const auto Z0 = pt_0[2], Z1 = pt_1[2], Z2 = cp[2];
     const ScalarType area_proj_triangle =
         HALF * (Y0 * (Z1 - Z2) + Y1 * (Z2 - Z0) + Y2 * (Z0 - Z1));
+    #ifdef VALDEBUG
+    std::cout << "M3 computation :" << std::endl;
+    std::cout << "x0 : " << pt_0 << std::endl;
+    std::cout << "x* : " << cp << std::endl;
+    std::cout << "x1 : " << pt_1 << std::endl;
+    std::cout << "w : " << weight << std::endl;
+    std::cout << "area : " << area_proj_triangle << std::endl;
+    #endif
     assert(weight >= ZERO);
     // Compute coefficients (functions of the weight)
     std::array<ScalarType, 6> coeffs;
     if (weight < ScalarType(0.35))  // We use the exact expressions
     {
+      #ifdef VALDEBUG
+      std::cout << "weight is low, using exact value" << std::endl;
+      #endif
       coeffs = coeffsVC3andCC3Exact<ScalarType, ScalarType>(weight);
     } else if (weight <
                ScalarType(1.7))  // We use the 40th order Taylor series (w -> 1)
     {
+      #ifdef VALDEBUG
+      std::cout << "weight is close to 1, using Taylor series" << std::endl;
+      #endif
       coeffs = coeffsVC3andCC3SeriesOne<ScalarType, ScalarType>(weight);
     } else if (weight < ScalarType(1.0e9))  // We use the exact expressions
     {
+      #ifdef VALDEBUG
+      std::cout << "weight is high, using exact value" << std::endl;
+      #endif
       coeffs = coeffsVC3andCC3Exact<ScalarType, ScalarType>(weight);
     }
     // else if (weight < 1.0e9)  // We use the series expansion (w -> infty)
     //   coeffs = coeffsV3andC3SeriesInfinity(weight);
     else  // This is within EPSILON of the actual value
     {
+      #ifdef VALDEBUG
+      std::cout << "weight is BIG, using limite" << std::endl;
+      #endif
       coeffs = std::array<ScalarType, 6>(
           {ScalarType(ONE / THREE), ScalarType(TWO / THREE),
            ScalarType(ONE / ScalarType(24)),
@@ -540,6 +560,15 @@ ReturnType computeType3Contribution(
            ScalarType(ONE / ScalarType(12)),
            ScalarType(ONE / ScalarType(12))});
     }
+    #ifdef VALDEBUG
+    std::cout << "coeffs :" << std::endl;
+    std::cout << "0 : " << coeffs[0] << std::endl;
+    std::cout << "1 : " << coeffs[1] << std::endl;
+    std::cout << "2 : " << coeffs[2] << std::endl;
+    std::cout << "3 : " << coeffs[3] << std::endl;
+    std::cout << "4 : " << coeffs[4] << std::endl;
+    std::cout << "5 : " << coeffs[5] << std::endl;
+    #endif
     auto m0_basis = std::array<ScalarType, 2>(
         {X0 + X1,
          X2});
@@ -558,6 +587,23 @@ ReturnType computeType3Contribution(
          TWO * (X0 * Z0 + X1 * Z1),
          (X0 + X1) * Z2 + (Z0 + Z1) * X2,
          TWO * X2 * Z2});
+      #ifdef VALDEBUG
+      std::cout << "C vector :" << std::endl;
+      std::cout << "C11 : " << m0_basis[0] << std::endl;
+      std::cout << "C12 : " << m0_basis[1] << std::endl;
+      std::cout << "C21 : " << m1x_basis[0] << std::endl;
+      std::cout << "C22 : " << m1x_basis[1] << std::endl;
+      std::cout << "C23 : " << m1x_basis[2] << std::endl;
+      std::cout << "C24 : " << m1x_basis[3] << std::endl;
+      std::cout << "C31 : " << m1y_basis[0] << std::endl;
+      std::cout << "C32 : " << m1y_basis[1] << std::endl;
+      std::cout << "C33 : " << m1y_basis[2] << std::endl;
+      std::cout << "C34 : " << m1y_basis[3] << std::endl;
+      std::cout << "C41 : " << m1z_basis[0] << std::endl;
+      std::cout << "C42 : " << m1z_basis[1] << std::endl;
+      std::cout << "C43 : " << m1z_basis[2] << std::endl;
+      std::cout << "C44 : " << m1z_basis[3] << std::endl;
+      #endif
     for (size_t i = 0; i < 2; ++i) {
       moments.volume() += ReturnScalarType(coeffs[i] * m0_basis[i]);
     }
@@ -740,11 +786,15 @@ ReturnType computeTriangleCorrection(
   const ScalarType X0 = a_pt_0[0], X1 = a_pt_1[0], X2 = a_pt_2[0];
   const ScalarType Y0 = a_pt_0[1], Y1 = a_pt_1[1], Y2 = a_pt_2[1];
   const ScalarType Z0 = a_pt_0[2], Z1 = a_pt_1[2], Z2 = a_pt_2[2];
+  const ScalarType triangle_area =
+      ((a_pt_0[0] - a_pt_2[0]) * (a_pt_1[1] - a_pt_2[1]) -
+        (a_pt_1[0] - a_pt_2[0]) * (a_pt_0[1] - a_pt_2[1]));
   if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
     return ReturnType::fromScalarConstant(ReturnScalarType(
         ((Y1 - Y0) * (X0 * (TWO * Z0 + Z1) + X1 * (Z0 + TWO * Z1)) +
          (Y0 - Y2) * (X2 * (TWO * Z2 + Z0) + X0 * (Z2 + TWO * Z0)) +
-         (Y2 - Y1) * (X1 * (TWO * Z1 + Z2) + X2 * (Z1 + TWO * Z2))) * SIXTH));
+         (Y2 - Y1) * (X1 * (TWO * Z1 + Z2) + X2 * (Z1 + TWO * Z2)) -
+         triangle_area * (Z0 + Z1 + Z2)) * SIXTH));
     return ReturnType::fromScalarConstant(ReturnScalarType(0));
   } else if constexpr (std::is_same_v<ReturnType,
                                       VolumeMomentsBase<ReturnScalarType>>) {
@@ -754,28 +804,35 @@ ReturnType computeTriangleCorrection(
     moments.volume() = ReturnScalarType(
         ((Y1 - Y0) * (X0 * (TWO * Z0 + Z1) + X1 * (Z0 + TWO * Z1)) +
          (Y0 - Y2) * (X2 * (TWO * Z2 + Z0) + X0 * (Z2 + TWO * Z0)) +
-         (Y2 - Y1) * (X1 * (TWO * Z1 + Z2) + X2 * (Z1 + TWO * Z2))) * SIXTH);
+         (Y2 - Y1) * (X1 * (TWO * Z1 + Z2) + X2 * (Z1 + TWO * Z2)) -
+         triangle_area * (Z0 + Z1 + Z2)) * SIXTH);
     moments.centroid()[0] = ReturnScalarType(
         ((Y1 - Y0) * ((X0 + X1) * (X0 + X1) * (Z0 + Z1) + 
                           TWO * X0 * X0 * Z0 + TWO * X1 * X1 * Z1) + 
          (Y0 - Y2) * ((X2 + X0) * (X2 + X0) * (Z2 + Z0) + 
                           TWO * X2 * X2 * Z2 + TWO * X0 * X0 * Z0) + 
          (Y2 - Y1) * ((X1 + X2) * (X1 + X2) * (Z1 + Z2) + 
-                          TWO * X1 * X1 * Z1 + TWO * X2 * X2 * Z2)) / ScalarType(24));
+                          TWO * X1 * X1 * Z1 + TWO * X2 * X2 * Z2) -
+         triangle_area * (X0 * Z0 + X1 * Z1 + X2 * Z2 +
+                          ((X0 + X1 + X2) * (Z0 + Z1 + Z2)))) / ScalarType(24));
     moments.centroid()[1] = ReturnScalarType(
         ((Y1 - Y0) * ((X0 + X1) * (Y0 + Y1) * (Z0 + Z1) + 
                           TWO * X0 * Y0 * Z0 + TWO * X1 * Y1 * Z1) + 
          (Y0 - Y2) * ((X2 + X0) * (Y2 + Y0) * (Z2 + Z0) + 
                           TWO * X2 * Y2 * Z2 + TWO * X0 * Y0 * Z0) + 
          (Y2 - Y1) * ((X1 + X2) * (Y1 + Y2) * (Z1 + Z2) + 
-                          TWO * X1 * Y1 * Z1 + TWO * X2 * Y2 * Z2)) / ScalarType(12));
+                          TWO * X1 * Y1 * Z1 + TWO * X2 * Y2 * Z2) -
+         triangle_area * (Y0 * Z0 + Y1 * Z1 + Y2 * Z2 +
+                          ((Y0 + Y1 + Y2) * (Z0 + Z1 + Z2))) * HALF) / ScalarType(12));
     moments.centroid()[2] = ReturnScalarType(
         ((Y1 - Y0) * ((X0 + X1) * (Z0 + Z1) * (Z0 + Z1) + 
                           TWO * X0 * Z0 * Z0 + TWO * X1 * Z1 * Z1) + 
          (Y0 - Y2) * ((X2 + X0) * (Z2 + Z0) * (Z2 + Z0) + 
                           TWO * X2 * Z2 * Z2 + TWO * X0 * Z0 * Z0) + 
          (Y2 - Y1) * ((X1 + X2) * (Z1 + Z2) * (Z1 + Z2) + 
-                          TWO * X1 * Z1 * Z1 + TWO * X2 * Z2 * Z2)) / ScalarType(24));
+                          TWO * X1 * Z1 * Z1 + TWO * X2 * Z2 * Z2) -
+         triangle_area * (Z0 * (Z0 + Z1 + Z2) + Z1 * (Z1 + Z2) +
+                          Z2 * Z2)) / ScalarType(24));
     return moments;
   } else if constexpr (std::is_same_v<
                            ReturnType,
