@@ -468,13 +468,13 @@ Parabola MatchToVolumeFractionIllinois(const BezierList& cell,
 
 std::pair<Vec, Vec> BoundingBox(const BezierList& cell);
 
-std::vector<BezierList> TriangulateCell(const BezierList& cell, const int num);
+std::vector<BezierList> TriangulateCell(const BezierList& cell, const bool is_preimage);
 
 std::pair<Mat,Vec> MappingMatVec(const BezierList& triangle1, const BezierList& triangle2);
 
 Vec MappingPoint(const Mat& A, const Vec& b, const Vec& point);
 
-double TriangleArea(const BezierList& triangle);
+Mat MappingM2(const Mat& A, const Vec& b, const Moments& tri_liq_moment);
 
 }  // namespace IRL2D
 

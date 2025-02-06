@@ -43,13 +43,16 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "LVIRAQ") {
     LVIRAQ::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                               a_interface);
-  } else if (a_reconstruction_method == "MOF") {
-    LVIRAQ::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+  } else if (a_reconstruction_method == "MOF1") {
+    MOF1::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                              a_interface);
+  } else if (a_reconstruction_method == "MOF2") {
+    MOF2::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                               a_interface);
   } else {
     std::cout << "Unknown reconstruction method of : "
               << a_reconstruction_method << '\n';
-    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ, MOF. \n";
+    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ, MOF1, MOF2. \n";
     std::exit(-1);
   }
 }
@@ -409,37 +412,38 @@ struct MOFFunctor{
   };
 
   // variables
-  const IRL2D::BezierList& cell;
-  const IRL2D::Vec centroid_star;
-  const double f_star;
-  IRL2D::Vec datum;
-  IRL2D::ReferenceFrame frame;
-  double coeff;
+  const IRL2D::BezierList& m_cell;
+  const IRL2D::Vec m_centroid_star;
+  const double m_f_star;
+  IRL2D::Vec m_datum;
+  IRL2D::ReferenceFrame m_frame;
+  double m_coeff;
+  double m_length_scale;
 
   MOFFunctor(const IRL2D::BezierList& cell,
              const IRL2D::Vec& centroid_star, const double f_star)
-    : cell(cell), centroid_star(centroid_star), f_star(f_star) {
+    : m_cell(cell), m_centroid_star(centroid_star), m_f_star(f_star) {
+      m_length_scale = std::sqrt(IRL2D::ComputeArea(m_cell));
   }
   
   void setframe(const IRL2D::Parabola& guess_plane){
-    coeff = 0;
-    frame = guess_plane.frame();
-    datum = IRL2D::ComputeMoments(cell).m1() / IRL2D::ComputeArea(cell);
+    m_coeff = 0.0;
+    m_frame = guess_plane.frame();
+    m_datum = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
   }
 
   const IRL2D::Parabola getplane(const Eigen::VectorXd& x) const {
     const auto rotation = IRL2D::ReferenceFrame(x(0));
-    const auto new_frame = IRL2D::ReferenceFrame(rotation * frame[0], rotation * frame[1]);
-    const auto plane = IRL2D::Parabola(datum, new_frame, 0);
-    return IRL2D::MatchToVolumeFraction(cell, plane, f_star);
+    const auto new_frame = IRL2D::ReferenceFrame(rotation * m_frame[0], rotation * m_frame[1]);
+    const auto plane = IRL2D::Parabola(m_datum, new_frame, 0.0);
+    return IRL2D::MatchToVolumeFraction(m_cell, plane, m_f_star);
   }
 
   void errorvec(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
-    
-    IRL2D::Moments moments = IRL2D::ComputeMoments(cell, IRL2D::Parabola(datum, frame, coeff));
+    IRL2D::Moments moments = IRL2D::ComputeMoments(m_cell, IRL2D::Parabola(m_datum, m_frame, m_coeff));
     IRL2D::Vec centroid_h = moments.m1() / moments.m0();
-    fvec(0) = centroid_star[0] - centroid_h[0];
-    fvec(1) = centroid_star[1] - centroid_h[1];
+    fvec(0) = (m_centroid_star[0] - centroid_h[0]) / m_length_scale;
+    fvec(1) = (m_centroid_star[1] - centroid_h[1]) / m_length_scale;
   }
 
   int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
@@ -453,7 +457,7 @@ struct MOFFunctor{
 }; 
 
 
-void MOF::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+void MOF1::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                             const Data<IRL2D::Moments>& a_gas_moments,
                             const double a_dt, const Data<double>& a_U,
                             const Data<double>& a_V,
@@ -465,14 +469,62 @@ void MOF::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
   
   const BasicMesh& mesh = a_U.getMesh();
 
+  #ifdef USE_MPI
+    const double cell_volume = mesh.cell_volume();
+    int nmixed_global = 0;
+    for (int i = mesh.imin(); i <= mesh.imax(); ++i){
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+        const double liquid_volume_fraction = a_liquid_moments(i,j).m0() / cell_volume;
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH){
+          nmixed_global++;
+        }
+      }
+    }
+
+    int rank, size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    IRL2D::Parabola dummy_par;
+    IRL::ByteBuffer dummy_buffer;
+    dummy_buffer.resize(0);
+    dummy_buffer.resetBufferPointer();
+    IRL::serializeAndPack(dummy_par , &dummy_buffer);
+    const int size_parabola = dummy_buffer.size();
+
+    int nmixed_local = std::max(nmixed_global / size , 1);
+    std::vector<int> proc_offset(size + 1);
+    proc_offset[0] = 0;
+    for (int r = 0; r < size; r++){
+      proc_offset[r + 1] = proc_offset[r] + nmixed_local;
+    }
+    proc_offset[size] = nmixed_global;
+    for (int r = 1; r < size + 1; r++){
+      proc_offset[r] = std::min(proc_offset[r], nmixed_global);
+    } 
+    nmixed_local = proc_offset[rank + 1] - proc_offset[rank];
+    IRL::ByteBuffer interface_local, interface_global;
+    interface_local.resize(nmixed_local * sizeof(IRL2D::Parabola));
+    interface_global.resize(0);
+    interface_local.resetBufferPointer();
+    interface_global.resetBufferPointer();
+
+    int count = 0;
+  #endif
+
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       const double liquid_volume_fraction = a_liquid_moments(i, j).m0() / mesh.cell_volume();
       if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
           liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+
+  #ifdef USE_MPI
+        if (count >= proc_offset[rank] && proc_offset[rank + 1]) {
+  #endif
         
-        IRL2D::Vec x0 = IRL2D::Vec(mesh.xm(i) - mesh.dx()/2.0 , mesh.ym(j) - mesh.dy()/2.0);
-        IRL2D::Vec x1 = IRL2D::Vec(mesh.xm(i) + mesh.dx()/2.0 , mesh.ym(j) + mesh.dy()/2.0);
+        IRL2D::Vec x0 = IRL2D::Vec(mesh.x(i) , mesh.y(j));
+        IRL2D::Vec x1 = IRL2D::Vec(mesh.x(i+1) , mesh.y(j+1));
         IRL2D::BezierList rectangle = IRL2D::RectangleFromBounds(x0, x1);
         
         // matching volume fraction and centroid
@@ -490,12 +542,249 @@ void MOF::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
         } while (status == Eigen::LevenbergMarquardtSpace::Running);
         const auto plane = IRL2D::MatchToVolumeFractionBisection(
             rectangle, myMOFFunctor.getplane(x), liquid_volume_fraction, 500);
-        
+  #ifdef USE_MPI
+        IRL::serializeAndPack(plane, &interface_local);
+        }
+        count++;
+  #else       
         (*a_interface)(i, j) = plane;
-        
+  #endif       
       }
     }
   }
+
+  #ifdef USE_MPI
+    std::vector<int> proc_count(size);
+    for (int r = 0; r < size; r++){
+      proc_count[r] = size_parabola * (proc_offset[r + 1] - proc_offset[r]);
+      proc_offset[r] = size_parabola * proc_offset[r];
+    }
+
+    interface_global.resize(size_parabola * nmixed_global);
+    MPI_Allgatherv(interface_local.data(), size_parabola * nmixed_local, MPI_BYTE,
+                   interface_global.data(), proc_count.data(), proc_offset.data(),
+                   MPI_BYTE, MPI_COMM_WORLD);
+
+    for (int i = mesh.imin(); i <= mesh.imax(); ++i){
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+        const double liquid_volume_fraction = a_liquid_moments(i,j).m0() / cell_volume;
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH){
+              IRL2D::Parabola parabola;
+              IRL::unpackAndStore(&parabola, &interface_global);
+              (*a_interface)(i,j) = parabola;
+        }
+      }
+    }
+                            
+  #endif
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+
+}
+
+// Functor for MOF2
+struct MOF2Functor{
+  typedef double Scalar;
+  typedef Eigen::VectorXd InputType;
+  typedef Eigen::VectorXd ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+  enum{
+    InputsAtCompileTime = Eigen::Dynamic,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+
+  // variables
+  const IRL2D::BezierList& m_cell;
+  const IRL2D::Vec m_centroid_star;
+  const double m_f_star;
+  const IRL2D::Mat m_M2_star;
+  IRL2D::Vec m_datum;
+  IRL2D::ReferenceFrame m_frame;
+  double m_coeff;
+  double m_length_scale;
+
+  MOF2Functor(const IRL2D::BezierList& cell, const double f_star,
+             const IRL2D::Vec& centroid_star, const IRL2D::Mat& M2_star)
+    : m_cell(cell), m_centroid_star(centroid_star), m_f_star(f_star), 
+      m_M2_star(M2_star) {
+      m_length_scale = std::sqrt(IRL2D::ComputeArea(m_cell));
+  }
+  
+  void setframe(const IRL2D::Parabola& guess_parabola){
+    m_coeff = guess_parabola.coeff();
+    m_frame = guess_parabola.frame();
+    m_datum = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
+
+    // check for curvature
+    const double maxkdx = 4.0;
+    const double kdx = 2.0 * m_coeff * m_length_scale;
+    if (std::abs(kdx) > maxkdx){
+      m_coeff = 0.0; // plane
+    }
+  }
+
+  const IRL2D::Parabola getparabola(const Eigen::VectorXd& x) const {
+    const auto rotation = IRL2D::ReferenceFrame(x(0));
+    const auto new_frame = IRL2D::ReferenceFrame(rotation * m_frame[0], rotation * m_frame[1]);
+    const double new_coeff = m_coeff + x(1) / m_length_scale;
+    const auto parabola = IRL2D::Parabola(m_datum, new_frame, new_coeff);
+    return IRL2D::MatchToVolumeFraction(m_cell, parabola, m_f_star);
+  }
+
+  void errorvec(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    const auto parabola = this->getparabola(x);
+    IRL2D::Moments moments = IRL2D::ComputeMoments(m_cell, parabola); //::Parabola(m_datum, m_frame, m_coeff));
+    IRL2D::Vec centroid_h = moments.m1() / moments.m0();
+    IRL2D::Mat M2_h = moments.m2();
+    fvec(0) = (m_centroid_star[0] - centroid_h[0]) / m_length_scale;
+    fvec(1) = (m_centroid_star[1] - centroid_h[1]) / m_length_scale;
+    fvec(2) = (m_M2_star[0][0] - M2_h[0][0]); // / std::pow(m_length_scale, 4.0);
+    fvec(3) = (m_M2_star[1][0] - M2_h[1][0]); // / std::pow(m_length_scale, 4.0);
+    fvec(4) = (m_M2_star[1][1] - M2_h[1][1]); // / std::pow(m_length_scale, 4.0);
+
+    // Penalty to prevent kappa * dx > 6
+    const double mu = 50.0;
+    const double kdx = 2.0 * m_coeff * m_length_scale + x(1);
+    const double maxkdx = 4.0;
+    fvec(5) = mu * std::max(0.0, std::abs(kdx) - maxkdx);
+    
+  }
+
+  int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    this->errorvec(x, fvec);
+    return 0;
+  }
+
+  int inputs() const { return 2; }
+  int values() const { return 6; }
+
+}; 
+
+
+void MOF2::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                            const Data<IRL2D::Moments>& a_gas_moments,
+                            const double a_dt, const Data<double>& a_U,
+                            const Data<double>& a_V,
+                            Data<IRL2D::Parabola>* a_interface){
+  
+  // initial guess
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                            a_interface);
+  
+  const BasicMesh& mesh = a_U.getMesh();
+
+  // #ifdef USE_MPI
+  //   const double cell_volume = mesh.cell_volume();
+  //   int nmixed_global = 0;
+  //   for (int i = mesh.imin(); i <= mesh.imax(); ++i){
+  //     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+  //       const double liquid_volume_fraction = a_liquid_moments(i,j).m0() / cell_volume;
+  //       if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+  //           liquid_volume_fraction <= IRL::global_constants::VF_HIGH){
+  //         nmixed_global++;
+  //       }
+  //     }
+  //   }
+
+  //   int rank, size;
+  //   MPI_Comm_size(MPI_COMM_WORLD, &size);
+  //   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  //   IRL2D::Parabola dummy_par;
+  //   IRL::ByteBuffer dummy_buffer;
+  //   dummy_buffer.resize(0);
+  //   dummy_buffer.resetBufferPointer();
+  //   IRL::serializeAndPack(dummy_par , &dummy_buffer);
+  //   const int size_parabola = dummy_buffer.size();
+
+  //   int nmixed_local = std::max(nmixed_global / size , 1);
+  //   std::vector<int> proc_offset(size + 1);
+  //   proc_offset[0] = 0;
+  //   for (int r = 0; r < size; r++){
+  //     proc_offset[r + 1] = proc_offset[r] + nmixed_local;
+  //   }
+  //   proc_offset[size] = nmixed_global;
+  //   for (int r = 1; r < size + 1; r++){
+  //     proc_offset[r] = std::min(proc_offset[r], nmixed_global);
+  //   } 
+  //   nmixed_local = proc_offset[rank + 1] - proc_offset[rank];
+  //   IRL::ByteBuffer interface_local, interface_global;
+  //   interface_local.resize(nmixed_local * sizeof(IRL2D::Parabola));
+  //   interface_global.resize(0);
+  //   interface_local.resetBufferPointer();
+  //   interface_global.resetBufferPointer();
+
+  //   int count = 0;
+  // #endif
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction = a_liquid_moments(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+
+  // #ifdef USE_MPI
+  //       if (count >= proc_offset[rank] && proc_offset[rank + 1]) {
+  // #endif
+        
+        IRL2D::Vec x0 = IRL2D::Vec(mesh.x(i) , mesh.y(j));
+        IRL2D::Vec x1 = IRL2D::Vec(mesh.x(i+1) , mesh.y(j+1));
+        IRL2D::BezierList rectangle = IRL2D::RectangleFromBounds(x0, x1);
+        
+        // matching volume fraction and centroid
+        IRL2D::Vec centroid_star = a_liquid_moments(i,j).m1() / a_liquid_moments(i,j).m0();
+        IRL2D::Mat M2_star = a_liquid_moments(i,j).m2();
+        MOF2Functor myMOFFunctor(rectangle, liquid_volume_fraction, centroid_star, M2_star);
+        myMOFFunctor.setframe((*a_interface)(i, j));
+        Eigen::NumericalDiff<MOF2Functor> numericalDiffMyFunctor(myMOFFunctor);
+        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MOF2Functor>, double> lm(numericalDiffMyFunctor);
+        Eigen::VectorXd x(2);
+        x.setZero();
+        Eigen::LevenbergMarquardtSpace::Status status =
+              lm.minimizeInit(x);
+        do {
+          status = lm.minimizeOneStep(x);
+        } while (status == Eigen::LevenbergMarquardtSpace::Running);
+        const auto parabola = IRL2D::MatchToVolumeFractionBisection(
+            rectangle, myMOFFunctor.getparabola(x), liquid_volume_fraction, 500);
+  // #ifdef USE_MPI
+  //       IRL::serializeAndPack(parabola, &interface_local);
+  //       }
+  //       count++;
+  // #else       
+        (*a_interface)(i, j) = parabola;
+  //#endif       
+      }
+    }
+  }
+
+  // #ifdef USE_MPI
+  //   std::vector<int> proc_count(size);
+  //   for (int r = 0; r < size; r++){
+  //     proc_count[r] = size_parabola * (proc_offset[r + 1] - proc_offset[r]);
+  //     proc_offset[r] = size_parabola * proc_offset[r];
+  //   }
+
+  //   interface_global.resize(size_parabola * nmixed_global);
+  //   MPI_Allgatherv(interface_local.data(), size_parabola * nmixed_local, MPI_BYTE,
+  //                  interface_global.data(), proc_count.data(), proc_offset.data(),
+  //                  MPI_BYTE, MPI_COMM_WORLD);
+
+  //   for (int i = mesh.imin(); i <= mesh.imax(); ++i){
+  //     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+  //       const double liquid_volume_fraction = a_liquid_moments(i,j).m0() / cell_volume;
+  //       if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+  //           liquid_volume_fraction <= IRL::global_constants::VF_HIGH){
+  //             IRL2D::Parabola parabola;
+  //             IRL::unpackAndStore(&parabola, &interface_global);
+  //             (*a_interface)(i,j) = parabola;
+  //       }
+  //     }
+  //   }
+                            
+  // #endif
 
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);

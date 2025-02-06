@@ -2130,29 +2130,24 @@ std::pair<Vec, Vec> BoundingBox(const BezierList& cell) {
 
 // Functions for mapping centroids -----------------------------------------------
 
-std::vector<BezierList> TriangulateCell(const BezierList& cell, const int num){
-  // num = 0 is for cell and 1 is for preimage
+std::vector<BezierList> TriangulateCell(const BezierList& cell, const bool is_preimage){
   std::vector<BezierList> triangles;
   std::vector<Vec> cell_points;
   for(int i = 0; i < cell.size(); ++i){
     cell_points.push_back(cell[i].first);
-    if (num == 0){
+    if (is_preimage == false){
       cell_points.push_back(cell[i].second);
     }
   }
-  cell_points.push_back(cell[0].first); 
-  
   Moments cell_moment = ComputeMoments(cell);
-  auto centroid = Vec();
-  centroid.x() = cell_moment.m1()[0]/cell_moment.m0();
-  centroid.y() = cell_moment.m1()[1]/cell_moment.m0();
-  for(int i = 0; i < cell_points.size() - 1; ++i){
+  auto centroid = cell_moment.m1()/cell_moment.m0();
+  for(int i = 0; i < cell_points.size(); ++i){
     Vec v1 = cell_points[i];
-    Vec v2 = cell_points[i+1];
+    Vec v2 = cell_points[(i+1) % cell_points.size()];
     Vec v3 = centroid;
-    Vec c1 = (v1 + v2)/2;
-    Vec c2 = (v2 + centroid)/2;
-    Vec c3 = (centroid + v1)/2;
+    Vec c1 = (v1 + v2)/2.0;
+    Vec c2 = (v2 + centroid)/2.0;
+    Vec c3 = (centroid + v1)/2.0;
     BezierList triangle_list = {{v1,c1},{v2,c2},{v3,c3}};
     triangles.push_back(triangle_list);
   }
@@ -2173,36 +2168,33 @@ std::pair<Mat,Vec> MappingMatVec(const BezierList& triangle1, const BezierList& 
 
   denominator = (x2*y1 - x3*y1 - x1*y2 + x3*y2 + x1*y3 - x2*y3);
 
-  A[0][0] = -(-x2p*y1 + x3p*y1 + x1p*y2 - x3p*y2 - x1p*y3 + x2p*y3) / denominator;
-  A[0][1] = -(x1p*x2 - x1*x2p - x1p*x3 + x2p*x3 + x1*x3p - x2*x3p) / (-denominator);
-  A[1][0] = -(y1p*y2 - y1*y2p - y1p*y3 + y2p*y3 + y1*y3p - y2*y3p) / denominator;
-  A[1][1] = -(-x2*y1p + x3*y1p + x1*y2p - x3*y2p - x1*y3p + x2*y3p) / denominator;
-
-  b[0] = -(-x2p*x3*y1 + x2*x3p*y1 + x1p*x3*y2 - x1*x3p*y2 - x1p*x2*y3 + x1*x2p*y3) / (-denominator);
-  b[1] = -(-x3*y1p*y2 + x3*y1*y2p + x2*y1p*y3 - x1*y2p*y3 - x2*y1*y3p + x1*y2*y3p) / denominator;
+  if (std::abs(denominator) > 1.0e-14){
+    A[0][0] = -(-x2p*y1 + x3p*y1 + x1p*y2 - x3p*y2 - x1p*y3 + x2p*y3) / denominator;
+    A[0][1] = -(x1p*x2 - x1*x2p - x1p*x3 + x2p*x3 + x1*x3p - x2*x3p) / (-denominator);
+    A[1][0] = -(y1p*y2 - y1*y2p - y1p*y3 + y2p*y3 + y1*y3p - y2*y3p) / denominator;
+    A[1][1] = -(-x2*y1p + x3*y1p + x1*y2p - x3*y2p - x1*y3p + x2*y3p) / denominator;
+    b[0] = -(-x2p*x3*y1 + x2*x3p*y1 + x1p*x3*y2 - x1*x3p*y2 - x1p*x2*y3 + x1*x2p*y3) / (-denominator);
+    b[1] = -(-x3*y1p*y2 + x3*y1*y2p + x2*y1p*y3 - x1*y2p*y3 - x2*y1*y3p + x1*y2*y3p) / denominator;
+  }
 
   return {A, b};
 }
 
 Vec MappingPoint(const Mat& A, const Vec& b, const Vec& point){
-  Vec mapped_point = Vec();
-  mapped_point.x() = A[0][0]*point.x() + A[0][1]*point.y() + b[0];
-  mapped_point.y() = A[1][0]*point.x() + A[1][1]*point.y() + b[1];
-
-  return mapped_point;
+  return A*point + b;
 }
 
-double TriangleArea(const BezierList& triangle){
-  double area;
-  Vec point1 = triangle[0].first;
-  Vec point2 = triangle[1].first;
-  Vec point3 = triangle[2].first;
+Mat MappingM2(const Mat& A, const Vec& b, const Moments& tri_liq_moment){
+  double M0 = tri_liq_moment.m0();
+  Vec M1 = tri_liq_moment.m1();
+  Mat M2 = tri_liq_moment.m2();
 
-  area = 0.5 * std::abs( point1.x()*(point2.y()-point3.y())
-                      +  point2.x()*(point3.y()-point1.y())
-                      +  point3.x()*(point1.y()-point2.y()));
+  Mat term1 = A * M2 * A.transpose();
+  Mat term2 = A * Mat( Vec(M1[0]*b[0] , M1[0]*b[1]), Vec(M1[1]*b[0] , M1[1]*b[1]) );
+  Mat term3 = Mat( Vec(b[0]*M1[0] , b[0]*M1[1]), Vec(b[1]*M1[0] , b[1]*M1[1]) ) * A.transpose();
+  Mat term4 = M0 * Mat( Vec(b[0]*b[0] , b[0]*b[1]), Vec(b[1]*b[0] , b[1]*b[1]) );
 
-  return area;
+  return (term1 + term2 + term3 + term4);
 }
 
 }  // namespace IRL2D

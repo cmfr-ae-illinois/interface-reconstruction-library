@@ -33,15 +33,15 @@ void advectVOF(const std::string& a_simulation_type,
     FullLag::advectVOF(a_simulation_type, a_advection_method,
                        a_reconstruction_method, a_dt, a_time, a_U, a_V,
                        a_liquid_moments, a_gas_moments, a_interface);
-  } else if (a_advection_method == "FullLagMapping"){
-    FullLagMapping::advectVOF(a_simulation_type, a_advection_method,
+  } else if (a_advection_method == "ReSyFullLagL"){
+    ReSyFullLagL::advectVOF(a_simulation_type, a_advection_method,
                        a_reconstruction_method, a_dt, a_time, a_U, a_V,
                        a_liquid_moments, a_gas_moments, a_interface);
   } else {
     std::cout << "Unknown advection method of : " << a_reconstruction_method
               << '\n';
     std::cout
-        << "Valid entries are: SemiLagL, SemiLagQ, FullLagL, FullLagQ. \n";
+        << "Valid entries are: SemiLagL, SemiLagQ, FullLagL, FullLagQ, ReSyFullLagL. \n";
     std::exit(-1);
   }
 }
@@ -698,10 +698,10 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
       }
     }
   }
-  if (fluxes.size() > 0) {
-    IRL2D::ToVTK(fluxes, "fluxes");
-    IRL2D::ToVTK(clipped_fluxes, "clipped_fluxes");
-  }
+  // if (fluxes.size() > 0) {
+  //   IRL2D::ToVTK(fluxes, "fluxes");
+  //   IRL2D::ToVTK(clipped_fluxes, "clipped_fluxes");
+  // }
 
 #ifdef USE_MPI
   std::vector<int> proc_count(size);
@@ -899,7 +899,7 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
 // ---------------------------------------------------------------------------------------
 // ---------------------------------------------------------------------------------------
 
-void FullLagMapping::advectVOF(const std::string& a_simulation_type,
+void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
                         const std::string& a_advection_method,
                         const std::string& a_reconstruction_method,
                         const double a_dt, const double a_time,
@@ -992,6 +992,7 @@ void FullLagMapping::advectVOF(const std::string& a_simulation_type,
 
 #ifdef USE_MPI
   int nmixed_global = 0;
+  int n_simplices = 8;
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
@@ -1011,39 +1012,32 @@ void FullLagMapping::advectVOF(const std::string& a_simulation_type,
     proc_offset[r + 1] = proc_offset[r] + nmixed_local;
   proc_offset[size] = nmixed_global;
   for (int r = 1; r < size + 1; r++)
-
-    proc_offset[r] = std::min(proc_offset[r], nmixed_global);
+    proc_offset[r] = std::min(proc_offset[r], nmixed_global) * n_simplices;
   nmixed_local = proc_offset[rank + 1] - proc_offset[rank];
 
   const int size_moments = 2 * 6;
   std::vector<double> mom_update_local(size_moments * nmixed_local);
-  std::vector<double> mom_update_global(size_moments * nmixed_global);
+  std::vector<double> mom_update_global(size_moments * n_simplices * nmixed_global);
 #endif
 
   // Compute fluxes
-  std::vector<IRL2D::BezierList> fluxes, clipped_fluxes;
   Data<IRL2D::BezierList> pre_images(&mesh);
-  Data<IRL2D::Moments> liq_mom_update(&mesh);
-  Data<IRL2D::Moments> gas_mom_update(&mesh);
-
-  Data<std::vector<IRL2D::Moments>> triangle_liq_mom(&mesh);
+  Data<std::vector<IRL2D::Moments>> tri_liq_mom_update(&mesh);
+  Data<std::vector<IRL2D::Moments>> tri_gas_mom_update(&mesh);
   Data<std::vector<IRL2D::Mat>> mapping_A(&mesh);
   Data<std::vector<IRL2D::Vec>> mapping_b(&mesh);
-  Data<std::vector<bool>> contains_liquid(&mesh);
   Data<std::vector<IRL2D::Vec>> mapped_m1_triangle(&mesh);
   int num_triangles = 8;
 
-  int count = 0, count_local = 0, debug_count = 0;
+  int count = 0, count_local = 0;
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       const double cell_volume = mesh.cell_volume();
-      // Initialize fluxes to zero
-      (liq_mom_update)(i, j) = IRL2D::Moments();
-      (gas_mom_update)(i, j) = IRL2D::Moments();
-      triangle_liq_mom(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
+      // initializing
+      tri_liq_mom_update(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
+      tri_gas_mom_update(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
       mapping_A(i,j) = std::vector<IRL2D::Mat>(num_triangles, IRL2D::Mat());
       mapping_b(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
-      contains_liquid(i,j) = std::vector<bool>(num_triangles, false);
       mapped_m1_triangle(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
 
       // Only solve advection in narrow band near the interface
@@ -1066,11 +1060,9 @@ void FullLagMapping::advectVOF(const std::string& a_simulation_type,
               CreatePreImage(x0, x1, -a_dt, a_time + a_dt, getExactVelocity2D,
                              getExactGradient2D, correct_fluxes, exact_fluxes);
 
-          fluxes.push_back(preimage);
-
           // triangulation of cell and preimage
-          std::vector<IRL2D::BezierList> triangulated_cell = IRL2D::TriangulateCell(cell, 0);
-          std::vector<IRL2D::BezierList> triangulated_preimage = IRL2D::TriangulateCell(preimage, 1);
+          std::vector<IRL2D::BezierList> triangulated_cell = IRL2D::TriangulateCell(cell, false);
+          std::vector<IRL2D::BezierList> triangulated_preimage = IRL2D::TriangulateCell(preimage, true);
 
           // mapping from preimage to cell
           for (int t = 0; t < num_triangles; ++t){
@@ -1080,79 +1072,53 @@ void FullLagMapping::advectVOF(const std::string& a_simulation_type,
             mapping_b(i,j)[t] = mapping_MatVec.second;
           }
 
-          // Compute flux bounding boxes
-          const auto bbox = IRL2D::BoundingBox(preimage);
-          static int idmin[2], idmax[2];
-          mesh.getIndices(bbox.first, idmin);
-          mesh.getIndices(bbox.second, idmax);
-
-          // Compute liquid fluxes by intersection on a n x n neighborhood
-          // for (int ii = std::max(idmin[0], mesh.imino());
-          //      ii <= std::min(idmax[0], mesh.imaxo()); ++ii) {
-          //   for (int jj = std::max(idmin[1], mesh.imino());
-          //        jj <= std::min(idmax[1], mesh.imaxo()); ++jj) {
           for (int ii = i - nlayers; ii <= i + nlayers; ii++) {
             for (int jj = j - nlayers; jj <= j + nlayers; jj++) {
               const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
-              const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
-              (liq_mom_update)(i, j) += IRL2D::ComputeMoments(
-                  preimage, xn0, xn1, (*a_interface)(ii, jj));
-              
+              const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));              
               // moments for each triangle
               for (int t = 0; t < num_triangles; ++t){
-                triangle_liq_mom(i,j)[t] += IRL2D::ComputeMoments(
+                tri_liq_mom_update(i,j)[t] += IRL2D::ComputeMoments(
                   triangulated_preimage[t], xn0, xn1, (*a_interface)(ii, jj));
               }
-
-              clipped_fluxes.push_back(ClipByRectangleAndParabola(
-                  preimage, xn0, xn1, (*a_interface)(ii, jj)));
             }
           }
 
-          for (int t = 0; t < num_triangles; ++t){
-            mapped_m1_triangle(i,j)[t] = IRL2D::MappingPoint(mapping_A(i,j)[t], 
-                                         mapping_b(i,j)[t]*triangle_liq_mom(i,j)[t].m0(),
-                                         triangle_liq_mom(i,j)[t].m1());
-          }
-
-          // (liq_mom_update)(i, j).m0() =
-          //     std::clamp((liq_mom_update)(i, j).m0(), 0.0, cell_volume);
-
 #ifndef USE_MPI
           // Update gas fluxes
-          (gas_mom_update)(i, j) +=
-              IRL2D::ComputeMoments(preimage) - (liq_mom_update)(i, j);
+          for (int t = 0; t < num_triangles; ++t){
+           (tri_gas_mom_update)(i, j)[t] +=
+               IRL2D::ComputeMoments(triangulated_preimage[t]) - (tri_liq_mom_update)(i, j)[t];
+          }
 #else
-        const auto fm = IRL2D::ComputeMoments(preimage);
-        mom_update_local[count_local++] = liq_mom_update(i, j).m0();
-        mom_update_local[count_local++] = liq_mom_update(i, j).m1()[0];
-        mom_update_local[count_local++] = liq_mom_update(i, j).m1()[1];
-        mom_update_local[count_local++] = liq_mom_update(i, j).m2()[0][0];
-        mom_update_local[count_local++] = liq_mom_update(i, j).m2()[1][0];
-        mom_update_local[count_local++] = liq_mom_update(i, j).m2()[1][1];
-        mom_update_local[count_local++] = fm.m0() - liq_mom_update(i, j).m0();
-        mom_update_local[count_local++] =
-            fm.m1()[0] - liq_mom_update(i, j).m1()[0];
-        mom_update_local[count_local++] =
-            fm.m1()[1] - liq_mom_update(i, j).m1()[1];
-        mom_update_local[count_local++] =
-            fm.m2()[0][0] - liq_mom_update(i, j).m2()[0][0];
-        mom_update_local[count_local++] =
-            fm.m2()[1][0] - liq_mom_update(i, j).m2()[1][0];
-        mom_update_local[count_local++] =
-            fm.m2()[1][1] - liq_mom_update(i, j).m2()[1][1];
-#endif
-#ifdef USE_MPI
+          for (int t = 0; t < num_triangles; ++t){
+            const auto fm = IRL2D::ComputeMoments(triangulated_preimage[t]);
+            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m0();
+            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m1()[0];
+            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m1()[1];
+            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m2()[0][0];
+            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m2()[1][0];
+            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m2()[1][1];
+            mom_update_local[count_local++] = fm.m0() - tri_liq_mom_update(i, j)[t].m0();
+            mom_update_local[count_local++] =
+                fm.m1()[0] - tri_liq_mom_update(i, j)[t].m1()[0];
+            mom_update_local[count_local++] =
+                fm.m1()[1] - tri_liq_mom_update(i, j)[t].m1()[1];
+            mom_update_local[count_local++] =
+                fm.m2()[0][0] - tri_liq_mom_update(i, j)[t].m2()[0][0];
+            mom_update_local[count_local++] =
+                fm.m2()[1][0] - tri_liq_mom_update(i, j)[t].m2()[1][0];
+            mom_update_local[count_local++] =
+                fm.m2()[1][1] - tri_liq_mom_update(i, j)[t].m2()[1][1];            
+  #endif
+  #ifdef USE_MPI
+          }
         }
-        count++;
+        count+=8;
 #endif
       }
     }
   } // end of calculating moments for each preimage
-  if (fluxes.size() > 0) {
-    IRL2D::ToVTK(fluxes, "fluxes");
-    IRL2D::ToVTK(clipped_fluxes, "clipped_fluxes");
-  }
 
 #ifdef USE_MPI
   std::vector<int> proc_count(size);
@@ -1168,20 +1134,22 @@ void FullLagMapping::advectVOF(const std::string& a_simulation_type,
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
-        (liq_mom_update)(i, j).m0() = mom_update_global[count_local++];
-        (liq_mom_update)(i, j).m1()[0] = mom_update_global[count_local++];
-        (liq_mom_update)(i, j).m1()[1] = mom_update_global[count_local++];
-        (liq_mom_update)(i, j).m2()[0][0] = mom_update_global[count_local++];
-        (liq_mom_update)(i, j).m2()[1][0] = mom_update_global[count_local++];
-        (liq_mom_update)(i, j).m2()[1][1] = mom_update_global[count_local++];
-        (liq_mom_update)(i, j).m2()[0][1] = (liq_mom_update)(i, j).m2()[1][0];
-        (gas_mom_update)(i, j).m0() = mom_update_global[count_local++];
-        (gas_mom_update)(i, j).m1()[0] = mom_update_global[count_local++];
-        (gas_mom_update)(i, j).m1()[1] = mom_update_global[count_local++];
-        (gas_mom_update)(i, j).m2()[0][0] = mom_update_global[count_local++];
-        (gas_mom_update)(i, j).m2()[1][0] = mom_update_global[count_local++];
-        (gas_mom_update)(i, j).m2()[1][1] = mom_update_global[count_local++];
-        (gas_mom_update)(i, j).m2()[0][1] = (gas_mom_update)(i, j).m2()[1][0];
+        for (int t = 0; t < num_triangles; ++t){
+          (tri_liq_mom_update)(i, j)[t].m0() = mom_update_global[count_local++];
+          (tri_liq_mom_update)(i, j)[t].m1()[0] = mom_update_global[count_local++];
+          (tri_liq_mom_update)(i, j)[t].m1()[1] = mom_update_global[count_local++];
+          (tri_liq_mom_update)(i, j)[t].m2()[0][0] = mom_update_global[count_local++];
+          (tri_liq_mom_update)(i, j)[t].m2()[1][0] = mom_update_global[count_local++];
+          (tri_liq_mom_update)(i, j)[t].m2()[1][1] = mom_update_global[count_local++];
+          (tri_liq_mom_update)(i, j)[t].m2()[0][1] = (tri_liq_mom_update)(i, j)[t].m2()[1][0];
+          (tri_gas_mom_update)(i, j)[t].m0() = mom_update_global[count_local++];
+          (tri_gas_mom_update)(i, j)[t].m1()[0] = mom_update_global[count_local++];
+          (tri_gas_mom_update)(i, j)[t].m1()[1] = mom_update_global[count_local++];
+          (tri_gas_mom_update)(i, j)[t].m2()[0][0] = mom_update_global[count_local++];
+          (tri_gas_mom_update)(i, j)[t].m2()[1][0] = mom_update_global[count_local++];
+          (tri_gas_mom_update)(i, j)[t].m2()[1][1] = mom_update_global[count_local++];
+          (tri_gas_mom_update)(i, j)[t].m2()[0][1] = (tri_gas_mom_update)(i, j)[t].m2()[1][0];
+        }
       }
     }
   }
@@ -1189,105 +1157,40 @@ void FullLagMapping::advectVOF(const std::string& a_simulation_type,
   MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
-  gas_mom_update.updateBorder();
-  liq_mom_update.updateBorder();
-  triangle_liq_mom.updateBorder();
+  tri_liq_mom_update.updateBorder();
+  tri_gas_mom_update.updateBorder();
   mapping_A.updateBorder();
   mapping_b.updateBorder();
-  contains_liquid.updateBorder();
   mapped_m1_triangle.updateBorder();
 
   // Transporting moments
   // Now calculate VOF from the face fluxes.
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      const double cell_volume = mesh.cell_volume();
-      const auto cell_centroid = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
-      const double liquid_volume_fraction =
-          (*a_liquid_moments)(i, j).m0() / cell_volume;
       if (band(i, j) > 0) {
-        // Compute moments in transported cell image
-        (*a_liquid_moments)(i, j) = (liq_mom_update)(i, j);
-        (*a_gas_moments)(i, j) = (gas_mom_update)(i, j);
+        const auto x0 = IRL2D::Vec(mesh.x(i), mesh.y(j));
+        const auto x1 = IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1));
+        const auto cell_moment = IRL2D::ComputeMoments(IRL2D::RectangleFromBounds(x0, x1));
 
-        const std::array<Data<IRL2D::Moments>*, 2> moment_list(
-            {a_liquid_moments, a_gas_moments});
+        double M0_final = 0;
+        IRL2D::Vec M1_final = IRL2D::Vec();
+        IRL2D::Mat M2_final = IRL2D::Mat();
 
-        for (int m = 0; m < 2; m++) {
-          const auto moments = moment_list[m];
-          const auto M0 = (*moments)(i, j).m0();
-          const auto M1 = (*moments)(i, j).m1();
-          const auto M2 = (*moments)(i, j).m2();
-
-          // Correct moment 0
-          double M0_final = 0;
-          for (int t = 0; t < num_triangles; ++t){
-              M0_final += triangle_liq_mom(i,j)[t].m0();
-          }
-          if(m == 1){
-            M0_final = mesh.cell_volume() - M0_final;
-          }
-
-          // Transport of moment 1
-          auto x0_k1 = M1 / IRL::safelyEpsilon(M0);
-          const auto u0_k1 = getExactVelocity2D(a_time, x0_k1);
-          const auto gradu0_k1 = getExactGradient2D(a_time, x0_k1);
-          const auto x0_k2 = x0_k1 + a_dt * u0_k1 * 0.5;
-          const auto u0_k2 = getExactVelocity2D(a_time + 0.5 * a_dt, x0_k2);
-          const auto gradu0_k2 = getExactGradient2D(a_time + 0.5 * a_dt, x0_k2);
-          const auto x0_k3 = x0_k1 + a_dt * u0_k2 * 0.5;
-          const auto u0_k3 = getExactVelocity2D(a_time + 0.5 * a_dt, x0_k3);
-          const auto gradu0_k3 = getExactGradient2D(a_time + 0.5 * a_dt, x0_k3);
-          const auto x0_k4 = x0_k1 + a_dt * u0_k3;
-          const auto u0_k4 = getExactVelocity2D(a_time + a_dt, x0_k4);
-          const auto gradu0_k4 = getExactGradient2D(a_time + a_dt, x0_k4);
-
-          //weighted sum of first moment for simplices that contain liquid
-          IRL2D::Vec M1_final = IRL2D::Vec();
-          for (int t = 0; t < num_triangles; ++t){
-            M1_final += mapped_m1_triangle(i,j)[t];
-          }
-
-          // Transport of moment 2
-          const auto M2t0_k1 = M0_final * IRL2D::outer_product(x0_k1, u0_k1);
-          const auto M2t0_k2 = M0_final * IRL2D::outer_product(x0_k2, u0_k2);
-          const auto M2t0_k3 = M0_final * IRL2D::outer_product(x0_k3, u0_k3);
-          const auto M2t0_k4 = M0_final * IRL2D::outer_product(x0_k4, u0_k4);
-          const auto M2t1_k1 = -M0_final * IRL2D::outer_product(x0_k1, x0_k1) *
-                               gradu0_k1.transpose();
-          const auto M2t1_k2 = -M0_final * IRL2D::outer_product(x0_k2, x0_k2) *
-                               gradu0_k2.transpose();
-          const auto M2t1_k3 = -M0_final * IRL2D::outer_product(x0_k3, x0_k3) *
-                               gradu0_k3.transpose();
-          const auto M2t1_k4 = -M0_final * IRL2D::outer_product(x0_k4, x0_k4) *
-                               gradu0_k4.transpose();
-          const auto M2t2_k1 = M2 * gradu0_k1.transpose();
-          const auto M2t2_k2 =
-              (M2 + a_dt * 0.5 *
-                        (M2t0_k1 + M2t0_k1.transpose() + M2t1_k1 +
-                         M2t1_k1.transpose() + M2t2_k1 + M2t2_k1.transpose())) *
-              gradu0_k2.transpose();
-          const auto M2t2_k3 =
-              (M2 + a_dt * 0.5 *
-                        (M2t0_k2 + M2t0_k2.transpose() + M2t1_k2 +
-                         M2t1_k2.transpose() + M2t2_k2 + M2t2_k2.transpose())) *
-              gradu0_k3.transpose();
-          const auto M2t2_k4 = (M2 + a_dt * (M2t0_k3 + M2t0_k3.transpose() +
-                                             M2t1_k3 + M2t1_k3.transpose() +
-                                             M2t2_k3 + M2t2_k3.transpose())) *
-                               gradu0_k4.transpose();
-          const auto M2_rk4 =
-              a_dt *
-              ((M2t0_k1 + 2.0 * M2t0_k2 + 2.0 * M2t0_k3 + M2t0_k4) +
-               (M2t1_k1 + 2.0 * M2t1_k2 + 2.0 * M2t1_k3 + M2t1_k4) +
-               (M2t2_k1 + 2.0 * M2t2_k2 + 2.0 * M2t2_k3 + M2t2_k4)) *
-              (1.0 / 6.0);
-          const auto M2_final = M2 + M2_rk4 + M2_rk4.transpose();
-
-          (*moments)(i, j).m0() = M0_final;
-          (*moments)(i, j).m1() = M1_final;
-          (*moments)(i, j).m2() = M2_final;
+        for (int t = 0; t < num_triangles; ++t){
+          M0_final += tri_liq_mom_update(i,j)[t].m0();
+          M1_final += IRL2D::MappingPoint(mapping_A(i,j)[t], 
+                                          mapping_b(i,j)[t]*tri_liq_mom_update(i,j)[t].m0(),
+                                          tri_liq_mom_update(i,j)[t].m1());
+          M2_final += IRL2D::MappingM2(mapping_A(i,j)[t], mapping_b(i,j)[t], 
+                                       tri_liq_mom_update(i,j)[t]);
         }
+
+        (*a_liquid_moments)(i,j).m0() = M0_final;
+        (*a_liquid_moments)(i,j).m1() = M1_final;
+        (*a_liquid_moments)(i,j).m2() = M2_final;
+        (*a_gas_moments)(i,j).m0() = cell_moment.m0() - (*a_liquid_moments)(i,j).m0();
+        (*a_gas_moments)(i,j).m1() = cell_moment.m1() - (*a_liquid_moments)(i,j).m1();
+        (*a_gas_moments)(i,j).m2() = cell_moment.m2() - (*a_liquid_moments)(i,j).m2();
       }
     }
   }

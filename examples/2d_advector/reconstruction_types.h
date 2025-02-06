@@ -45,7 +45,15 @@ struct LVIRAQ {
                                 Data<IRL2D::Parabola>* a_interface);
 };
 
-struct MOF {
+struct MOF1 {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct MOF2 {
   static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                                 const Data<IRL2D::Moments>& a_gas_moments,
                                 const double a_dt, const Data<double>& a_U,

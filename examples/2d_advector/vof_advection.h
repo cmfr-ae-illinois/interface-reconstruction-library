@@ -45,7 +45,7 @@ struct FullLag {
                         Data<IRL2D::Parabola>* a_interface);
 };
 
-struct FullLagMapping {
+struct ReSyFullLagL {
   static void advectVOF(const std::string& a_simulation_type,
                         const std::string& a_advection_method,
                         const std::string& a_reconstruction_method,
