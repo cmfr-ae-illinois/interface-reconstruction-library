@@ -211,8 +211,9 @@ class HalfEdgeStorage {
     for (auto& block : data_blocks_start_m) {
       ::operator delete(block);
     }
-    open_block_m = 0;
+    open_block_m = -1;
     free_location_m = nullptr;
+    open_block_end_m = nullptr;
   }
 
  private:
@@ -223,7 +224,7 @@ class HalfEdgeStorage {
   }
 
   void resetToSize(const std::size_t a_size) {
-    if (data_blocks_start_m.empty() || this->blockSize(0) < a_size) {
+    if (data_blocks_start_m.empty() || this->blockSize(0) < a_size || open_block_m > 0) {
       for (auto& block : data_blocks_start_m) {
         ::operator delete(block);
         block = nullptr;

@@ -96,7 +96,7 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const double a_length_scale = -1.0,
       const UnsignedIndex_t a_nsplit = 5) const;
 
-  ~ParaboloidParametrizedSurfaceOutput(void);
+//  ~ParaboloidParametrizedSurfaceOutput(void);
 
  private:
   Paraboloid paraboloid_m;

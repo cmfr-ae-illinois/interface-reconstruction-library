@@ -96,7 +96,7 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const double a_length_scale = -1.0,
       const UnsignedIndex_t a_nsplit = 5) const;
 
-  ~CylinderParametrizedSurfaceOutput(void);
+  // ~CylinderParametrizedSurfaceOutput(void);
 
  private:
   std::vector<int> indexes_of_flip;

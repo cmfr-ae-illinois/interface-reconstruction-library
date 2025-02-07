@@ -240,12 +240,12 @@ inline const Paraboloid& ParaboloidParametrizedSurfaceOutput::getParaboloid(
   return paraboloid_m;
 }
 
-inline ParaboloidParametrizedSurfaceOutput::
-    ~ParaboloidParametrizedSurfaceOutput(void) {
-  for (auto elem : pt_from_bezier_split_m) {
-    delete elem;
-  }
-}
+// inline ParaboloidParametrizedSurfaceOutput::
+//     ~ParaboloidParametrizedSurfaceOutput(void) {
+//   for (auto elem : pt_from_bezier_split_m) {
+//     delete elem;
+//   }
+// }
 
 class ArcContributionToParaboloidSurfaceArea_Functor {
  public:

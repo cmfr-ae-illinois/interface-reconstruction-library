@@ -261,12 +261,12 @@ inline void CylinderParametrizedSurfaceOutput::resetCylinder(void) {
   cylinder_m.resize(0);
 }
 
-inline CylinderParametrizedSurfaceOutput::~CylinderParametrizedSurfaceOutput(
-    void) {
-  for (auto elem : pt_from_bezier_split_m) {
-    delete elem;
-  }
-}
+// inline CylinderParametrizedSurfaceOutput::~CylinderParametrizedSurfaceOutput(
+//     void) {
+//   for (auto elem : pt_from_bezier_split_m) {
+//     delete elem;
+//   }
+// }
 
 inline double CylinderParametrizedSurfaceOutput::getSurfaceArea(void) {
   return 0.0;

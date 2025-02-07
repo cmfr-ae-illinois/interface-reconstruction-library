@@ -1077,6 +1077,15 @@ formCylinderIntersectionBasesClipped(
     auto& vertex = *(a_polytope->getVertex(v));
     vertex.setAsUnnecessaryToSeek();  // Reset all
     vertex.markToBeClipped();
+    // when cutting the polyhedron, sometime the new points
+    // are not exactly on the Oxy plane
+    // check the point are above the horizontal plane
+    assert(vertex.getLocation().getPt()[2] > -DISTANCE_EPSILON);
+    // if the point are below the plane but close to it, clipped it to the plane
+    if (vertex.getLocation().getPt()[2] < ZERO) {
+      auto& pt = vertex.getLocation().getPt();
+      pt[2] = ZERO;
+    }
 
     #ifdef VALDEBUG
     std::cout << "point nb : " << v << ", vertex : " << vertex << std::endl;
@@ -1157,11 +1166,17 @@ formCylinderIntersectionBasesClipped(
   StackVector<pt_type, 2> edge_intercepts;
   for (UnsignedIndex_t v = 0; v < starting_number_of_vertices; ++v) {
     auto& vertex = *(a_polytope->getVertex(v));
+    #ifdef VALDEBUG
+    std::cout << "starting from point : " << vertex << std::endl;
+    #endif
     vertex.setToSeek();
     if (check_from_clipped && vertex.isClipped()) {
       // CASE WHERE STARTING VERTEX IS CLIPPED
       auto current_edge = vertex.getHalfEdge();
       const auto starting_edge = current_edge;
+      #ifdef VALDEBUG
+      std::cout << "it is clipped \nstarting edge : " << *starting_edge << std::endl;
+      #endif
       do {
         // If it has needsToSeek set, it means it is a new vertex
         // or already visited. Either way, do not need to check
@@ -1170,12 +1185,18 @@ formCylinderIntersectionBasesClipped(
         if (vertex_start->needsToSeek()) {
           current_edge =
               current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+          #ifdef VALDEBUG
+          std::cout << "starting vertex has need to seek flag. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
+          #endif
           continue;
         }
         const auto& vertex_end = current_edge->getVertex();
         if (vertex_start->isNotClipped() && vertex_end->isNotClipped()) {
           current_edge =
               current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+          #ifdef VALDEBUG
+          std::cout << "starting and end vertex are notClipped. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
+          #endif
           continue;
         }
 
@@ -1189,23 +1210,22 @@ formCylinderIntersectionBasesClipped(
         checkAndFindIntercepts<pt_type, ScalarType>(
             a_aligned_cylinder, edge_start, edge_end, &edge_intercepts,
             nudge_epsilon, elliptic);
-
         // Size of returned intercepts indicates single or double
         // intercept (or none)
         if (edge_intercepts.size() == 1) {
 
-  #ifdef VALDEBUG
-  std::cout << "one intersection find at " << edge_intercepts[0] << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "one intersection find at " << edge_intercepts[0] << std::endl;
+          #endif
           // Check for intersection near end points
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
-  #endif
+            #ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
+            #endif
             break;
           }
 
@@ -1225,9 +1245,9 @@ formCylinderIntersectionBasesClipped(
           opposite_face->setStartingHalfEdge(opposite_half_edge);
           opposite_face->addIntersection();
         } else if (edge_intercepts.size() == 2) {
-  #ifdef VALDEBUG
-  std::cout << "two intersection find at " << edge_intercepts[0] << " and " << edge_intercepts[1] << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "two intersection find at " << edge_intercepts[0] << " and " << edge_intercepts[1] << std::endl;
+          #endif
           // Check for intersection near end points
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
@@ -1236,9 +1256,9 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
-  #endif
+            #ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
+            #endif
             break;
           }
 
@@ -1261,13 +1281,24 @@ formCylinderIntersectionBasesClipped(
               current_edge->getOppositeHalfEdge());
           opposite_face->addDoubleIntersection();
         }
+        #ifdef VALDEBUG
+        if (edge_intercepts.size() == 0) {
+          std::cout << "no intersection on that edge" << std::endl;
+        }
+        #endif
         current_edge =
             current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+        #ifdef VALDEBUG
+        std::cout << "next edge : " << *current_edge << std::endl;
+        #endif
       } while (current_edge != starting_edge);
     } else if (check_from_unclipped && vertex.isNotClipped()) {
       // CASE WHERE STARTING VERTEX IS UNCLIPPED
       auto current_edge = vertex.getHalfEdge();
       const auto starting_edge = current_edge;
+      #ifdef VALDEBUG
+      std::cout << "it is not clipped \nstarting edge : " << *starting_edge << std::endl;
+      #endif
       do {
         // If it has needsToSeek set, it means it is a new vertex
         // or already visited. Either way, do not need to check
@@ -1276,6 +1307,9 @@ formCylinderIntersectionBasesClipped(
         if (vertex_start->needsToSeek()) {
           current_edge =
               current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+          #ifdef VALDEBUG
+          std::cout << "starting edge has need to seek flag. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
+          #endif
           continue;
         }
         const auto& vertex_end = current_edge->getVertex();
@@ -1284,11 +1318,17 @@ formCylinderIntersectionBasesClipped(
             if (vertex_start->isNotClipped() && vertex_end->isNotClipped()) {
               current_edge =
                   current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+              #ifdef VALDEBUG
+              std::cout << "starting and end vertex are notClipped. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
+              #endif
               continue;
             }
           } else if (vertex_start->isClipped() && vertex_end->isClipped()) {
             current_edge =
                 current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+            #ifdef VALDEBUG
+            std::cout << "starting and end vertex are Clipped has need to seek flag. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
+            #endif
             continue;
           }
         }
@@ -1375,8 +1415,16 @@ formCylinderIntersectionBasesClipped(
               opposite_half_edge->getNextHalfEdge());
           opposite_face->addDoubleIntersection();
         }
+        #ifdef VALDEBUG
+        if (edge_intercepts.size() == 0) {
+          std::cout << "no intersection on that edge" << std::endl;
+        }
+        #endif
         current_edge =
             current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
+        #ifdef VALDEBUG
+        std::cout << "next edge : " << *current_edge << std::endl;
+        #endif
       } while (current_edge != starting_edge);
     }
     // If nudge is requested, we exit loop and mark unvisited vertices
@@ -2604,6 +2652,13 @@ formCylinderIntersectionBasesClipped(
             (prev_vertex->isClipped() ||
              (prev_vertex->doesNotNeedToSeek() &&
               entry_half_edge->getNextHalfEdge()->getVertex()->isNotClipped()));
+        #ifdef VALDEBUG
+        std::cout << "checking if first vertex is an entry : " << std::endl;
+        std::cout << "previous_vertex : " << *prev_vertex << std::endl;
+        std::cout << "next_vertex : " << *(entry_half_edge->getNextHalfEdge()->getVertex()) << std::endl;
+        std::cout << "last intersection vertex : " << *(intersections[intersection_size-1].first->getVertex()) << std::endl;
+        std::cout << "entry_first : " << entry_first << std::endl;
+        #endif
         std::size_t start_id = entry_first ? 0 : 1;
         entry_first = false;
         for (std::size_t i = start_id; i < intersection_size; i += 2) {
