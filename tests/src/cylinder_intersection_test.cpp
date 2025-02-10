@@ -66,8 +66,8 @@ TEST(CylinderIntersection, SISCPaperFig5) {
        RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(1.2, 1.2, 1.2)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, -0.5, 0.0),
                                           Pt(1.0, 0.5, 1.0)),
-       RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, 0.0),
-                                          Pt(1.0, 1.0, 1.0)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, 0.2),
+                                          Pt(1.0, 1.0, 1.2)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, -1.0),
                                           Pt(1.0, 1.0, 1.0))});
   std::array<std::string, 6> surface_filenames(
@@ -86,7 +86,7 @@ TEST(CylinderIntersection, SISCPaperFig5) {
 
   // Compute moments and return parametrized surface
   for (UnsignedIndex_t i = 0; i < 6; i++) {
-    auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
+    auto temp_moments = getVolumeMoments<VolumeMoments>(cubes[i], cylinder);
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
     auto amr_moments =
@@ -104,6 +104,8 @@ TEST(CylinderIntersection, SISCPaperFig5) {
               << amr_moments.centroid() << std::endl;
     auto& centroid = temp_surface_and_moments.getMoments().centroid();
     centroid /= temp_surface_and_moments.getMoments().volume().volume();
+    auto& centroid_No_S = temp_moments.centroid();
+    centroid_No_S /= temp_moments.volume().volume();
     auto& amr_centroid = amr_moments.centroid();
     amr_centroid /= amr_moments.volume().volume();
     std::cout << "the " << i << "th computed center of mass is :" << centroid
@@ -113,7 +115,21 @@ TEST(CylinderIntersection, SISCPaperFig5) {
 
 
     EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
-              temp_moments.volume(), 1e-13);
+              temp_moments.volume().volume(), 1e-13);
+    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
+              amr_moments.volume().volume(), 1e-13);
+    EXPECT_NEAR(centroid[0],
+              amr_centroid[0], 1e-13);
+    EXPECT_NEAR(centroid[0],
+              centroid_No_S[0], 1e-13);
+    EXPECT_NEAR(centroid[1],
+              amr_centroid[1], 1e-13);
+    EXPECT_NEAR(centroid[1],
+              centroid_No_S[1], 1e-13);
+    EXPECT_NEAR(centroid[2],
+              amr_centroid[2], 1e-13);
+    EXPECT_NEAR(centroid[2],
+              centroid_No_S[2], 1e-13);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -122,36 +138,78 @@ TEST(CylinderIntersection, SISCPaperFig5) {
 
 TEST(HyperCylinderIntersection, SISCPaperFig5) {
   using VolumeAndSuface =
-      AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
+      AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
 
   // Defining elliptic paraboloic
-  AlignedCylinder aligned_cylinder({-2.0, 0.5});
+  AlignedCylinder aligned_cylinder({-2.0, 0.1});
   Pt datum(0, 0, 0);
   ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
   Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
 
   // Constructing cells for each subfigure
-  auto cubes = std::array<RectangularCuboid, 5>(
+  auto cubes = std::array<RectangularCuboid, 3>(
       {RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(0.8, 0.8, 0.8)),
-       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(1.0, 1.0, 1.0)),
-       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(1.2, 1.2, 1.2)),
        RectangularCuboid::fromBoundingPts(Pt(0.0, -0.5, 0.0),
                                           Pt(1.0, 0.5, 1.0)),
-       RectangularCuboid::fromBoundingPts(Pt(0.0, -1.0, 0.0),
-                                          Pt(1.0, 1.0, 1.0))});
-  std::array<std::string, 5> surface_filenames(
-      {"surface_a", "surface_b", "surface_c", "surface_d", "surface_e"});
-  std::array<std::string, 5> clipped_faces_filenames(
-      {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e"});
+       RectangularCuboid::fromBoundingPts(Pt(-1.0, -1.0,-1.0),
+                                          Pt( 1.0,  1.0, 1.0))});
+  std::array<std::string, 3> surface_filenames(
+      {"hyper_surface_a", "hyper_surface_b", "hyper_surface_c"});
+  std::array<std::string, 3> clipped_faces_filenames(
+      {"_hyper_cube_a", "_hyper_cube_b", "_hyper_cube_c"});
+
+  std::array<HalfEdgePolyhedronQuadratic<Pt>, 3> half_edges;
+  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>, IRL::VertexQuadratic<IRL::Pt>>, 3> seg_half_edges;
+  for (UnsignedIndex_t i = 0; i < 3; i++) {
+    cubes[i].setHalfEdgeVersion(&(half_edges[i]));
+    seg_half_edges[i] = half_edges[i].generateSegmentedPolyhedron();
+  }
+  const UnsignedIndex_t nlevels = 10;
+
   // Compute moments and return parametrized surface
-  for (UnsignedIndex_t i = 0; i < 5; i++) {
+  for (UnsignedIndex_t i = 0; i < 3; i++) {
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
-    std::cout << "the " << i << "th volum is :" << std::setprecision(20)
-              << temp_surface_and_moments.getMoments().volume() << std::endl;
-    auto temp_moments = getVolumeMoments<Volume>(cubes[i], cylinder);
-    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(),
-              temp_moments.volume(), 1e-13);
+    auto temp_moments = getVolumeMoments<VolumeMoments>(cubes[i], cylinder);
+    auto amr_moments =
+        intersectPolyhedronWithCylinderAMR<VolumeMoments>(
+            &(seg_half_edges[i]), &(half_edges[i]), aligned_cylinder, nlevels, clipped_faces_filenames[i]);
+    std::cout << "the " << i << "th computed volume is :" << std::setprecision(20)
+              << temp_surface_and_moments.getMoments().volume().volume()
+              << std::endl;
+    std::cout << "the " << i << "th amr      volume is :"
+              << amr_moments.volume().volume()
+              << std::endl;
+    std::cout << "the " << i << "th computed centroid is :"
+              << temp_surface_and_moments.getMoments().centroid() << std::endl;
+    std::cout << "the " << i << "th amr      centroid is :"
+              << amr_moments.centroid() << std::endl;
+    auto& centroid = temp_surface_and_moments.getMoments().centroid();
+    centroid /= temp_surface_and_moments.getMoments().volume().volume();
+    auto& centroid_No_S = temp_moments.centroid();
+    centroid_No_S /= temp_moments.volume().volume();
+    auto& amr_centroid = amr_moments.centroid();
+    amr_centroid /= amr_moments.volume().volume();
+    std::cout << "the " << i << "th computed center of mass is :" << centroid
+              << std::endl;
+    std::cout << "the " << i << "th amr      center of mass is :" << amr_centroid
+              << std::endl << std::endl;
+    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
+              temp_moments.volume().volume(), 1e-13);
+    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
+              amr_moments.volume().volume(), 1e-13);
+    EXPECT_NEAR(centroid[0],
+              amr_centroid[0], 1e-13);
+    EXPECT_NEAR(centroid[0],
+              centroid_No_S[0], 1e-13);
+    EXPECT_NEAR(centroid[1],
+              amr_centroid[1], 1e-13);
+    EXPECT_NEAR(centroid[1],
+              centroid_No_S[1], 1e-13);
+    EXPECT_NEAR(centroid[2],
+              amr_centroid[2], 1e-13);
+    EXPECT_NEAR(centroid[2],
+              centroid_No_S[2], 1e-13);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);

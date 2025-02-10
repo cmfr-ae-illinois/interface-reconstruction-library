@@ -417,13 +417,23 @@ std::pair<bool, bool> computeZBounds(const AlignedCylinder& a_aligned_cylinder,
               a_aligned_cylinder.b() * tri_bounds[3] * tri_bounds[3];
   z0 = std::sqrt(std::max(0.0, z0));
   z1 = std::sqrt(std::max(0.0, z1));
-  const double cyl_max = tri_bounds[2] * tri_bounds[3] <= 0.0
-                             ? std::sqrt(a_aligned_cylinder.r())
-                             : std::max({z0, z1});
-  const double cyl_min = std::min({z0, z1});
-  // Return min/max of z height of triangle and cylinder
-  return std::pair<bool, bool>({cyl_min > tri_bounds[5] + AMR_DBL_EPSILON,
-                                tri_bounds[4] > cyl_max + AMR_DBL_EPSILON});
+  if (a_aligned_cylinder.b() >= 0) {
+    const double cyl_max = tri_bounds[2] * tri_bounds[3] <= 0.0
+                              ? std::sqrt(a_aligned_cylinder.r())
+                              : std::max({z0, z1});
+    const double cyl_min = std::min({z0, z1});
+    // Return min/max of z height of triangle and cylinder
+    return std::pair<bool, bool>({cyl_min > tri_bounds[5] + AMR_DBL_EPSILON,
+                                  tri_bounds[4] > cyl_max + AMR_DBL_EPSILON});
+  } else {
+    const double cyl_max = std::max({z0, z1});
+    const double cyl_min = tri_bounds[2] * tri_bounds[3] <= 0.0
+                              ? std::sqrt(a_aligned_cylinder.r())
+                              : std::min({z0, z1});
+    // Return min/max of z height of triangle and cylinder
+    return std::pair<bool, bool>({cyl_min > tri_bounds[5] + AMR_DBL_EPSILON,
+                                  tri_bounds[4] > cyl_max + AMR_DBL_EPSILON});
+  }
 }
 
 template <class ReturnType>
@@ -530,8 +540,12 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
       std::pair<ReturnType, ReturnType>({ReturnType::fromScalarConstant(0.0),
                                          ReturnType::fromScalarConstant(0.0)});
 
+  bool elliptic = a_cylinder.b() >= 0.0;
+
+  int nb_cut = elliptic ? 4 : 2;
+
   // If elliptic cylinder, clip region outside cylinder
-  if (a_cylinder.b() >= 0.0) {
+  if (elliptic) {
     const double semi_major_axis = std::sqrt(a_cylinder.r());
     const double semi_minor_axis = std::sqrt(a_cylinder.r() / a_cylinder.b());
     SegmentedHalfEdgePolyhedronType dummy_clipped_polytope;
@@ -557,31 +571,60 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
   // SegmentedHalfEdgePolyhedronType bottom_polytope;
   // splitHalfEdgePolytope(a_polytope, &bottom_polytope, a_complete_polytope,
   //                       Plane(Normal(0.0, 0.0, -1.0), 0.0));
+
+  std::vector<SegmentedHalfEdgePolyhedronType*> polytope_list;
+  std::vector<AlignedCylinder> cylinder_list;
+  std::vector<double> rotation_list;
   SegmentedHalfEdgePolyhedronType p1, p2, p3;
-  splitHalfEdgePolytope(
-      a_polytope, &p1, a_complete_polytope,
-      Plane(Normal(0.0, 1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
-  splitHalfEdgePolytope(
-      a_polytope, &p2, a_complete_polytope,
-      Plane(Normal(0.0, -1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
-  SegmentedHalfEdgePolyhedronType* N_polytope = a_polytope;
-  SegmentedHalfEdgePolyhedronType* W_polytope = &p2;
-  splitHalfEdgePolytope(
-      &p1, &p3, a_complete_polytope,
-      Plane(Normal(0.0, -1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
-  SegmentedHalfEdgePolyhedronType* E_polytope = &p1;
-  SegmentedHalfEdgePolyhedronType* S_polytope = &p3;
 
-  std::array<SegmentedHalfEdgePolyhedronType*, 4> polytope_list = {
-      N_polytope, E_polytope, S_polytope, W_polytope};
-  const auto rotated_cylinder =
-      AlignedCylinder({1.0 / a_cylinder.b(), a_cylinder.r() / a_cylinder.b()});
-  std::array<AlignedCylinder, 4> cylinder_list = {a_cylinder, rotated_cylinder,
-                                                  a_cylinder, rotated_cylinder};
-  std::array<double, 4> rotation_list = {0.0, M_PI / 2.0, M_PI,
-                                         3.0 * M_PI / 2.0};
+  if (elliptic) {
+    const auto rotated_cylinder =
+        AlignedCylinder({1.0 / a_cylinder.b(), a_cylinder.r() / a_cylinder.b()});
+    splitHalfEdgePolytope(
+        a_polytope, &p1, a_complete_polytope,
+        Plane(Normal(0.0, 1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
+    splitHalfEdgePolytope(
+        a_polytope, &p2, a_complete_polytope,
+        Plane(Normal(0.0, -1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
+    polytope_list.push_back(a_polytope);
+    cylinder_list.push_back(a_cylinder);
+    rotation_list.push_back(0.0);
+    // SegmentedHalfEdgePolyhedronType* N_polytope = a_polytope;
+    polytope_list.push_back(&p2);
+    cylinder_list.push_back(rotated_cylinder);
+    rotation_list.push_back(3.0 * M_PI / 2.0);
+    // SegmentedHalfEdgePolyhedronType* W_polytope = &p2;
+    splitHalfEdgePolytope(
+        &p1, &p3, a_complete_polytope,
+        Plane(Normal(0.0, -1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
+    polytope_list.push_back(&p1);
+    cylinder_list.push_back(rotated_cylinder);
+    rotation_list.push_back(M_PI / 2.0);
+    // SegmentedHalfEdgePolyhedronType* E_polytope = &p1;
+    polytope_list.push_back(&p3);
+    cylinder_list.push_back(a_cylinder);
+    rotation_list.push_back(M_PI);
+    // SegmentedHalfEdgePolyhedronType* S_polytope = &p3;
 
-  for (int i = 0; i < 4; i++) {
+    // std::array<SegmentedHalfEdgePolyhedronType*, 4> polytope_list = {
+    //     N_polytope, E_polytope, S_polytope, W_polytope};
+    // std::array<AlignedCylinder, 4> cylinder_list = {a_cylinder, rotated_cylinder,
+    //                                                 a_cylinder, rotated_cylinder};
+    // std::array<double, 4> rotation_list = {0.0, M_PI / 2.0, M_PI,
+    //                                       3.0 * M_PI / 2.0};
+  } else {
+    splitHalfEdgePolytope(
+        a_polytope, &p1, a_complete_polytope,
+        Plane(Normal(0.0, 0.0, -1.0), 0.0));
+    polytope_list.push_back(a_polytope);
+    cylinder_list.push_back(a_cylinder);
+    rotation_list.push_back(0.0);
+    polytope_list.push_back(&p1);
+    cylinder_list.push_back(a_cylinder);
+    rotation_list.push_back(M_PI);
+  }
+
+  for (int i = 0; i < nb_cut; i++) {
     auto& polytope = polytope_list[i];
     auto& cylinder = cylinder_list[i];
     if (polytope != nullptr) {

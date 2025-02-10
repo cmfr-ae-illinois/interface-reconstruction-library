@@ -342,6 +342,11 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
 #ifdef VALDEBUG2
   std::cout << "triangulating a cylinder surface\nThere is " << nArcs
             << " arcs\nLet's find the close curves\n";
+  std::cout << "indexes of flip are : ";
+  for (int indice : an_indexes_of_flip) {
+    std::cout << indice << " ";
+  }
+  std::cout << std::endl;
 #endif
 
   std::vector<std::vector<RationalBezierArc>> list_of_closed_curves;
@@ -375,41 +380,110 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         list_of_closed_curves.push_back(
             std::vector<RationalBezierArc>({arc_list_m[t]}));
       }
-  #ifdef VALDEBUG2
-      std::cout << "starting a curve with an arc going from "
-                << arc_list_m[t].start_point() << " to "
-                << arc_list_m[t].end_point() << std::endl;
-  #endif
+      #ifdef VALDEBUG2
+          std::cout << "starting a curve with an arc going from "
+                    << arc_list_m[t].start_point() << " to "
+                    << arc_list_m[t].end_point() << std::endl;
+      #endif
       const std::uintptr_t start_id = arc_list_m[t].start_point_id();
       std::uintptr_t end_id = arc_list_m[t].end_point_id();
+      Pt pe = arc_list_m[t].end_point();
       int counter = 0;
       while (end_id != start_id) {
+        bool next_edge_found = false;
         for (std::size_t e = t + 1; e < an_indexes_of_flip[i+1]; ++e) {
-          if (arc_list_m[e].start_point_id() == end_id) {
-            visited[e] = true;
-  #ifdef VALDEBUG2
-            std::cout << "next curve is an arc going from "
-                      << arc_list_m[e].start_point() << " to "
-                      << arc_list_m[e].end_point() << std::endl;
-  #endif
-            if (arc_list_m[e].weight() > 1.0e15) {
-              const Pt p0 = arc_list_m[e].start_point();
-              const Pt p1 = arc_list_m[e].control_point();
-              const Pt p2 = arc_list_m[e].end_point();
+          if (!visited[e]) {
+            if (arc_list_m[e].start_point_id() == end_id) {
+              visited[e] = true;
+              next_edge_found = true;
+              #ifdef VALDEBUG2
+                  std::cout << "next arc is going from "
+                            << arc_list_m[e].start_point() << " to "
+                            << arc_list_m[e].end_point() << std::endl;
+              #endif
+              if (arc_list_m[e].weight() > 1.0e15) {
+                const Pt p0 = arc_list_m[e].start_point();
+                const Pt p1 = arc_list_m[e].control_point();
+                const Pt p2 = arc_list_m[e].end_point();
+                list_of_closed_curves.back().push_back(
+                    RationalBezierArc(p0, 0.5 * (p0 + p1), p1, 0.0));
+                list_of_closed_curves.back().push_back(
+                    RationalBezierArc(p1, 0.5 * (p1 + p2), p2, 0.0));
+              } else {
+                list_of_closed_curves.back().push_back(arc_list_m[e]);
+              }
+              end_id = arc_list_m[e].end_point_id();
+              pe = arc_list_m[e].end_point();
+              break;
+            }
+          }
+        }
+        if (!next_edge_found) {
+          #ifdef VALDEBUG2
+          std::cout << "could not find the next arc by comparing id. "
+                        "trying to find by compaing distance" << std::endl;
+          #endif
+          double min_dist = DBL_MAX;
+          std::size_t min_index = -1;
+          for (std::size_t e = t + 1; e < an_indexes_of_flip[i+1]; ++e) {
+            if (!visited[e]) {
+              double dist = squaredMagnitude(pe - arc_list_m[e].start_point());
+              #ifdef VALDEBUG2
+              std::cout << "points : " << arc_list_m[e].start_point() << ", dist : " << dist << std::endl;
+              #endif
+              if (dist < min_dist) {
+                min_dist = dist;
+                min_index = e;
+              }
+            }
+          }
+          if (min_dist <= DBL_EPSILON) {
+            next_edge_found = true;
+            visited[min_index] = true;
+            #ifdef VALDEBUG2
+                std::cout << "next arc is going from "
+                          << arc_list_m[min_index].start_point() << " to "
+                          << arc_list_m[min_index].end_point() << std::endl;
+            #endif
+            if (arc_list_m[min_index].weight() > 1.0e15) {
+              const Pt p0 = arc_list_m[min_index].start_point();
+              const Pt p1 = arc_list_m[min_index].control_point();
+              const Pt p2 = arc_list_m[min_index].end_point();
               list_of_closed_curves.back().push_back(
                   RationalBezierArc(p0, 0.5 * (p0 + p1), p1, 0.0));
               list_of_closed_curves.back().push_back(
                   RationalBezierArc(p1, 0.5 * (p1 + p2), p2, 0.0));
             } else {
-              list_of_closed_curves.back().push_back(arc_list_m[e]);
+              list_of_closed_curves.back().push_back(arc_list_m[min_index]);
             }
-            end_id = arc_list_m[e].end_point_id();
-            break;
+            end_id = arc_list_m[min_index].end_point_id();
+            pe = arc_list_m[min_index].end_point();
+          } else {
+            #ifdef VALDEBUG2
+            std::cout << "could not find the next arc by compaing distance" << std::endl;
+            #endif
           }
         }
-        if (++counter > nArcs) {
-          valid_curves = false;
-          break;
+        if (!next_edge_found) {
+          #ifdef VALDEBUG2
+          std::cout << "could not find the next arc by any means\n" 
+                      "current ending point is " << pe << "\n"
+                      "start point to join is " << arc_list_m[t].start_point() << "\n"
+                      "dist : " << squaredMagnitude(pe - arc_list_m[t].start_point()) << std::endl;
+          #endif
+          // quick hack to end if the start and end point are at the same position but doenst have the same id
+          if (squaredMagnitude(pe - arc_list_m[t].start_point()) <= DBL_EPSILON) {
+            end_id = start_id;
+            #ifdef VALDEBUG2
+            std::cout << "because the points it is closed but with defferent ids, force end" << std::endl;
+            #endif
+          } else {
+            #ifdef VALDEBUG2
+            std::cout << "invalid curve" << std::endl;
+            #endif
+            valid_curves = false;
+            break;
+          }
         }
       }
   #ifdef VALDEBUG2
@@ -619,6 +693,10 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       CDT cdt;
       const auto& aligned_cylinder = cylinder_m[r].getAlignedCylinder();
 
+      #ifdef VALDEBUG2
+          std::cout << "CGAL triangulation for cylinder " << aligned_cylinder << std::endl;
+      #endif
+
       // std::ofstream myfile;
       // myfile.open("triangulation_log.txt");
       // myfile << "Starting triangulating surface.\n";
@@ -776,6 +854,11 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
           count++;
         }
       }
+
+      #ifdef VALDEBUG2
+          std::cout << "adding " << count << " triangles" << std::endl;
+      #endif
+
       vlist.resize(vertix_offset + 3 * count);
       tlist.resize(triangle_offset + count, TriangulatedSurfaceOutput::TriangleStorage::value_type::
                               fromNoExistencePlane(vlist, {0, 0, 0}));

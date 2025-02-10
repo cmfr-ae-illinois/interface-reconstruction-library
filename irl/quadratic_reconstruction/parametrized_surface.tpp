@@ -1202,6 +1202,9 @@ inline std::vector<Pt*>& ParametrizedSurfaceOutput::getPts(void) {
 
 inline void ParametrizedSurfaceOutput::addArc(
     const RationalBezierArc& a_rational_bezier_arc) {
+  #ifdef VALDEBUG2
+  std::cout << "adding the following arc to the output : " << a_rational_bezier_arc << std::endl;
+  #endif
   arc_list_m.push_back(a_rational_bezier_arc);
 }
 
