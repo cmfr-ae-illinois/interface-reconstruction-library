@@ -2037,12 +2037,17 @@ formCylinderIntersectionBasesClipped(
         // const ScalarType invert =
         //     a_aligned_paraboloid.a() < ZERO ? -normal_invert : normal_invert;
         // Store angular position of intersection on the ellipse
-        const ScalarType invert = rectangle_face ? copysign(ONE, face_normal[2]) : copysign(ONE, face_normal[0]);
+        const ScalarType invert = rectangle_face 
+                                  ? copysign(ONE, face_normal[2]) 
+                                  : copysign(ONE, face_normal[0]);
         if (rectangle_face) {
+          const ScalarType rectify_invert = hyperbolic_face 
+                                            ? - invert
+                                            : invert;
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = invert * atan2(pt[1],
-                                            pt[0]);
+            element.second = rectify_invert * atan2(pt[1],
+                                                    pt[0]);
             #ifdef VALDEBUG
             std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
             #endif
