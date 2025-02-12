@@ -422,9 +422,9 @@ std::vector<ScalarType> AnalyticIntersections(const Parabola& parabola,
         t_vals[i] = tn;
         t = tn;
         froot = A * t * t + B * t + C;
-        if (fabs(froot) > 10. * double_eps) {
-          std::cout << "1 -- f(" << t << ") = " << froot << std::endl;
-        }
+        // if (fabs(froot) > 10. * double_eps) {
+        //   std::cout << "1 -- f(" << t << ") = " << froot << std::endl;
+        // }
       }
     }
     return t_vals;
@@ -583,9 +583,9 @@ std::vector<ScalarType> AnalyticIntersections(const Parabola& parabola,
         t_vals[i] = tn;
         t = tn;
         froot = A * t * t * t * t + B * t * t * t + C * t * t + D * t + E;
-        if (fabs(froot) > 10. * double_eps) {
-          std::cout << "2 -- f(" << t << ") = " << froot << std::endl;
-        }
+        // if (fabs(froot) > 10. * double_eps) {
+        //   std::cout << "2 -- f(" << t << ") = " << froot << std::endl;
+        // }
       }
     }
 
@@ -2195,6 +2195,15 @@ Mat MappingM2(const Mat& A, const Vec& b, const Moments& tri_liq_moment){
   Mat term4 = M0 * Mat( Vec(b[0]*b[0] , b[0]*b[1]), Vec(b[1]*b[0] , b[1]*b[1]) );
 
   return (term1 + term2 + term3 + term4);
+}
+
+Moments ComputeMappedTriangleMoments(const Moments& triangle_liq_moments, const Mat& A, const Vec& b){
+  Moments MappedTriangleMoments;
+  MappedTriangleMoments.m0() = triangle_liq_moments.m0();
+  MappedTriangleMoments.m1() = MappingPoint(A, b*triangle_liq_moments.m0(), triangle_liq_moments.m1());
+  MappedTriangleMoments.m2() = MappingM2(A, b, triangle_liq_moments);
+  
+  return MappedTriangleMoments;
 }
 
 }  // namespace IRL2D

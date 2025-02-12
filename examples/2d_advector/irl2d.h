@@ -476,6 +476,8 @@ Vec MappingPoint(const Mat& A, const Vec& b, const Vec& point);
 
 Mat MappingM2(const Mat& A, const Vec& b, const Moments& tri_liq_moment);
 
+Moments ComputeMappedTriangleMoments(const Moments& triangle_liq_moments, const Mat& A, const Vec& b);
+
 }  // namespace IRL2D
 
 #endif  // EXAMPLES_2D_ADVECTOR_IRL_2D_H_
