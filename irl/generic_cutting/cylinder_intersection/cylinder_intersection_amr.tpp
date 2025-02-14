@@ -581,7 +581,7 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     const auto rotated_cylinder =
         AlignedCylinder({1.0 / a_cylinder.b(), a_cylinder.r() / a_cylinder.b()});
 
-    double vector_norm = std::sqrt(1.0 + a_cylinder.b());
+    double vector_norm = std::sqrt(1.0 + a_cylinder.b()*a_cylinder.b());
     splitHalfEdgePolytope(
         a_polytope, &p1, a_complete_polytope,
         Plane(Normal(0.0, a_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));

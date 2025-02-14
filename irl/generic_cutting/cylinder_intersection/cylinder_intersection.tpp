@@ -2825,13 +2825,14 @@ formCylinderIntersectionBases(
 
     if (quad_cut) {
       SegmentedHalfEdgePolyhedronType p2;
+      ScalarType vector_norm = sqrt(1.0 + cylinder.b() * cylinder.b());
       splitHalfEdgePolytope(
           &a_polytope_copy, &p2, &a_complete_polytope_copy,
-          Plane(Normal(0.0, 1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
+          Plane(Normal(0.0, cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
       SegmentedHalfEdgePolyhedronType p3;
       splitHalfEdgePolytope(
           &a_polytope_copy, &p3, &a_complete_polytope_copy,
-          Plane(Normal(0.0, -1.0 / std::sqrt(2.0), -1.0 / std::sqrt(2.0)), 0.0));
+          Plane(Normal(0.0, -cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
 
     } else {
       SegmentedHalfEdgePolyhedronType p2;
