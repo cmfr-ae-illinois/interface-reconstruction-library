@@ -441,7 +441,7 @@ void computeMomentContributionAMR(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
     const double a_signed_area, const UnsignedIndex_t a_amr_level,
-    const UnsignedIndex_t a_max_amr_level,
+    const UnsignedIndex_t a_max_amr_level, const double max_length,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments_ref,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments,
     const bool a_print) {
@@ -450,6 +450,11 @@ void computeMomentContributionAMR(
   // Compute z-bounds of triangle and cylinder
   auto z_limits = computeZBounds(a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2);
 
+  double max_tri_lenght = sqrt(maximum(maximum(
+                            squaredDistanceBetweenPts(a_pt_0, a_pt_1),
+                            squaredDistanceBetweenPts(a_pt_1, a_pt_2)),
+                            squaredDistanceBetweenPts(a_pt_2, a_pt_0)));
+
   if (z_limits.first) {
     // Max of triangle is smaller than min of paraboloid
     moments_to_add[0] = computeMomentContributionUnclippedTriangle<ReturnType>(
@@ -457,7 +462,7 @@ void computeMomentContributionAMR(
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
     return;
-  } else if (z_limits.second) {
+  } else if (z_limits.second && max_tri_lenght <= max_length) {
     // Max of triangle is smaller than min of paraboloid
     moments_to_add[0] = computeMomentContributionClippedTriangle<ReturnType>(
         a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
@@ -478,19 +483,19 @@ void computeMomentContributionAMR(
   const Pt c2 = 0.5 * (a_pt_2 + a_pt_0);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, a_pt_0, c0, c2, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
       a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, a_pt_1, c1, c0, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
       a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, a_pt_2, c2, c1, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
       a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, c0, c1, c2, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
       a_print);
 }
 
@@ -572,10 +577,35 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
   // splitHalfEdgePolytope(a_polytope, &bottom_polytope, a_complete_polytope,
   //                       Plane(Normal(0.0, 0.0, -1.0), 0.0));
 
+  const Pt start_pt = a_polytope->getVertex(0)->getLocation().getPt();
+  double max_dist_sq = 0.0;
+
+  const UnsignedIndex_t original_number_of_vertices =
+      a_polytope->getNumberOfVertices();
+  for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
+    const Pt original_pt =
+        a_polytope->getVertex(v)->getLocation().getPt();
+    if (v > 0) {
+      max_dist_sq =
+          maximum(max_dist_sq, squaredMagnitude(original_pt - start_pt));
+    }
+  }
+
+  double length_threadshold = std::sqrt(max_dist_sq) / 100;
+
   std::vector<SegmentedHalfEdgePolyhedronType*> polytope_list;
   std::vector<AlignedCylinder> cylinder_list;
   std::vector<double> rotation_list;
   SegmentedHalfEdgePolyhedronType p1, p2, p3;
+
+  int32_t signed_amr_level = a_max_amr_level;
+  uint32_t real_max_amr_level = a_max_amr_level;
+
+  if (signed_amr_level < 0) {
+    real_max_amr_level = -signed_amr_level;
+    elliptic = false;
+    nb_cut = 2;
+  }
 
   if (elliptic) {
     const auto rotated_cylinder =
@@ -706,7 +736,7 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
               triangleSignedArea(ref_pt, prev_pt, curr_pt);
           computeMomentContributionAMR<ReturnType>(
               cylinder, ref_pt, prev_pt, curr_pt, face_normal, signed_area, 0,
-              a_max_amr_level, full_moments_ref, full_moments, print);
+              real_max_amr_level, length_threadshold, full_moments_ref, full_moments, print);
           prev_pt = curr_pt;
           current_half_edge = current_half_edge->getNextHalfEdge();
         } while (current_half_edge != starting_half_edge);

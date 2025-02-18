@@ -49,8 +49,8 @@ template <class ReturnType>
 void computeMomentContributionAMR(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
-    const double a_signed_area, const UnsignedIndex_t a_amr_level,
-    const UnsignedIndex_t a_max_amr_level,
+    const double a_signed_area,
+    const UnsignedIndex_t a_max_amr_level, const double max_length,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments_ref,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments,
     const bool a_print);
