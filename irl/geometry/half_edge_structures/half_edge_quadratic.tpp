@@ -136,7 +136,7 @@ inline const VertexType* HalfEdgeQuadratic<VertexType>::getPreviousVertex(
 
 template <class PtType>
 inline VertexQuadratic<PtType>::VertexQuadratic(void)
-    : vertex_location_m(PtBase<typename PtType::value_type>(
+    : vertex_location_m(PtType(
           static_cast<typename PtType::value_type>(0),
           static_cast<typename PtType::value_type>(0),
           static_cast<typename PtType::value_type>(0))),
@@ -193,6 +193,12 @@ template <class PtType>
 inline typename PtType::value_type VertexQuadratic<PtType>::getDistance(
     void) const {
   return distance_m;
+}
+
+template <class PtType>
+inline void VertexQuadratic<PtType>::setDistance(
+    typename PtType::value_type a_distance) {
+  distance_m = a_distance;
 }
 
 template <class PtType>

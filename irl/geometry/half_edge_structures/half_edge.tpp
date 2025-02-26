@@ -139,6 +139,19 @@ inline Vertex<PtType>::Vertex(const PtType& a_location)
       is_clipped_m(false),
       needs_to_seek_m(false) {}
 
+
+template <class PtType>
+Vertex<PtType>& Vertex<PtType>::operator=(const Vertex<PtType>& a_other) {
+  if (this != &a_other) {
+    vertex_location_m = a_other.getLocation();
+    half_edge_m = a_other.half_edge_m;
+    distance_m = a_other.distance_m;
+    is_clipped_m = a_other.is_clipped_m;
+    needs_to_seek_m = a_other.needs_to_seek_m;
+  }
+  return *this;
+}
+      
 template <class PtType>
 inline void Vertex<PtType>::setHalfEdge(HalfEdge<Vertex>* a_half_edge) {
   half_edge_m = a_half_edge;
@@ -169,6 +182,10 @@ inline void Vertex<PtType>::calculateDistanceToPlane(const Plane& a_plane) {
 template <class PtType>
 inline double Vertex<PtType>::getDistance(void) const {
   return distance_m;
+}
+template <class PtType>
+inline void Vertex<PtType>::setDistance(double a_distance) {
+  distance_m = a_distance;
 }
 
 template <class PtType>

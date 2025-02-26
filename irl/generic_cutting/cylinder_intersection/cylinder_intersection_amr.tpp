@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_CYLINDER_INTERSECTION_AMR_TPP_
-#define IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_CYLINDER_INTERSECTION_AMR_TPP_
+#ifndef IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_TPP_
+#define IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_TPP_
 
 #include <float.h>
 #include <cassert>
@@ -82,7 +82,7 @@ inline Volume computeMomentContributionClippedTriangle<Volume>(
   // Integrate.
   const double A =
       integrator.quadratureAdaptive(functor, 0.0, 1.0, epsabs, epsrel,
-                                    Eigen::Integrator<double>::GaussKronrod21);
+                                    Eigen::Integrator<double>::GaussKronrod41);
 
   return A;
 }
@@ -157,6 +157,37 @@ class ClippedTriangleCylinderYCentroid_Functor {
   const double x0, y0, x1, y1, x2, y2, b, r;
 };
 
+class ClippedTriangleCylinderZCentroid_Functor {
+ public:
+  ClippedTriangleCylinderZCentroid_Functor(const Pt& p0, const Pt& p1,
+                                        const Pt& p2,
+                                        const AlignedCylinder& cylinder)
+      : x0(p0[0]),
+        y0(p0[1]),
+        x1(p1[0]),
+        y1(p1[1]),
+        x2(p2[0]),
+        y2(p2[1]),
+        b(cylinder.b()),
+        r(cylinder.r()) {}
+
+  double operator()(double t) const {
+    const double HALF = 1.0 / 2.0;
+    const double lx01 = (1.0 - t) * x0 + t * x1;
+    const double lx12 = (1.0 - t) * x1 + t * x2;
+    const double lx20 = (1.0 - t) * x2 + t * x0;
+    const double ly01 = (1.0 - t) * y0 + t * y1;
+    const double ly12 = (1.0 - t) * y1 + t * y2;
+    const double ly20 = (1.0 - t) * y2 + t * y0;
+    return HALF * (r * lx01 * (y1 - y0) - b * lx01 * ly01 * ly01 * (y1 - y0) +
+                   r * lx12 * (y2 - y1) - b * lx12 * ly12 * ly12 * (y2 - y1) +
+                   r * lx20 * (y0 - y2) - b * lx20 * ly20 * ly20 * (y0 - y2));
+  }
+
+ private:
+  const double x0, y0, x1, y1, x2, y2, b, r;
+};
+
 template <>
 inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments>(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
@@ -186,29 +217,28 @@ inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments>(
   // Integrate.
   moments.volume() =
       integrator.quadratureAdaptive(functor, 0.0, 1.0, epsabs, epsrel,
-                                    Eigen::Integrator<double>::GaussKronrod21);
+                                    Eigen::Integrator<double>::GaussKronrod41);
 
   // Moments
 
   // Define the functor
   ClippedTriangleCylinderXCentroid_Functor functorX(a_pt_0, a_pt_1, a_pt_2,
                                                 a_aligned_cylinder);
-  // Define the integrator.
-  Eigen::Integrator<double> integratorX(limit);
 
   ClippedTriangleCylinderYCentroid_Functor functorY(a_pt_0, a_pt_1, a_pt_2,
                                                 a_aligned_cylinder);
 
-  // Define the integrator.
-  Eigen::Integrator<double> integratorY(limit);
+  // ClippedTriangleCylinderZCentroid_Functor functorZ(a_pt_0, a_pt_1, a_pt_2,
+  //                                               a_aligned_cylinder);
+
 
   // Integrate.
   moments.centroid()[0] =
-      integratorX.quadratureAdaptive(functorX, 0.0, 1.0, epsabs, epsrel,
-                                    Eigen::Integrator<double>::GaussKronrod21);
+      integrator.quadratureAdaptive(functorX, 0.0, 1.0, epsabs, epsrel,
+                                    Eigen::Integrator<double>::GaussKronrod41);
   moments.centroid()[1] =
-      integratorY.quadratureAdaptive(functorY, 0.0, 1.0, epsabs, epsrel,
-                                    Eigen::Integrator<double>::GaussKronrod21);
+      integrator.quadratureAdaptive(functorY, 0.0, 1.0, epsabs, epsrel,
+                                    Eigen::Integrator<double>::GaussKronrod41);
 
   // Z component has an simple analitic expression
   moments.centroid()[2] = a_signed_area *
@@ -450,10 +480,7 @@ void computeMomentContributionAMR(
   // Compute z-bounds of triangle and cylinder
   auto z_limits = computeZBounds(a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2);
 
-  double max_tri_lenght = sqrt(maximum(maximum(
-                            squaredDistanceBetweenPts(a_pt_0, a_pt_1),
-                            squaredDistanceBetweenPts(a_pt_1, a_pt_2)),
-                            squaredDistanceBetweenPts(a_pt_2, a_pt_0)));
+  double max_tri_lenght = triangleSignedArea(a_pt_0, a_pt_1, a_pt_2);
 
   if (z_limits.first) {
     // Max of triangle is smaller than min of paraboloid
@@ -591,8 +618,6 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     }
   }
 
-  double length_threadshold = std::sqrt(max_dist_sq) / 100;
-
   std::vector<SegmentedHalfEdgePolyhedronType*> polytope_list;
   std::vector<AlignedCylinder> cylinder_list;
   std::vector<double> rotation_list;
@@ -606,6 +631,8 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     elliptic = false;
     nb_cut = 2;
   }
+
+  double length_threadshold = max_dist_sq / 1000;
 
   if (elliptic) {
     const auto rotated_cylinder =
@@ -845,4 +872,4 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
   return full_moments[0].first;
 }
 }  // namespace IRL
-#endif  // IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_CYLINDER_INTERSECTION_AMR_TPP_
+#endif  // IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_TPP_

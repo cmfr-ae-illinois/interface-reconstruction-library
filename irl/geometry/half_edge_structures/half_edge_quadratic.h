@@ -113,7 +113,7 @@ class VertexQuadratic {
 
   void calculateDistanceToPlane(const PlaneBase<value_type>& a_plane);
   value_type getDistance(void) const;
-  value_type setDistance(void) const;
+  void setDistance(value_type a_distance);
 
   void markToBeClipped(void);
   void markToBeNotClipped(void);

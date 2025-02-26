@@ -367,6 +367,17 @@ void fullCopyOfCompletePolytope(
   std::vector<vertex_type*> vertex_mapping;
   vertex_mapping.resize(number_of_vertices);
 
+  for (const auto& face : (*a_polytope)) {
+    const auto starting_half_edge = face->getStartingHalfEdge();
+    auto current_half_edge = starting_half_edge;
+    do {
+      number_of_half_edges++;
+      current_half_edge = current_half_edge->getNextHalfEdge();
+    } while (current_half_edge != starting_half_edge);
+  }
+  a_copy_polytope->resize(number_of_half_edges, number_of_vertices,
+    number_of_faces);
+
   UnsignedIndex_t f = 0;
   for (const auto& face : (*a_polytope)) {
     face_mapping[f++] = face;
@@ -374,7 +385,6 @@ void fullCopyOfCompletePolytope(
     auto current_half_edge = starting_half_edge;
     do {
       hald_edge_mapping.push_back(current_half_edge);
-      number_of_half_edges++;
       current_half_edge = current_half_edge->getNextHalfEdge();
     } while (current_half_edge != starting_half_edge);
   }
@@ -382,8 +392,6 @@ void fullCopyOfCompletePolytope(
     vertex_mapping[v] = a_polytope->getVertex(v);
   }
 
-  a_copy_polytope->resize(number_of_half_edges, number_of_vertices,
-                               number_of_faces);
   for (UnsignedIndex_t v = 0; v < number_of_vertices; ++v) {
     const auto old_pt = a_polytope->getVertex(v)->getLocation();
     auto& new_pt = a_copy_polytope->getVertex(v).getLocation();
@@ -474,6 +482,17 @@ void convertPolytopeFromDoubleToQuadPrecision(
   std::vector<vertex_type*> vertex_mapping;
   vertex_mapping.resize(number_of_vertices);
 
+  for (const auto& face : (*a_polytope)) {
+    const auto starting_half_edge = face->getStartingHalfEdge();
+    auto current_half_edge = starting_half_edge;
+    do {
+      number_of_half_edges++;
+      current_half_edge = current_half_edge->getNextHalfEdge();
+    } while (current_half_edge != starting_half_edge);
+  }
+  a_converted_polytope->resize(number_of_half_edges, number_of_vertices,
+    number_of_faces);
+
   UnsignedIndex_t f = 0;
   for (const auto& face : (*a_polytope)) {
     face_mapping[f++] = face;
@@ -481,16 +500,12 @@ void convertPolytopeFromDoubleToQuadPrecision(
     auto current_half_edge = starting_half_edge;
     do {
       hald_edge_mapping.push_back(current_half_edge);
-      number_of_half_edges++;
       current_half_edge = current_half_edge->getNextHalfEdge();
     } while (current_half_edge != starting_half_edge);
   }
   for (UnsignedIndex_t v = 0; v < number_of_vertices; ++v) {
     vertex_mapping[v] = a_polytope->getVertex(v);
   }
-
-  a_converted_polytope->resize(number_of_half_edges, number_of_vertices,
-                               number_of_faces);
 
   for (UnsignedIndex_t v = 0; v < number_of_vertices; ++v) {
     const auto old_pt = a_polytope->getVertex(v)->getLocation();

@@ -94,12 +94,14 @@ class Vertex {
   HalfEdge<Vertex>* getHalfEdge(void);
   const HalfEdge<Vertex>* getHalfEdge(void) const;
 
+  Vertex& operator=(const Vertex& a_other);
+
   const pt_type& getLocation(void) const;
   void setLocation(const PtType& a_location);
 
   void calculateDistanceToPlane(const Plane& a_plane);
   double getDistance(void) const;
-  double setDistance(void) const;
+  void setDistance(double a_distance);
 
   void markToBeClipped(void);
   void markToBeNotClipped(void);

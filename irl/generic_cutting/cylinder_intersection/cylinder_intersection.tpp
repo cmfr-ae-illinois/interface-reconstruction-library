@@ -457,6 +457,9 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   const ScalarType inv_volume_scale = inv_scale * inv_scale * inv_scale;
   const ScalarType scale = ScalarType(ONE) / inv_scale;
   const ScalarType volume_scale = scale * scale * scale;
+  #ifdef VALDEBUG
+  std::cout << "the scale is : " << scale << std::endl;
+  #endif
 
   // Normalized polyhedron
   for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
@@ -2797,9 +2800,9 @@ formCylinderIntersectionBases(
     HalfEdgePolytopeType a_complete_polytope_copy;
     fullCopyOfCompletePolytope(a_polytope, a_complete_polytope, &a_complete_polytope_copy);
     auto a_polytope_copy = a_complete_polytope_copy.generateSegmentedPolyhedron();
-  #ifdef VALDEBUG
-  std::cout << "rotating polytope\n";
-  #endif
+    #ifdef VALDEBUG
+    std::cout << "rotating polytope\n";
+    #endif
     // rotating the polytop
     auto& cylinder = cylinder_list[i];
 
@@ -2865,9 +2868,9 @@ formCylinderIntersectionBases(
       break;
     }
 
-#ifdef VALDEBUG
-std::cout << "reverting the polytope\n";
-#endif
+    #ifdef VALDEBUG
+    std::cout << "reverting the polytope\n";
+    #endif
     // // Revert rotate polytope
     frame = ReferenceFrameBase<ScalarType>(NormalBase<ScalarType>(1, 0, 0), NormalBase<ScalarType>(0, 1, 0), NormalBase<ScalarType>(0, 0, 1));
     x_rotation = UnitQuaternionBase<ScalarType>(rotation_list[i], frame[0]);

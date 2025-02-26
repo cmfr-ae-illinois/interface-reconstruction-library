@@ -26,6 +26,7 @@
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting.h"
 
+#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 #include "irl/generic_cutting/cylinder_intersection/cylinder_intersection.h"
 #include "irl/generic_cutting/cylinder_intersection/cylinder_intersection_amr.h"
 #include "irl/geometry/general/normal.h"
@@ -47,9 +48,231 @@
 
 namespace {
 
+double ExactM0TranslatingCube_cylinder(const double y) {
+  const double TWO = 2.0;
+  const double SQRTWO = sqrt(2.0);
+  const double TWOSQRTWO = TWO * SQRTWO;
+  if (y < 3.0 - TWOSQRTWO) {
+    double sqrt_1 = sqrt(y * 
+      (4.0 + TWOSQRTWO - 3.0 * y -TWOSQRTWO * y));
+    double atan_1 = atan(sqrt(y / (4.0 - TWOSQRTWO - y)));
+    return (1.0/4.0) * sqrt_1 * (y - SQRTWO + SQRTWO * y) + atan_1;
+  } else if (y < TWOSQRTWO - TWO) {
+    return (1.0 / 8.0) * (TWO - TWO * TWOSQRTWO + M_PI + 4.0 * (1 + SQRTWO) * y);
+  } else {
+    double sqrt_2 = sqrt((TWO - y) * 
+      (3.0 * y + TWOSQRTWO * y - TWO - TWOSQRTWO));
+    double asin_2 = asin(sqrt(y - TWO + SQRTWO * y) / pow(TWO, 3.0 / 4.0));
+    return (1.0 / 8.0) * (TWO - TWO * TWOSQRTWO + M_PI + 4.0 * sqrt_2 + TWOSQRTWO * sqrt_2 - 
+      TWO * (1.0 + SQRTWO) * y * (sqrt_2 - TWO)) - asin_2;
+  }
+  return 0.0;
+}
+
+double ExactM1yTranslatingCube_cylinder(const double y) {
+  const double TWO = 2.0;
+  const double SQRTWO = sqrt(2.0);
+  const double TWOSQRTWO = TWO * SQRTWO;
+  const double TWELVTH = 1.0 / 12.0; 
+  const double TWENTYFORTH = 1.0 / 24.0; 
+  if (y < 3.0 - TWOSQRTWO) {
+    return TWELVTH * pow(y * (
+      4.0 + TWOSQRTWO - 3.0 * y - TWOSQRTWO * y), 1.5);
+  } else if (y < TWOSQRTWO - TWO) {
+    return TWENTYFORTH * (-1.0 + 6.0 * (TWO + SQRTWO) * y -
+      3.0 * (3.0 + TWOSQRTWO) * y * y);
+  } else {
+    double T1 = pow((TWO - y) * (
+      -TWO * (1.0 + SQRTWO) + (3.0 + TWOSQRTWO) * y), 1.5);
+    return TWENTYFORTH * (-1.0 + 12.0 * y + 3.0 * TWOSQRTWO * y -
+      9.0 * y * y - 3.0 * TWOSQRTWO * y * y - TWO * T1);
+  }
+  return 0.0;
+}
+
 using namespace IRL;
 
 TEST(CylinderIntersection, SISCPaperFig5) {
+  using VolumeAndSuface =
+      AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
+
+  const double INVSQRTWO = 1.0 / sqrt(2.0);
+  const double normalization = 1.0 / (INVSQRTWO + 0.5);
+
+  // Defining elliptic paraboloic
+  AlignedCylinder aligned_cylinder({1.0, 0.5});
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
+
+  // Constructing cells for each subfigure
+  auto cubes = std::array<RectangularCuboid, 3>(
+      {RectangularCuboid::fromBoundingPts(Pt(0.0, 0.6, -0.5), Pt(1.0, 1.6, 0.5)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.1, -0.5), Pt(1.0, 1.1, 0.5)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, -0.4, -0.5), Pt(1.0, 0.6, 0.5))});
+  std::array<std::string, 3> surface_filenames(
+      {"surface_1", "surface_2", "surface_3"});
+  std::array<std::string, 3> clipped_faces_filenames(
+      {"_cube_1", "_cube_2", "_cube_3"});
+
+  std::array<double, 3> offsets = {(INVSQRTWO - 0.6) * normalization,
+                                   (INVSQRTWO - 0.1) * normalization,
+                                   (INVSQRTWO + 0.4) * normalization};
+
+
+  std::array<HalfEdgePolyhedronQuadratic<Pt>, 3> half_edges;
+  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>, IRL::VertexQuadratic<IRL::Pt>>, 3> seg_half_edges;
+  for (UnsignedIndex_t i = 0; i < 3; i++) {
+    cubes[i].setHalfEdgeVersion(&(half_edges[i]));
+    seg_half_edges[i] = half_edges[i].generateSegmentedPolyhedron();
+  }
+  const UnsignedIndex_t nlevels = 10;
+
+  // Compute moments and return parametrized surface
+  for (UnsignedIndex_t i = 0; i < 3; i++) {
+    auto temp_surface_and_moments =
+        getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
+    auto amr_moments =
+        intersectPolyhedronWithCylinderAMR<VolumeMoments>(
+            &(seg_half_edges[i]), &(half_edges[i]), aligned_cylinder, nlevels, clipped_faces_filenames[i]);
+    auto centroid = temp_surface_and_moments.getMoments().centroid();
+    double exact_volume = ExactM0TranslatingCube_cylinder(offsets[i]);
+
+    EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
+                exact_volume, 1e-13);
+    EXPECT_NEAR(centroid[0] / temp_surface_and_moments.getMoments().volume().volume(),
+                0.5, 1e-13);
+    // EXPECT_NEAR(centroid[1] / temp_surface_and_moments.getMoments().volume().volume(),
+    //           amr_centroid[1], 1e-13);
+    EXPECT_NEAR(centroid[2] / temp_surface_and_moments.getMoments().volume().volume(),
+                0.0, 1e-13);
+    auto temp_param_surface = temp_surface_and_moments.getSurface();
+    auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+    temp_tri_surface.write(surface_filenames[i]);
+  }
+}
+
+TEST(CylinderIntersection, SISCPaperFig6) {
+
+  const double INVSQRTWO = 1.0 / sqrt(2.0);
+
+  AlignedCylinder aligned_cylinder({1.0, 0.5});  // DO NOT CHANGE
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(),
+                        aligned_cylinder.r());
+
+  //////////////////////////////// YOU CAN CHANGE THESE PARAMETERS
+  int Ntests = 3001;  // Number of tests
+  ////////////////////////////////
+
+  double max_volume_error = 0.0, rms_volume_error = 0.0;
+  // double max_surface_error = 0.0, rms_surface_error = 0.0;
+
+  std::ofstream myfile;
+  myfile.open("fig_cylinder.csv");
+  myfile << "k,m0p,m0p_exact,m0p_error,m1y,m1y_exact,m1y_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
+  myfile.close();
+
+  for (UnsignedIndex_t i = 0; i < Ntests; i++) {
+    // Create and translate unit cube
+    double k = INVSQRTWO - (0.5 + INVSQRTWO) * (static_cast<double>(i) /
+               static_cast<double>(Ntests - 1));
+    RectangularCuboid cube =
+        RectangularCuboid::fromBoundingPts(Pt(0.0, k, -0.5), Pt(1.0, 1.0 + k, 0.5));
+
+    // Compute moments and return parametrized surface
+    auto our_moments =
+        getVolumeMoments<VolumeMoments>(cube, cylinder);
+
+    std::cout << "-------------------------------------------------------------"
+                 "---------------------------------------------------------"
+              << std::endl;
+    std::cout << "Test " << i + 1 << "/" << Ntests << std::endl;
+
+    // Compute exact value for verification purposes
+    auto exact_volume = ExactM0TranslatingCube_cylinder(static_cast<double>(i) /
+    static_cast<double>(Ntests - 1));
+    auto exact_m1y = ExactM1yTranslatingCube_cylinder(static_cast<double>(i) /
+    static_cast<double>(Ntests - 1));
+    auto exact_centroid =
+        Pt(0.5*safelyEpsilon(exact_volume), exact_m1y, 0.0) / safelyEpsilon(exact_volume);
+    auto our_centroid =
+        our_moments.centroid() / safelyEpsilon(our_moments.volume());
+    // std::cout << std::setprecision(20)
+    //           << "Surface EXACT  = " << exact_surface_area << std::endl;
+    // std::cout << std::setprecision(20)
+    //           << "Surface IRL    = " << our_surface_area << std::endl;
+    std::cout << std::setprecision(20)
+              << "Vfrac unclipped EX  = " << exact_volume
+              << std::endl;
+    std::cout << std::setprecision(20)
+              << "Vfrac unclipped IRL = " << our_moments.volume()
+              << std::endl;
+    std::cout << std::setprecision(20)
+              << "Centroid unclipped EX  = " << exact_centroid << std::endl;
+    std::cout << std::setprecision(20)
+              << "Centroid unclipped IRL = " << our_centroid << std::endl;
+    // std::cout << "Diff Surface EX/IRL = "
+    //           << std::fabs(our_surface_area - exact_surface_area) /
+    //                  std::pow(poly_vol, 2.0 / 3.0)
+    //           << std::endl;
+    std::cout << "Diff Vfrac EX/IRL   = "
+              << std::fabs(our_moments.volume() - exact_volume)
+              << std::endl;
+    std::cout << "Diff centroid EX/IRL   = "
+              << Pt(exact_centroid - our_centroid)
+              << std::endl;
+    std::cout << "-------------------------------------------------------------"
+                 "---------------------------------------------------------"
+              << std::endl;
+
+    myfile.open("fig_cylinder.csv", std::ios::app);
+    // myfile << "k,m0p,m0p_exact,m0p_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
+    myfile << std::scientific << std::setprecision(20) << (static_cast<double>(i) /
+    static_cast<double>(Ntests - 1)) << ","
+           << our_moments.volume() << "," << exact_volume << ","
+           << std::fabs(our_moments.volume() - exact_volume) << ","
+           << our_moments.centroid()[1] << "," << exact_m1y << ","
+           << std::fabs(our_moments.centroid()[1] - exact_m1y) << std::endl; // " "
+          //  << our_moments.centroid()[2] << " " << exact_m1z << " "
+          //  << std::fabs(our_moments.centroid()[2] - exact_m1z) << " "
+          //  << our_surface_area << " " << exact_surface_area << " "
+          //  << std::fabs(our_surface_area - exact_surface_area) << "\n";
+    myfile.close();
+
+    max_volume_error =
+        max_volume_error >
+                std::fabs(our_moments.volume() - exact_volume)
+            ? max_volume_error
+            : std::fabs(our_moments.volume() - exact_volume);
+    // max_surface_error =
+    //     max_surface_error > std::fabs(our_surface_area - exact_surface_area) /
+    //                             std::pow(poly_vol, 2.0 / 3.0)
+    //         ? max_surface_error
+    //         : std::fabs(our_surface_area - exact_surface_area) /
+    //               std::pow(poly_vol, 2.0 / 3.0);
+    rms_volume_error += std::fabs(our_moments.volume() - exact_volume) *
+                        std::fabs(our_moments.volume() - exact_volume);
+    // rms_surface_error += std::fabs(our_surface_area - exact_surface_area) *
+    //                      std::fabs(our_surface_area - exact_surface_area) /
+    //                      std::pow(poly_vol, 4.0 / 3.0);
+  }
+  rms_volume_error = sqrt(rms_volume_error / static_cast<double>(Ntests));
+  // rms_surface_error = sqrt(rms_surface_error / static_cast<double>(Ntests));
+
+  // std::cout << "Max surface error = " << max_surface_error << std::endl;
+  // std::cout << "RMS surface error = " << rms_surface_error << std::endl;
+  std::cout << "Max volume error  = " << max_volume_error << std::endl;
+  std::cout << "RMS volume error  = " << rms_volume_error << std::endl;
+  std::cout << "-------------------------------------------------------------"
+               "---------------------------------------------------------"
+            << std::endl;
+
+  EXPECT_NEAR(max_volume_error, 0.0, 1.0e-14);
+}
+
+TEST(CylinderIntersection, Debug1) {
   using VolumeAndSuface =
       AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
 
@@ -136,6 +359,122 @@ TEST(CylinderIntersection, SISCPaperFig5) {
   }
 }
 
+TEST(CylinderIntersection, Debug2) {
+  using VolumeMomentsAndSuface =
+      AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
+
+  // Defining elliptic paraboloic
+  AlignedCylinder aligned_cylinder({1.0, 1.0});
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
+
+  // Constructing cells for each subfigure
+  std::array<Pt, 8> vertex_list{{Pt(-1.0, -0.2, 0.0), Pt(1.0, 2.2, 0.0),
+                                 Pt(1.0, 0.2, 2.0), Pt(3.0, 2.6, 2.0),
+                                 Pt(-2.0, -0.2, 0.0), Pt(0.0, 2.2, 0.0),
+                                 Pt(0.0, 0.2, 2.0), Pt(2.0, 2.6, 2.0)}};
+
+  std::array<std::array<UnsignedIndex_t, 4>, 6> face_mapping{{{0, 1, 3, 2},
+                                                              {2, 3, 7, 6},
+                                                              {3, 1, 5, 7},
+                                                              {1, 0, 4, 5},
+                                                              {0, 2, 6, 4},
+                                                              {4, 6, 7, 5}}};
+
+  PolyhedronConnectivity connectivity(face_mapping);
+  GeneralPolyhedron prism(vertex_list, &connectivity);
+  std::string surface_filename = "surface_debug";
+
+  HalfEdgePolyhedronQuadratic<Pt> half_edge;
+  prism.setHalfEdgeVersion(&half_edge);
+  auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
+
+  double th_volume_cylinder = M_PI / 4.0;
+  double th_volume_triangle = 0.1;
+  double th_volume_total = th_volume_cylinder + th_volume_triangle;
+  std::array<double, 2> theoretical_centroid = {
+      ((-0.2 / 3.0) * th_volume_triangle +
+       (4.0 / (3.0 * M_PI)) * th_volume_cylinder) /
+          th_volume_total,
+      ((1.0 / 3.0) * th_volume_triangle +
+       (4.0 / (3.0 * M_PI)) * th_volume_cylinder) /
+          th_volume_total};  // the x component of the centroid is not trivial
+
+  // Compute moments and return parametrized surface
+  auto temp_surface_and_moments =
+      getVolumeMoments<VolumeMomentsAndSuface>(prism, cylinder);
+  std::cout << "the volume is   :" << std::setprecision(20)
+            << temp_surface_and_moments.getMoments().volume() << std::endl;
+  std::cout << "expected volume :" << th_volume_total << std::endl;
+  const int nlevels = 8;
+  auto amr_volumeMoments = intersectPolyhedronWithCylinderAMR<VolumeMoments>(
+      &seg_half_edge, &half_edge, aligned_cylinder, nlevels, "_cube_debug");
+  std::cout << "the amr volume  :"
+            << amr_volumeMoments.volume().volume() << std::endl;
+  auto& centroid = temp_surface_and_moments.getMoments().centroid();
+  centroid /= temp_surface_and_moments.getMoments().volume();
+  auto& amr_centroid = amr_volumeMoments.centroid();
+  amr_centroid /= amr_volumeMoments.volume();
+  std::cout << "the normalize centroid is :" << centroid << std::endl;
+  std::cout << "expected centroid         :( ??????????????????, " << theoretical_centroid[0]
+            << ", " << theoretical_centroid[1] << ")\n";
+  std::cout << "the amr centroid is       :" << amr_centroid << std::endl;
+
+
+  auto temp_param_surface = temp_surface_and_moments.getSurface();
+  auto temp_tri_surface = temp_param_surface.triangulate(0.1);
+  temp_tri_surface.write(surface_filename);
+
+  EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(), th_volume_total, 1e-13);
+}
+
+TEST(CylinderIntersection, DebugAMR) {
+  // Defining elliptic paraboloic
+  AlignedCylinder aligned_cylinder({4.0, 1.0});
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
+
+  auto cube = RectangularCuboid::fromBoundingPts(Pt(-1.0, -1.0, -1.0),
+                                                 Pt(1.0, 1.0, 1.0));
+
+  // Compute moments and return parametrized surface
+  auto temp_moments = getVolumeMoments<Volume>(cube, cylinder);
+  std::cout << "expected volume          : " << std::setprecision(16) << M_PI
+            << std::endl;
+  std::cout << "irl volume               : " << std::setprecision(16)
+            << temp_moments.volume() << std::setprecision(3)
+            << " -- error: " << std::abs(temp_moments.volume() - M_PI)
+            << std::endl;
+
+  HalfEdgePolyhedronQuadratic<Pt> half_edge, dummy_half_edge;
+  cube.setHalfEdgeVersion(&half_edge);
+  cube.setHalfEdgeVersion(&dummy_half_edge);
+  auto dummy_seg_half_edge = dummy_half_edge.generateSegmentedPolyhedron();
+  auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
+
+  // Calculate volume of unclipped dodecahedron using AMR
+  int nlevels = 8;
+  // This first call prints the clipped/unclipped triangles in
+  // "test_cylinder_amr" files
+  auto dummy_amr_volume = intersectPolyhedronWithCylinderAMR<Volume>(
+      &dummy_seg_half_edge, &dummy_half_edge, aligned_cylinder, nlevels,
+      "test_cylinder_amr");
+
+  // This calculates the volume within machine zero
+  nlevels = 18;
+  auto amr_volume = intersectPolyhedronWithCylinderAMR<Volume>(
+      &seg_half_edge, &half_edge, aligned_cylinder, nlevels);
+
+  std::cout << "amr volume (" << nlevels
+            << " levels)   : " << std::setprecision(16) << amr_volume
+            << std::setprecision(3)
+            << " -- error: " << std::abs(amr_volume - M_PI) << std::endl;
+
+  EXPECT_NEAR(temp_moments.volume(), M_PI, 1e-13);
+}
+
 TEST(HyperCylinderIntersection, SISCPaperFig5) {
   using VolumeAndSuface =
       AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
@@ -216,76 +555,6 @@ TEST(HyperCylinderIntersection, SISCPaperFig5) {
   }
 }
 
-TEST(CylinderIntersection, Debug) {
-  using VolumeMomentsAndSuface =
-      AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
-
-  // Defining elliptic paraboloic
-  AlignedCylinder aligned_cylinder({1.0, 1.0});
-  Pt datum(0, 0, 0);
-  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
-  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
-
-  // Constructing cells for each subfigure
-  std::array<Pt, 8> vertex_list{{Pt(-1.0, -0.2, 0.0), Pt(1.0, 2.2, 0.0),
-                                 Pt(1.0, 0.2, 2.0), Pt(3.0, 2.6, 2.0),
-                                 Pt(-2.0, -0.2, 0.0), Pt(0.0, 2.2, 0.0),
-                                 Pt(0.0, 0.2, 2.0), Pt(2.0, 2.6, 2.0)}};
-
-  std::array<std::array<UnsignedIndex_t, 4>, 6> face_mapping{{{0, 1, 3, 2},
-                                                              {2, 3, 7, 6},
-                                                              {3, 1, 5, 7},
-                                                              {1, 0, 4, 5},
-                                                              {0, 2, 6, 4},
-                                                              {4, 6, 7, 5}}};
-
-  PolyhedronConnectivity connectivity(face_mapping);
-  GeneralPolyhedron prism(vertex_list, &connectivity);
-  std::string surface_filename = "surface_debug";
-
-  HalfEdgePolyhedronQuadratic<Pt> half_edge;
-  prism.setHalfEdgeVersion(&half_edge);
-  auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
-
-  double th_volume_cylinder = M_PI / 4.0;
-  double th_volume_triangle = 0.1;
-  double th_volume_total = th_volume_cylinder + th_volume_triangle;
-  std::array<double, 2> theoretical_centroid = {
-      ((-0.2 / 3.0) * th_volume_triangle +
-       (4.0 / (3.0 * M_PI)) * th_volume_cylinder) /
-          th_volume_total,
-      ((1.0 / 3.0) * th_volume_triangle +
-       (4.0 / (3.0 * M_PI)) * th_volume_cylinder) /
-          th_volume_total};  // the x component of the centroid is not trivial
-
-  // Compute moments and return parametrized surface
-  auto temp_surface_and_moments =
-      getVolumeMoments<VolumeMomentsAndSuface>(prism, cylinder);
-  std::cout << "the volume is   :" << std::setprecision(20)
-            << temp_surface_and_moments.getMoments().volume() << std::endl;
-  std::cout << "expected volume :" << th_volume_total << std::endl;
-  const int nlevels = 8;
-  auto amr_volumeMoments = intersectPolyhedronWithCylinderAMR<VolumeMoments>(
-      &seg_half_edge, &half_edge, aligned_cylinder, nlevels, "_cube_debug");
-  std::cout << "the amr volume  :"
-            << amr_volumeMoments.volume().volume() << std::endl;
-  auto& centroid = temp_surface_and_moments.getMoments().centroid();
-  centroid /= temp_surface_and_moments.getMoments().volume();
-  auto& amr_centroid = amr_volumeMoments.centroid();
-  amr_centroid /= amr_volumeMoments.volume();
-  std::cout << "the normalize centroid is :" << centroid << std::endl;
-  std::cout << "expected centroid         :( ??????????????????, " << theoretical_centroid[0]
-            << ", " << theoretical_centroid[1] << ")\n";
-  std::cout << "the amr centroid is       :" << amr_centroid << std::endl;
-
-
-  auto temp_param_surface = temp_surface_and_moments.getSurface();
-  auto temp_tri_surface = temp_param_surface.triangulate(0.1);
-  temp_tri_surface.write(surface_filename);
-
-  EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(), th_volume_total, 1e-13);
-}
-
 TEST(HyperCylinderIntersection, Debug) {
   using VolumeAndSuface =
       AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
@@ -345,50 +614,6 @@ TEST(HyperCylinderIntersection, Debug) {
             << std::endl;
 }
 
-TEST(CylinderIntersection, Debug2) {
-  using VolumeAndSuface =
-      AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
-
-  // Defining elliptic paraboloic
-  AlignedCylinder aligned_cylinder({2.0, 1.2});
-  Pt datum(0, 0, 0);
-  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
-  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
-
-  // Constructing cells for each subfigure
-  std::array<Pt, 8> vertex_list{{Pt(1.5, -0.5, 0.0), Pt(1.5, 0.5, 0.0),
-                                 Pt(1.0, -0.5, 1.0), Pt(1.0, 0.5, 1.0),
-                                 Pt(0.5, -0.5, 0.0), Pt(0.5, 0.5, 0.0),
-                                 Pt(0.0, -0.5, 1.0), Pt(0.0, 0.5, 1.0)}};
-
-  std::array<std::array<UnsignedIndex_t, 4>, 6> face_mapping{{{0, 1, 3, 2},
-                                                              {2, 3, 7, 6},
-                                                              {3, 1, 5, 7},
-                                                              {1, 0, 4, 5},
-                                                              {0, 2, 6, 4},
-                                                              {4, 6, 7, 5}}};
-
-  PolyhedronConnectivity connectivity(face_mapping);
-  GeneralPolyhedron prism(vertex_list, &connectivity);
-  GeneralPolyhedron prism_local_frame(vertex_list, &connectivity);
-  std::string surface_filename = "surface_debug";
-
-  // Compute moments and return parametrized surface
-  auto temp_surface_and_moments =
-      getVolumeMoments<VolumeAndSuface>(prism, cylinder);
-  auto just_volum = getVolumeMoments<Volume>(prism, cylinder);
-  std::cout << "the volume is (with surface) :" << std::setprecision(20)
-            << temp_surface_and_moments.getMoments().volume() << std::endl;
-  std::cout << "the volume is (no   surface) :" << std::setprecision(20)
-            << just_volum.volume() << std::endl;
-  auto temp_param_surface = temp_surface_and_moments.getSurface();
-  auto temp_tri_surface = temp_param_surface.triangulate(0.1);
-  temp_tri_surface.write(surface_filename);
-
-  EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(),
-            just_volum.volume(), 1e-13);
-}
-
 TEST(HyperCylinderIntersection, Debug2) {
   using VolumeAndSuface =
       AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
@@ -431,52 +656,6 @@ TEST(HyperCylinderIntersection, Debug2) {
 
   EXPECT_NEAR(temp_surface_and_moments.getMoments().volume(),
             just_volum.volume(), 1e-13);
-}
-
-TEST(CylinderIntersection, DebugAMR) {
-  // Defining elliptic paraboloic
-  AlignedCylinder aligned_cylinder({4.0, 1.0});
-  Pt datum(0, 0, 0);
-  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
-  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
-
-  auto cube = RectangularCuboid::fromBoundingPts(Pt(-1.0, -1.0, -1.0),
-                                                 Pt(1.0, 1.0, 1.0));
-
-  // Compute moments and return parametrized surface
-  auto temp_moments = getVolumeMoments<Volume>(cube, cylinder);
-  std::cout << "expected volume          : " << std::setprecision(16) << M_PI
-            << std::endl;
-  std::cout << "irl volume               : " << std::setprecision(16)
-            << temp_moments.volume() << std::setprecision(3)
-            << " -- error: " << std::abs(temp_moments.volume() - M_PI)
-            << std::endl;
-
-  HalfEdgePolyhedronQuadratic<Pt> half_edge, dummy_half_edge;
-  cube.setHalfEdgeVersion(&half_edge);
-  cube.setHalfEdgeVersion(&dummy_half_edge);
-  auto dummy_seg_half_edge = dummy_half_edge.generateSegmentedPolyhedron();
-  auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
-
-  // Calculate volume of unclipped dodecahedron using AMR
-  int nlevels = 8;
-  // This first call prints the clipped/unclipped triangles in
-  // "test_cylinder_amr" files
-  auto dummy_amr_volume = intersectPolyhedronWithCylinderAMR<Volume>(
-      &dummy_seg_half_edge, &dummy_half_edge, aligned_cylinder, nlevels,
-      "test_cylinder_amr");
-
-  // This calculates the volume within machine zero
-  nlevels = 18;
-  auto amr_volume = intersectPolyhedronWithCylinderAMR<Volume>(
-      &seg_half_edge, &half_edge, aligned_cylinder, nlevels);
-
-  std::cout << "amr volume (" << nlevels
-            << " levels)   : " << std::setprecision(16) << amr_volume
-            << std::setprecision(3)
-            << " -- error: " << std::abs(amr_volume - M_PI) << std::endl;
-
-  EXPECT_NEAR(temp_moments.volume(), M_PI, 1e-13);
 }
 
 }  // namespace

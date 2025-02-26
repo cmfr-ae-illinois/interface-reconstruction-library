@@ -126,12 +126,13 @@ AlignedCylinderBase<Quad_t> nudgeCylinder(
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneCylinderType,
-          class SurfaceOutputType>
+          class SurfaceOutputType, class CylinderScalarType>
 ReturnType reformQuadraticIntersectionBases(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
     const AligneCylinderType& a_aligned_cylinder,
-    const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface);
+    const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface,
+    PtBase<CylinderScalarType> a_datum, ReferenceFrameBase<CylinderScalarType> a_frame);
 
 }  // namespace IRL
 
