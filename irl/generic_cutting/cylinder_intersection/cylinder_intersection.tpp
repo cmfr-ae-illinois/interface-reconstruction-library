@@ -1083,7 +1083,7 @@ formCylinderIntersectionBasesClipped(
     // when cutting the polyhedron, sometime the new points
     // are not exactly on the Oxy plane
     // check the point are above the horizontal plane
-    assert(vertex.getLocation().getPt()[2] > -DBL_EPSILON);
+    assert(vertex.getLocation().getPt()[2] > -MACHINE_EPSILON);
     // if the point are below the plane but close to it, clipped it to the plane
     if (vertex.getLocation().getPt()[2] < ZERO) {
       auto& pt = vertex.getLocation().getPt();
@@ -2735,6 +2735,10 @@ formCylinderIntersectionBases(
   using Plane = PlaneBase<ScalarType>;
   using AlignedCylinder = AlignedCylinderBase<ScalarType>;
 
+  const ScalarType PI = machine_pi<ScalarType>();
+  const ScalarType HALF = ScalarType(1) / ScalarType(2);
+  const ScalarType TREEHALF = ScalarType(3) / ScalarType(2);
+
   assert(!(a_surface != nullptr &&
            std::is_same<SurfaceOutputType, NoSurfaceOutput>::value));
 
@@ -2807,7 +2811,7 @@ formCylinderIntersectionBases(
         Plane(Normal(0.0, -a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
     AlignedCylinder rotatedCylinder({1.0 / a_aligned_cylinder.b(), a_aligned_cylinder.r() / a_aligned_cylinder.b()});
     cylinder_list = {a_aligned_cylinder, rotatedCylinder, a_aligned_cylinder, rotatedCylinder};
-    rotation_list = {0.0, M_PI / 2.0, M_PI, 3.0 * M_PI / 2.0};
+    rotation_list = {0.0, PI * HALF, PI, PI * TREEHALF};
     polyhedron_list = {a_polytope_copy, p2, p4, p3};
   } else {
     SegmentedHalfEdgePolyhedronType p2;
@@ -2815,7 +2819,7 @@ formCylinderIntersectionBases(
         &a_polytope_copy, &p2, &a_complete_polytope_copy,
         Plane(Normal(0.0, 0.0, -1.0), 0.0));
     cylinder_list = {a_aligned_cylinder, a_aligned_cylinder};
-    rotation_list = {0.0, M_PI};
+    rotation_list = {0.0, PI};
     polyhedron_list = {a_polytope_copy, p2};
   }
 
