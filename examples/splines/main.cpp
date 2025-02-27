@@ -14,24 +14,18 @@ int main() {
     Spline SP2 = Spline(V2,W,KV);
     
     
-    for(int k = 0; k < 8;k++){
-        std :: cout << "Spline number ";
-        std :: cout << k;
-        std :: cout << " Result\n";
-        std::vector<std::vector<double>> coeffs = SP1.BasisCoefficients(k);
-        std::vector<std::vector<double>> bounds = SP1.BasisCoefficientBounds(k);
-        for(int i = 0;i < coeffs.size(); i++) {
-            for(int j = 0; j <coeffs[0].size();j++) {
-                std::cout << coeffs[i][j];
-                std::cout <<",";
-            }
-            std::cout << "      ";
-            for(int j = 0; j <bounds[0].size();j++) {
-                std::cout << bounds[i][j];
-                std::cout <<",";
-            }
-            std::cout << "\n";
+    std::vector<double> breakpoints = SP1.getBreakpoints();
+    std::vector<std::vector<double>> spans = SP1.getSpans();
+    for(int i = 0;i<breakpoints.size();i++) {
+        std::cout << breakpoints[i];
+        std::cout << ",";
+    }
+    std :: cout << "\n";
+    for(int i = 0;i<spans.size();i++) {
+        for(int j = 0; j< spans[0].size();j++) {
+            std::cout << spans[i][j] << ",";
         }
+        std::cout << "\n";
     }
 
 

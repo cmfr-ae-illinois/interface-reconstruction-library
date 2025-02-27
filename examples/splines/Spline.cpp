@@ -14,6 +14,9 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
     Spline::ControlPoints = CP;
     Spline::KnotVector = KV;
     Spline::Weights = W;
+
+    this->makeBreakpoints();
+    this->makeSpans();
 }
 
 
@@ -129,7 +132,74 @@ std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i) {
     return bounds;
 }
 
+// Currently for 2D
+std::vector<std::vector<double>> Spline::CurveCoefficients() {
+    int spansSize = spans.size();
 
+    numerCoeffsX = {{0,0,0}};
+    numerCoeffsY = {{0,0,0}};
+    denomCoeffs = {{0,0,0}};
+    // Loop over basis functions:
+    for(int i = 0;i < KnotVector.size()-3;i++){
+        std::vector<std::vector<double>> coeffs = this->BasisCoefficients(i);
+        std::vector<std::vector<double>> bounds = this->BasisCoefficientBounds(i);
+
+        // Loop Over spans, add coefficients to appropriate span 
+        for(int j = 0;j < spans.size();j++) {
+            if(j > 0){
+                numerCoeffsX.insert(numerCoeffsX.end(),{0,0,0});
+                numerCoeffsY.insert(numerCoeffsY.end(),{0,0,0});
+                denomCoeffs.insert(denomCoeffs.end(),{0,0,0});
+            }
+            // First Span
+            if(bounds[0][0] == spans[j][0] && bounds[0][1] == spans[j][1]) { 
+                for(int k = 0;k < numerCoeffsX[j].size();k++) {
+                    denomCoeffs[j][k] += coeffs[0][k]*Weights[i];
+                    numerCoeffsX[j][k] += coeffs[0][k]*Weights[i]*ControlPoints[i][0];
+                    numerCoeffsY[j][k] += coeffs[0][k]*Weights[i]*ControlPoints[i][1];
+                }
+            }
+            // Second Span
+            if(bounds[1][0] == spans[j][0] && bounds[1][1] == spans[j][1]) { 
+                for(int k = 0;k < numerCoeffsX[j].size();k++) {
+                    denomCoeffs[j][k] += coeffs[1][k]*Weights[i];
+                    numerCoeffsX[j][k] += coeffs[1][k]*Weights[i]*ControlPoints[i][0];
+                    numerCoeffsY[j][k] += coeffs[1][k]*Weights[i]*ControlPoints[i][1];
+                }
+            }
+            // Third Span
+            if(bounds[2][0] == spans[j][0] && bounds[2][1] == spans[j][1]) { 
+                for(int k = 0;k < numerCoeffsX[j].size();k++) {
+                    denomCoeffs[j][k] += coeffs[2][k]*Weights[i];
+                    numerCoeffsX[j][k] += coeffs[2][k]*Weights[i]*ControlPoints[i][0];
+                    numerCoeffsY[j][k] += coeffs[2][k]*Weights[i]*ControlPoints[i][1];
+                }
+            }
+
+        }
+
+    }
+}
+
+std::vector<double> Spline::makeBreakpoints() {
+    breakpoints = {KnotVector[0]};
+    int lenBreak = 1;
+    for(int i = 1; i < KnotVector.size();i++) {
+        if(breakpoints[lenBreak-1] != KnotVector[i]) {
+            breakpoints.insert(breakpoints.end(),KnotVector[i]);
+            lenBreak++;
+        }
+    }
+    return breakpoints;
+}
+
+std::vector<std::vector<double>> Spline::makeSpans() {
+    spans = {{breakpoints[0],breakpoints[1]}};
+    for(int i = 1; i< breakpoints.size()-1;i++) {
+        spans.insert(spans.end(),{breakpoints[i],breakpoints[i+1]});
+    }
+    return spans;
+}
 
 
 
@@ -143,13 +213,23 @@ std::vector<double> Spline::getKnotVector() {
 std::vector<double> Spline::getWeights() {
     return Weights;
 }
+std::vector<double> Spline::getBreakpoints() {
+    return breakpoints;
+}
+std::vector<std::vector<double>> Spline::getSpans() {
+    return spans;
+}
+
 // Setters
 void Spline::setControlPoints(std::vector<std::vector<double>> input) {
     ControlPoints = input;
 }
 void Spline::setKnotVector(std::vector<double> input) {
     KnotVector = input;
+    this->makeBreakpoints();
+    this->makeSpans();
 }
 void Spline::setWeights(std::vector<double> input){
     Weights = input;
+    
 }

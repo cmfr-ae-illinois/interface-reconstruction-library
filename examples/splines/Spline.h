@@ -8,6 +8,11 @@ class Spline {
         std::vector<double> KnotVector;
         std::vector<double> Weights;
 
+        std::vector<std::vector<double>> numerCoeffsX;
+        std::vector<std::vector<double>> numerCoeffsY;
+        std::vector<std::vector<double>> denomCoeffs;
+        std::vector<std::vector<double>> spans;
+        std::vector<double> breakpoints;
     public: 
         // Methods
         // Constructors
@@ -55,7 +60,13 @@ class Spline {
         // Returns the numerator and denominator of x,y spline on all spans, the spans, 
         // and the breakpoints (May need to break this up into multiple Method. Currently
         // only returns coefficients) ** Add a getSpans and getBreakpoints Method.
-        std::vector<std::vector<double>> CurveCoefficients(std::vector<double> U,std::vector<double>, std::vector<std::vector<double>> CP);
+        std::vector<std::vector<double>> CurveCoefficients();
+        
+        // A function to remove repeated knots and create the breakpoint vector, returning it to the user and storing it in the variable.
+        std::vector<double> makeBreakpoints(); // Privatize 
+
+        // A function to generate spans for the spline
+        std::vector<std::vector<double>> makeSpans(); // Privatize
 
         // Finds the span in which paramter u lies in, for a degree p basis function.
         int findSpan(int p, double u, std::vector<double> U);
@@ -97,6 +108,8 @@ class Spline {
         std::vector<std::vector<double>> getControlPoints();
         std::vector<double> getKnotVector();
         std::vector<double> getWeights();
+        std::vector<double> getBreakpoints();
+        std::vector<std::vector<double>> getSpans();
         // Setters *********************************** 
         void setControlPoints(std::vector<std::vector<double>> input);
         void setKnotVector(std::vector<double> input);
