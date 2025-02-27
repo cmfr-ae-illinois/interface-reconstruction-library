@@ -19,9 +19,15 @@ int main() {
         std :: cout << k;
         std :: cout << " Result\n";
         std::vector<std::vector<double>> coeffs = SP1.BasisCoefficients(k);
+        std::vector<std::vector<double>> bounds = SP1.BasisCoefficientBounds(k);
         for(int i = 0;i < coeffs.size(); i++) {
             for(int j = 0; j <coeffs[0].size();j++) {
                 std::cout << coeffs[i][j];
+                std::cout <<",";
+            }
+            std::cout << "      ";
+            for(int j = 0; j <bounds[0].size();j++) {
+                std::cout << bounds[i][j];
                 std::cout <<",";
             }
             std::cout << "\n";

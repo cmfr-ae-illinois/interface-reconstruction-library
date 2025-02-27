@@ -54,12 +54,10 @@ double Spline::BBasisFunction(int i, int p,double u) {
 // Assumes Quadratic NURBs
 std::vector<std::vector<double>> Spline::BasisCoefficients(int i) { 
     std::vector<std::vector<double>> coeffs = {{0,0,0},{0,0,0},{0,0,0}};
-    std::vector<std::vector<double>> bounds = {{0,0},{0,0},{0,0}};
     // Make sure i is within possible bounds
     if(i+4 > KnotVector.size()){
         // Error Case, once I learn to throw errors
         coeffs = {{-1}};
-        bounds = {{-1}};
         return coeffs;
     }
     // Denominators for all terms
@@ -77,17 +75,13 @@ std::vector<std::vector<double>> Spline::BasisCoefficients(int i) {
     const double numer2L = (KnotVector[i+2]+KnotVector[i])*BBasisFunction(i+1,0,KnotVector[i+1]);
     const double numer3L = (KnotVector[i+3]+KnotVector[i+1])*BBasisFunction(i+1,0,KnotVector[i+1]);
     const double numer4L = -2*KnotVector[i+3]*BBasisFunction(i+2,0,KnotVector[i+2]);
-
     // Constant Term
     const double numer1C = pow(KnotVector[i],2)*BBasisFunction(i,0,KnotVector[i]);
     const double numer2C = -KnotVector[i]*KnotVector[i+2]*BBasisFunction(i+1,0,KnotVector[i+1]);
     const double numer3C = -KnotVector[i+1]*KnotVector[i+3]*BBasisFunction(i+1,0,KnotVector[i+1]);
     const double numer4C = pow(KnotVector[i+3],2)*BBasisFunction(i+2,0,KnotVector[i+2]);
-
     // Set up Coefficients and BOunds
     // First Span
-    bounds[0][0] = KnotVector[i];
-    bounds[0][1] = KnotVector[i+1];
     if(denom1 == 0){
         coeffs[0][0] = 0;
         coeffs[0][1] = 0;
@@ -97,10 +91,7 @@ std::vector<std::vector<double>> Spline::BasisCoefficients(int i) {
         coeffs[0][1] = numer1L/denom1;
         coeffs[0][2] = numer1C/denom1;
     }
-
     // Second Span
-    bounds[1][0] = KnotVector[i+1];
-    bounds[1][1] = KnotVector[i+2];
     if(denom2 == 0) {
         coeffs[1][0] = 0;
         coeffs[1][1] = 0;
@@ -110,10 +101,7 @@ std::vector<std::vector<double>> Spline::BasisCoefficients(int i) {
         coeffs[1][1] = numer2L/denom2 + numer3L/denom3;
         coeffs[1][2] = numer2C/denom2 + numer3C/denom3;
     }
-
     // Third Span
-    bounds[2][0] = KnotVector[i+2];
-    bounds[2][1] = KnotVector[i+3];
     if(denom4 == 0) {
         coeffs[2][0] = 0;
         coeffs[2][1] = 0;
@@ -126,8 +114,20 @@ std::vector<std::vector<double>> Spline::BasisCoefficients(int i) {
     return coeffs;
 }
 
+std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i) {
+    std::vector<std::vector<double>> bounds = {{0,0},{0,0},{0,0}};
+    // First Span
+    bounds[0][0] = KnotVector[i];
+    bounds[0][1] = KnotVector[i+1];
+    // Second Span
+    bounds[1][0] = KnotVector[i+1];
+    bounds[1][1] = KnotVector[i+2];
+    // Third Span 
+    bounds[2][0] = KnotVector[i+2];
+    bounds[2][1] = KnotVector[i+3];
 
-
+    return bounds;
+}
 
 
 

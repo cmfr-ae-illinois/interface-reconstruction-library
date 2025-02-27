@@ -43,11 +43,14 @@ class Spline {
 
 
         // Dynamic Methods ********************************
-        // Returns the value of a B-Spline Basis Method (N_{i ,p}(u)) for a given knot vector U
+        // Returns the value of a B-Spline Basis Method (N_{i,p}(u)) for a given knot vector U
         double BBasisFunction(int i, int p,double u);
 
         // Determines the quadratic coefficients of N_{i,2} for  a given knot vector U
         std::vector<std::vector<double>> BasisCoefficients(int i);
+        
+        // A function that returns the bounds of the BasisCoefficients method.
+        std::vector<std::vector<double>> BasisCoefficientBounds(int i);
 
         // Returns the numerator and denominator of x,y spline on all spans, the spans, 
         // and the breakpoints (May need to break this up into multiple Method. Currently
