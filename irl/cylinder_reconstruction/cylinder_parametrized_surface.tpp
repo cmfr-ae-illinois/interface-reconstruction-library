@@ -186,7 +186,8 @@ inline CylinderParametrizedSurfaceOutput::CylinderParametrizedSurfaceOutput()
 
 inline CylinderParametrizedSurfaceOutput::CylinderParametrizedSurfaceOutput(
     const Cylinder& a_cylinder)
-    : cylinder_m{{a_cylinder}}, ParametrizedSurfaceOutput{},
+    : cylinder_m{{a_cylinder}},
+      ParametrizedSurfaceOutput{},
       indexes_of_flip{},
       scale_m{} {}
 
@@ -369,7 +370,19 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       visited[t] = true;
 
       // Start with next available arc
-      if (arc_list_m[t].weight() > 1.0e15) {
+      
+      #ifdef VALDEBUG2
+          std::cout << "starting a curve with an arc going from "
+                    << arc_list_m[t].start_point() << " to "
+                    << arc_list_m[t].end_point() << std::endl;
+      #endif
+      if (arc_list_m[t].arc_length() < DBL_EPSILON ) {
+        #ifdef VALDEBUG2
+            std::cout << "the arc is too small, it is not added" << std::endl;
+        #endif
+        list_of_closed_curves.push_back(
+            std::vector<RationalBezierArc>());
+      } else if (arc_list_m[t].weight() > 1.0e15) {
         const Pt p0 = arc_list_m[t].start_point();
         const Pt p1 = arc_list_m[t].control_point();
         const Pt p2 = arc_list_m[t].end_point();
@@ -380,11 +393,6 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         list_of_closed_curves.push_back(
             std::vector<RationalBezierArc>({arc_list_m[t]}));
       }
-      #ifdef VALDEBUG2
-          std::cout << "starting a curve with an arc going from "
-                    << arc_list_m[t].start_point() << " to "
-                    << arc_list_m[t].end_point() << std::endl;
-      #endif
       const std::uintptr_t start_id = arc_list_m[t].start_point_id();
       std::uintptr_t end_id = arc_list_m[t].end_point_id();
       Pt pe = arc_list_m[t].end_point();
@@ -401,7 +409,11 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
                             << arc_list_m[e].start_point() << " to "
                             << arc_list_m[e].end_point() << std::endl;
               #endif
-              if (arc_list_m[e].weight() > 1.0e15) {
+              if (arc_list_m[e].arc_length() < DBL_EPSILON ) {
+                #ifdef VALDEBUG2
+                    std::cout << "the arc is too small, skipping" << std::endl;
+                #endif
+              } else if (arc_list_m[e].weight() > 1.0e15) {
                 const Pt p0 = arc_list_m[e].start_point();
                 const Pt p1 = arc_list_m[e].control_point();
                 const Pt p2 = arc_list_m[e].end_point();
@@ -445,7 +457,11 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
                           << arc_list_m[min_index].start_point() << " to "
                           << arc_list_m[min_index].end_point() << std::endl;
             #endif
-            if (arc_list_m[min_index].weight() > 1.0e15) {
+            if (arc_list_m[min_index].arc_length() < DBL_EPSILON ) {
+              #ifdef VALDEBUG2
+                  std::cout << "the arc is too small, skipping" << std::endl;
+              #endif
+            } else if (arc_list_m[min_index].weight() > 1.0e15) {
               const Pt p0 = arc_list_m[min_index].start_point();
               const Pt p1 = arc_list_m[min_index].control_point();
               const Pt p2 = arc_list_m[min_index].end_point();
@@ -494,7 +510,7 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
   }
 #ifdef VALDEBUG2
   std::cout << "in the end, there is " << list_of_closed_curves.size()
-            << "close curves\n";
+            << " close curves\n";
 #endif
 
   returned_surface->clearAll();
@@ -714,6 +730,9 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       UnsignedIndex_t vertex_count = 0;
       bool previous_valid = false;
       for (UnsignedIndex_t i = indexes_of_close[r]; i < indexes_of_close[r+1]; ++i) {
+        #ifdef VALDEBUG2
+            std::cout << "triangulating close loop # " << i << std::endl;
+        #endif
         points.resize(0);
         const UnsignedIndex_t nLocalArcs = list_of_closed_curves[i].size();
         // Loop over arcs of curve
@@ -722,6 +741,10 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         for (UnsignedIndex_t j = 0; j < nLocalArcs; ++j) {
           // Compute approximate arc length
           const RationalBezierArc& arc = list_of_closed_curves[i][j];
+          #ifdef VALDEBUG2
+              std::cout << "sub arc # " << j << std::endl;
+              std::cout << "arc : " << arc << std::endl;
+          #endif
           const double arc_length = arc.arc_length();
           // myfile << std::setprecision(16) << std::scientific << "Curve "
           // <<
@@ -745,6 +768,9 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
             //        << vertex_count++ << " at " << pt[0] << ", " << pt[1]
             //        <<
             //        ".\n";
+            #ifdef VALDEBUG2
+              std::cout << "ajout du point " << pt << std::endl;
+            #endif
             points.push_back(Point(pt[0], pt[1]));
             signed_area +=
                 0.5 * (previous_pt[0] * pt[1] - pt[0] * previous_pt[1]);

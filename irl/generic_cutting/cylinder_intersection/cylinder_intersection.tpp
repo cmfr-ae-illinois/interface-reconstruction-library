@@ -1083,7 +1083,7 @@ formCylinderIntersectionBasesClipped(
     // when cutting the polyhedron, sometime the new points
     // are not exactly on the Oxy plane
     // check the point are above the horizontal plane
-    assert(vertex.getLocation().getPt()[2] > -DISTANCE_EPSILON);
+    assert(vertex.getLocation().getPt()[2] > -DBL_EPSILON);
     // if the point are below the plane but close to it, clipped it to the plane
     if (vertex.getLocation().getPt()[2] < ZERO) {
       auto& pt = vertex.getLocation().getPt();
@@ -1111,12 +1111,12 @@ formCylinderIntersectionBasesClipped(
       break;
     } else if (dist_function < ZERO) {
   #ifdef VALDEBUG
-  std::cout << "it's not clipped\n" << std::endl;
+  std::cout << "it's not clipped" << std::endl;
   #endif
       vertex.markToBeNotClipped();
     } else {
   #ifdef VALDEBUG
-  std::cout << "it's clipped\n" << std::endl;
+  std::cout << "it's clipped" << std::endl;
   #endif
       vertex.markToBeClipped();
       ++number_of_vertices_above;
@@ -1132,7 +1132,7 @@ formCylinderIntersectionBasesClipped(
     if (elliptic && number_of_vertices_above == 0) {
       // Whole volume below
       #ifdef VALDEBUG
-      std::cout << "quick end : no vertices above\n";
+      std::cout << "quick end : no vertices above" << std::endl;
       #endif
       return ReturnType::calculateMoments(a_polytope);
     }
@@ -1140,7 +1140,7 @@ formCylinderIntersectionBasesClipped(
     if (!elliptic && number_of_vertices_above == starting_number_of_vertices) {
       // Zero volume - will be current value of full_moments
       #ifdef VALDEBUG
-      std::cout << "quick end : no vertices below\n";
+      std::cout << "quick end : no vertices below" << std::endl;
       #endif
       return full_moments;
     }
@@ -2756,7 +2756,7 @@ formCylinderIntersectionBases(
   }
 
   #ifdef VALDEBUG
-  std::cout << "computing the volume \n";
+  std::cout << "computing the volume" << std::endl;
   #endif
 
   // only cut in quarter if ouputing a elliptic cylinder surface
@@ -2779,32 +2779,53 @@ formCylinderIntersectionBases(
   UnsignedIndex_t nb_polytope = quad_cut ? 4 : 2;
 
   #ifdef VALDEBUG
-  std::cout << "going to do " << nb_polytope << " cuts\n";
-  std::cout << "splitting the polytope\n";
+  std::cout << "going to do " << nb_polytope << " cuts" << std::endl;
+  std::cout << "splitting the polytope" << std::endl;
   #endif
 
-  AlignedCylinder rotatedCylinder({1.0 / a_aligned_cylinder.b(), a_aligned_cylinder.r() / a_aligned_cylinder.b()});
 
   std::vector<AlignedCylinder> cylinder_list;
-  std::vector<double> rotation_list;
+  std::vector<ScalarType> rotation_list;
+  std::vector<SegmentedHalfEdgePolyhedronType> polyhedron_list;
+  HalfEdgePolytopeType a_complete_polytope_copy;
+  fullCopyOfCompletePolytope(a_polytope, a_complete_polytope, &a_complete_polytope_copy);
+  auto a_polytope_copy = a_complete_polytope_copy.generateSegmentedPolyhedron();
 
   if (quad_cut) {
+    SegmentedHalfEdgePolyhedronType p2;
+    ScalarType vector_norm = sqrt(1.0 + a_aligned_cylinder.b() * a_aligned_cylinder.b());
+    splitHalfEdgePolytope(
+        &a_polytope_copy, &p2, &a_complete_polytope_copy,
+        Plane(Normal(0.0, a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+    SegmentedHalfEdgePolyhedronType p3;
+    splitHalfEdgePolytope(
+        &a_polytope_copy, &p3, &a_complete_polytope_copy,
+        Plane(Normal(0.0, -a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+    SegmentedHalfEdgePolyhedronType p4;
+    splitHalfEdgePolytope(
+        &p2, &p4, &a_complete_polytope_copy,
+        Plane(Normal(0.0, -a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+    AlignedCylinder rotatedCylinder({1.0 / a_aligned_cylinder.b(), a_aligned_cylinder.r() / a_aligned_cylinder.b()});
     cylinder_list = {a_aligned_cylinder, rotatedCylinder, a_aligned_cylinder, rotatedCylinder};
     rotation_list = {0.0, M_PI / 2.0, M_PI, 3.0 * M_PI / 2.0};
+    polyhedron_list = {a_polytope_copy, p2, p4, p3};
   } else {
+    SegmentedHalfEdgePolyhedronType p2;
+    splitHalfEdgePolytope(
+        &a_polytope_copy, &p2, &a_complete_polytope_copy,
+        Plane(Normal(0.0, 0.0, -1.0), 0.0));
     cylinder_list = {a_aligned_cylinder, a_aligned_cylinder};
     rotation_list = {0.0, M_PI};
+    polyhedron_list = {a_polytope_copy, p2};
   }
 
   for (UnsignedIndex_t i = 0; i < nb_polytope; i++) {
-    HalfEdgePolytopeType a_complete_polytope_copy;
-    fullCopyOfCompletePolytope(a_polytope, a_complete_polytope, &a_complete_polytope_copy);
-    auto a_polytope_copy = a_complete_polytope_copy.generateSegmentedPolyhedron();
     #ifdef VALDEBUG
-    std::cout << "rotating polytope\n";
+    std::cout << "rotating polytope" << std::endl;
     #endif
     // rotating the polytop
     auto& cylinder = cylinder_list[i];
+    SegmentedHalfEdgePolyhedronType* current_segmented = &(polyhedron_list[i]);
 
     // skip if there is no vertices
     // if (a_polytope->getNumberOfVertices() == 0) {
@@ -2817,42 +2838,21 @@ formCylinderIntersectionBases(
     x_rotation.normalize();
 
     frame = x_rotation * frame;
-    for (UnsignedIndex_t v = 0; v < a_polytope_copy.getNumberOfVertices(); ++v) {
-      const Pt original_pt = a_polytope_copy.getVertex(v)->getLocation().getPt();
+    for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices(); ++v) {
+      const Pt original_pt = current_segmented->getVertex(v)->getLocation().getPt();
       Pt pt(0, 0, 0);
       for (UnsignedIndex_t n = 0; n < 3; ++n) {
         pt[n] = frame[n] * original_pt;
       }
-      a_polytope_copy.getVertex(v)->setLocation(pt);
+      current_segmented->getVertex(v)->setLocation(pt);
     }
-
-    if (quad_cut) {
-      SegmentedHalfEdgePolyhedronType p2;
-      ScalarType vector_norm = sqrt(1.0 + cylinder.b() * cylinder.b());
-      splitHalfEdgePolytope(
-          &a_polytope_copy, &p2, &a_complete_polytope_copy,
-          Plane(Normal(0.0, cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
-      SegmentedHalfEdgePolyhedronType p3;
-      splitHalfEdgePolytope(
-          &a_polytope_copy, &p3, &a_complete_polytope_copy,
-          Plane(Normal(0.0, -cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
-
-    } else {
-      SegmentedHalfEdgePolyhedronType p2;
-      splitHalfEdgePolytope(
-          &a_polytope_copy, &p2, &a_complete_polytope_copy,
-          Plane(Normal(0.0, 0.0, -1.0), 0.0));
-    }
-
 
     #ifdef VALDEBUG
-    std::cout << "computing the contribution\n";
+    std::cout << "computing the contribution" << std::endl;
     #endif
     if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
-        UnitQuaternionBase<ScalarType> cylinder_rotation(-rotation_list[i], frame[0]);
-        cylinder_rotation.normalize();
         auto db_datum = a_datum.toDoublePt();
-        auto rotated_quad_ref = cylinder_rotation * a_frame;
+        auto rotated_quad_ref = x_rotation * a_frame;
         auto db_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
                   rotated_quad_ref[1].toDoubleNormal(), rotated_quad_ref[2].toDoubleNormal());
         Cylinder rotated_cylinder = Cylinder(db_datum, db_fram, 
@@ -2862,14 +2862,14 @@ formCylinderIntersectionBases(
     }
 
     ReturnType moments = formCylinderIntersectionBasesClipped<ReturnType>(
-      &a_polytope_copy, &a_complete_polytope_copy, cylinder, a_nudge_iter, &require_nudge, a_surface);
+      current_segmented, &a_complete_polytope_copy, cylinder, a_nudge_iter, &require_nudge, a_surface);
 
     if (require_nudge) {
       break;
     }
 
     #ifdef VALDEBUG
-    std::cout << "reverting the polytope\n";
+    std::cout << "reverting the polytope" << std::endl;
     #endif
     // // Revert rotate polytope
     frame = ReferenceFrameBase<ScalarType>(NormalBase<ScalarType>(1, 0, 0), NormalBase<ScalarType>(0, 1, 0), NormalBase<ScalarType>(0, 0, 1));
@@ -2884,14 +2884,14 @@ formCylinderIntersectionBases(
         moments.centroid()[n] = frame[n] * centroid01;
       }
     }
-    // for (UnsignedIndex_t v = 0; v < polytope->getNumberOfVertices(); ++v) {
-    //   const Pt original_pt = polytope->getVertex(v)->getLocation().getPt();
-    //   Pt pt(0, 0, 0);
-    //   for (UnsignedIndex_t n = 0; n < 3; ++n) {
-    //     pt[n] = frame[n] * original_pt;
-    //   }
-    //   polytope->getVertex(v)->setLocation(pt);
-    // }
+    for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices(); ++v) {
+      const Pt original_pt = current_segmented->getVertex(v)->getLocation().getPt();
+      Pt pt(0, 0, 0);
+      for (UnsignedIndex_t n = 0; n < 3; ++n) {
+        pt[n] = frame[n] * original_pt;
+      }
+      current_segmented->getVertex(v)->setLocation(pt);
+    }
     // *a_polytope = a_polytope_backup;
     // *a_complete_polytope = a_complete_polytope_backup;
     total_moments += moments;
@@ -2923,6 +2923,9 @@ formCylinderIntersectionBases(
     #endif
   }
 
+  #ifdef VALDEBUG
+  std::cout << "suceffully computed moment" << std::endl;
+  #endif
   return total_moments;
     }
 }  // namespace IRL
