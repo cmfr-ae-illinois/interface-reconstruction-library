@@ -110,6 +110,10 @@ class Spline {
         std::vector<double> getWeights();
         std::vector<double> getBreakpoints();
         std::vector<std::vector<double>> getSpans();
+        std::vector<std::vector<double>> getXCoeffs();
+        std::vector<std::vector<double>> getYCoeffs();
+        std::vector<std::vector<double>> getDCoeffs();
+
         // Setters *********************************** 
         void setControlPoints(std::vector<std::vector<double>> input);
         void setKnotVector(std::vector<double> input);

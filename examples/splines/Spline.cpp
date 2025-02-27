@@ -146,7 +146,7 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
 
         // Loop Over spans, add coefficients to appropriate span 
         for(int j = 0;j < spans.size();j++) {
-            if(j > 0){
+            if(i == 0 && j > 0){
                 numerCoeffsX.insert(numerCoeffsX.end(),{0,0,0});
                 numerCoeffsY.insert(numerCoeffsY.end(),{0,0,0});
                 denomCoeffs.insert(denomCoeffs.end(),{0,0,0});
@@ -177,8 +177,9 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
             }
 
         }
-
     }
+
+    return denomCoeffs;
 }
 
 std::vector<double> Spline::makeBreakpoints() {
@@ -218,6 +219,15 @@ std::vector<double> Spline::getBreakpoints() {
 }
 std::vector<std::vector<double>> Spline::getSpans() {
     return spans;
+}
+std::vector<std::vector<double>> Spline::getXCoeffs() {
+    return numerCoeffsX;
+}
+std::vector<std::vector<double>> Spline::getYCoeffs() {
+    return numerCoeffsY;
+}
+std::vector<std::vector<double>> Spline::getDCoeffs() {
+    return denomCoeffs;
 }
 
 // Setters
