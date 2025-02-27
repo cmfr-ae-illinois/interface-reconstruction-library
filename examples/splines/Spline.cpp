@@ -27,33 +27,25 @@ double Spline::BBasisFunction(int i, int p,double u) {
     double P;
     double Q1;
     double Q2;
-
     if(p == 0){
-        std :: cout << "Base Case";
-        std :: cout << "\n";
         if(KnotVector[i] <= u && u <= KnotVector[i+1]) {
             P = 1;
         } else {
             P = 0;
         }
     } else {
-        std :: cout << "P curr = ";
-        std :: cout << p;
-        std :: cout << "\n";
         if(denom1 == 0) {
             Q1 = 0;
         } else {
             Q1 = numer1/denom1;
         }
-
         if(denom2 == 0) {
             Q2 = 0;
         } else {
             Q2 = numer2/denom2;
         }
-
-        double P  = Q1*BBasisFunction(i,p-1,u)+Q2*BBasisFunction(i+1,p-1,u);
-    }
+        P  = Q1*BBasisFunction(i,p-1,u)+Q2*BBasisFunction(i+1,p-1,u);
+    } 
     return P;
 }
 
