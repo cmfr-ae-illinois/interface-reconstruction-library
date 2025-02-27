@@ -12,6 +12,26 @@ int main() {
     
     Spline SP1 = Spline(V1,KV,W);
     Spline SP2 = Spline(V2,W,KV);
+    
+    
+    for(int k = 0; k < 8;k++){
+        std :: cout << "Spline number ";
+        std :: cout << k;
+        std :: cout << " Result\n";
+        std::vector<std::vector<double>> coeffs = SP1.BasisCoefficients(k);
+        for(int i = 0;i < coeffs.size(); i++) {
+            for(int j = 0; j <coeffs[0].size();j++) {
+                std::cout << coeffs[i][j];
+                std::cout <<",";
+            }
+            std::cout << "\n";
+        }
+    }
+
+
+
+
+
 
     return 0;
 }
