@@ -23,11 +23,6 @@ int main() {
         std::cout << "\n";
     }
     
-
-
-
-
-
-
+    std::cout << SP1.getArcLength();
     return 0;
 }

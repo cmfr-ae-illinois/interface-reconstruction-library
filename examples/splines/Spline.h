@@ -69,10 +69,10 @@ class Spline {
         std::vector<std::vector<double>> makeSpans(); // Privatize
 
         // Finds the span in which paramter u lies in, for a degree p basis function.
-        int findSpan(int p, double u, std::vector<double> U);
+        int findSpan(int p, double u);
 
         // Finds the arc length of the spline
-        double getArcLength(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP);
+        double getArcLength();
 
         // Gets the total area of the closed curve of the spline (Assumed closed)
         double getArea(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP);
