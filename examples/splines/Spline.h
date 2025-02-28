@@ -102,7 +102,7 @@ class Spline {
         std::vector<double> makeParabolicCurve(std::vector<std::vector<double>> CP, std::vector<double> U, std::vector<double> W, std::vector<double> uset);
 
         // A method for getting points along a rational quadartic spline.
-        std::vector<double> makeRationalQuadCurve(std::vector<std::vector<double>> CP, std::vector<double> U, std::vector<double> W, std::vector<double> uset);
+        std::vector<double> makeRationalQuadCurve(std::vector<double> uset);
 
 
 

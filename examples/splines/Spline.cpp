@@ -131,7 +131,7 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
 std::vector<double> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
                                                           std::vector<double> Q2,
                                                           std::vector<double> T1,
-                                                          std::vector<double> T2) {
+                                                          std::vector<double> T2) { // Testing Needed
         double detA = T2[0]*T1[1]-T2[1]*T1[0];
         double dQx = Q1[0]-Q2[0];
         double dQy = Q1[1]-Q2[1];
@@ -145,6 +145,120 @@ std::vector<double> Spline::solvePointTangentIntersection(std::vector<double> Q1
 
         return R;
     }
+
+//Assumes 2D
+double makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk) { // Testing Needed
+    std::vector<double> dQmR = {0,0};
+    std::vector<double> dQR = {0,0};
+    // Set up Dot Product
+    double dQmRnorm = 0;
+    double dQRnorm = 0;
+    double dotProd = 0;
+    for(int i = 0;i < dQR.size(); i++) {
+        dQmR[i] = Rk[i]-Qkm[i];
+        dQmRnorm += pow(dQmR[i],2);
+
+        dQR[i] = Qk[i]-Rk[i];
+        dQRnorm += pow(dQR[i],2);
+
+        dotProd += dQmR[i]*dQR[i];
+    }
+    dotProd /= dQmRnorm*dQRnorm;
+    double tolerance = 1e-6;
+    double weight = -1;
+    if(abs(dotProd-1) < tolerance) { // Collinear
+        weight = 1;
+    } else {
+        if(abs(dQmRnorm-dQRnorm) < tolerance) { // Isosceles
+            std::vector<double> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+            double eVal = 0;
+            for(int i = 0;i<M.size();i++) {
+                M[i] = Qk[i] - M[i];
+                eVal += pow(M[i],2);
+            }
+            weight = eVal/dQmRnorm;
+        } else { // Other Case
+            std::vector<double> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+            // S1
+            std::vector<double> MR = {0,0};
+            double MRnorm = 0;
+            std::vector<double> MQm = {0,0};
+            double MQmnorm = 0;
+            std::vector<double> QRm = {0,0};
+            double QRmnorm = 0;
+            // S2
+            std::vector<double> MQ = {0,0};
+            double MQnorm = 0;
+            std::vector<double> QR = {0,0};
+            double QRnorm = 0;
+            for(int i = 0; i < MR.size(); i++) {
+                // S1
+                MR[i] = Rk[i] - M[i];
+                MRnorm += pow(MR[i],2);
+                MQm[i] = M[i] - Qkm[i];
+                MQmnorm += pow(MQm[i],2);
+                QRm[i] = Rk[i] - Qkm[i];
+                QRmnorm += pow(QRm[i],2);
+                // S2
+                MQ[i] = M[i] - Qk[i];
+                MQnorm += pow(MQ[i],2);
+                QR[i] = Rk[i] - Qk[i];
+                QRnorm += pow(QR[i],2);
+            }
+            // normalize
+            MRnorm = sqrt(MRnorm);
+            MQmnorm = sqrt(MQmnorm);
+            QRmnorm = sqrt(QRmnorm);
+            MQnorm = sqrt(MQnorm);
+            QRnorm = sqrt(QRnorm);
+
+            for(int i = 0; i<MR.size();i++){
+                // S1
+                MR[i] /= MRnorm;
+                MQm[i] /= MQmnorm;
+                QRm[i] /= QRmnorm;
+                // S2
+                MQ[i] /= MQnorm;
+                QR[i] /= QRnorm;   
+            }
+            // Bisection Vectors
+            std::vector<double> BiVec1 = {0,0};
+            double BiVec1norm = 0;
+            std::vector<double> BiVec2 = {0,0};
+            double BiVec2norm = 0;
+            for(int i = 0; i < MR.size(); i++) {
+                // S1
+                BiVec1[i] = QRm[i] + MQm[i];
+                BiVec1norm += BiVec1[i];
+                // S2
+                BiVec2[i] = MQ[i]+QR[i];
+                BiVec2norm += BiVec2[i];
+            }
+            // Normalize
+            BiVec1norm = sqrt(BiVec1norm);
+            BiVec2norm = sqrt(BiVec2norm);
+            for(int i = 0; i < MR.size(); i++) {
+                // S1
+                BiVec1[i] /= BiVec1norm;
+                // S2
+                BiVec2[i] /= BiVec2norm;
+            }
+            // Solve for S1,S2
+            std::vector<double> S1 = Spline::solvePointTangentIntersection(Qkm,BiVec1,M,MR);
+            std::vector<double> S2 = Spline::solvePointTangentIntersection(Qk,BiVec2,M,MR);
+            // Get S
+            std::vector<double> S = {(S1[0]+S2[0])/2,(S1[1]+S2[1])/2};
+            // Make Weight
+            double numer = 0;
+            double denom = 0;
+            for(int i = 0; i < S.size(); i++) {
+                numer += pow(M[i]-S[i],2);
+                denom += pow(Rk[i]-S[i],2);
+            }
+            weight = sqrt(numer/denom);
+        }
+    }
+}
 
 
 // Dynamic Methods **************************
@@ -522,7 +636,9 @@ double Spline::getCurvature(double u) { // Testing Needed
     return k;
 }
 
-
+std::vector<double> Spline::makeRationalQuadCurve(std::vector<double> uset) {
+    
+}
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;
