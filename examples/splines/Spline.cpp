@@ -22,13 +22,110 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
 
 
 // Static Methods ***********************
-// std::vector<std::vector<double>> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q) {
-//     return {{0}};
-// }
+std::vector<double> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q) {// Testing Needed
+    int n = Q.size()-1;
+    double d = 0;
+    std::vector<double> dset = {0};
+    // Make Distance Vector
+    for(int i =1; i <Q.size();i++){
+        double mag = 0;
+        for(int j = 0;j < Q[0].size();j++) {
+            mag += pow(Q[i][j]-Q[i-1][j],2);
+        } 
+        mag = sqrt(mag);
+        if(i == 1) {
+            dset[0] == mag;
+        } else {
+            dset.insert(dset.end(),mag);
+        }
+        d += mag;
+    }
+    // Make U from Distance Vector
+    std::vector<double> ubar = {0};
+    for(int i = 1; i < n+1; i++) {
+        ubar.insert(ubar.end(),ubar[i-1]+dset[i-1]/d);
+    }
 
-// std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<double>> Q) {
-//     return {{0}};
-// }
+    return ubar;
+}
+
+std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<double>> Q) { // Testing Needed
+    int n = Q.size()-1;
+
+    std::vector<double> ubar = BesselTangentUVec(Q);
+
+    std::vector<double> dUbar = {0};
+    
+    std::vector<std::vector<double>> q = {{0,0}};
+    for(int i = 0;i<n;i++) {
+        if(i == 0) {
+            dUbar[i] = ubar[i+1]-ubar[i];
+            for(int j = 0; j < Q[0].size(); j++) {
+                q[i][j] = Q[i+1][j]-Q[i][j];
+            }
+        } else {
+            dUbar.insert(dUbar.end(),ubar[i+1]-ubar[i]);
+            std::vector<double> temp = {0,1};
+            for(int j = 0; j < temp.size(); j++) {
+                temp[j] = Q[i+1][j]-Q[i][j];
+            }
+            q.insert(q.end(),temp);
+        }
+    }
+    for(int i = 0; i < q.size(); i++) {
+        for(int j = 0; j < q[0].size(); j++) {
+            q[i][j] = q[i][j]/dUbar[i];
+        }
+    }
+
+    // Calculate Alphas
+    std::vector<double> alpha = {0};
+    for(int i = 1; i<n;i++) { 
+        double numer = dUbar[i-1];
+        double denom = dUbar[i-1]-dUbar[i];
+
+        alpha.insert(alpha.end(),numer/denom);
+    }
+
+    // Calculate D
+    std::vector<std::vector<double>> D = {{0,0}};
+    for(int i = 1; i < n; i++) {
+        std::vector<double> temp = {0,0};
+        for(int j = 0; j <temp.size();j++) {
+            temp[j] = (1-alpha[i])*q[i-1][j]+alpha[i]*q[i][j];
+        }
+        
+        D.insert(D.end(),temp);
+    }
+    // D[0]
+    std::vector<double> temp = {0,0};
+    for(int j = 0; j <temp.size();j++) {
+        temp[j] = 2*q[0][j] - D[1][j];
+    }
+    D[0] = temp;
+    // D[end]
+    std::vector<double> temp = {0,0};
+    for(int j = 0; j <temp.size();j++) {
+        temp[j] = 2*q[q.size()-1][j] - D[D.size()-1][j];
+    }
+    D.insert(D.end(),temp);
+
+    //  Loop through and normalize
+    for(int i = 0; i < D.size(); i++) {
+        double mag = 0;
+        for(int j = 0; j<D[0].size();j++) {
+            mag += pow(D[i][j],2);
+        }
+        mag = sqrt(mag);
+
+        for(int j = 0; j<D[0].size();j++) {
+            D[i][j] /= mag; 
+        }
+    }
+
+    // Return
+    return D;
+}
 
 // Dynamic Methods **************************
 double Spline::BBasisFunction(int i, int p,double u) { 
