@@ -636,9 +636,33 @@ double Spline::getCurvature(double u) { // Testing Needed
     return k;
 }
 
-std::vector<double> Spline::makeRationalQuadCurve(std::vector<double> uset) {
-    
+std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset) { // Testing Needed
+    std::vector<std::vector<double>> curve = {{0,0}};
+    for(int i = 0; i < uset.size();i++) { // Loop over all u values
+        std::vector<double> numer = {0,0};
+        double denom = 0;
+        std::vector<double> val = {0,0};
+        for(int j = 0; j < ControlPoints.size();j++){ // Loop over control points
+            for(int k = 0; k < ControlPoints[0].size();k++) { // Loop over contorl point indices
+                numer[k] += BBasisFunction(j,2,uset[i])*Weights[j]*ControlPoints[j][k];
+                denom += BBasisFunction(j,2,uset[i])*Weights[j];
+            }
+        }
+
+        // Now that we have numer and denom, calculate value
+        for(int j = 0; j < numer.size();j++) {
+            val[j] = numer[j]/denom;
+        }
+
+        // Now insert val
+        if(i == 0) {
+            curve[i] = val;
+        } else {
+            curve.insert(curve.end(),val);
+        }
+    }
 }
+
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;
