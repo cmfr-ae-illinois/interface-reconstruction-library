@@ -17,6 +17,7 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
 
     this->makeBreakpoints();
     this->makeSpans();
+    this->CurveCoefficients();
 }
 
 
@@ -202,7 +203,7 @@ std::vector<std::vector<double>> Spline::makeSpans() {
     return spans;
 }
 
-double Spline::getArcLength() {
+double Spline::getArcLength() { // Testing Needed
     double nudge = 1e-12;
     // Three Point Quadrature
     // std::vector<double> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
@@ -264,6 +265,72 @@ double Spline::getArcLength() {
         }
     }
     return AL;
+}
+
+double Spline::getCurvature(double u) {
+    
+    // Find Span we are in
+    int spanIndex = -1;
+    if(u > 1) {// Too Large Error
+        spanIndex = -1; 
+    }else if(u < 0) {// Negative Error
+        spanIndex = -2;
+    } else if(u == 1) { // Edge Case
+        spanIndex = breakpoints.size()-2;
+    } else {
+        for(int i = 0; i <breakpoints.size()-1;i++) {
+            if(u >= breakpoints[i] && u < breakpoints[j+1]) {
+                spanIndex = i;
+                break;
+            }
+        }
+    }
+
+    // 0th Derivative Coefficients
+    double a = numerCoeffsX[spanIndex][0];
+    double b = numerCoeffsX[spanIndex][1];
+    double c = numerCoeffsX[spanIndex][2];
+
+    double d = numerCoeffsY[spanIndex][0];
+    double e = numerCoeffsY[spanIndex][1];
+    double f = numerCoeffsY[spanIndex][2];
+
+    double alpha = denomCoeffs[spanIndex][0];
+    double beta = denomCoeffs[spanIndex][1];
+    double gamma = denomCoeffs[spanIndex][2];
+
+    // 1st Derivative Coefficients
+    double ax = a*beta-b*alpha;
+    double bx = 2*(a*gamma-alpha*c);
+    double cx = b*gamma-beta*c;
+
+    double ay = d*beta-e*alpha;
+    double by = 2*(d*gamma-alpha*f);
+    double cy = e*gamma-beta*f;
+
+    // First Derivatives 
+    double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+
+    // Second Derivatives
+
+    // X
+    double denom = pow(alpha*pow(u,2)+beta*u+gamma,4);
+    double term1 = (2*ax*u+bx)*pow(alpha*pow(u,2)+beta*u+gamma,2);
+    double term2 = 2*(alpha*pow(u,2)+beta*u+gamma)*(2*alpha*u+beta)*(ax*pow(u,2)+bx*u+cx);
+    double xpp = (term1-term2)/denom;
+
+    // Y
+    term1 = (2*ay*u+by)*pow(alpha*pow(u,2)+beta*u+gamma,2);
+    term2 = 2*(alpha*pow(u,2)+beta*u+gamma)*(2*alpha*u+beta)*(ay*pow(u,2)+by*u+cy);
+    double ypp = (term1-term2)/denom;   
+
+    // Curvature
+    term1 = xp*ypp-yp*xpp;
+    term2 = pow(pow(xp,2)+pow(yp,2),3/2);
+
+    double k = term1/term2;
+    return k;
 }
 
 
