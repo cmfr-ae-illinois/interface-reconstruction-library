@@ -22,7 +22,13 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
 
 
 // Static Methods ***********************
+// std::vector<std::vector<double>> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q) {
+//     return {{0}};
+// }
 
+// std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<double>> Q) {
+//     return {{0}};
+// }
 
 // Dynamic Methods **************************
 double Spline::BBasisFunction(int i, int p,double u) { 
@@ -345,7 +351,7 @@ double Spline::getCurvature(double u) { // Testing Needed
         spanIndex = breakpoints.size()-2;
     } else {
         for(int i = 0; i <breakpoints.size()-1;i++) {
-            if(u >= breakpoints[i] && u < breakpoints[j+1]) {
+            if(u >= breakpoints[i] && u < breakpoints[i+1]) {
                 spanIndex = i;
                 break;
             }
