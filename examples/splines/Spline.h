@@ -85,7 +85,7 @@ class Spline {
         double getParamterLoop(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP,std::vector<std::vector<double>> square);
 
         // returns the total unsigned surface energy of the spline. Used to return signed value also, but this may not be good for this method.
-        double getSurfaceEnergy(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP);
+        double getSurfaceEnergy();
 
         // Helper Method to return integral of xy' for area finding, evaluated at parameter value u 
         double integratedSpline(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP,double u);

@@ -267,7 +267,73 @@ double Spline::getArcLength() { // Testing Needed
     return AL;
 }
 
-double Spline::getCurvature(double u) {
+double Spline::getSurfaceEnergy() { // Testing Needed
+    double nudge = 1e-12;
+    // Three Point Quadrature
+    // std::vector<double> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
+    // std::vector<double> GaussWeights = {5/9,8/9,5/9};
+    // Five Point Quadrature
+    std::vector<double> GaussPoints = {-sqrt(5+2*sqrt(10/7))/3,-sqrt(5-2*sqrt(10/7))/3,0,sqrt(5-2*sqrt(10/7))/3,sqrt(5+2*sqrt(10/7))/3};
+    std::vector<double> GaussWeights = {(322-13*sqrt(70))/900,(322+13*sqrt(70))/900,128/225,(322+13*sqrt(70))/900,(322-13*sqrt(70))/900};
+    double Ek = 0;
+    double u1;
+    double u2;
+    for(int i = 0;i < breakpoints.size()-1;i++) {
+        // Determine integrating bounds for segment
+        if(i == 0) {
+            u1 = breakpoints[i];
+            u2 = breakpoints[i+1]-nudge;
+        } else if(i == breakpoints.size()-1) {
+            u1 = breakpoints[i]+nudge;
+            u2 = breakpoints[i+1];
+        } else {
+            u1 = breakpoints[i]+nudge;
+            u2 = breakpoints[i+1]-nudge;
+        }
+
+        // Change Endpoints
+        double m = (u2-u1)/2;
+        double bm = (u1+u2)/2;
+        for(int j = 0; j < GaussPoints.size(); j++) {
+            double ueff = m*GaussPoints[j] + bm;
+
+            // Coefficients
+            double a = numerCoeffsX[i][0];
+            double b = numerCoeffsX[i][1];
+            double c = numerCoeffsX[i][2];
+
+            double d = numerCoeffsY[i][0];
+            double e = numerCoeffsY[i][1];
+            double f = numerCoeffsY[i][2];
+
+            double alpha = denomCoeffs[i][0];
+            double beta = denomCoeffs[i][1];
+            double gamma = denomCoeffs[i][2];
+
+            // Derivative Coefficients
+            double ax = a*beta-b*alpha;
+            double bx = 2*(a*gamma-alpha*c);
+            double cx = b*gamma-beta*c;
+
+            double ay = d*beta-e*alpha;
+            double by = 2*(d*gamma-alpha*f);
+            double cy = e*gamma-beta*f;
+
+            // Normal Vector Magnitude
+            double nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
+            double ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
+
+            double n = sqrt(pow(nx,2)+pow(ny,2));
+            
+            // Curvature
+            double k = this->getCurvature(ueff);
+            Ek += m*GaussWeights[j]*n*abs(k); // Unsigned Surface Energy is the real one
+        }
+    }
+    return Ek;
+}
+
+double Spline::getCurvature(double u) { // Testing Needed
     
     // Find Span we are in
     int spanIndex = -1;
