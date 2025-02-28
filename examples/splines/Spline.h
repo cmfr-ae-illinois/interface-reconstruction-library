@@ -28,10 +28,10 @@ class Spline {
         // A helper function for the BesselTangents method to create the u vector which is used in generating the tangents
         static std::vector<double> BesselTangentUVec(std::vector<std::vector<double>> Q);
         // Solve the intersection problem of two points (Q1,Q2) with tagent directions (T1,T2). 
-        static std::vector<double> solvePointTangentIntersection(std::vector<std::vector<double>> Q1, 
-                                                                 std::vector<std::vector<double>> Q2,
-                                                                 std::vector<std::vector<double>> T1,
-                                                                 std::vector<std::vector<double>> T2);
+        static std::vector<double> solvePointTangentIntersection(std::vector<double> Q1, 
+                                                                 std::vector<double> Q2,
+                                                                 std::vector<double> T1,
+                                                                 std::vector<double> T2);
         // A global interpolation Method which returns. The points are enforced at parameter values given by uset
         static Spline GlobalPointInterp(std::vector<std::vector<double>> Q,int p,std::vector<double> uset);
 

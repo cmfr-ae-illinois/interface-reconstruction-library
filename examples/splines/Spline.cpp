@@ -127,6 +127,26 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
     return D;
 }
 
+//Assumes 2D
+std::vector<double> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
+                                                          std::vector<double> Q2,
+                                                          std::vector<double> T1,
+                                                          std::vector<double> T2) {
+        double detA = T2[0]*T1[1]-T2[1]*T1[0];
+        double dQx = Q1[0]-Q2[0];
+        double dQy = Q1[1]-Q2[1];
+        
+        double g1 = (T2[1]*dQx-T2[0]*dQy)/detA;
+
+        std::vector<double> R = {0,0};
+        for(int i = 0;i <R.size();i++){
+            R[i] = Q1[i] + g1*T1[i];
+        }
+
+        return R;
+    }
+
+
 // Dynamic Methods **************************
 double Spline::BBasisFunction(int i, int p,double u) { 
     double numer1 = u - KnotVector[i];
