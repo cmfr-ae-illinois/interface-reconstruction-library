@@ -264,7 +264,7 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
     return weight;
 }
 
-Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) {
+Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) { // Testing and Debugging Needed
     int n = Q.size()-1;
     std::vector<std::vector<double>> CPoints = {Q[1]};
     std::vector<std::vector<double>> gamma = {{0,0}};
@@ -977,8 +977,86 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
     return ret;
 }
 
-std::vector<double> Spline::getParameterLoop(std::vector<std::vector<double>> square) {
+std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square) { // Testing Needed
+    std::vector<double> P1 = square[0];
+    std::vector<double> P2;
+    int I = 0;
+    for(int i = 0; i < ControlPoints.size();i++) { // Loop over control points
+        if(ControlPoints[i][0] > ControlPoints[I][0]) { // Find Furthest Right Point
+            I = i;
+        }
+    }
+    P2 = ControlPoints[I];
+    P2[0] += 1; // Move a little to the right
+    std::vector<double> intersections = lineCurveIntersection(P1,P2);
+    
+    std::vector<double> parameter;
+    std::vector<double> indicator; // 1 = corner (outside), 2 = corner (inside), 3 = Curve hit (entry), 4 = curve hit (Exit)
+    // If number of intersections even, outside. If odd, inside.
+    if(intersections.size() % 2 == 0) {
+        parameter = {0};
+        indicator = {1};
+    } else {
+        parameter = {0};
+        indicator = {2};
+    }
 
+    for(int i = 0; i < square.size()-1;i++) { // Square includes start twice, so we have to exclude the last one
+        P1 = square[i];
+        P2 = square[i+1];
+
+        intersections = lineCurveIntersection(P1,P2);
+
+        // Assign Intersections
+        for(int j = 0;j < intersections.size();j++) {
+            parameter.insert(parameter.end(),intersections[j]);
+            double lastInd = indicator[indicator.size()-1];
+            if(lastInd == 1) {
+                indicator.insert(indicator.end(),3);
+            } else if(lastInd == 2) {
+                indicator.insert(indicator.end(),4);
+            } else if(lastInd == 3) {
+                indicator.insert(indicator.end(),4);
+            } else if(lastInd == 4) {
+                indicator.insert(indicator.end(),3);
+            }
+        }
+
+        // Assign Endpoint
+        parameter.insert(parameter.end(),(i+1)%4);
+        int lastInd = indicator[indicator.size()-1];
+        if(lastInd == 1) {
+            indicator.insert(indicator.end(),1);
+        } else if(lastInd == 2) {
+            indicator.insert(indicator.end(),2);
+        } else if(lastInd == 3) {
+            indicator.insert(indicator.end(),2);
+        } else if(lastInd == 4) {
+            indicator.insert(indicator.end(),1);
+        }
+    }
+    // Pop 1s
+    std::vector<double> tempParameters = {0};
+    std::vector<double> tempIndicators = {0};
+    int count = 0;
+    for(int i = 0; i < indicator.size();i++) {
+        if(indicator[i] != 1) {
+            if(count == 0) {
+                tempParameters[0] = parameter[i];
+                tempIndicators[0] = indicator[i];
+                count++;
+            } else {
+                tempParameters.insert(tempParameters.end(),parameter[i]);
+                tempIndicators.insert(tempIndicators.end(),indicator[i]);
+            }
+        }
+    }
+    if(indicator[0] == 1 && count != 0) {
+        tempParameters.insert(tempParameters.end(),tempParameters[0]);
+        tempParameters.insert(tempParameters.end(),tempParameters[0]);
+    }
+
+    return {parameter,indicator};
 }
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {

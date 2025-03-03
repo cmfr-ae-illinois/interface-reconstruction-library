@@ -11,7 +11,7 @@ int main() {
     std::vector<double> W = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
     
     Spline SP1 = Spline(V1,KV,W);
-    Spline SP2 = Spline(V2,W,KV);
+    Spline SP2 = Spline::LocalRQuadInterp(V1,V1);
     std::vector<std::vector<double>> Dcoeffs = SP1.CurveCoefficients();
     Dcoeffs = SP1.getYCoeffs();
     std::vector<std::vector<double>> spans = SP1.getSpans();

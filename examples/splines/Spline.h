@@ -87,7 +87,7 @@ class Spline {
         double getCurvature(double u);
 
         // Clips the intersection between a grid cell and the spline, returjning parameter values and indicators.
-        std::vector<double> getParameterLoop(std::vector<std::vector<double>> square);
+        std::vector<std::vector<double>> getParameterLoop(std::vector<std::vector<double>> square);
 
         // returns the total unsigned surface energy of the spline. Used to return signed value also, but this may not be good for this method.
         double getSurfaceEnergy();
