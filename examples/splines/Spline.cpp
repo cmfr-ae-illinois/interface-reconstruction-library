@@ -816,6 +816,7 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
                 }
             }
         }
+        return uIntersections;
     }
     // At this point we have finished looping over the spans. We now reorder the values to be along the line
     // This section of code was taken from https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
