@@ -578,24 +578,25 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
 
   // If elliptic cylinder, clip region outside cylinder
   if (elliptic) {
-    const double semi_major_axis = std::sqrt(a_cylinder.r());
-    const double semi_minor_axis = std::sqrt(a_cylinder.r() / a_cylinder.b());
+    const double norm = sqrt(1.0 + a_cylinder.b());
+    const double distance = 1.01*sqrt(2.0 * a_cylinder.r()) / norm;
+    const double b1 = sqrt(a_cylinder.b()) / norm;
     SegmentedHalfEdgePolyhedronType dummy_clipped_polytope;
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
-                          Plane(Normal(0.0, 1.0, 0.0), semi_minor_axis));
+                          Plane(Normal(0.0, b1, 1.0 / norm), distance));
     if (print) printClippedPolytope(&dummy_clipped_polytope);
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
-                          Plane(Normal(0.0, -1.0, 0.0), semi_minor_axis));
+                          Plane(Normal(0.0, -b1, 1.0 / norm), distance));
     if (print) printClippedPolytope(&dummy_clipped_polytope);
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
-                          Plane(Normal(0.0, 0.0, 1.0), semi_major_axis));
+                          Plane(Normal(0.0, b1, - 1.0 / norm), distance));
     if (print) printClippedPolytope(&dummy_clipped_polytope);
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
-                          Plane(Normal(0.0, 0.0, -1.0), semi_major_axis));
+                          Plane(Normal(0.0, -b1, - 1.0 / norm), distance));
     if (print) printClippedPolytope(&dummy_clipped_polytope);
   }
 
@@ -638,13 +639,14 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     const auto rotated_cylinder =
         AlignedCylinder({1.0 / a_cylinder.b(), a_cylinder.r() / a_cylinder.b()});
 
-    double vector_norm = std::sqrt(1.0 + a_cylinder.b()*a_cylinder.b());
+    double vector_norm = std::sqrt(1.0 + a_cylinder.b());
+    const double b1 = sqrt(a_cylinder.b()) / vector_norm;
     splitHalfEdgePolytope(
         a_polytope, &p1, a_complete_polytope,
-        Plane(Normal(0.0, a_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+        Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
     splitHalfEdgePolytope(
         a_polytope, &p2, a_complete_polytope,
-        Plane(Normal(0.0, -a_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     polytope_list.push_back(a_polytope);
     cylinder_list.push_back(a_cylinder);
     rotation_list.push_back(0.0);
@@ -655,7 +657,7 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     // SegmentedHalfEdgePolyhedronType* W_polytope = &p2;
     splitHalfEdgePolytope(
         &p1, &p3, a_complete_polytope,
-        Plane(Normal(0.0, -a_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     polytope_list.push_back(&p1);
     cylinder_list.push_back(rotated_cylinder);
     rotation_list.push_back(M_PI / 2.0);

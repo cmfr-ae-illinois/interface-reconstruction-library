@@ -48,46 +48,38 @@
 
 namespace {
 
-double ExactM0TranslatingCube_cylinder(const double y) {
+double ExactM0TranslatingCube_cylinder(const double u) {
   const double TWO = 2.0;
-  const double SQRTWO = sqrt(2.0);
-  const double TWOSQRTWO = TWO * SQRTWO;
-  if (y < 3.0 - TWOSQRTWO) {
-    double sqrt_1 = sqrt(y * 
-      (4.0 + TWOSQRTWO - 3.0 * y -TWOSQRTWO * y));
-    double atan_1 = atan(sqrt(y / (4.0 - TWOSQRTWO - y)));
-    return (1.0/4.0) * sqrt_1 * (y - SQRTWO + SQRTWO * y) + atan_1;
-  } else if (y < TWOSQRTWO - TWO) {
-    return (1.0 / 8.0) * (TWO - TWO * TWOSQRTWO + M_PI + 4.0 * (1 + SQRTWO) * y);
+  const double HALF = 1.0 / 2.0;
+  if (u < 2) {
+    double sqrt_1 = sqrt(u * (4.0 - u));
+    double acos_1 = acos(1.0 - HALF * u);
+    return (1.0/8.0) * ((u - 2.0) * sqrt_1 + 4.0 * acos_1);
   } else {
-    double sqrt_2 = sqrt((TWO - y) * 
-      (3.0 * y + TWOSQRTWO * y - TWO - TWOSQRTWO));
-    double asin_2 = asin(sqrt(y - TWO + SQRTWO * y) / pow(TWO, 3.0 / 4.0));
-    return (1.0 / 8.0) * (TWO - TWO * TWOSQRTWO + M_PI + 4.0 * sqrt_2 + TWOSQRTWO * sqrt_2 - 
-      TWO * (1.0 + SQRTWO) * y * (sqrt_2 - TWO)) - asin_2;
+    double sqrt_1 = sqrt((6.0 - u) * (u - 2.0));
+    double sqrt_2 = sqrt(u * (4.0 - u));
+    double acos_1 = acos(2.0 - HALF * u);
+    double acos_2 = acos(HALF * u - 1);
+    return (1.0 / 8.0) * (4.0 * M_PI - 
+      (u - 4.0) * sqrt_1 + (u - 2.0) * sqrt_2 - 4.0 * acos_1 - 4.0 * acos_2);
   }
-  return 0.0;
 }
 
-double ExactM1yTranslatingCube_cylinder(const double y) {
-  const double TWO = 2.0;
-  const double SQRTWO = sqrt(2.0);
-  const double TWOSQRTWO = TWO * SQRTWO;
-  const double TWELVTH = 1.0 / 12.0; 
-  const double TWENTYFORTH = 1.0 / 24.0; 
-  if (y < 3.0 - TWOSQRTWO) {
-    return TWELVTH * pow(y * (
-      4.0 + TWOSQRTWO - 3.0 * y - TWOSQRTWO * y), 1.5);
-  } else if (y < TWOSQRTWO - TWO) {
-    return TWENTYFORTH * (-1.0 + 6.0 * (TWO + SQRTWO) * y -
-      3.0 * (3.0 + TWOSQRTWO) * y * y);
+double ExactM1yTranslatingCube_cylinder(const double u) {
+  if (u < 2.0) {
+    return (6.0 - u) * u * u / 48.0;
   } else {
-    double T1 = pow((TWO - y) * (
-      -TWO * (1.0 + SQRTWO) + (3.0 + TWOSQRTWO) * y), 1.5);
-    return TWENTYFORTH * (-1.0 + 12.0 * y + 3.0 * TWOSQRTWO * y -
-      9.0 * y * y - 3.0 * TWOSQRTWO * y * y - TWO * T1);
+    return (6.0 - u) * u / 8.0 - 2.0/3.0;
   }
-  return 0.0;
+}
+
+double ExactM1zTranslatingCube_cylinder(const double u) {
+  if (u < 2.0) {
+    return pow((4.0 - u) * u, 3.0/2.0) / 24.0;
+  } else {
+    return (pow((4.0 - u) * u, 3.0 / 2.0) - 
+            pow((2.0 - u) * (u - 6.0), 3.0 / 2.0)) / 24.0;
+  }
 }
 
 using namespace IRL;
@@ -100,24 +92,22 @@ TEST(CylinderIntersection, SISCPaperFig5) {
   const double normalization = 1.0 / (INVSQRTWO + 0.5);
 
   // Defining elliptic paraboloic
-  AlignedCylinder aligned_cylinder({1.0, 0.5});
+  AlignedCylinder aligned_cylinder({1.0, 1.0});
   Pt datum(0, 0, 0);
   ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
   Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
 
   // Constructing cells for each subfigure
   auto cubes = std::array<RectangularCuboid, 3>(
-      {RectangularCuboid::fromBoundingPts(Pt(0.0, 0.6, -0.5), Pt(1.0, 1.6, 0.5)),
-       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.1, -0.5), Pt(1.0, 1.1, 0.5)),
-       RectangularCuboid::fromBoundingPts(Pt(0.0, -0.4, -0.5), Pt(1.0, 0.6, 0.5))});
+      {RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.5), Pt(1.0, 1.0, 1.5)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, 0.0), Pt(1.0, 1.0, 1.0)),
+       RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, -0.5), Pt(1.0, 1.0, 0.5))});
   std::array<std::string, 3> surface_filenames(
       {"surface_1", "surface_2", "surface_3"});
   std::array<std::string, 3> clipped_faces_filenames(
       {"_cube_1", "_cube_2", "_cube_3"});
 
-  std::array<double, 3> offsets = {(INVSQRTWO - 0.6) * normalization,
-                                   (INVSQRTWO - 0.1) * normalization,
-                                   (INVSQRTWO + 0.4) * normalization};
+  std::array<double, 3> offsets = {1., 2., 3.};
 
 
   std::array<HalfEdgePolyhedronQuadratic<Pt>, 3> half_edges;
@@ -137,6 +127,8 @@ TEST(CylinderIntersection, SISCPaperFig5) {
             &(seg_half_edges[i]), &(half_edges[i]), aligned_cylinder, nlevels, clipped_faces_filenames[i]);
     auto centroid = temp_surface_and_moments.getMoments().centroid();
     double exact_volume = ExactM0TranslatingCube_cylinder(offsets[i]);
+    double exact_My = ExactM1yTranslatingCube_cylinder(offsets[i]);
+    double exact_Mz = ExactM1zTranslatingCube_cylinder(offsets[i]);
 
     EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),
                 exact_volume, 1e-13);
@@ -144,8 +136,10 @@ TEST(CylinderIntersection, SISCPaperFig5) {
                 0.5, 1e-13);
     // EXPECT_NEAR(centroid[1] / temp_surface_and_moments.getMoments().volume().volume(),
     //           amr_centroid[1], 1e-13);
-    EXPECT_NEAR(centroid[2] / temp_surface_and_moments.getMoments().volume().volume(),
-                0.0, 1e-13);
+    EXPECT_NEAR(centroid[1],
+                exact_My, 1e-13);
+    EXPECT_NEAR(centroid[2],
+                exact_Mz, 1e-13);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
@@ -154,13 +148,15 @@ TEST(CylinderIntersection, SISCPaperFig5) {
 
 TEST(CylinderIntersection, SISCPaperFig6) {
 
-  const double INVSQRTWO = 1.0 / sqrt(2.0);
-
-  AlignedCylinder aligned_cylinder({1.0, 0.5});  // DO NOT CHANGE
+  AlignedCylinder aligned_cylinder({1.0, 1.0});  // DO NOT CHANGE
   Pt datum(0, 0, 0);
   ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
   Cylinder cylinder(datum, frame, aligned_cylinder.b(),
                         aligned_cylinder.r());
+
+  const double VOLUME_MAX = sqrt(3.0) / 4.0 + M_PI / 6.0;
+  const double M1Z_MAX = 1.0 / 3.0;
+  const double M1Y_MAX = 11.0 / 24.0;
 
   //////////////////////////////// YOU CAN CHANGE THESE PARAMETERS
   int Ntests = 3001;  // Number of tests
@@ -171,15 +167,15 @@ TEST(CylinderIntersection, SISCPaperFig6) {
 
   std::ofstream myfile;
   myfile.open("fig_cylinder.csv");
-  myfile << "k,m0p,m0p_exact,m0p_error,m1y,m1y_exact,m1y_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
+  myfile << "k,m0p,m0p_exact,m0p_error,m1y,m1y_exact,m1y_error,m1z,m1z_exact,m1z_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
   myfile.close();
 
   for (UnsignedIndex_t i = 0; i < Ntests; i++) {
     // Create and translate unit cube
-    double k = INVSQRTWO - (0.5 + INVSQRTWO) * (static_cast<double>(i) /
+    double k = 1.5 - 1.5 * (static_cast<double>(i) /
                static_cast<double>(Ntests - 1));
     RectangularCuboid cube =
-        RectangularCuboid::fromBoundingPts(Pt(0.0, k, -0.5), Pt(1.0, 1.0 + k, 0.5));
+        RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, k - 0.5), Pt(1.0, 1.0, k + 0.5));
 
     // Compute moments and return parametrized surface
     auto our_moments =
@@ -191,14 +187,16 @@ TEST(CylinderIntersection, SISCPaperFig6) {
     std::cout << "Test " << i + 1 << "/" << Ntests << std::endl;
 
     // Compute exact value for verification purposes
-    auto exact_volume = ExactM0TranslatingCube_cylinder(static_cast<double>(i) /
-    static_cast<double>(Ntests - 1));
-    auto exact_m1y = ExactM1yTranslatingCube_cylinder(static_cast<double>(i) /
-    static_cast<double>(Ntests - 1));
+    auto exact_volume = ExactM0TranslatingCube_cylinder(3.0 * static_cast<double>(i) /
+    static_cast<double>(Ntests - 1)) / VOLUME_MAX;
+    auto exact_m1y = ExactM1yTranslatingCube_cylinder(3.0 * static_cast<double>(i) /
+    static_cast<double>(Ntests - 1)) / M1Y_MAX;
+    auto exact_m1z = ExactM1zTranslatingCube_cylinder(3.0 * static_cast<double>(i) /
+    static_cast<double>(Ntests - 1)) / M1Z_MAX;
     auto exact_centroid =
-        Pt(0.5*safelyEpsilon(exact_volume), exact_m1y, 0.0) / safelyEpsilon(exact_volume);
+        Pt(0.5*safelyEpsilon(exact_volume*VOLUME_MAX), exact_m1y, exact_m1z);
     auto our_centroid =
-        our_moments.centroid() / safelyEpsilon(our_moments.volume());
+        Pt(our_moments.centroid()[0], our_moments.centroid()[1] / M1Y_MAX, our_moments.centroid()[2] / M1Z_MAX);
     // std::cout << std::setprecision(20)
     //           << "Surface EXACT  = " << exact_surface_area << std::endl;
     // std::cout << std::setprecision(20)
@@ -207,7 +205,7 @@ TEST(CylinderIntersection, SISCPaperFig6) {
               << "Vfrac unclipped EX  = " << exact_volume
               << std::endl;
     std::cout << std::setprecision(20)
-              << "Vfrac unclipped IRL = " << our_moments.volume()
+              << "Vfrac unclipped IRL = " << our_moments.volume() / VOLUME_MAX
               << std::endl;
     std::cout << std::setprecision(20)
               << "Centroid unclipped EX  = " << exact_centroid << std::endl;
@@ -218,7 +216,7 @@ TEST(CylinderIntersection, SISCPaperFig6) {
     //                  std::pow(poly_vol, 2.0 / 3.0)
     //           << std::endl;
     std::cout << "Diff Vfrac EX/IRL   = "
-              << std::fabs(our_moments.volume() - exact_volume)
+              << std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume)
               << std::endl;
     std::cout << "Diff centroid EX/IRL   = "
               << Pt(exact_centroid - our_centroid)
@@ -229,31 +227,31 @@ TEST(CylinderIntersection, SISCPaperFig6) {
 
     myfile.open("fig_cylinder.csv", std::ios::app);
     // myfile << "k,m0p,m0p_exact,m0p_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
-    myfile << std::scientific << std::setprecision(20) << (static_cast<double>(i) /
+    myfile << std::scientific << std::setprecision(20) << (3.0 * static_cast<double>(i) /
     static_cast<double>(Ntests - 1)) << ","
-           << our_moments.volume() << "," << exact_volume << ","
-           << std::fabs(our_moments.volume() - exact_volume) << ","
-           << our_moments.centroid()[1] << "," << exact_m1y << ","
-           << std::fabs(our_moments.centroid()[1] - exact_m1y) << std::endl; // " "
-          //  << our_moments.centroid()[2] << " " << exact_m1z << " "
-          //  << std::fabs(our_moments.centroid()[2] - exact_m1z) << " "
+           << our_moments.volume() / VOLUME_MAX << "," << exact_volume << ","
+           << std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume) << ","
+           << our_centroid[1] << "," << exact_m1y << ","
+           << std::fabs(our_centroid[1] - exact_m1y) << ","
+           << our_centroid[2] << "," << exact_m1z << ","
+           << std::fabs(our_centroid[2] - exact_m1z) << std::endl; // " "
           //  << our_surface_area << " " << exact_surface_area << " "
           //  << std::fabs(our_surface_area - exact_surface_area) << "\n";
     myfile.close();
 
     max_volume_error =
         max_volume_error >
-                std::fabs(our_moments.volume() - exact_volume)
+                std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume)
             ? max_volume_error
-            : std::fabs(our_moments.volume() - exact_volume);
+            : std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume);
     // max_surface_error =
     //     max_surface_error > std::fabs(our_surface_area - exact_surface_area) /
     //                             std::pow(poly_vol, 2.0 / 3.0)
     //         ? max_surface_error
     //         : std::fabs(our_surface_area - exact_surface_area) /
     //               std::pow(poly_vol, 2.0 / 3.0);
-    rms_volume_error += std::fabs(our_moments.volume() - exact_volume) *
-                        std::fabs(our_moments.volume() - exact_volume);
+    rms_volume_error += std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume) *
+                        std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume);
     // rms_surface_error += std::fabs(our_surface_area - exact_surface_area) *
     //                      std::fabs(our_surface_area - exact_surface_area) /
     //                      std::pow(poly_vol, 4.0 / 3.0);
