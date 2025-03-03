@@ -131,7 +131,7 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
 }
 
 //Assumes 2D
-std::vector<double> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
+std::vector<std::vector<double>> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
                                                           std::vector<double> Q2,
                                                           std::vector<double> T1,
                                                           std::vector<double> T2) { // Testing Needed
@@ -140,17 +140,17 @@ std::vector<double> Spline::solvePointTangentIntersection(std::vector<double> Q1
         double dQy = Q1[1]-Q2[1];
         
         double g1 = (T2[1]*dQx-T2[0]*dQy)/detA;
-
+        double g2 = (T1[1]*dQx-T2[0]*dQy)/detA;
         std::vector<double> R = {0,0};
+        std::vector<double> g = {g1,g2};
         for(int i = 0;i <R.size();i++){
             R[i] = Q1[i] + g1*T1[i];
         }
-
-        return R;
+        return {R,g};
     }
 
 //Assumes 2D
-double makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk) { // Testing Needed
+double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk) { // Testing Needed
     std::vector<double> dQmR = {0,0};
     std::vector<double> dQR = {0,0};
     // Set up Dot Product
@@ -247,8 +247,8 @@ double makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<d
                 BiVec2[i] /= BiVec2norm;
             }
             // Solve for S1,S2
-            std::vector<double> S1 = Spline::solvePointTangentIntersection(Qkm,BiVec1,M,MR);
-            std::vector<double> S2 = Spline::solvePointTangentIntersection(Qk,BiVec2,M,MR);
+            std::vector<double> S1 = Spline::solvePointTangentIntersection(Qkm,BiVec1,M,MR)[0];
+            std::vector<double> S2 = Spline::solvePointTangentIntersection(Qk,BiVec2,M,MR)[0];
             // Get S
             std::vector<double> S = {(S1[0]+S2[0])/2,(S1[1]+S2[1])/2};
             // Make Weight
@@ -264,6 +264,147 @@ double makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<d
     return weight;
 }
 
+Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) {
+    int n = Q.size()-1;
+    std::vector<std::vector<double>> CPoints = {Q[1]};
+    std::vector<std::vector<double>> gamma = {{0,0}};
+    std::vector<double> weight = {1};
+    
+    for(int i =0;i<=n;i++) { // Loop over consecutive points.
+
+        // Involved Tangents and Points
+        std::vector<double> Tk = T[i+1];
+        double normTk = 0;
+
+        std::vector<double> Tkm = T[i];
+        double normTkm = 0;
+
+        std::vector<double> Qk = Q[i+1];
+        std::vector<double> Qkm = Q[i];
+
+        // Normalize Tangents
+        for(int j = 0; j < Tk.size();j++) {
+            normTk += pow(Tk[j],2);
+            normTkm += pow(Tkm[j],2);
+        }
+        normTk = sqrt(normTk);
+        normTkm = sqrt(normTkm);
+        for(int j = 0; j < Tk.size();j++) {
+            Tk[j] /= normTk;
+            Tkm[j] /= normTkm;
+        }
+
+        // Dot Product of Tangents
+        double DotProductValue = 0;
+        for(int j = 0; j < Tk.size();j++) {
+            DotProductValue += Tk[j]*Tkm[j];
+        }
+
+        // Check for Parallel
+        if(abs(abs(DotProductValue)-1) <= 1e-6) { // Parallel Case
+            std::vector<double> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
+            double dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
+            dQVec[0] /= dQnorm;
+            dQVec[1] /= dQnorm;
+
+            // Dot Products
+            double Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
+            if(abs(abs(Dk)-1) <= 1e-6) { // Straight Line Case
+                std::vector<double> Rk = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+                CPoints.insert(CPoints.end(),Rk);
+                CPoints.insert(CPoints.end(),Qk);
+
+                double w1 = makeWeight(Qkm,Rk,Qk);
+                weight.insert(weight.end(),w1);
+                weight.insert(weight.end(),1);
+            } else { // Parallel Tangents, not Parallel to Chord
+                double gammak = 0.5*dQnorm;
+                double gammakp = gammak;
+                std::vector<double> Rkp = {Qkm[0]+gammak*Tkm[0],Qkm[1]+gammak*Tkm[1]};
+                std::vector<double> Rkpp = {Qk[0]-gammakp*Tk[0],Qk[1]-gammakp*Tk[1]};
+                std::vector<double> Qkp = {(gammak*Rkpp[0]+gammakp*Rkp[0])/(gammak+gammakp),
+                                           (gammak*Rkpp[1]+gammakp*Rkp[1])/(gammak+gammakp)};
+                
+                double w1 = makeWeight(Qkm,Rkp,Qkp);
+                double w2 = makeWeight(Qkp,Rkpp,Qk);
+                weight.insert(weight.end(),{w1,1,w2,1});
+                CPoints.insert(CPoints.end(),{Rkp,Qkp,Rkpp,Qk});
+            }
+        } else { // Not Parllel
+            std::vector<std::vector<double>> sol = solvePointTangentIntersection(Qkm,Qk,Tkm,Tk);
+            std::vector<double> Rk1 = sol[0];
+            std::vector<double> g = sol[1];
+
+            if(g[0] <= 1e-12 || g[1] >= -1e12) { // Solution Exists, but not in bounds (Inflection Point or 180 turn)
+                std::vector<double> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
+                double dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
+                dQVec[0] /= dQnorm;
+                dQVec[1] /= dQnorm;
+
+                // Dot Product
+                double Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
+                double Dkm = dQVec[0]*Tkm[0]+dQVec[1]*Tkm[1];
+
+                //Angles
+                double thetak = abs(acos(Dk));
+                double thetakm = abs(acos(Dkm));
+
+                double a = 2/3; // Tunable Parameter
+
+                double numer = dQnorm;
+                double denom1 = 2*(1+a*cos(thetak)+(1-a)*cos(thetakm));
+                double denom2 = 2*(1+a*cos(thetakm)+(1-a)*cos(thetak));
+
+                double gammak = numer/denom1;
+                double gammakp = numer/denom2;
+
+                std::vector<double> Rkp = {Qkm[0]+gammak*Tkm[0],Qkm[1]+gammak*Tkm[1]};
+                std::vector<double> Rkpp = {Qk[0]-gammakp*Tk[0],Qk[1]-gammakp*Tk[1]};
+                std::vector<double> Qkp = {(gammak*Rkpp[0]+gammakp*Rkp[0])/(gammak+gammakp),
+                                           (gammak*Rkpp[1]+gammakp*Rkp[1])/(gammak+gammakp)};
+                double w1 = makeWeight(Qkm,Rkp,Qkp);
+                double w2 = makeWeight(Qkp,Rkpp,Qk);
+                weight.insert(weight.end(),{w1,1,w2,1});
+
+                CPoints.insert(CPoints.end(),{Rkp,Qkp,Rkpp,Qk});
+            } else { // Normal Case
+                double w1 = makeWeight(Qkm,Rk1,Qk);
+
+                weight.insert(weight.end(),{w1,1});
+                CPoints.insert(CPoints.end(),{Rk1,Qk});
+            }
+        }
+    }
+    // At this point, weight and CPoints are made. The last thing we need is the knot vector
+    // Split the Q and R sets
+    std::vector<std::vector<double>> Qset = {CPoints[0]};
+    std::vector<std::vector<double>> Rset = {CPoints[1]};
+    for(int i = 2; i < CPoints.size();i+=2){ 
+        Qset.insert(Qset.end(),CPoints[i]); // Get every other control point
+        Rset.insert(Rset.end(),CPoints[i+1]); // Get every other other control point.
+    }
+    n = Qset.size()-1;
+    // Make ubar Helper
+    std::vector<double> ubar= {0,1};
+    for(int i = 2;i < n+1; i++) {
+        double coeff = ubar[i-1]-ubar[i-2];
+
+        double numer = sqrt(pow(Rset[i-1][0]-Qset[i-1][0],2)+pow(Rset[i-1][1]-Qset[i-1][1],2));
+        double denom = sqrt(pow(Qset[i-1][0]-Rset[i-2][0],2)+pow(Qset[i-1][1]-Rset[i-2][1],2));
+
+        ubar.insert(ubar.end(),ubar[i-1]+coeff*numer/denom);
+    }
+    double un = ubar[ubar.size()-1];
+    // Make Knot Vector
+    std::vector<double> U = {0,0,0};
+    for(int i = 1;i < ubar.size();i++) {
+        U.insert(U.end(),{ubar[i]/un,ubar[i]/un});
+    }
+    U.insert(U.end(),1);
+    // Finally Make the Spline Object
+    Spline ret = Spline(CPoints,U,weight);
+    return ret;
+}
 
 // Dynamic Methods **************************
 // Assuming 2D
@@ -836,7 +977,9 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
     return ret;
 }
 
+std::vector<double> Spline::getParameterLoop(std::vector<std::vector<double>> square) {
 
+}
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;

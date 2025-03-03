@@ -28,10 +28,10 @@ class Spline {
         // A helper function for the BesselTangents method to create the u vector which is used in generating the tangents
         static std::vector<double> BesselTangentUVec(std::vector<std::vector<double>> Q);
         // Solve the intersection problem of two points (Q1,Q2) with tagent directions (T1,T2). 
-        static std::vector<double> solvePointTangentIntersection(std::vector<double> Q1, 
-                                                                 std::vector<double> Q2,
-                                                                 std::vector<double> T1,
-                                                                 std::vector<double> T2);
+        static std::vector<std::vector<double>> solvePointTangentIntersection(std::vector<double> Q1, 
+                                                                              std::vector<double> Q2,
+                                                                              std::vector<double> T1,
+                                                                              std::vector<double> T2);
         // A global interpolation Method which returns. The points are enforced at parameter values given by uset
         static Spline GlobalPointInterp(std::vector<std::vector<double>> Q,int p,std::vector<double> uset);
 
@@ -87,7 +87,7 @@ class Spline {
         double getCurvature(double u);
 
         // Clips the intersection between a grid cell and the spline, returjning parameter values and indicators.
-        double getParamterLoop(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP,std::vector<std::vector<double>> square);
+        std::vector<double> getParameterLoop(std::vector<std::vector<double>> square);
 
         // returns the total unsigned surface energy of the spline. Used to return signed value also, but this may not be good for this method.
         double getSurfaceEnergy();
