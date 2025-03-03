@@ -663,6 +663,93 @@ std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<doubl
     }
 }
 
+double Spline::integratedSpline(double u) {// Testing Needed
+    // Find Span we are in
+    int spanIndex = -1;
+    if(u > 1) {// Too Large Error
+        spanIndex = -1; 
+    }else if(u < 0) {// Negative Error
+        spanIndex = -2;
+    } else if(u == 1) { // Edge Case
+        spanIndex = breakpoints.size()-2;
+    } else {
+        for(int i = 0; i <breakpoints.size()-1;i++) {
+            if(u >= breakpoints[i] && u < breakpoints[i+1]) {
+                spanIndex = i;
+                break;
+            }
+        }
+    }
+
+    // Get Appropriate Coefficients
+    // 0th Derivative Coefficients
+    double a = numerCoeffsX[spanIndex][0];
+    double b = numerCoeffsX[spanIndex][1];
+    double c = numerCoeffsX[spanIndex][2];
+
+    double d = numerCoeffsY[spanIndex][0];
+    double e = numerCoeffsY[spanIndex][1];
+    double f = numerCoeffsY[spanIndex][2];
+
+    double alpha = denomCoeffs[spanIndex][0];
+    double beta = denomCoeffs[spanIndex][1];
+    double gamma = denomCoeffs[spanIndex][2];
+
+    // 1st Derivative Coefficients
+    double ax = a*beta-b*alpha;
+    double bx = 2*(a*gamma-alpha*c);
+    double cx = b*gamma-beta*c;
+
+    double ay = d*beta-e*alpha;
+    double by = 2*(d*gamma-alpha*f);
+    double cy = e*gamma-beta*f;
+
+    // Numerator Coefficients
+    double term1 = a*ay;
+    double term2 = a*by+b*ay;
+    double term3 = a*cy+b*by+c*ay;
+    double term4 = b*cy+c*by;
+    double term5 = c*cy;
+
+    // Rename to match Mathematica
+    double a2 = term1;
+    double b2 = term2;
+    double c2 = term3;
+    double d2 = term4;
+    double e2 = term5;
+    double f2 = alpha;
+    double g = beta;
+    double h = gamma;
+
+    double N1B = c2*pow(f2,2)*pow(g,3) - b2*f2*pow(g,4) + a2*pow(g,5) +
+                2*c2*pow(f2,3)*g*h + 5*b2*pow(f2,2)*pow(g,2)*h - 8*a2*f2*pow(g,3)*h
+                - 16*b2*pow(f2,3)*pow(h,2) + 22*a2*pow(f2,2)*g*pow(h,2) +
+                2*c2*pow(f2,3)*pow(g,2)*u - 2*a2*f2*pow(g,4)*u + 4*c2*pow(f2,4)*h*u
+                - 6*b2*pow(f2,3)*g*h*u + 16*a2*pow(f2,2)*pow(g,2)*h*u -
+                20*a2*pow(f2,3)*pow(h,2)*u + 6*e2*pow(f2,4)*(g + 2*f2*u) -
+                3*d2*pow(f2,3)*g*(g + 2*f2*u);
+
+    double D1B = (pow(f2,3)*pow(pow(g,2) - 4*f2*h,2)*(h + u*(g + f2*u)));
+
+    double N2B = (c2*pow(f2,2)*g*h - b2*f2*pow(g,2)*h + a2*pow(g,3)*h +
+                2*b2*pow(f2,2)*pow(h,2) - 3*a2*f2*g*pow(h,2) +
+                c2*pow(f2,2)*pow(g,2)*u - b2*f2*pow(g,3)*u + a2*pow(g,4)*u -
+                2*c2*pow(f2,3)*h*u + 3*b2*pow(f2,2)*g*h*u - 4*a2*f2*pow(g,2)*h*u +
+                2*a2*pow(f2,2)*pow(h,2)*u + e2*pow(f2,3)*(g + 2*f2*u) -
+                d2*pow(f2,3)*(2*h + g*u));
+    
+    double D2B = (pow(f2,3)*(-pow(g,2) + 4*f2*h)*pow(h + u*(g + f2*u),2));
+
+    double N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
+                6*a2*pow(h,2))*atan((g + 2*f2*u)/sqrt(-pow(g,2) + 4*f2*h)));
+
+    double D3B = pow(-pow(g,2) + 4*f2*h,2.5);
+
+    double value = 0.5*(N1B/D1B + N2B/D2B + N3B/D3B);
+
+    return value;
+}
+
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;

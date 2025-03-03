@@ -90,7 +90,7 @@ class Spline {
         double getSurfaceEnergy();
 
         // Helper Method to return integral of xy' for area finding, evaluated at parameter value u 
-        double integratedSpline(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP,double u);
+        double integratedSpline(double u);
 
         // Method to find the area of intersection between the spline and square
         double integrateSplineSquare(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP, std::vector<std::vector<double>> square);
