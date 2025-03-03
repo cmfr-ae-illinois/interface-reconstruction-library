@@ -15,14 +15,12 @@ int main() {
     std::vector<std::vector<double>> Dcoeffs = SP1.CurveCoefficients();
     Dcoeffs = SP1.getYCoeffs();
     std::vector<std::vector<double>> spans = SP1.getSpans();
+    std::vector<double> breakpoints = SP1.getBreakpoints();
     std::cout << spans.size() << "\n";
-    for(int i = 0; i<Dcoeffs.size();i++) {
-        for(int j = 0; j<Dcoeffs[0].size();j++) {
-            std :: cout << Dcoeffs[i][j] <<",";
-        }
-        std::cout << "\n";
+    for(int i = 0; i<breakpoints.size();i++) {
+        std :: cout << breakpoints[i] <<",";
     }
+    std::cout << "\n";
     
-    std::cout << SP1.getArcLength();
     return 0;
 }

@@ -89,8 +89,9 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
 
     // Calculate D
     std::vector<std::vector<double>> D = {{0,0}};
+    std::vector<double> temp = {0,0};
     for(int i = 1; i < n; i++) {
-        std::vector<double> temp = {0,0};
+        temp = {0,0};
         for(int j = 0; j <temp.size();j++) {
             temp[j] = (1-alpha[i])*q[i-1][j]+alpha[i]*q[i][j];
         }
@@ -98,13 +99,13 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
         D.insert(D.end(),temp);
     }
     // D[0]
-    std::vector<double> temp = {0,0};
+    temp = {0,0};
     for(int j = 0; j <temp.size();j++) {
         temp[j] = 2*q[0][j] - D[1][j];
     }
     D[0] = temp;
     // D[end]
-    std::vector<double> temp = {0,0};
+    temp = {0,0};
     for(int j = 0; j <temp.size();j++) {
         temp[j] = 2*q[q.size()-1][j] - D[D.size()-1][j];
     }
@@ -258,10 +259,31 @@ double makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<d
             weight = sqrt(numer/denom);
         }
     }
+    return weight;
 }
 
 
 // Dynamic Methods **************************
+// Assuming 2D
+int Spline::findSpan(double u) {
+    int spanIndex = -1;
+    if(u > 1) {// Too Large Error
+        spanIndex = -1; 
+    }else if(u < 0) {// Negative Error
+        spanIndex = -2;
+    } else if(u == 1) { // Edge Case
+        spanIndex = breakpoints.size()-2;
+    } else {
+        for(int i = 0; i <breakpoints.size()-1;i++) {
+            if(u >= breakpoints[i] && u < breakpoints[i+1]) {
+                spanIndex = i;
+                break;
+            }
+        }
+    }
+    return spanIndex;
+}
+
 double Spline::BBasisFunction(int i, int p,double u) { 
     double numer1 = u - KnotVector[i];
     double numer2 = KnotVector[i+p+1]-u;
@@ -573,21 +595,7 @@ double Spline::getSurfaceEnergy() { // Testing Needed
 double Spline::getCurvature(double u) { // Testing Needed
     
     // Find Span we are in
-    int spanIndex = -1;
-    if(u > 1) {// Too Large Error
-        spanIndex = -1; 
-    }else if(u < 0) {// Negative Error
-        spanIndex = -2;
-    } else if(u == 1) { // Edge Case
-        spanIndex = breakpoints.size()-2;
-    } else {
-        for(int i = 0; i <breakpoints.size()-1;i++) {
-            if(u >= breakpoints[i] && u < breakpoints[i+1]) {
-                spanIndex = i;
-                break;
-            }
-        }
-    }
+    int spanIndex = findSpan(u);
 
     // 0th Derivative Coefficients
     double a = numerCoeffsX[spanIndex][0];
@@ -661,25 +669,12 @@ std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<doubl
             curve.insert(curve.end(),val);
         }
     }
+    return curve;
 }
 
 double Spline::integratedSpline(double u) {// Testing Needed
     // Find Span we are in
-    int spanIndex = -1;
-    if(u > 1) {// Too Large Error
-        spanIndex = -1; 
-    }else if(u < 0) {// Negative Error
-        spanIndex = -2;
-    } else if(u == 1) { // Edge Case
-        spanIndex = breakpoints.size()-2;
-    } else {
-        for(int i = 0; i <breakpoints.size()-1;i++) {
-            if(u >= breakpoints[i] && u < breakpoints[i+1]) {
-                spanIndex = i;
-                break;
-            }
-        }
-    }
+    int spanIndex = findSpan(u);
 
     // Get Appropriate Coefficients
     // 0th Derivative Coefficients
@@ -750,6 +745,23 @@ double Spline::integratedSpline(double u) {// Testing Needed
     return value;
 }
 
+double Spline::getArea() { // Testing Needed
+    double Area = 0;
+    double nudge = 1e-8;
+    // Loop over each breakpoint, find area of that section, then add them together.
+    double uL;
+    double uR;
+    for(int i =0; i <breakpoints.size()-1; i++) {
+        uL = breakpoints[i]; // Left Breakpoint
+        uR = breakpoints[i+1]; // Right Breakpoint
+
+        uL += nudge;
+        uR -= nudge;
+
+        Area += integratedSpline(uR) - integratedSpline(uL);
+    }
+    return Area;
+}
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;

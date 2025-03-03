@@ -73,11 +73,14 @@ class Spline {
         // Finds the span in which paramter u lies in, for a degree p basis function.
         int findSpan(int p, double u);
 
+        // Specifically for quadratic
+        int findSpan(double u);
+
         // Finds the arc length of the spline
         double getArcLength();
 
         // Gets the total area of the closed curve of the spline (Assumed closed)
-        double getArea(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP);
+        double getArea();
 
         // gets the signed curvature at the point given by parameter value u
         // This also is supposed to return first and second derivatives, but that may need to be a new Method
