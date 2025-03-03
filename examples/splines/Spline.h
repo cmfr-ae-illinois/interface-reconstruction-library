@@ -96,7 +96,7 @@ class Spline {
         double integratedSpline(double u);
 
         // Method to find the area of intersection between the spline and square
-        double integrateSplineSquare(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP, std::vector<std::vector<double>> square);
+        double integrateSplineSquare(std::vector<std::vector<double>> square);
 
         // Method to find the intersection points between a given line and the spline. Line goes from P1 to P2. Returns in order that goes from P1 to P2.
         std::vector<double> lineCurveIntersection(std::vector<double> P1, std::vector<double> P2);

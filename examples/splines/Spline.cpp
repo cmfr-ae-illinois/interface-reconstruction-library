@@ -1058,6 +1058,176 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
 
     return {parameter,indicator};
 }
+
+double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) {
+    std::vector<std::vector<double>> loop = getParameterLoop(square);
+    std::vector<double> parameter = square[0];
+    std::vector<double> indicator = square[1];
+    double Area = 0;
+
+    for(int i = 0;i<indicator.size()-2;i++) { // Loop over pairs of indicators/parameters
+        double ind1 = indicator[i];
+        double ind2 = indicator[i+1];
+        // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
+
+        
+        if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
+            std::vector<double> P1 = square[parameter[i]];
+            std::vector<double> P2 = square[parameter[i+1]];
+
+            // Get Normal
+            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<double> normal = {-tangent[1],tangent[0]};
+            // Normalize normal
+            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            normal[0] /= normalNorm;
+            normal[1] /= normalNorm;
+
+            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
+            double integrand = normal[0];
+            double Pp = normalNorm;
+            // integrand *= Pp;
+
+            // Integrand is coefficient next to x, now get actual x function
+            double x1 = P1[0];
+            double x2 = P2[0];
+            double m = x2-x1;
+            double b = x1;
+
+            double velocity = Pp;
+            Area += integrand*(m/2 + b) * velocity;
+        } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
+            std::vector<double> P1 = square[parameter[i]];
+            std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
+
+            // Get Normal
+            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<double> normal = {-tangent[1],tangent[0]};
+            // Normalize normal
+            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            normal[0] /= normalNorm;
+            normal[1] /= normalNorm;
+
+            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
+            double integrand = normal[0];
+            double Pp = normalNorm;
+            // integrand *= Pp;
+
+            // Integrand is coefficient next to x, now get actual x function
+            double x1 = P1[0];
+            double x2 = P2[0];
+            double m = x2-x1;
+            double b = x1;
+
+            double velocity = Pp;
+            Area += integrand*(m/2 + b) * velocity;
+        } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
+            std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
+            std::vector<double> P2 = square[parameter[i+1]];
+
+            // Get Normal
+            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<double> normal = {-tangent[1],tangent[0]};
+            // Normalize normal
+            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            normal[0] /= normalNorm;
+            normal[1] /= normalNorm;
+
+            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
+            double integrand = normal[0];
+            double Pp = normalNorm;
+            // integrand *= Pp;
+
+            // Integrand is coefficient next to x, now get actual x function
+            double x1 = P1[0];
+            double x2 = P2[0];
+            double m = x2-x1;
+            double b = x1;
+
+            double velocity = Pp;
+            Area += integrand*(m/2 + b) * velocity;
+        } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
+            std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
+            std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
+
+            // Get Normal
+            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<double> normal = {-tangent[1],tangent[0]};
+            // Normalize normal
+            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            normal[0] /= normalNorm;
+            normal[1] /= normalNorm;
+
+            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
+            double integrand = normal[0];
+            double Pp = normalNorm;
+            // integrand *= Pp;
+
+            // Integrand is coefficient next to x, now get actual x function
+            double x1 = P1[0];
+            double x2 = P2[0];
+            double m = x2-x1;
+            double b = x1;
+
+            double velocity = Pp;
+            Area += integrand*(m/2 + b) * velocity;
+        } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
+            // Get Parameter Values
+            double u1 = parameter[i];
+            double u2 = parameter[i+1];
+
+            // Find Spans, in order
+            int spanIndex1 = findSpan(u1);
+            int spanIndex2 = findSpan(u2);
+            
+            double integral = 0;;
+            // if u1,u2 in the same span, we can go direct.
+            // If u1,u2 are in different spans, we have to segment through each span
+            if(spanIndex1 == spanIndex2) { // Same Span
+                double V1 = integratedSpline(u1);
+                double V2 = integratedSpline(u2);
+
+                integral = V2-V1;
+            } else { // Different Spans
+                int numSpans = spans.size();
+                int tempSpanIndex2 = spanIndex2;
+                if(spanIndex2 < spanIndex1) {
+                    tempSpanIndex2 = spanIndex2 + numSpans;
+                }
+
+                // Get Set of Breakpoint Indices
+                std::vector<int> breakIndexSet = {spanIndex1+1};
+                for(int j = spanIndex1+2;j<=tempSpanIndex2; j++) {
+                    breakIndexSet.insert(breakIndexSet.end(),j);
+                }
+                // Mod them into range
+                for(int j = 0; j < breakIndexSet.size();j++ ) {
+                    breakIndexSet[i] = breakIndexSet[i]%numSpans;
+                }
+                // Calculate Break Values
+                std::vector<double> breaks = {u1};
+                for(int j = 0; j < breakIndexSet.size();j++) {
+                    breaks.insert(breaks.end(),breakpoints[breakIndexSet[j]]);
+                }
+                breaks.insert(breaks.end(),u2);
+                // Integral
+                double integral = 0;
+                double nudge = 1e-8;
+                for(int j = 0; j < breaks.size(); j++) {
+                    u1 = breaks[j]+nudge;
+                    u2 = breaks[j]-nudge;
+
+                    double V1 = integratedSpline(u1);
+                    double V2 = integratedSpline(u2);
+
+                    integral += V2-V1;
+                }
+            }
+            Area += integral;
+        }   
+    }
+}
+
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;

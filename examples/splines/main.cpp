@@ -10,17 +10,11 @@ int main() {
     int p = 2;
     std::vector<double> W = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
     
-    Spline SP1 = Spline(V1,KV,W);
-    Spline SP2 = Spline::LocalRQuadInterp(V1,V1);
-    std::vector<std::vector<double>> Dcoeffs = SP1.CurveCoefficients();
-    Dcoeffs = SP1.getYCoeffs();
-    std::vector<std::vector<double>> spans = SP1.getSpans();
-    std::vector<double> breakpoints = SP1.getBreakpoints();
-    std::cout << spans.size() << "\n";
-    for(int i = 0; i<breakpoints.size();i++) {
-        std :: cout << breakpoints[i] <<",";
+    for(int i = 0; i < KV.size(); i++) {
+        std::cout << KV[i] << ",";
     }
     std::cout << "\n";
+    
     
     return 0;
 }
