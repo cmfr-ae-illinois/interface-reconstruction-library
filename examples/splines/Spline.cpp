@@ -1,6 +1,8 @@
 #include "Spline.h"
 #include <cmath>
 #include <vector>
+#include <numeric>      // std::iota
+#include <algorithm>    // std::sort, std::stable_sort
 
 // Will Delete, for testing
 float Spline::add(float x, float y) {
@@ -762,6 +764,78 @@ double Spline::getArea() { // Testing Needed
     }
     return Area;
 }
+
+std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::vector<double> P2) { // Testing Needed
+    std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+    std::vector<double> normal = {-tangent[1],tangent[0]};
+    int numSpans = breakpoints.size()-1;
+    std::vector<double> uIntersections = {0};
+    std::vector<double> sIntersections = {0};
+    double a = normal[0];
+    double b = normal[1];
+    double c = -(normal[0]*P1[0]+normal[1]*P1[1]);
+    int count = 0;
+    for(int i = 0; i < numSpans; i ++) { // Loop Over Spans
+        // Quadratic Coefficients
+        double aPoly = a*numerCoeffsX[i][0] + b*numerCoeffsY[i][0]+c*denomCoeffs[i][0];
+        double bPoly = a*numerCoeffsX[i][1] + b*numerCoeffsY[i][1]+c*denomCoeffs[i][1];
+        double cPoly = a*numerCoeffsX[i][2] + b*numerCoeffsY[i][2]+c*denomCoeffs[i][2];
+        // Solve Quadratic
+        double discrim = pow(bPoly,2)-4*aPoly*cPoly;
+        // Filter Values for real, in span on curve,and in spans of line
+        if(discrim >= 0) { // Real Values Only
+            double u1 = (-bPoly + sqrt(discrim))/(2*aPoly);
+            double u2 = (-bPoly - sqrt(discrim))/(2*aPoly);
+            std::vector<double> Inters = {u1,u2};
+            std::vector<std::vector<double>> pointInter = this->makeRationalQuadCurve(Inters);
+            // Check u1
+            for(int j = 0; j < Inters.size();j++) {
+                u1 = Inters[j];
+                if(u1 >= spans[i][0] && u1 <= spans[i][1]) { // Within Span of curve
+                    std::vector<double> Pcurr = pointInter[j];
+                    std::vector<double> dP1 = {Pcurr[0]-P1[0],Pcurr[1]-P1[1]};
+                    std::vector<double> dP2 = {Pcurr[0]-P2[0],Pcurr[1]-P2[1]};
+                    std::vector<double> dP = {P1[0]-P2[0],P1[1]-P2[1]};
+                    double lineCheck;
+                    if(abs(dP[0]) > abs(dP[1])) { // Checks if point between endpoints of line
+                        lineCheck = abs(dP1[0])+abs(dP2[0])-abs(dP[0]);
+                    } else {
+                        lineCheck = abs(dP1[1])+abs(dP2[1])-abs(dP[1]);
+                    }
+                    // If point on line, add
+                    if(lineCheck <= 1e-8) {
+                        if(count == 0){ // If first one, replace first value
+                            uIntersections[0] = u1;
+                            sIntersections[0] = std::min(abs(dP1[0]/dP[0]),abs(dP1[1]/dP[1]));
+                            count++;
+                        } else { // else, add to end
+                            uIntersections.insert(uIntersections.end(),u1);
+                            sIntersections.insert(sIntersections.end(),std::min(abs(dP1[0]/dP[0]),abs(dP1[1]/dP[1])));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // At this point we have finished looping over the spans. We now reorder the values to be along the line
+    // This section of code was taken from https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
+    std::vector<size_t> idx(sIntersections.size());
+    std:: iota(idx.begin(), idx.end(), 0);
+    // sort indexes based on comparing values in v
+    // using std::stable_sort instead of std::sort
+    // to avoid unnecessary index re-orderings
+    // when v contains elements of equal values 
+    stable_sort(idx.begin(), idx.end(),
+        [&sIntersections](size_t i1, size_t i2) {return sIntersections[i1] < sIntersections[i2];});
+    // Now back to me, rearrange uInters to be along the line
+    std::vector<double> ret(uIntersections.size());
+    for(int i = 0; i< idx.size(); i++) {
+        ret[i] = uIntersections[idx[i]];
+    }   
+    return ret;
+}
+
+
 // Getters
 std::vector<std::vector<double>> Spline::getControlPoints() {
     return ControlPoints;

@@ -99,7 +99,7 @@ class Spline {
         double integrateSplineSquare(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP, std::vector<std::vector<double>> square);
 
         // Method to find the intersection points between a given line and the spline. Line goes from P1 to P2. Returns in order that goes from P1 to P2.
-        std::vector<double> lineCurveIntersection(std::vector<double> U,std::vector<double> W,std::vector<std::vector<double>> CP, std::vector<double> P1, std::vector<double> P2);
+        std::vector<double> lineCurveIntersection(std::vector<double> P1, std::vector<double> P2);
         
         // A method for getting points along non-rational parabolic spline.
         std::vector<double> makeParabolicCurve(std::vector<std::vector<double>> CP, std::vector<double> U, std::vector<double> W, std::vector<double> uset);
