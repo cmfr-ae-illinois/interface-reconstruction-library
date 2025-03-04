@@ -202,10 +202,10 @@ void ExpandablePtList<
 #ifndef NDEBUG_PERF
   if (pt_list_m.capacity() >
       ExpandablePtList<VertexType, kStaticAllocSize>::on_stack_size) {
-    std::cout << "Static allocation size for SmallVector exceeded in "
-                 "ExpandablePtList. Expect performance penalty if this "
-                 "happens frequently."
-              << std::endl;
+    // std::cout << "Static allocation size for SmallVector exceeded in "
+    //              "ExpandablePtList. Expect performance penalty if this "
+    //              "happens frequently."
+    //           << std::endl;
   }
 #endif
 }

@@ -17,21 +17,23 @@ namespace IRL {
 
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
 IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::
-    IterativeSolverForDistance(const CellType &a_cell,
+    IterativeSolverForDistance(const CellType& a_cell,
                                const double a_volume_fraction,
                                const double a_volume_fraction_tolerance,
-                               const PlanarSeparator &a_reconstruction)
-    : cell_m(&a_cell), target_volume_fraction_m(a_volume_fraction),
+                               const PlanarSeparator& a_reconstruction)
+    : cell_m(&a_cell),
+      target_volume_fraction_m(a_volume_fraction),
       volume_fraction_tolerance_m(a_volume_fraction_tolerance),
-      reconstruction_m(a_reconstruction), flipped_solution_m(false) {
+      reconstruction_m(a_reconstruction),
+      flipped_solution_m(false) {
   this->solveForDistance();
 }
 
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
 void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::solve(
-    const CellType &a_cell, const double a_volume_fraction,
+    const CellType& a_cell, const double a_volume_fraction,
     const double a_volume_fraction_tolerance,
-    const PlanarSeparator &a_reconstruction) {
+    const PlanarSeparator& a_reconstruction) {
   cell_m = &a_cell;
   target_volume_fraction_m = a_volume_fraction;
   volume_fraction_tolerance_m = a_volume_fraction_tolerance;
@@ -42,7 +44,7 @@ void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::solve(
 
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
 void IterativeSolverForDistance<CuttingMethod, CellType,
-                                kMaxPlanes>::updateGuess(double *a_delta) {
+                                kMaxPlanes>::updateGuess(double* a_delta) {
   current_guess_m += *a_delta * characteristic_length_m;
   for (UnsignedIndex_t n = 0; n < distances_m.size(); ++n) {
     distances_m[n] = initial_distances_m[n] + current_guess_m;
@@ -51,7 +53,7 @@ void IterativeSolverForDistance<CuttingMethod, CellType,
 
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
 void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::setGuess(
-    double *a_guess) {
+    double* a_guess) {
   const double adjustment = *a_guess * characteristic_length_m;
   for (UnsignedIndex_t n = 0; n < distances_m.size(); ++n) {
     distances_m[n] = initial_distances_m[n] + adjustment;
@@ -59,9 +61,8 @@ void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::setGuess(
 }
 
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
-double
-IterativeSolverForDistance<CuttingMethod, CellType,
-                           kMaxPlanes>::calculateSignedScalarError(void) {
+double IterativeSolverForDistance<
+    CuttingMethod, CellType, kMaxPlanes>::calculateSignedScalarError(void) {
   reconstruction_m.setDistances(distances_m);
   return target_volume_fraction_m -
          getVolumeFraction<CuttingMethod>(*cell_m, reconstruction_m);
@@ -80,7 +81,7 @@ bool IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::
 }
 
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
-const SmallVector<double, kMaxPlanes> &
+const SmallVector<double, kMaxPlanes>&
 IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::getDistances(
     void) const {
   return distances_m;
@@ -102,10 +103,10 @@ void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::setup(
   if (target_volume_fraction_m > 0.5) {
     flipped_solution_m = true;
     target_volume_fraction_m = 1.0 - target_volume_fraction_m;
-    for (auto &plane : reconstruction_m) {
+    for (auto& plane : reconstruction_m) {
       plane = plane.generateFlippedPlane();
     }
-    if(reconstruction_m.getNumberOfPlanes() > 1){
+    if (reconstruction_m.getNumberOfPlanes() > 1) {
       reconstruction_m.setFlip(reconstruction_m.flip() == 1.0 ? -1.0 : 1.0);
     }
   }
@@ -121,7 +122,7 @@ void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::setup(
 template <class CuttingMethod, class CellType, UnsignedIndex_t kMaxPlanes>
 bool IterativeSolverForDistance<CuttingMethod, CellType,
                                 kMaxPlanes>::isBoundsTrueBounds(void) {
-  for (const auto &plane : reconstruction_m) {
+  for (const auto& plane : reconstruction_m) {
     // Make sure plane has a valid normal
     assert(magnitude(plane.normal()) > 0.9);
   }
@@ -156,8 +157,8 @@ void IterativeSolverForDistance<CuttingMethod, CellType,
                                 kMaxPlanes>::calculateBounds(void) {
   double lower_bound = DBL_MAX;
   double upper_bound = -DBL_MAX;
-  for (const auto &plane : reconstruction_m) {
-    for (const auto &vertex : (*cell_m)) {
+  for (const auto& plane : reconstruction_m) {
+    for (const auto& vertex : (*cell_m)) {
       lower_bound = std::min(lower_bound, vertex * plane.normal());
       upper_bound = std::max(upper_bound, vertex * plane.normal());
     }
@@ -165,7 +166,7 @@ void IterativeSolverForDistance<CuttingMethod, CellType,
   lower_bound -= 1.0e-8 * std::fabs(lower_bound);
   upper_bound += 1.0e-8 * std::fabs(upper_bound);
 
-  for (auto &distance : initial_distances_m) {
+  for (auto& distance : initial_distances_m) {
     distance = clipBetween(lower_bound, distance, upper_bound);
   }
 
@@ -193,7 +194,7 @@ void IterativeSolverForDistance<CuttingMethod, CellType,
   Illinois<IterativeSolverForDistance> illinois_solver;
   illinois_solver.solve(this, bound_value_m[0], bound_value_m[1]);
   if (flipped_solution_m) {
-    for (auto &member : distances_m) {
+    for (auto& member : distances_m) {
       member = -member;
     }
   }
@@ -205,14 +206,14 @@ void IterativeSolverForDistance<CuttingMethod, CellType, kMaxPlanes>::
 #ifndef NDEBUG_PERF
   if ((initial_distances_m.capacity() > kMaxPlanes) ||
       (distances_m.capacity() > kMaxPlanes)) {
-    std::cout << "Static allocation size for SmallVector exceeded in "
-                 "IterativeSolverForDistance. Expect performance "
-                 "penalty if this happens frequently."
-              << std::endl;
+    // std::cout << "Static allocation size for SmallVector exceeded in "
+    //              "IterativeSolverForDistance. Expect performance "
+    //              "penalty if this happens frequently."
+    // << std::endl;
   }
 #endif
 }
 
-} // namespace IRL
+}  // namespace IRL
 
-#endif // SRC_INTERFACE_RECONSTRUCTION_METHODS_ITERATIVE_DISTANCE_SOLVER_TPP_
+#endif  // SRC_INTERFACE_RECONSTRUCTION_METHODS_ITERATIVE_DISTANCE_SOLVER_TPP_

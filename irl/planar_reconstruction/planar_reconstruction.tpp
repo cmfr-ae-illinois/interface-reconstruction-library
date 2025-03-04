@@ -170,10 +170,10 @@ void PlanarReconstruction<kStackPlanes>::checkIfStaticAllocationExceeded(
     void) const {
 #ifndef NDEBUG_PERF
   if ((planes_m.capacity() > kStackPlanes)) {
-    std::cout << "Static allocation size for SmallVector exceeded in "
-                 "PlanarReconstruction. Expect performance "
-                 "penalty if this happens frequently."
-              << std::endl;
+    // std::cout << "Static allocation size for SmallVector exceeded in "
+    //              "PlanarReconstruction. Expect performance "
+    //              "penalty if this happens frequently."
+    // << std::endl;
   }
 #endif
 }
@@ -192,4 +192,4 @@ inline std::ostream& operator<<(
 
 }  // namespace IRL
 
-#endif // IRL_PLANAR_RECONSTRUCTION_PLANAR_RECONSTRUCTION_TPP_
+#endif  // IRL_PLANAR_RECONSTRUCTION_PLANAR_RECONSTRUCTION_TPP_

@@ -61,26 +61,26 @@ find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
 find_package(CGAL)
 
 # Add packages IRL stores in external
-set(IRL_USE_ABSL ON)
+# set(IRL_USE_ABSL ON)
 
-if(DEFINED USE_ABSL)
-  if(NOT USE_ABSL)
+# if(DEFINED USE_ABSL)
+#   if(NOT USE_ABSL)
     set(IRL_CXX_FLAGS "${IRL_CXX_FLAGS} -D IRL_NO_ABSL")
-  endif()
-endif()
+#   endif()
+# endif()
 
-if(IRL_USE_ABSL)
-  # Add Abseil as a sub-directory but temporarily turn testing off.
-  set(ABSL_PROPAGATE_CXX_STD ON)
-  set(ABSEIL_DIR "${PROJECT_SOURCE_DIR}/external/abseil-cpp")
-  set(BUILD_TESTING_ORIG ${BUILD_TESTING})
-  set(BUILD_TESTING OFF)
-  set(CMAKE_INSTALL_PREFIX_ORIG "${CMAKE_INSTALL_PREFIX}")
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/absl")
-  add_subdirectory(${ABSEIL_DIR})
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX_ORIG}")
-  set(BUILD_TESTING ${BUILD_TESTING_ORIG})
-endif()
+# if(IRL_USE_ABSL)
+#   # Add Abseil as a sub-directory but temporarily turn testing off.
+#   set(ABSL_PROPAGATE_CXX_STD ON)
+#   set(ABSEIL_DIR "${PROJECT_SOURCE_DIR}/external/abseil-cpp")
+#   set(BUILD_TESTING_ORIG ${BUILD_TESTING})
+#   set(BUILD_TESTING OFF)
+#   set(CMAKE_INSTALL_PREFIX_ORIG "${CMAKE_INSTALL_PREFIX}")
+#   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/absl")
+#   add_subdirectory(${ABSEIL_DIR})
+#   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX_ORIG}")
+#   set(BUILD_TESTING ${BUILD_TESTING_ORIG})
+# endif()
 
 # Path for Fortran Module files
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/mod)
@@ -115,10 +115,10 @@ target_link_libraries(irl INTERFACE PUBLIC Eigen3::Eigen)
 target_link_libraries(irl INTERFACE PUBLIC CGAL)
 target_link_libraries(irl PUBLIC quadmath)
 
-if(IRL_USE_ABSL)
-  target_include_directories(irl SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/abseil-cpp")
-  target_link_libraries(irl PUBLIC absl::inlined_vector absl::flat_hash_map)
-endif()
+# if(IRL_USE_ABSL)
+#   target_include_directories(irl SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/abseil-cpp")
+#   target_link_libraries(irl PUBLIC absl::inlined_vector absl::flat_hash_map)
+# endif()
 
 # C Interface
 target_link_libraries(irl_c PUBLIC irl)

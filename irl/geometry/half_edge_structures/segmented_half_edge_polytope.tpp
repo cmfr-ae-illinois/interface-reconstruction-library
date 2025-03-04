@@ -310,16 +310,16 @@ void SegmentedHalfEdgePolytope<FaceType, VertexType, kMaxFaces, kMaxVertices>::
     checkIfStaticAllocationExceeded(void) const {
 #ifndef NDEBUG_PERF
   if (faces_m.capacity() > kMaxFaces) {
-    std::cout << "Static allocation size for SmallVector exceeded in "
-                 "SegmentedHalfEdgePolytope for faces_m. Expect performance "
-                 "penalty if this happens frequently."
-              << std::endl;
+    // std::cout << "Static allocation size for SmallVector exceeded in "
+    //              "SegmentedHalfEdgePolytope for faces_m. Expect performance "
+    //              "penalty if this happens frequently."
+    //           << std::endl;
   }
   if (vertices_m.capacity() > kMaxVertices) {
-    std::cout << "Static allocation size for SmallVector exceeded in "
-                 "SegmentedHalfEdgePolytope for vertices_m. Expect "
-                 "performance penalty if this happens frequently."
-              << std::endl;
+    // std::cout << "Static allocation size for SmallVector exceeded in "
+    //              "SegmentedHalfEdgePolytope for vertices_m. Expect "
+    //              "performance penalty if this happens frequently."
+    //           << std::endl;
   }
 #endif
 }
