@@ -480,7 +480,11 @@ void computeMomentContributionAMR(
   // Compute z-bounds of triangle and cylinder
   auto z_limits = computeZBounds(a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2);
 
-  double max_tri_lenght = triangleSignedArea(a_pt_0, a_pt_1, a_pt_2);
+  // // quick end if we are looking at the top of that was cut.
+  // if (abs(a_normal[0]) <= DBL_EPSILON * 10 && abs(a_normal[1]) <= DBL_EPSILON * 10 
+  //     && abs(a_normal[2] - 1.0) <= DBL_EPSILON * 10 && abs(a_pt_0[2] - sqrt(a_aligned_cylinder.r())) <= DBL_EPSILON * 10) {
+  //       z_limits.second = true;
+  //     }
 
   if (z_limits.first) {
     // Max of triangle is smaller than min of paraboloid
@@ -489,7 +493,7 @@ void computeMomentContributionAMR(
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
     return;
-  } else if (z_limits.second && max_tri_lenght <= max_length) {
+  } else if (z_limits.second && abs(a_signed_area) <= max_length) {
     // Max of triangle is smaller than min of paraboloid
     moments_to_add[0] = computeMomentContributionClippedTriangle<ReturnType>(
         a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
@@ -542,6 +546,30 @@ void printClippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope) {
           current_half_edge->getVertex()->getLocation().getPt();
       amr_triangles_clipped.insert(
           amr_triangles_clipped.end(),
+          {ref_pt[0], ref_pt[1], ref_pt[2], prev_pt[0], prev_pt[1], prev_pt[2],
+           curr_pt[0], curr_pt[1], curr_pt[2]});
+      prev_pt = curr_pt;
+      current_half_edge = current_half_edge->getNextHalfEdge();
+    } while (current_half_edge != starting_half_edge);
+  }
+}
+
+template <class SegmentedHalfEdgePolyhedronType>
+void printUnclippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope) {
+  const auto number_of_faces = a_polytope->getNumberOfFaces();
+  for (UnsignedIndex_t f = 0; f < number_of_faces; ++f) {
+    const auto& face = *(*a_polytope)[f];
+    const auto starting_half_edge = face.getStartingHalfEdge();
+    const auto& ref_pt = starting_half_edge->getVertex()->getLocation().getPt();
+    auto current_half_edge =
+        starting_half_edge->getNextHalfEdge()->getNextHalfEdge();
+    auto prev_pt =
+        current_half_edge->getPreviousVertex()->getLocation().getPt();
+    do {
+      const auto& curr_pt =
+          current_half_edge->getVertex()->getLocation().getPt();
+      amr_triangles_unclipped.insert(
+          amr_triangles_unclipped.end(),
           {ref_pt[0], ref_pt[1], ref_pt[2], prev_pt[0], prev_pt[1], prev_pt[2],
            curr_pt[0], curr_pt[1], curr_pt[2]});
       prev_pt = curr_pt;
@@ -674,15 +702,35 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     // std::array<double, 4> rotation_list = {0.0, M_PI / 2.0, M_PI,
     //                                       3.0 * M_PI / 2.0};
   } else {
+
+    double vector_norm = std::sqrt(1.0 - a_cylinder.b());
+    const double b1 = sqrt(- a_cylinder.b()) / vector_norm;
     splitHalfEdgePolytope(
         a_polytope, &p1, a_complete_polytope,
-        Plane(Normal(0.0, 0.0, -1.0), 0.0));
+        Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(
+        a_polytope, &p2, a_complete_polytope,
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    // SegmentedHalfEdgePolyhedronType* W_polytope = &p2;
+    splitHalfEdgePolytope(
+        &p1, &p3, a_complete_polytope,
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     polytope_list.push_back(a_polytope);
     cylinder_list.push_back(a_cylinder);
     rotation_list.push_back(0.0);
-    polytope_list.push_back(&p1);
+    polytope_list.push_back(&p3);
     cylinder_list.push_back(a_cylinder);
     rotation_list.push_back(M_PI);
+    std::array<ReturnType, 1> left_moment;
+    std::array<ReturnType, 1> right_moment;
+    left_moment[0] = ReturnType::calculateMoments(&p1);
+    right_moment[0] = ReturnType::calculateMoments(&p2);
+    if (print) printUnclippedPolytope(&p1);
+    if (print) printUnclippedPolytope(&p2);
+    kahanSummationMoments<ReturnType>(full_moments, full_moments_ref,
+                                      left_moment);
+    kahanSummationMoments<ReturnType>(full_moments, full_moments_ref,
+                                      right_moment);
   }
 
   for (int i = 0; i < nb_cut; i++) {
