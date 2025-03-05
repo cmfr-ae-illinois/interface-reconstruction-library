@@ -185,6 +185,93 @@ ReturnType computeType3ContributionWithSplit(
     std::cout << "we are splitting" << std::endl;
     #endif
     (*a_split_counter)++;
+
+    // for the first split, let's try to split at the maximum of the ellipse
+    if (*a_split_counter == 1 && abs(a_plane_normal[2]) > MACHINE_EPSILON) {
+      #ifdef VALDEBUG
+      std::cout << "first split, let's try to catch the maximum of the ellipse" << std::endl;
+      #endif
+      const ScalarType r = a_cylinder.r();
+      const ScalarType b = a_cylinder.b();
+      const ScalarType nx = a_plane_normal[0];
+      const ScalarType ny = a_plane_normal[1];
+      const ScalarType nz = a_plane_normal[2];
+
+      const ScalarType alpha = copysign(ONE, b) * copysign(ONE, ny) * copysign(ONE, nz);
+
+      const ScalarType y = sqrt(r / (b * ny * ny + b * b * nz * nz)) * copysign(ny, alpha);
+      const ScalarType z = sqrt(r - b * y * y);
+      const ScalarType x = pt_0[0] + ((pt_0[1] - y) * ny + (pt_0[2] - z) * nz) / nx;
+
+      const ScalarType f = (y - pt_0[1]) / (pt_1[1] - pt_0[1]);
+      const ScalarType g = (x - pt_0[0]) / (pt_1[0] - pt_0[0]);
+      #ifdef VALDEBUG
+      std::cout << "value checkpoint\n\n" << std::endl;
+      std::cout << "b : " << b << std::endl;
+      std::cout << "r : " << r << std::endl;
+      std::cout << "nx : " << nx << std::endl;
+      std::cout << "ny : " << ny << std::endl;
+      std::cout << "nz : " << nz << std::endl;
+      std::cout << "x : " << x << std::endl;
+      std::cout << "y : " << y << std::endl;
+      std::cout << "z : " << z << std::endl;
+      #endif
+
+      // sanity check, the new point need to be is between the other two in terms of y, and a maximum in term of x :
+      // is the sanity check fail, let's fall back to cutting the arc in half
+      if (0 < f && f < 1 && (0 > g || g > 1) && z >= 0) {
+      
+        const Pt projected_pt(x, y, z);
+
+        Normal tangent_projected_pt =
+            computeAndCorrectTangentVectorAtPt<ScalarType>(
+                a_cylinder, a_plane_normal, pt_0, pt_1, a_tangent_1,
+                projected_pt);
+        // If the projected tangent cannot be calculated, then the arc contribution is 0
+        if (tangent_projected_pt[0] == ZERO && tangent_projected_pt[1] == ZERO &&
+            tangent_projected_pt[2] == ZERO) {
+          if constexpr (!std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
+            auto surface_arc = RationalBezierArc(
+                pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
+                pt_1.toDoublePt(), 0.0);
+            surface_arc.reset_start_point_id(
+                reinterpret_cast<std::uintptr_t>(&pt_0));
+            surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
+            a_surface->addArc(surface_arc);
+          }
+          return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+        }
+
+        // If we want to output the surface:
+        if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
+          // We need to store this vertex so that its address remains
+          // unique over time (for surface output purposes)
+          Pt* new_point = new Pt(projected_pt);
+          PtBase<double>* new_point_double =
+              new PtBase<double>(static_cast<double>(projected_pt[0]),
+                                static_cast<double>(projected_pt[1]),
+                                static_cast<double>(projected_pt[2]));
+          a_surface->addPt(new_point_double);
+          return computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                    a_cylinder, a_plane_normal, a_pt_ref, a_pt_0, *new_point,
+                    a_tangent_0, tangent_projected_pt, a_requires_nudge,
+                    a_split_counter, a_surface) +
+                computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                    a_cylinder, a_plane_normal, a_pt_ref, *new_point, a_pt_1,
+                    -tangent_projected_pt, a_tangent_1, a_requires_nudge,
+                    a_split_counter, a_surface);
+        } else {
+          return computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                    a_cylinder, a_plane_normal, a_pt_ref, a_pt_0,
+                    PtType(projected_pt), a_tangent_0, tangent_projected_pt,
+                    a_requires_nudge, a_split_counter, a_surface) +
+                computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                    a_cylinder, a_plane_normal, a_pt_ref, PtType(projected_pt),
+                    a_pt_1, -tangent_projected_pt, a_tangent_1, a_requires_nudge,
+                    a_split_counter, a_surface);
+        }
+      }
+    }
     // Compute average point and tangent
     const Pt average_pt = HALF * (pt_0 + pt_1);
     auto average_tangent = Normal(HALF * (a_tangent_0 + a_tangent_1));
