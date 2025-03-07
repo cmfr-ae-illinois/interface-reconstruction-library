@@ -15,6 +15,11 @@ int main() {
     }
     std::cout << "\n";
     
+    auto spline = Spline(V1, KV, W);
+
+    std::cout << "Arc length = " << spline.getArcLength() << std::endl;
+
+    spline.saveToVTK("spline_test");
     
     return 0;
 }

@@ -1,5 +1,8 @@
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <cmath>
+#include <iomanip>
 
 class Spline {
     private:
@@ -107,7 +110,8 @@ class Spline {
         // A method for getting points along a rational quadartic spline.
         std::vector<std::vector<double>> makeRationalQuadCurve(std::vector<double> uset);
 
-
+        // Saves spline into VTK format
+        void saveToVTK(const std::string& filename, const int nsamples = 100);
 
         // Getters ****************************
         std::vector<std::vector<double>> getControlPoints();

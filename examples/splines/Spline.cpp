@@ -1226,6 +1226,7 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) {
             Area += integral;
         }   
     }
+    return Area;
 }
 
 // Getters
@@ -1265,5 +1266,35 @@ void Spline::setKnotVector(std::vector<double> input) {
 }
 void Spline::setWeights(std::vector<double> input){
     Weights = input;
-    
+}
+
+void Spline::saveToVTK(const std::string& filename, const int nsamples){
+    std::vector<double> uset(nsamples, 0.);
+    for (int i = 0; i < nsamples; i++){
+        uset[i] = KnotVector[0] + (KnotVector[KnotVector.size()-1] - KnotVector[0]) * static_cast<double>(i) / static_cast<double>(nsamples - 1);
+    }
+    const auto curve = this->makeRationalQuadCurve(uset);
+
+    std::ofstream file;
+    file.open(filename + std::string(".vtu"));
+    file << "<VTKFile type=\"UnstructuredGrid\">\n<UnstructuredGrid>\n";
+    file << "<Piece NumberOfPoints=\"" << nsamples << "\" NumberOfCells=\"" << 1 << "\">\n";
+    file << "<Points>\n<DataArray type=\"Float64\" NumberOfComponents=\"3\">\n";
+    for (int i = 0; i < nsamples; i++){
+        file << std::scientific << std::setprecision(15) << curve[i][0] << " " << curve[i][1] << " 0. \n";
+    }
+    file << "</DataArray>\n</Points>\n<Cells>\n<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
+    int count = 0;
+    for (int i = 0; i < nsamples; i++){
+        file << count++ << " ";
+    }
+    file << "\n</DataArray>\n";
+    file << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
+    file << nsamples << " ";
+    file << "\n</DataArray>\n";
+    file << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
+    file << "7 ";
+    file << "\n</DataArray>\n";
+    file << "</Cells>\n</Piece>\n</UnstructuredGrid>\n</VTKFile>\n";
+    file.close();
 }
