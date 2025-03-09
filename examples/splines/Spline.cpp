@@ -24,6 +24,7 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
 
 
 // Static Methods ***********************
+// TEST ALL STATIC METHODS ***************************************************************************************
 std::vector<double> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q) {// Testing Needed
     int n = Q.size()-1;
     double d = 0;
@@ -270,7 +271,8 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
     std::vector<std::vector<double>> gamma = {{0,0}};
     std::vector<double> weight = {1};
     
-    for(int i =0;i<=n;i++) { // Loop over consecutive points.
+    for(int i =0;i<n;i++) { // Loop over consecutive points.
+        std::cout << "i = " << i << "\n";
 
         // Involved Tangents and Points
         std::vector<double> Tk = T[i+1];
@@ -375,6 +377,7 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
             }
         }
     }
+    std::cout << "Loop Done\n";
     // At this point, weight and CPoints are made. The last thing we need is the knot vector
     // Split the Q and R sets
     std::vector<std::vector<double>> Qset = {CPoints[0]};
@@ -604,7 +607,7 @@ std::vector<std::vector<double>> Spline::makeSpans() {
     }
     return spans;
 }
-
+// TEST BELOW HERE ***********************************************************************************
 double Spline::getArcLength() { // Testing Needed
     double nudge = 1e-12;
     // Three Point Quadrature
@@ -1059,7 +1062,7 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
     return {parameter,indicator};
 }
 
-double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) {
+double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Testing Needed
     std::vector<std::vector<double>> loop = getParameterLoop(square);
     std::vector<double> parameter = square[0];
     std::vector<double> indicator = square[1];
@@ -1226,6 +1229,7 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) {
             Area += integral;
         }   
     }
+    return Area;
 }
 
 // Getters

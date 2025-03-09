@@ -1,5 +1,9 @@
 #include <iostream>
+#include <cmath>
 #include <vector>
+#include <numeric>      // std::iota
+#include <algorithm>    // std::sort, std::stable_sort
+
 
 class Spline {
     private:
