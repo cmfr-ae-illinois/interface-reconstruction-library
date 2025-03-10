@@ -56,6 +56,12 @@ template <class GeometryType, class CalculationFunctor>
 auto calculateMoments(GeometryType* a_geometry,
                       CalculationFunctor a_moment_accumulator) ->
     typename CalculationFunctor::ReturnType {
+
+  // If geometry is empty, return 0;
+  if (a_geometry->getNumberOfFaces() == 0) {
+    return a_moment_accumulator.getMoments();
+  }
+  
   TetPtReferenceWrapper<typename GeometryType::pt_type> facet_and_pt;
   // Mark all faces that should be included as not visited
   for (auto& face : *a_geometry) {
