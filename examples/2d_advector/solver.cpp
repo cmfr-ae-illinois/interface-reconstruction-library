@@ -58,13 +58,20 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
   static double initial_liquid_volume_fraction_sum;
   static double initial_liquid_volume_sum;
   // Calculate CFL
-  double CFL = -DBL_MAX;
+  double totalCFL = 0.0;
+  int activeCellCount = 0;
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      CFL = std::fmax(CFL, std::fmax(a_U(i, j) * a_dt / mesh.dx(),
-                                     a_V(i, j) * a_dt / mesh.dy()));
+      double localCFL = std::fmax(a_U(i, j) * a_dt / mesh.dx(), 
+                                  a_V(i, j) * a_dt / mesh.dy());
+      
+      if (localCFL > 0) { 
+        totalCFL += localCFL; 
+        activeCellCount++;
+      }
     }
   }
+  double CFL = totalCFL / activeCellCount;
 
   // Calculate sum of volume fraction and sum of liquid volume
   double liquid_volume_fraction_sum = 0.0;

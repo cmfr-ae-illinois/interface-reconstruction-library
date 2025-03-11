@@ -7,6 +7,7 @@ IRLAddExample_cpp(
   "rotation_2d.h"
   "oscillation_2d.h"
   "deformation_2d.h"
+  "translation_2d.h"
   "reconstruction_types.h"
   "vof_advection.h"
   "solver.h"
@@ -21,6 +22,7 @@ IRLAddExample_cpp(
   "rotation_2d.cpp"
   "oscillation_2d.cpp"
   "deformation_2d.cpp"
+  "translation_2d.cpp"
   "vtk.cpp"
   "irl2d.cpp"
   OUTPUT_DIR
