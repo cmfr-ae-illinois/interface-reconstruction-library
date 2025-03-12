@@ -8,6 +8,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // #define VALDEBUG
+// #define NUDGE_REGION
 
 #include "irl/geometry/general/new_pt_calculation_functors.h"
 #include "irl/geometry/general/pt.h"
@@ -461,7 +462,7 @@ TEST(CylinderIntersection, DebugAMR) {
       "test_cylinder_amr");
 
   // This calculates the volume within machine zero
-  nlevels = 18;
+  nlevels = 15;
   auto amr_volume = intersectPolyhedronWithCylinderAMR<Volume>(
       &seg_half_edge, &half_edge, aligned_cylinder, nlevels);
 

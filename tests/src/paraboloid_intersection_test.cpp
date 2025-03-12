@@ -18,6 +18,9 @@
 #include <cmath>
 #include <random>
 
+// nothing to see here, not fusing two file to compile them together
+#include "tests/src/cylinder_intersection_test.cpp"
+
 #include "gtest/gtest.h"
 
 #include "irl/data_structures/small_vector.h"
@@ -1282,6 +1285,3 @@ TEST(ParaboloidIntersection, AutoDiffM2) {
 }
 
 }  // namespace
-
-// nothing to see here, not fusing two file to compile them together
-#include "tests/src/cylinder_intersection_test.cpp"

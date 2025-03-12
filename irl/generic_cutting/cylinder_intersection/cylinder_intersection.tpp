@@ -38,7 +38,12 @@
 //#define VALDEBUG
 
 #ifdef VALDEBUG
+#ifndef NUDGE_REGION
 #define NUDGE_REGION
+#endif
+#ifndef VALDEBUG_S
+#define VALDEBUG_S
+#endif
 #endif
 
 namespace IRL {
@@ -1446,9 +1451,9 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
-  #endif
+            #ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
+            #endif
             break;
           }
 
@@ -1469,9 +1474,6 @@ formCylinderIntersectionBasesClipped(
           opposite_face->markAsVisited();
           opposite_face->addIntersection();
         } else if (edge_intercepts.size() == 2) {
-  #ifdef NUDGE_REGION
-  std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
-  #endif
           // Check for intersection near end point
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
@@ -1480,9 +1482,9 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-  #ifdef VALDEBUG
-  std::cout << "gonna nudge" << std::endl;
-  #endif
+            #ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
+            #endif
             break;
           }
 
@@ -2985,6 +2987,9 @@ formCylinderIntersectionBases(
     }
     // *a_polytope = a_polytope_backup;
     // *a_complete_polytope = a_complete_polytope_backup;
+    #ifdef VALDEBUG_S
+    std::cout << "the contribution for rotation " << rotation_list[i] << " is " << moments << std::endl;
+    #endif
     total_moments += moments;
     
   }

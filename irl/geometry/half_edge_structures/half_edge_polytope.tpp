@@ -50,20 +50,38 @@ void HalfEdgePolytope<
       a_number_of_half_edges * sizeof_round<HalfEdgeType>();
   initial_vertex_storage_size_m = a_number_of_vertices * sizeof_round<VertexType>();
   initial_face_storage_size_m = a_number_of_faces * sizeof_round<FaceType>();
+  #ifdef VAL_MEM_DEBUG
+  std::cout << "resizing a polytop to : \n" <<
+               a_number_of_half_edges << " half edges (taking " << initial_half_edge_storage_size_m << "bytes)\n" <<
+               a_number_of_vertices << " vertices (taking " << initial_vertex_storage_size_m << "bytes)\n" <<
+               a_number_of_faces << " faces (taking " << initial_face_storage_size_m << "bytes)" << std::endl;
+  #endif
   storage_m.resizeFor(initial_half_edge_storage_size_m +
                    initial_vertex_storage_size_m + initial_face_storage_size_m);
   vertex_storage_m.resize(0);
   half_edge_storage_m.resize(0);
   face_storage_m.resize(0);
   for (UnsignedIndex_t i = 0; i < a_number_of_half_edges; i++) {
+    #ifdef VAL_MEM_DEBUG
+    std::cout << "allocating HE # " << i << std::endl;
+    #endif
         this->getNewHalfEdge();
   }
   for (UnsignedIndex_t i = 0; i < a_number_of_vertices; i++) {
+    #ifdef VAL_MEM_DEBUG
+    std::cout << "allocating vertex # " << i << std::endl;
+    #endif
     this->getNewVertex();
   }
   for (UnsignedIndex_t i = 0; i < a_number_of_faces; i++) {
+    #ifdef VAL_MEM_DEBUG
+    std::cout << "allocating face # " << i << std::endl;
+    #endif
     this->getNewFace();
   }
+  #ifdef VAL_MEM_DEBUG
+  std::cout << "done resize " << std::endl;
+  #endif
 }
 
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
@@ -78,6 +96,12 @@ void HalfEdgePolytope<
       a_number_of_half_edges * sizeof_round<HalfEdgeType>();
   initial_vertex_storage_size_m = a_number_of_vertices * sizeof_round<VertexType>();
   initial_face_storage_size_m = a_number_of_faces * sizeof_round<FaceType>();
+  #ifdef VAL_MEM_DEBUG
+  std::cout << "resizing a polytop for : \n" <<
+               a_number_of_half_edges << " half edges (taking " << initial_half_edge_storage_size_m << "bytes)\n" <<
+               a_number_of_vertices << " vertices (taking " << initial_vertex_storage_size_m << "bytes)\n" <<
+               a_number_of_faces << " faces (taking " << initial_face_storage_size_m << "bytes)" << std::endl;
+  #endif
   storage_m.resizeFor(initial_half_edge_storage_size_m +
                    initial_vertex_storage_size_m + initial_face_storage_size_m);
   vertex_storage_m.resize(0);
