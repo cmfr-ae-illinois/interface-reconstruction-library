@@ -101,10 +101,10 @@ template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const PlaneBase<ScalarType>& a_plane) {
   out << std::setprecision(15);
-  out << "( " << a_plane.normal()[0];
-  out << ", " << a_plane.normal()[1];
-  out << ", " << a_plane.normal()[2];
-  out << ", " << a_plane.distance();
+  out << "( " << static_cast<double>(a_plane.normal()[0]);
+  out << ", " << static_cast<double>(a_plane.normal()[1]);
+  out << ", " << static_cast<double>(a_plane.normal()[2]);
+  out << ", " << static_cast<double>(a_plane.distance());
   out << " ) \n";
   return out;
 }

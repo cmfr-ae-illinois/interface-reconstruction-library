@@ -350,7 +350,7 @@ inline std::ostream& operator<<(
   const auto& st_point = a_vertex.getLocation();
 
   out << "position " << st_point << '\n';
-  out << "distance : " << a_vertex.getDistance() << '\n';
+  out << "distance : " << static_cast<double>(a_vertex.getDistance()) << '\n';
   out << "is_clipped ? " << a_vertex.isClipped() << '\n';
   out << "needs_to_seek_m ? " << a_vertex.needsToSeek() << '\n';
   return out;
@@ -365,10 +365,10 @@ inline std::ostream& operator<<(
   out << std::setprecision(15);
 
   out << "face of equation : " << 
-         a_normal[0] << " * x + " <<
-         a_normal[1] << " * y + " <<
-         a_normal[2] << " * z - " <<
-         a_plane.distance() << " = 0\n";
+         static_cast<double>(a_normal[0]) << " * x + " <<
+         static_cast<double>(a_normal[1]) << " * y + " <<
+         static_cast<double>(a_normal[2]) << " * z - " <<
+         static_cast<double>(a_plane.distance()) << " = 0\n";
   out << "nb intersection " << a_face.getNumberOfIntersections() << '\n';
   out << "nb parra intersection " << a_face.getNumberOfEdgeParallelIntersections() << '\n';
   out << "triangle ? " << a_face.isTriangle() << '\n';

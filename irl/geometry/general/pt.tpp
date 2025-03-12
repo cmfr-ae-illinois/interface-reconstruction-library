@@ -290,9 +290,9 @@ template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const PtBase<ScalarType>& a_pt) {
   out << std::setprecision(15);
-  out << "( " << a_pt[0];
-  out << ", " << a_pt[1];
-  out << ", " << a_pt[2];
+  out << "( " << static_cast<double>(a_pt[0]);
+  out << ", " << static_cast<double>(a_pt[1]);
+  out << ", " << static_cast<double>(a_pt[2]);
   out << " )";
   return out;
 }

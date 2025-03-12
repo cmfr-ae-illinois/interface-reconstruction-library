@@ -90,19 +90,19 @@ inline ReturnType MomentsIntegrandCylinderArc(const ScalarType a_t,
                                       VolumeMomentsBase<ReturnScalarType>>) {
     auto integrand = ReturnType::fromScalarConstant(ReturnScalarType(0));
     integrand.volume() = ReturnScalarType(
-        MomentParaboloidIntegrand<ScalarType, 0, 0, 0>(pos_t, der_t, b, r) -
+        MomentCylinderIntegrand<ScalarType, 0, 0, 0>(pos_t, der_t, b, r) -
         MomentPlaneIntegrand<ScalarType, 0, 0, 0, ProjDir>(pos_t, der_t, normal,
                                                            dist, weight));
     integrand.centroid()[0] = ReturnScalarType(
-        MomentParaboloidIntegrand<ScalarType, 1, 0, 0>(pos_t, der_t, b, r) -
+        MomentCylinderIntegrand<ScalarType, 1, 0, 0>(pos_t, der_t, b, r) -
         MomentPlaneIntegrand<ScalarType, 1, 0, 0, ProjDir>(pos_t, der_t, normal,
                                                            dist, weight));
     integrand.centroid()[1] = ReturnScalarType(
-        MomentParaboloidIntegrand<ScalarType, 0, 1, 0>(pos_t, der_t, b, r) -
+        MomentCylinderIntegrand<ScalarType, 0, 1, 0>(pos_t, der_t, b, r) -
         MomentPlaneIntegrand<ScalarType, 0, 1, 0, ProjDir>(pos_t, der_t, normal,
                                                            dist, weight));
     integrand.centroid()[2] = ReturnScalarType(
-        MomentParaboloidIntegrand<ScalarType, 0, 0, 1>(pos_t, der_t, b, r) -
+        MomentCylinderIntegrand<ScalarType, 0, 0, 1>(pos_t, der_t, b, r) -
         MomentPlaneIntegrand<ScalarType, 0, 0, 1, ProjDir>(pos_t, der_t, normal,
                                                            dist, weight));
     return integrand;
@@ -446,8 +446,8 @@ ReturnType computeType3Contribution(
     std::cout << "x0 : " << pt_0 << std::endl;
     std::cout << "x* : " << cp << std::endl;
     std::cout << "x1 : " << pt_1 << std::endl;
-    std::cout << "w : " << weight << std::endl;
-    std::cout << "area : " << area_proj_triangle << std::endl;
+    std::cout << "w : " << static_cast<double>(weight) << std::endl;
+    std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
     #endif
 
     assert(weight >= ZERO);
@@ -478,15 +478,15 @@ ReturnType computeType3Contribution(
 
     #ifdef VALDEBUG
     std::cout << "coeffs :" << std::endl;
-    std::cout << "0 : " << coeffs[0] << std::endl;
-    std::cout << "1 : " << coeffs[1] << std::endl;
+    std::cout << "0 : " << static_cast<double>(coeffs[0]) << std::endl;
+    std::cout << "1 : " << static_cast<double>(coeffs[1]) << std::endl;
     #endif
     const auto& C11 = (pt_0[0] + pt_1[0]);
     const auto& C12 = cp[0];
     #ifdef VALDEBUG
     std::cout << "C vector :" << std::endl;
-    std::cout << "C11 : " << C11 << std::endl;
-    std::cout << "C12 : " << C12 << std::endl;
+    std::cout << "C11 : " << static_cast<double>(C11) << std::endl;
+    std::cout << "C12 : " << static_cast<double>(C12) << std::endl;
     #endif
     return ReturnType::fromScalarConstant(ReturnScalarType(
         area_proj_triangle * (coeffs[0] * C11 +
@@ -520,8 +520,8 @@ ReturnType computeType3Contribution(
     std::cout << "x0 : " << pt_0 << std::endl;
     std::cout << "x* : " << cp << std::endl;
     std::cout << "x1 : " << pt_1 << std::endl;
-    std::cout << "w : " << weight << std::endl;
-    std::cout << "area : " << area_proj_triangle << std::endl;
+    std::cout << "w : " << static_cast<double>(weight) << std::endl;
+    std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
     #endif
     assert(weight >= ZERO);
     // Compute coefficients (functions of the weight)
@@ -562,12 +562,12 @@ ReturnType computeType3Contribution(
     }
     #ifdef VALDEBUG
     std::cout << "coeffs :" << std::endl;
-    std::cout << "0 : " << coeffs[0] << std::endl;
-    std::cout << "1 : " << coeffs[1] << std::endl;
-    std::cout << "2 : " << coeffs[2] << std::endl;
-    std::cout << "3 : " << coeffs[3] << std::endl;
-    std::cout << "4 : " << coeffs[4] << std::endl;
-    std::cout << "5 : " << coeffs[5] << std::endl;
+    std::cout << "0 : " << static_cast<double>(coeffs[0]) << std::endl;
+    std::cout << "1 : " << static_cast<double>(coeffs[1]) << std::endl;
+    std::cout << "2 : " << static_cast<double>(coeffs[2]) << std::endl;
+    std::cout << "3 : " << static_cast<double>(coeffs[3]) << std::endl;
+    std::cout << "4 : " << static_cast<double>(coeffs[4]) << std::endl;
+    std::cout << "5 : " << static_cast<double>(coeffs[5]) << std::endl;
     #endif
     auto m0_basis = std::array<ScalarType, 2>(
         {X0 + X1,
@@ -589,20 +589,20 @@ ReturnType computeType3Contribution(
          TWO * X2 * Z2});
       #ifdef VALDEBUG
       std::cout << "C vector :" << std::endl;
-      std::cout << "C11 : " << m0_basis[0] << std::endl;
-      std::cout << "C12 : " << m0_basis[1] << std::endl;
-      std::cout << "C21 : " << m1x_basis[0] << std::endl;
-      std::cout << "C22 : " << m1x_basis[1] << std::endl;
-      std::cout << "C23 : " << m1x_basis[2] << std::endl;
-      std::cout << "C24 : " << m1x_basis[3] << std::endl;
-      std::cout << "C31 : " << m1y_basis[0] << std::endl;
-      std::cout << "C32 : " << m1y_basis[1] << std::endl;
-      std::cout << "C33 : " << m1y_basis[2] << std::endl;
-      std::cout << "C34 : " << m1y_basis[3] << std::endl;
-      std::cout << "C41 : " << m1z_basis[0] << std::endl;
-      std::cout << "C42 : " << m1z_basis[1] << std::endl;
-      std::cout << "C43 : " << m1z_basis[2] << std::endl;
-      std::cout << "C44 : " << m1z_basis[3] << std::endl;
+      std::cout << "C11 : " << static_cast<double>(m0_basis[0]) << std::endl;
+      std::cout << "C12 : " << static_cast<double>(m0_basis[1]) << std::endl;
+      std::cout << "C21 : " << static_cast<double>(m1x_basis[0]) << std::endl;
+      std::cout << "C22 : " << static_cast<double>(m1x_basis[1]) << std::endl;
+      std::cout << "C23 : " << static_cast<double>(m1x_basis[2]) << std::endl;
+      std::cout << "C24 : " << static_cast<double>(m1x_basis[3]) << std::endl;
+      std::cout << "C31 : " << static_cast<double>(m1y_basis[0]) << std::endl;
+      std::cout << "C32 : " << static_cast<double>(m1y_basis[1]) << std::endl;
+      std::cout << "C33 : " << static_cast<double>(m1y_basis[2]) << std::endl;
+      std::cout << "C34 : " << static_cast<double>(m1y_basis[3]) << std::endl;
+      std::cout << "C41 : " << static_cast<double>(m1z_basis[0]) << std::endl;
+      std::cout << "C42 : " << static_cast<double>(m1z_basis[1]) << std::endl;
+      std::cout << "C43 : " << static_cast<double>(m1z_basis[2]) << std::endl;
+      std::cout << "C44 : " << static_cast<double>(m1z_basis[3]) << std::endl;
       #endif
     for (size_t i = 0; i < 2; ++i) {
       moments.volume() += ReturnScalarType(coeffs[i] * m0_basis[i]);

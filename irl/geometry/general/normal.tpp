@@ -345,9 +345,9 @@ template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const NormalBase<ScalarType>& a_normal) {
   out << std::setprecision(15);
-  out << "( " << a_normal[0];
-  out << ", " << a_normal[1];
-  out << ", " << a_normal[2];
+  out << "( " << static_cast<double>(a_normal[0]);
+  out << ", " << static_cast<double>(a_normal[1]);
+  out << ", " << static_cast<double>(a_normal[2]);
   out << " )";
   return out;
 }

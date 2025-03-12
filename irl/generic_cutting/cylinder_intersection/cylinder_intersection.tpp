@@ -207,14 +207,14 @@ ReturnType computeType3ContributionWithSplit(
       const ScalarType g = (x - pt_0[0]) / (pt_1[0] - pt_0[0]);
       #ifdef VALDEBUG
       std::cout << "value checkpoint\n\n" << std::endl;
-      std::cout << "b : " << b << std::endl;
-      std::cout << "r : " << r << std::endl;
-      std::cout << "nx : " << nx << std::endl;
-      std::cout << "ny : " << ny << std::endl;
-      std::cout << "nz : " << nz << std::endl;
-      std::cout << "x : " << x << std::endl;
-      std::cout << "y : " << y << std::endl;
-      std::cout << "z : " << z << std::endl;
+      std::cout << "b : " << static_cast<double>(b) << std::endl;
+      std::cout << "r : " << static_cast<double>(r) << std::endl;
+      std::cout << "nx : " << static_cast<double>(nx) << std::endl;
+      std::cout << "ny : " << static_cast<double>(ny) << std::endl;
+      std::cout << "nz : " << static_cast<double>(nz) << std::endl;
+      std::cout << "x : " << static_cast<double>(x) << std::endl;
+      std::cout << "y : " << static_cast<double>(y) << std::endl;
+      std::cout << "z : " << static_cast<double>(z) << std::endl;
       #endif
 
       // sanity check, the new point need to be is between the other two in terms of y, and a maximum in term of x :
@@ -1185,7 +1185,7 @@ formCylinderIntersectionBasesClipped(
     const auto& hdist = sqrt(r/b) - fabs(pt[1]);
     const ScalarType dist_function = pt[2] * pt[2] + b * pt[1] * pt[1] - r;
     #ifdef VALDEBUG
-    std::cout << "computed distance is " << dist_function << std::endl;
+    std::cout << "computed distance is " << static_cast<double>(dist_function) << std::endl;
     #endif
 
     if (fabs(dist_function) < nudge_epsilon) {
@@ -1742,7 +1742,7 @@ formCylinderIntersectionBasesClipped(
       }
     }
   #ifdef VALDEBUG
-  std::cout << "the main component of normal is " << max_component_index << ", with value of " << max_component << std::endl;
+  std::cout << "the main component of normal is " << max_component_index << ", with value of " << static_cast<double>(max_component) << std::endl;
   #endif
     // #ifdef NUMERICAL_INTEGRATION
     //     // Find main normal direction
@@ -2139,7 +2139,7 @@ formCylinderIntersectionBasesClipped(
             element.second = rectify_invert * atan2(pt[1],
                                                     pt[0]);
             #ifdef VALDEBUG
-            std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
+            std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
             #endif
           }
         } else {
@@ -2148,7 +2148,7 @@ formCylinderIntersectionBasesClipped(
             element.second = invert * atan2(pt[2],
                                             pt[1]);
             #ifdef VALDEBUG
-            std::cout << "point : " << pt << ", sorting value : " << element.second << std::endl;
+            std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
             #endif
           }
         }
@@ -2835,8 +2835,8 @@ formCylinderIntersectionBases(
     if (a_nudge_iter >= 100) {
       std::cout << "ERROR: Nudged more than 100 times. Moments returned "
                    "are wrong -> Context: b = "
-                << a_aligned_cylinder.b()
-                << ", r = " << a_aligned_cylinder.r() << std::endl;
+                << static_cast<double>(a_aligned_cylinder.b())
+                << ", r = " << static_cast<double>(a_aligned_cylinder.r()) << std::endl;
       std::ofstream myfile("failed_nudge_comparison_cell.vtu");
       if (myfile.is_open()) {
         myfile << *a_polytope;
