@@ -85,7 +85,7 @@ double ExactM1zTranslatingCube_cylinder(const double u) {
 
 using namespace IRL;
 
-TEST(CylinderIntersection, SISCPaperFig5) {
+TEST(CylinderIntersection, SISCPaperFig1) {
   using VolumeAndSuface =
       AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
 
@@ -147,7 +147,7 @@ TEST(CylinderIntersection, SISCPaperFig5) {
   }
 }
 
-TEST(CylinderIntersection, SISCPaperFig6) {
+TEST(CylinderIntersection, SISCPaperFig2) {
 
   AlignedCylinder aligned_cylinder({1.0, 1.0});  // DO NOT CHANGE
   Pt datum(0, 0, 0);
@@ -474,7 +474,7 @@ TEST(CylinderIntersection, DebugAMR) {
   EXPECT_NEAR(temp_moments.volume(), M_PI, 1e-13);
 }
 
-TEST(HyperCylinderIntersection, SISCPaperFig5) {
+TEST(HyperCylinderIntersection, SISCPaperFig1) {
   using VolumeAndSuface =
       AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
 

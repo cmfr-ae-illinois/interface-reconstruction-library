@@ -974,7 +974,7 @@ TEST(ParaboloidIntersection, PtQuad) {
   auto testsum0 = pt_double + Pt(1.0, 1.0, 1.0);
 
   std::cout << "   DBL_EPSILON = " << DBL_EPSILON << std::endl;
-  std::cout << "FLT128_EPSILON = " << FLT128_EPSILON << std::endl;
+  std::cout << "FLT128_EPSILON = " << static_cast<double>(FLT128_EPSILON) << std::endl;
   std::cout << "        Pt double = " << pt_double << std::endl;
   std::cout << "        Pt double = " << pt_double << std::endl;
   std::cout << "          Pt quad = " << pt_quad << std::endl;
@@ -985,8 +985,8 @@ TEST(ParaboloidIntersection, PtQuad) {
   auto test3 = pow(10.0, 1.0 / 3.0);
 
   std::cout << std::setprecision(15);
-  std::cout << "      10^1/3 quad/quad = " << test1 << std::endl;
-  std::cout << "    10^1/3 quad/double = " << test2 << std::endl;
+  std::cout << "      10^1/3 quad/quad = " << static_cast<double>(test1) << std::endl;
+  std::cout << "    10^1/3 quad/double = " << static_cast<double>(test2) << std::endl;
   std::cout << "  10^1/3 double/double = " << test3 << std::endl;
 
   const Quad_t alpha = 0.5q, beta = 0.5q;
@@ -996,7 +996,7 @@ TEST(ParaboloidIntersection, PtQuad) {
       (9.0q * alpha * alpha + 9.0q * beta * beta + 10.0q * alpha * beta) /
               1440.0q -
           1.0q / 8.0q);
-  std::cout << "   Volume exact = " << exact_volume << std::endl;
+  std::cout << "   Volume exact = " << static_cast<double>(exact_volume) << std::endl;
   std::cout << " Centroid exact = " << exact_m1 << std::endl;
 
   Quad_t max_dp_error = 0.0q, max_qp_error = 0.0q;
@@ -1036,7 +1036,7 @@ TEST(ParaboloidIntersection, PtQuad) {
     max_dp_error = maximum(max_dp_error, m1_error[0]);
     max_dp_error = maximum(max_dp_error, m1_error[1]);
     max_dp_error = maximum(max_dp_error, m1_error[2]);
-    std::cout << "           Error = " << volume_error << "   " << m1_error
+    std::cout << "           Error = " << static_cast<double>(volume_error) << "   " << m1_error
               << std::endl;
   }
   {  // Create unit cube
@@ -1064,7 +1064,7 @@ TEST(ParaboloidIntersection, PtQuad) {
     max_qp_error = maximum(max_qp_error, m1_error[0]);
     max_qp_error = maximum(max_qp_error, m1_error[1]);
     max_qp_error = maximum(max_qp_error, m1_error[2]);
-    std::cout << "           Error = " << volume_error << "   " << m1_error
+    std::cout << "           Error = " << static_cast<double>(volume_error) << "   " << m1_error
               << std::endl;
   }
 
