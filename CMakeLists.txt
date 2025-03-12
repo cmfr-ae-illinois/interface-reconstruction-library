@@ -178,6 +178,3 @@ if(IRL_BUILD_FORTRAN)
   install(TARGETS irl_fortran EXPORT "irl_fortran_exp" ARCHIVE DESTINATION "lib")
   install(DIRECTORY "${CMAKE_Fortran_MODULE_DIRECTORY}/" DESTINATION "include/irl_fortran")
 endif()
-
-# Add a new subdirectory for sandbox
-add_subdirectory(sandbox)
