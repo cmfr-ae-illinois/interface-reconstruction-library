@@ -1677,15 +1677,15 @@ formCylinderIntersectionBasesClipped(
   if (new_intersection_vertices == 0) {
 
     if (number_of_vertices_above == starting_number_of_vertices) {
-  #ifdef VALDEBUG
-  std::cout << "All vertices above, fast end" << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "All vertices above, fast end" << std::endl;
+      #endif
       // All points above
       return full_moments;
     } else if (number_of_vertices_above == 0) {
-  #ifdef VALDEBUG
-  std::cout << "All vertices below, fast end" << std::endl;
-  #endif
+      #ifdef VALDEBUG
+      std::cout << "All vertices below, fast end" << std::endl;
+      #endif
       // All points below
       return ReturnType::calculateMoments(a_polytope) + full_moments;
     }
@@ -2135,13 +2135,13 @@ formCylinderIntersectionBasesClipped(
         const ScalarType invert = rectangle_face 
                                   ? copysign(ONE, face_normal[2]) 
                                   : copysign(ONE, face_normal[0]);
-        Pt center(ZERO, ZERO, ZERO);
-        for (auto& element : intersections) {
-          const auto& pt = element.first->getVertex()->getLocation().getPt();
-          center += pt;
-        }
-        center /= intersections.size();
         if (rectangle_face) {
+          Pt center(ZERO, ZERO, ZERO);
+          for (auto& element : intersections) {
+            const auto& pt = element.first->getVertex()->getLocation().getPt();
+            center += pt;
+          }
+          center /= intersections.size();
           const ScalarType rectify_invert = hyperbolic_face 
                                             ? - invert
                                             : invert;
@@ -2156,8 +2156,8 @@ formCylinderIntersectionBasesClipped(
         } else {
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = invert * atan2(pt[2] - center[2],
-                                            pt[1] - center[1]);
+            element.second = invert * atan2(pt[2],
+                                            pt[1]);
             #ifdef VALDEBUG
             std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
             #endif
