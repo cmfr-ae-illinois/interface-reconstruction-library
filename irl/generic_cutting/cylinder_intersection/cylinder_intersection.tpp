@@ -1442,9 +1442,9 @@ formCylinderIntersectionBasesClipped(
         // Size of returned intercepts indicates single or double
         // intercept (or none)
         if (edge_intercepts.size() == 1) {
-  #ifdef VALDEBUG
-  std::cout << "one intersection find at " << edge_intercepts[0] << std::endl;
-  #endif
+          #ifdef VALDEBUG
+          std::cout << "one intersection find at " << edge_intercepts[0] << std::endl;
+          #endif
           // Check for intersection near end points
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
@@ -1474,6 +1474,9 @@ formCylinderIntersectionBasesClipped(
           opposite_face->markAsVisited();
           opposite_face->addIntersection();
         } else if (edge_intercepts.size() == 2) {
+          #ifdef VALDEBUG
+          std::cout << "two intersection find at " << edge_intercepts[0] << " and " << edge_intercepts[1] << std::endl;
+          #endif
           // Check for intersection near end point
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
@@ -2132,14 +2135,20 @@ formCylinderIntersectionBasesClipped(
         const ScalarType invert = rectangle_face 
                                   ? copysign(ONE, face_normal[2]) 
                                   : copysign(ONE, face_normal[0]);
+        Pt center(ZERO, ZERO, ZERO);
+        for (auto& element : intersections) {
+          const auto& pt = element.first->getVertex()->getLocation().getPt();
+          center += pt;
+        }
+        center /= intersections.size();
         if (rectangle_face) {
           const ScalarType rectify_invert = hyperbolic_face 
                                             ? - invert
                                             : invert;
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = rectify_invert * atan2(pt[1],
-                                                    pt[0]);
+            element.second = rectify_invert * atan2(pt[1] - center[1],
+                                                    pt[0] - center[0]);
             #ifdef VALDEBUG
             std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
             #endif
@@ -2147,8 +2156,8 @@ formCylinderIntersectionBasesClipped(
         } else {
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = invert * atan2(pt[2],
-                                            pt[1]);
+            element.second = invert * atan2(pt[2] - center[2],
+                                            pt[1] - center[1]);
             #ifdef VALDEBUG
             std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
             #endif
@@ -2988,7 +2997,7 @@ formCylinderIntersectionBases(
     // *a_polytope = a_polytope_backup;
     // *a_complete_polytope = a_complete_polytope_backup;
     #ifdef VALDEBUG_S
-    std::cout << "the contribution for rotation " << rotation_list[i] << " is " << moments << std::endl;
+    std::cout << "the contribution for rotation " << static_cast<double>(rotation_list[i]) << " is " << moments << std::endl;
     #endif
     total_moments += moments;
     
