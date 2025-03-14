@@ -2182,6 +2182,17 @@ formCylinderIntersectionBasesClipped(
         // restart_sort = true;
         // If this sorting failed, we now sort based on Y positions
         if (restart_sort) {
+          #ifdef VALDEBUG
+          std::cout << "angle sorting failed, sorting by Y : " << std::endl;
+          #endif
+          const ScalarType resort_invert = hyperbolic_face ? - copysign(ONE, face_normal[2])
+                                                           : copysign(ONE, face_normal[2]);
+          Pt center(ZERO, ZERO, ZERO);
+          for (auto& element : intersections) {
+            const auto& pt = element.first->getVertex()->getLocation().getPt();
+            center += pt;
+          }
+          center /= intersections.size();
           SmallVector<stype, 6> intersection_copy;
           intersection_copy.resize(intersections.size());
           // We split in X direction
@@ -2194,14 +2205,14 @@ formCylinderIntersectionBasesClipped(
           for (auto& element : intersections) {
             const auto& pt =
                 element.first->getVertex()->getLocation().getPt();
-            if (pt[split_ind] > ZERO) {
+            if (pt[split_ind] > center[split_ind]) {
               const auto loc = pos_end++;
               intersection_copy[loc].first = element.first;
-              intersection_copy[loc].second = invert * pt[store_ind];
+              intersection_copy[loc].second = resort_invert * pt[store_ind];
             } else {
               const auto loc = intersection_size - 1 - (neg_end++);
               intersection_copy[loc].first = element.first;
-              intersection_copy[loc].second = -invert * pt[store_ind];
+              intersection_copy[loc].second = -resort_invert * pt[store_ind];
             }
           }
           // Sort each ellipse half
@@ -2238,6 +2249,9 @@ formCylinderIntersectionBasesClipped(
 
           // If this sorting failed, we now sort based on X positions
           if (re_restart_sort) {
+            #ifdef VALDEBUG
+            std::cout << "Y sorting failed, sorting by X : " << std::endl;
+            #endif
             // We split in Y direction
             split_ind = 1;
             store_ind = 0;
@@ -2248,14 +2262,14 @@ formCylinderIntersectionBasesClipped(
             for (auto& element : intersections) {
               const auto& pt =
                   element.first->getVertex()->getLocation().getPt();
-              if (pt[split_ind] > ZERO) {
+              if (pt[split_ind] > center[split_ind]) {
                 const auto loc = pos_end++;
                 intersection_copy[loc].first = element.first;
-                intersection_copy[loc].second = -invert * pt[store_ind];
+                intersection_copy[loc].second = -resort_invert * pt[store_ind];
               } else {
                 const auto loc = intersection_size - 1 - (neg_end++);
                 intersection_copy[loc].first = element.first;
-                intersection_copy[loc].second = invert * pt[store_ind];
+                intersection_copy[loc].second = resort_invert * pt[store_ind];
               }
             }
             // Sort each ellipse half
@@ -2752,6 +2766,15 @@ formCylinderIntersectionBasesClipped(
         // }
         // Traverse face from entry->exit until all intersections have been
         // traversed
+        
+        #ifdef VALDEBUG
+        std::cout << "these are our intersections (after sorting) : " << std::endl;
+        for (auto& element : intersections) {
+          
+            const auto& pt = element.first->getVertex()->getLocation().getPt();
+            std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
+        }
+        #endif
         auto prev_vertex = intersections[0].first->getPreviousVertex();
         auto entry_half_edge = intersections[0].first;
         bool entry_first =
