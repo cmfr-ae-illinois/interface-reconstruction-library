@@ -846,6 +846,7 @@ ReturnType orientAndApplyType3Correction(
   const auto& pt_0 = a_start->getVertex()->getLocation().getPt();
   const auto& pt_1 = a_end->getVertex()->getLocation().getPt();
   const auto edge_vector = Normal(pt_1 - pt_0);
+  const Normal normalized_edge_vector = Normal::normalized(edge_vector[0], edge_vector[1], edge_vector[2]) ;
   const auto& face_plane = a_end->getFace()->getPlane();
   const auto& face_normal = face_plane.normal();
 
@@ -869,7 +870,7 @@ ReturnType orientAndApplyType3Correction(
   #endif
 
   // Is the arc from an ellipse (hence could require splittin)?
-  const bool elliptic_face = fabs(face_normal[0]) > MACHINE_EPSILON;
+  const bool elliptic_face = !(fabs(ONE - fabs(normalized_edge_vector[0])) < ANGLE_EPSILON);
 
   // If the tangents could not be calculated, switch to QP and shake the
   // polytope
