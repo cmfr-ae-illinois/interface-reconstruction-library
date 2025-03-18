@@ -49,10 +49,13 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "MOF2") {
     MOF2::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                               a_interface);
+  } else if (a_reconstruction_method == "MOF2AL"){
+    MOF2AL::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
   } else {
     std::cout << "Unknown reconstruction method of : "
               << a_reconstruction_method << '\n';
-    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ, MOF1, MOF2. \n";
+    std::cout << "Valid entries are: ELVIRA, LVIRA, LVIRAQ, MOF1, MOF2, MOF2AL. \n";
     std::exit(-1);
   }
 }
@@ -401,7 +404,7 @@ void LVIRAQ::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
 }
 
 // Functor for MOF
-struct MOFFunctor{
+struct MOF1Functor{
   typedef double Scalar;
   typedef Eigen::VectorXd InputType;
   typedef Eigen::VectorXd ValueType;
@@ -413,16 +416,18 @@ struct MOFFunctor{
 
   // variables
   const IRL2D::BezierList& m_cell;
-  const IRL2D::Vec m_centroid_star;
-  const double m_f_star;
+  const IRL2D::Vec m_liq_centroid_star;
+  const IRL2D::Vec m_gas_centroid_star;
+  const double m_liq_f_star;
   IRL2D::Vec m_datum;
   IRL2D::ReferenceFrame m_frame;
   double m_coeff;
   double m_length_scale;
 
-  MOFFunctor(const IRL2D::BezierList& cell,
-             const IRL2D::Vec& centroid_star, const double f_star)
-    : m_cell(cell), m_centroid_star(centroid_star), m_f_star(f_star) {
+  MOF1Functor(const IRL2D::BezierList& cell, const IRL2D::Vec& liq_centroid_star,
+             const IRL2D::Vec& gas_centroid_star, const double liq_f_star)
+    : m_cell(cell), m_liq_centroid_star(liq_centroid_star),
+      m_gas_centroid_star(gas_centroid_star), m_liq_f_star(liq_f_star) {
       m_length_scale = std::sqrt(IRL2D::ComputeArea(m_cell));
   }
   
@@ -430,20 +435,26 @@ struct MOFFunctor{
     m_coeff = 0.0;
     m_frame = guess_plane.frame();
     m_datum = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
+    //m_datum = guess_plane.datum();
   }
 
   const IRL2D::Parabola getplane(const Eigen::VectorXd& x) const {
     const auto rotation = IRL2D::ReferenceFrame(x(0));
     const auto new_frame = IRL2D::ReferenceFrame(rotation * m_frame[0], rotation * m_frame[1]);
     const auto plane = IRL2D::Parabola(m_datum, new_frame, 0.0);
-    return IRL2D::MatchToVolumeFraction(m_cell, plane, m_f_star);
+    return IRL2D::MatchToVolumeFraction(m_cell, plane, m_liq_f_star);
   }
 
   void errorvec(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
-    IRL2D::Moments moments = IRL2D::ComputeMoments(m_cell, IRL2D::Parabola(m_datum, m_frame, m_coeff));
-    IRL2D::Vec centroid_h = moments.m1() / moments.m0();
-    fvec(0) = (m_centroid_star[0] - centroid_h[0]) / m_length_scale;
-    fvec(1) = (m_centroid_star[1] - centroid_h[1]) / m_length_scale;
+    const auto plane = this->getplane(x);
+    IRL2D::Moments liq_moments = IRL2D::ComputeMoments(m_cell, plane);
+    IRL2D::Moments gas_moments = IRL2D::ComputeMoments(m_cell) - liq_moments;
+    IRL2D::Vec liq_centroid_h = liq_moments.m1() / liq_moments.m0();
+    IRL2D::Vec gas_centroid_h = gas_moments.m1() / gas_moments.m0();
+    fvec(0) = (m_liq_centroid_star[0] - liq_centroid_h[0]) / m_length_scale;
+    fvec(1) = (m_liq_centroid_star[1] - liq_centroid_h[1]) / m_length_scale;
+    fvec(2) = (m_gas_centroid_star[0] - gas_centroid_h[0]) / m_length_scale;
+    fvec(3) = (m_gas_centroid_star[1] - gas_centroid_h[1]) / m_length_scale;
   }
 
   int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
@@ -452,7 +463,7 @@ struct MOFFunctor{
   }
 
   int inputs() const { return 1; }
-  int values() const { return 2; }
+  int values() const { return 4; }
 
 }; 
 
@@ -528,11 +539,12 @@ void MOF1::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
         IRL2D::BezierList rectangle = IRL2D::RectangleFromBounds(x0, x1);
         
         // matching volume fraction and centroid
-        IRL2D::Vec centroid_star = a_liquid_moments(i,j).m1() / a_liquid_moments(i,j).m0();
-        MOFFunctor myMOFFunctor(rectangle, centroid_star, liquid_volume_fraction);
+        IRL2D::Vec liq_centroid_star = a_liquid_moments(i,j).m1() / a_liquid_moments(i,j).m0();
+        IRL2D::Vec gas_centroid_star = a_gas_moments(i,j).m1() / a_gas_moments(i,j).m0();
+        MOF1Functor myMOFFunctor(rectangle, liq_centroid_star, gas_centroid_star, liquid_volume_fraction);
         myMOFFunctor.setframe((*a_interface)(i, j));
-        Eigen::NumericalDiff<MOFFunctor> numericalDiffMyFunctor(myMOFFunctor);
-        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MOFFunctor>, double> lm(numericalDiffMyFunctor);
+        Eigen::NumericalDiff<MOF1Functor> numericalDiffMyFunctor(myMOFFunctor);
+        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MOF1Functor>, double> lm(numericalDiffMyFunctor);
         Eigen::VectorXd x(1);
         x.setZero();
         Eigen::LevenbergMarquardtSpace::Status status =
@@ -596,26 +608,45 @@ struct MOF2Functor{
   };
 
   // variables
+  const int m_inputs, m_values;
   const IRL2D::BezierList& m_cell;
-  const IRL2D::Vec m_centroid_star;
-  const double m_f_star;
-  const IRL2D::Mat m_M2_star;
+  IRL2D::Moments& m_liq_moments;
+  IRL2D::Moments& m_gas_moments;
+  double m_liq_f_star;
+  IRL2D::Vec m_liq_centroid_star;
+  IRL2D::Vec m_gas_centroid_star;
+  IRL2D::Mat m_liq_M2_star;
+  IRL2D::Mat m_gas_M2_star;
   IRL2D::Vec m_datum;
   IRL2D::ReferenceFrame m_frame;
   double m_coeff;
   double m_length_scale;
 
-  MOF2Functor(const IRL2D::BezierList& cell, const double f_star,
-             const IRL2D::Vec& centroid_star, const IRL2D::Mat& M2_star)
-    : m_cell(cell), m_centroid_star(centroid_star), m_f_star(f_star), 
-      m_M2_star(M2_star) {
+  // constructor
+  MOF2Functor(int inputs, int values, const IRL2D::BezierList& cell,
+              IRL2D::Moments& liq_moments, IRL2D::Moments& gas_moments)
+    : m_inputs(inputs),
+      m_values(values),
+      m_cell(cell),
+      m_liq_moments(liq_moments),
+      m_gas_moments(gas_moments),
+      m_liq_f_star(liq_moments.m0() / IRL2D::ComputeArea(cell)),
+      m_liq_centroid_star(liq_moments.m1() / liq_moments.m0()),
+      m_gas_centroid_star(gas_moments.m1() / gas_moments.m0()) {  
+      //m_datum = ( (1-m_liq_f_star) * m_liq_centroid_star + m_liq_f_star * m_gas_centroid_star );
       m_length_scale = std::sqrt(IRL2D::ComputeArea(m_cell));
+      RecenterMoments(&m_liq_moments, m_liq_centroid_star);
+      RecenterMoments(&m_gas_moments, m_gas_centroid_star);
+      m_liq_M2_star = m_liq_moments.m2();
+      m_gas_M2_star = m_gas_moments.m2();
   }
   
   void setframe(const IRL2D::Parabola& guess_parabola){
     m_coeff = guess_parabola.coeff();
     m_frame = guess_parabola.frame();
-    m_datum = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
+    m_datum = guess_parabola.datum();
+    //m_frame = IRL2D::Mat(IRL2D::Vec(1.0,0.0), IRL2D::Vec(0.0,1.0));
+    //m_datum = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
 
     // check for curvature
     const double maxkdx = 4.0;
@@ -630,25 +661,57 @@ struct MOF2Functor{
     const auto new_frame = IRL2D::ReferenceFrame(rotation * m_frame[0], rotation * m_frame[1]);
     const double new_coeff = m_coeff + x(1) / m_length_scale;
     const auto parabola = IRL2D::Parabola(m_datum, new_frame, new_coeff);
-    return IRL2D::MatchToVolumeFraction(m_cell, parabola, m_f_star);
+    return IRL2D::MatchToVolumeFraction(m_cell, parabola, m_liq_f_star);
   }
 
+  mutable int iteration = 0; // counting iterations for convergence
   void errorvec(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
     const auto parabola = this->getparabola(x);
-    IRL2D::Moments moments = IRL2D::ComputeMoments(m_cell, parabola); //::Parabola(m_datum, m_frame, m_coeff));
-    IRL2D::Vec centroid_h = moments.m1() / moments.m0();
-    IRL2D::Mat M2_h = moments.m2();
-    fvec(0) = (m_centroid_star[0] - centroid_h[0]) / m_length_scale;
-    fvec(1) = (m_centroid_star[1] - centroid_h[1]) / m_length_scale;
-    fvec(2) = (m_M2_star[0][0] - M2_h[0][0]); // / std::pow(m_length_scale, 4.0);
-    fvec(3) = (m_M2_star[1][0] - M2_h[1][0]); // / std::pow(m_length_scale, 4.0);
-    fvec(4) = (m_M2_star[1][1] - M2_h[1][1]); // / std::pow(m_length_scale, 4.0);
+    IRL2D::Moments liq_mom = IRL2D::ComputeMoments(m_cell, parabola);
+    IRL2D::Moments gas_mom = IRL2D::ComputeMoments(m_cell) - liq_mom;
+    IRL2D::Vec liq_centroid_h = liq_mom.m1() / liq_mom.m0();
+    IRL2D::Vec gas_centroid_h = gas_mom.m1() / gas_mom.m0();
+    RecenterMoments(&liq_mom, m_liq_centroid_star);
+    RecenterMoments(&gas_mom, m_gas_centroid_star);
+    IRL2D::Mat liq_M2_h = liq_mom.m2();
+    IRL2D::Mat gas_M2_h = gas_mom.m2();
+    fvec(0) = (m_liq_centroid_star[0] - liq_centroid_h[0]) / m_length_scale;
+    fvec(1) = (m_liq_centroid_star[1] - liq_centroid_h[1]) / m_length_scale;
+    fvec(2) = (m_gas_centroid_star[0] - gas_centroid_h[0]) / m_length_scale;
+    fvec(3) = (m_gas_centroid_star[1] - gas_centroid_h[1]) / m_length_scale;
+    fvec(4) = (m_liq_M2_star[0][0] - liq_M2_h[0][0]) / (liq_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(5) = (m_liq_M2_star[1][0] - liq_M2_h[1][0]) / (liq_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(6) = (m_liq_M2_star[1][1] - liq_M2_h[1][1]) / (liq_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(7) = (m_gas_M2_star[0][0] - gas_M2_h[0][0]) / (gas_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(8) = (m_gas_M2_star[1][0] - gas_M2_h[1][0]) / (gas_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(9) = (m_gas_M2_star[1][1] - gas_M2_h[1][1]) / (gas_mom.m0()*std::pow(m_length_scale, 2.0));
 
-    // Penalty to prevent kappa * dx > 6
+    //scaling based on Shashkov's paper
+    // fvec(0) = std::pow((liq_centroid_h[0] - m_liq_centroid_star[0]), 2.0) / m_liq_moments.m0();
+    // fvec(1) = std::pow((liq_centroid_h[1] - m_liq_centroid_star[1]), 2.0) / m_liq_moments.m0();
+    // fvec(2) = std::pow((gas_centroid_h[0] - m_gas_centroid_star[0]), 2.0) / m_gas_moments.m0();
+    // fvec(3) = std::pow((gas_centroid_h[1] - m_gas_centroid_star[1]), 2.0) / m_gas_moments.m0();
+    // fvec(4) = std::pow((liq_M2_h[0][0] - m_liq_M2_star[0][0]), 2.0) / (std::pow(m_liq_M2_star[0][0],2.0)) ; 
+    // fvec(5) = std::pow((liq_M2_h[1][1] - m_liq_M2_star[1][1]), 2.0) / (std::pow(m_liq_M2_star[1][1],2.0));
+    // fvec(6) = std::pow((liq_M2_h[1][0] - m_liq_M2_star[1][0]), 2.0) / (std::pow(m_liq_M2_star[0][0],2.0) + std::pow(m_liq_M2_star[1][1],2.0));
+    // fvec(7) = std::pow((gas_M2_h[0][0] - m_gas_M2_star[0][0]), 2.0) / (std::pow(m_gas_M2_star[0][0],2.0));
+    // fvec(8) = std::pow((gas_M2_h[1][1] - m_gas_M2_star[1][1]), 2.0) / (std::pow(m_gas_M2_star[1][1],2.0));
+    // fvec(9) = std::pow((gas_M2_h[1][0] - m_gas_M2_star[1][0]), 2.0) / (std::pow(m_gas_M2_star[0][0],2.0) + std::pow(m_gas_M2_star[1][1],2.0));
+
+    // Penalty to prevent kappa * dx > 4
     const double mu = 50.0;
     const double kdx = 2.0 * m_coeff * m_length_scale + x(1);
     const double maxkdx = 4.0;
-    fvec(5) = mu * std::max(0.0, std::abs(kdx) - maxkdx);
+    fvec(10) = mu * std::max(0.0, std::abs(kdx) - maxkdx);
+    
+    std::cout << "Iteration: " << iteration << ", ||fvec|| = " << fvec.norm() <<std::endl;
+
+    if (iteration == 0){
+      std::cout << fvec.transpose() << std::endl;
+      std::cout << fvec.norm() << std::endl;
+    }
+
+    iteration++;
     
   }
 
@@ -657,8 +720,8 @@ struct MOF2Functor{
     return 0;
   }
 
-  int inputs() const { return 2; }
-  int values() const { return 6; }
+  int inputs() const { return m_inputs; }
+  int values() const { return m_values; }
 
 }; 
 
@@ -670,7 +733,7 @@ void MOF2::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                             Data<IRL2D::Parabola>* a_interface){
   
   // initial guess
-  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+  ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
                             a_interface);
   
   const BasicMesh& mesh = a_U.getMesh();
@@ -723,7 +786,7 @@ void MOF2::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       const double liquid_volume_fraction = a_liquid_moments(i, j).m0() / mesh.cell_volume();
       if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH && i == 23 && j == 51) {
 
   // #ifdef USE_MPI
   //       if (count >= proc_offset[rank] && proc_offset[rank + 1]) {
@@ -733,15 +796,17 @@ void MOF2::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
         IRL2D::Vec x1 = IRL2D::Vec(mesh.x(i+1) , mesh.y(j+1));
         IRL2D::BezierList rectangle = IRL2D::RectangleFromBounds(x0, x1);
         
-        // matching volume fraction and centroid
-        IRL2D::Vec centroid_star = a_liquid_moments(i,j).m1() / a_liquid_moments(i,j).m0();
-        IRL2D::Mat M2_star = a_liquid_moments(i,j).m2();
-        MOF2Functor myMOFFunctor(rectangle, liquid_volume_fraction, centroid_star, M2_star);
+        auto liq_moments = a_liquid_moments(i,j);
+        auto gas_moments = a_gas_moments(i,j);
+        MOF2Functor myMOFFunctor(4, 16, rectangle, liq_moments, gas_moments);
         myMOFFunctor.setframe((*a_interface)(i, j));
         Eigen::NumericalDiff<MOF2Functor> numericalDiffMyFunctor(myMOFFunctor);
         Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MOF2Functor>, double> lm(numericalDiffMyFunctor);
-        Eigen::VectorXd x(2);
+        Eigen::VectorXd x(4);
         x.setZero();
+        lm.parameters.ftol = 1e-14;
+        lm.parameters.xtol = 1e-14;
+        //  lm.parameters.maxfev = 500;
         Eigen::LevenbergMarquardtSpace::Status status =
               lm.minimizeInit(x);
         do {
@@ -785,6 +850,374 @@ void MOF2::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
   //   }
                             
   // #endif
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+
+}
+
+// Functor for MOF2
+struct MOF2AugmentedLagrangianFunctor{
+  typedef double Scalar;
+  typedef Eigen::VectorXd InputType;
+  typedef Eigen::VectorXd ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+  enum{
+    InputsAtCompileTime = Eigen::Dynamic,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+
+  // variables
+  const int m_inputs, m_values;
+  const IRL2D::BezierList& m_cell;
+  IRL2D::Moments m_liq_moments;
+  IRL2D::Moments m_gas_moments;
+  double m_liq_f_star;
+  IRL2D::Vec m_liq_centroid_star;
+  IRL2D::Vec m_gas_centroid_star;
+  IRL2D::Mat m_liq_M2_star;
+  IRL2D::Mat m_gas_M2_star;
+  IRL2D::Vec m_datum;
+  IRL2D::ReferenceFrame m_frame;
+  IRL2D::Vec m_cell_centroid;
+  double m_coeff;
+  double m_length_scale;
+  std::vector<double> m_lambda;
+  std::vector<double> m_mu;
+
+  // constructor
+  MOF2AugmentedLagrangianFunctor(int inputs, int values, const IRL2D::BezierList& cell,
+                                 const IRL2D::Moments& liq_moments, const IRL2D::Moments& gas_moments,
+                                const std::vector<double>& lambda, const std::vector<double>& mu)
+    : m_inputs(inputs),
+      m_values(values),
+      m_cell(cell),
+      m_liq_moments(liq_moments),
+      m_gas_moments(gas_moments),
+      m_liq_f_star(liq_moments.m0() / IRL2D::ComputeArea(cell)),
+      m_liq_centroid_star(liq_moments.m1() / liq_moments.m0()),
+      m_gas_centroid_star(gas_moments.m1() / gas_moments.m0()),
+      m_lambda(lambda),
+      m_mu(mu) {  
+      //m_datum = ( (1-m_liq_f_star) * m_liq_centroid_star + m_liq_f_star * m_gas_centroid_star );
+      m_length_scale = std::sqrt(IRL2D::ComputeArea(m_cell));
+      RecenterMoments(&m_liq_moments, m_liq_centroid_star);
+      RecenterMoments(&m_gas_moments, m_gas_centroid_star);
+      m_liq_M2_star = m_liq_moments.m2();
+      m_gas_M2_star = m_gas_moments.m2();
+      m_cell_centroid = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
+  }
+  
+  void setframe(const IRL2D::Parabola& guess_parabola){
+    m_coeff = guess_parabola.coeff();
+    m_frame = guess_parabola.frame();
+    m_datum = guess_parabola.datum();
+    //m_frame = IRL2D::Mat(IRL2D::Vec(1.0,0.0), IRL2D::Vec(0.0,1.0));
+    //m_datum = IRL2D::ComputeMoments(m_cell).m1() / IRL2D::ComputeArea(m_cell);
+
+    // check for curvature
+    const double maxkdx = 4.0;
+    const double kdx = 2.0 * m_coeff * m_length_scale;
+    if (std::abs(kdx) > maxkdx){
+      m_coeff = 0.0; // plane
+    }
+  }
+
+  // x(0): theta    x(1): alpha   x(2): datum[0]    x(3): datum[1]
+  const IRL2D::Parabola getparabola(const Eigen::VectorXd& x) const {
+    const auto rotation = IRL2D::ReferenceFrame(x(0));
+    const auto new_frame = IRL2D::ReferenceFrame(rotation * m_frame[0], rotation * m_frame[1]);
+    const double new_coeff = m_coeff + x(1) / m_length_scale;
+    const auto new_datum = IRL2D::Vec(m_datum[0] + x(2)*m_length_scale , m_datum[1] + x(3)*m_length_scale);
+    const auto parabola = IRL2D::Parabola(new_datum, new_frame, new_coeff);
+    return parabola;
+  }
+
+  double getVolfrac (const Eigen::VectorXd& x) const{
+    const auto parabola = this->getparabola(x);
+    const auto moments = IRL2D::ComputeMoments(m_cell, parabola);
+    return (moments.m0() / IRL2D::ComputeArea(m_cell));
+  }
+
+  // std::vector<double> getIneqFunction(const Eigen::VectorXd& x) const{
+  //   std::vector<double> IneqFunctions;
+  //   const double dx = m_length_scale;
+  //   const double x0 = (m_cell[0].first)[0], x1 = (m_cell[1].first)[0], 
+  //                y0 = (m_cell[0].first)[1], y1 = (m_cell[2].first)[1];
+  //   std::vector<double> bounds = { (x0 - (m_datum[0] + x(2))) , ((m_datum[0] + x(2)) - x1) , 
+  //                                  (y0 - (m_datum[1] + x(3))) , ((m_datum[1] + x(3)) - y1) };
+  //   for (int bound = 0; bound < bounds.size(); bound++){
+  //     IneqFunctions[bound] = std::max(0.0 , bounds[bound]);
+  //   }             
+  //   return IneqFunctions;
+  // }
+
+  mutable int iteration = 0; // counting iterations for convergence
+  void errorvec(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    const auto parabola = this->getparabola(x);
+    IRL2D::Moments liq_mom = IRL2D::ComputeMoments(m_cell, parabola);
+    IRL2D::Moments gas_mom = IRL2D::ComputeMoments(m_cell) - liq_mom;
+    IRL2D::Vec liq_centroid_h = liq_mom.m1() / liq_mom.m0();
+    IRL2D::Vec gas_centroid_h = gas_mom.m1() / gas_mom.m0();
+    RecenterMoments(&liq_mom, m_liq_centroid_star);
+    RecenterMoments(&gas_mom, m_gas_centroid_star);
+    IRL2D::Mat liq_M2_h = liq_mom.m2();
+    IRL2D::Mat gas_M2_h = gas_mom.m2();
+
+    // centroids
+    fvec(0) = (m_liq_centroid_star[0] - liq_centroid_h[0]) / m_length_scale;
+    fvec(1) = (m_liq_centroid_star[1] - liq_centroid_h[1]) / m_length_scale;
+    fvec(2) = (m_gas_centroid_star[0] - gas_centroid_h[0]) / m_length_scale;
+    fvec(3) = (m_gas_centroid_star[1] - gas_centroid_h[1]) / m_length_scale;
+
+    // second moments
+    fvec(4) = (m_liq_M2_star[0][0] - liq_M2_h[0][0]) / (liq_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(5) = (m_liq_M2_star[1][0] - liq_M2_h[1][0]) / (liq_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(6) = (m_liq_M2_star[1][1] - liq_M2_h[1][1]) / (liq_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(7) = (m_gas_M2_star[0][0] - gas_M2_h[0][0]) / (gas_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(8) = (m_gas_M2_star[1][0] - gas_M2_h[1][0]) / (gas_mom.m0()*std::pow(m_length_scale, 2.0));
+    fvec(9) = (m_gas_M2_star[1][1] - gas_M2_h[1][1]) / (gas_mom.m0()*std::pow(m_length_scale, 2.0));
+
+    // volume fraction constraint
+    double liq_f_h = liq_mom.m0() / IRL2D::ComputeArea(m_cell);
+    double f_constraint = liq_f_h - m_liq_f_star;
+    fvec(10) = std::sqrt(m_mu[0]) * f_constraint + 0.5 / (std::sqrt(m_mu[0])) * m_lambda[0];
+
+    // std::cout << iteration++ << ". residual = [" << fvec(0) << " " << fvec(1) << " " << fvec(2) << " " << fvec(3) << " " << fvec(4) << " "
+    //           << fvec(5) << " " << fvec(6) << " " << fvec(7) << " " << fvec(8) << " " << fvec(9) << " " << fvec(10) << "] " 
+    //           << "mu = " << m_mu[0] << " lambda = " << m_lambda[0] << " norm = " << fvec.norm() << std::endl;
+    // confining the datum within the cell
+    // const double dx = m_length_scale;
+    // const double x0 = (m_cell[0].first)[0], x1 = (m_cell[1].first)[0], 
+    //              y0 = (m_cell[0].first)[1], y1 = (m_cell[2].first)[1];
+    //std::vector<double> bounds = { -(dx/2.0 + x(2)) , (x(2) - dx/2.0) , -(dx/2.0 + x(3)) , (x(3) - dx/2.0) };
+    // std::vector<double> bounds = { (x0 - (m_datum[0] + x(2))) , ((m_datum[0] + x(2)) - x1) , 
+    //                                (y0 - (m_datum[1] + x(3))) , ((m_datum[1] + x(3)) - y1) };
+    // for (int bound = 0; bound < bounds.size(); bound++){
+    //   fvec(10 + (bound + 1)) = std::sqrt(m_mu[bound + 1]) * std::max(0.0 , bounds[bound]) + 
+    //                            0.5 / (std::sqrt(m_mu[bound + 1])) * m_lambda[bound + 1];
+    // }
+
+    // std::vector<double> IneqFunctions = this->getIneqFunction(x);
+    // for (int bound = 0; bound < IneqFunctions.size(); bound++){
+    //   fvec(10 + (bound + 1)) = std::sqrt(m_mu[bound + 1]) * IneqFunctions[bound] + 
+    //                            0.5 / (std::sqrt(m_mu[bound + 1])) * m_lambda[bound + 1];
+    // }
+
+    // // curvature inequality
+    // const double kdx = 2.0 * m_coeff * m_length_scale + x(1);
+    // const double maxkdx = 4.0;
+    // fvec(15) = std::sqrt(m_mu[5]) * std::max(0.0, std::abs(kdx) - maxkdx); + 
+    //            0.5 / (std::sqrt(m_mu[5])) * m_lambda[5];
+  
+  }
+
+  int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    this->errorvec(x, fvec);
+    return 0;
+  }
+
+  int inputs() const { return m_inputs; }
+  int values() const { return m_values; }
+
+}; 
+
+
+void MOF2AL::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                            const Data<IRL2D::Moments>& a_gas_moments,
+                            const double a_dt, const Data<double>& a_U,
+                            const Data<double>& a_V,
+                            Data<IRL2D::Parabola>* a_interface){
+  
+  // initial guess
+  ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                            a_interface);
+  
+  const BasicMesh& mesh = a_U.getMesh();
+
+  #ifdef USE_MPI
+    const double cell_volume = mesh.cell_volume();
+    int nmixed_global = 0;
+    for (int i = mesh.imin(); i <= mesh.imax(); ++i){
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+        const double liquid_volume_fraction = a_liquid_moments(i,j).m0() / cell_volume;
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH){
+          nmixed_global++;
+        }
+      }
+    }
+
+    int rank, size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    IRL2D::Parabola dummy_par;
+    IRL::ByteBuffer dummy_buffer;
+    dummy_buffer.resize(0);
+    dummy_buffer.resetBufferPointer();
+    IRL::serializeAndPack(dummy_par , &dummy_buffer);
+    const int size_parabola = dummy_buffer.size();
+
+    int nmixed_local = std::max(nmixed_global / size , 1);
+    std::vector<int> proc_offset(size + 1);
+    proc_offset[0] = 0;
+    for (int r = 0; r < size; r++){
+      proc_offset[r + 1] = proc_offset[r] + nmixed_local;
+    }
+    proc_offset[size] = nmixed_global;
+    for (int r = 1; r < size + 1; r++){
+      proc_offset[r] = std::min(proc_offset[r], nmixed_global);
+    } 
+    nmixed_local = proc_offset[rank + 1] - proc_offset[rank];
+    IRL::ByteBuffer interface_local, interface_global;
+    interface_local.resize(nmixed_local * sizeof(IRL2D::Parabola));
+    interface_global.resize(0);
+    interface_local.resetBufferPointer();
+    interface_global.resetBufferPointer();
+
+    int count = 0;
+  #endif
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction = a_liquid_moments(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH){ // && i == 23 && j == 51) {
+
+  #ifdef USE_MPI
+        if (count >= proc_offset[rank] && proc_offset[rank + 1]) {
+  #endif
+        
+        // current cell
+        IRL2D::Vec x0 = IRL2D::Vec(mesh.x(i) , mesh.y(j));
+        IRL2D::Vec x1 = IRL2D::Vec(mesh.x(i+1) , mesh.y(j+1));
+        IRL2D::BezierList rectangle = IRL2D::RectangleFromBounds(x0, x1);
+        
+        // moments
+        const auto liq_moments = a_liquid_moments(i,j);
+        const auto gas_moments = a_gas_moments(i,j);
+        
+        // parameters for augmented lagrangian
+        std::vector<double> lambda(1, 0.0); // CHANGE 1 -> 6 with inequalities
+        std::vector<double> mu(1, 1.0);
+        double mu_max = 100.0;
+        double tol = 1e-12;
+        double f_constraint_current = 1;
+        double f_constraint_prev;
+        int iter = 0;
+        int max_iter = 1000;
+
+        // initial guess for first iteration
+        auto guess_interface = (*a_interface)(i,j);
+        IRL2D::Parabola parabola;
+        
+        // for LM solver
+        int num_inputs = 4;
+        int num_eq = 11;
+
+        Eigen::VectorXd x(num_inputs);
+        x.setZero();
+
+        while (std::abs(f_constraint_current) > tol){
+
+          iter++;
+
+          //std::cout << "-----------------Augmented Lagrangian Iteration: " << iter << "-------------------" << std::endl;
+
+          // minimization variables
+          // Eigen::VectorXd x(num_inputs);
+          // x.setZero();
+
+          // setting up LM solver
+          MOF2AugmentedLagrangianFunctor myMOFFunctor(num_inputs, num_eq, rectangle, 
+                                                      liq_moments, gas_moments,
+                                                      lambda, mu);
+          myMOFFunctor.setframe(guess_interface); // guess for interface
+          Eigen::NumericalDiff<MOF2AugmentedLagrangianFunctor> numericalDiffMyFunctor(myMOFFunctor);
+          Eigen::LevenbergMarquardt<Eigen::NumericalDiff<MOF2AugmentedLagrangianFunctor>, double> lm(numericalDiffMyFunctor);
+
+          //LM solver parameters
+          lm.parameters.ftol = 1e-12;
+          lm.parameters.xtol = 1e-12;
+          
+          auto x_prev = x; // storing prev iter for AL multiplier updates
+          lm.minimize(x); // minimization
+
+          // compute volume fraction with new and prev x 
+          f_constraint_current = myMOFFunctor.getVolfrac(x) - liquid_volume_fraction;
+          f_constraint_prev = myMOFFunctor.getVolfrac(x_prev) - liquid_volume_fraction;
+          
+          // update Lagrangian multiplier for constraint
+          lambda[0] += 2.0 * mu[0] * f_constraint_current;
+
+          // update penalty parameter for constraint
+          if (std::abs(f_constraint_current) < 0.25 * std::abs(f_constraint_prev)){
+            //mu[0] = mu[0];
+            mu[0] = std::min(mu[0], mu_max);
+          } else {
+            //mu[0] *= 2.0;
+            mu[0] = std::min(2*mu[0], mu_max);
+          }
+
+          // updating parameters for inequalities
+          // std::vector<double> IneqFunctions = myMOFFunctor.getIneqFunction(x);
+          // for (int ineq = 0 ; ineq < IneqFunctions.size(); ineq++){
+          //   // Lagrangian multiplier update
+          //   lambda[ineq + 1] += 2.0 * mu[ineq + 1] * IneqFunctions[ineq];
+
+          //   // penalty term update
+          // }
+
+          // updating interface guess for next AL iteration
+          parabola = myMOFFunctor.getparabola(x); // new parabola
+          //guess_interface = parabola;
+          
+          // break if it reaches max iter
+          if (iter == max_iter){
+            break;
+          }
+
+        }
+        //std::cout << "AL iterations: " << iter << std::endl;
+        //(*a_interface)(i,j) = parabola; // final interface
+
+  #ifdef USE_MPI
+        IRL::serializeAndPack(parabola, &interface_local);
+        }
+        count++;
+  #else       
+        (*a_interface)(i, j) = parabola;
+  #endif       
+      }
+    }
+  }
+
+  #ifdef USE_MPI
+    std::vector<int> proc_count(size);
+    for (int r = 0; r < size; r++){
+      proc_count[r] = size_parabola * (proc_offset[r + 1] - proc_offset[r]);
+      proc_offset[r] = size_parabola * proc_offset[r];
+    }
+
+    interface_global.resize(size_parabola * nmixed_global);
+    MPI_Allgatherv(interface_local.data(), size_parabola * nmixed_local, MPI_BYTE,
+                   interface_global.data(), proc_count.data(), proc_offset.data(),
+                   MPI_BYTE, MPI_COMM_WORLD);
+
+    for (int i = mesh.imin(); i <= mesh.imax(); ++i){
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j){
+        const double liquid_volume_fraction = a_liquid_moments(i,j).m0() / cell_volume;
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH){
+              IRL2D::Parabola parabola;
+              IRL::unpackAndStore(&parabola, &interface_global);
+              (*a_interface)(i,j) = parabola;
+        }
+      }
+    }
+                            
+  #endif
 
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);

@@ -2199,10 +2199,13 @@ Mat MappingM2(const Mat& A, const Vec& b, const Moments& tri_liq_moment){
 
 Moments ComputeMappedTriangleMoments(const Moments& triangle_liq_moments, const Mat& A, const Vec& b){
   Moments MappedTriangleMoments;
-  MappedTriangleMoments.m0() = triangle_liq_moments.m0();
-  MappedTriangleMoments.m1() = MappingPoint(A, b*triangle_liq_moments.m0(), triangle_liq_moments.m1());
-  MappedTriangleMoments.m2() = MappingM2(A, b, triangle_liq_moments);
-  
+  double detA = A[0][0]*A[1][1] - A[0][1]*A[1][0];
+  //std::cout << detA << std::endl;
+  MappedTriangleMoments.m0() = triangle_liq_moments.m0() * detA;
+  MappedTriangleMoments.m1() = MappingPoint(A, b*triangle_liq_moments.m0(), triangle_liq_moments.m1())
+                               * detA;
+  MappedTriangleMoments.m2() = MappingM2(A, b, triangle_liq_moments) * detA;
+   
   return MappedTriangleMoments;
 }
 
