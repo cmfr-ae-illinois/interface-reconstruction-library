@@ -147,9 +147,27 @@ ReturnType computeType3ContributionWithSplit(
   Normal edge_vector_normalized = edge_vector;
   edge_vector_normalized.normalize();
 
+  // this is to catch Normal.normalize returning NAN
+  // using the fact that any comparaison with nan is false
+  if (!(edge_vector_normalized == edge_vector_normalized)) {
+    #ifdef NUDGE_REGION
+    std::cout << "nudging because edge vector normalization failed" << std::endl;
+    #endif
+    *a_requires_nudge = true;
+    return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
+  }
+
   // Compute dot product between normalized edge and end-point tangents
   const ScalarType tgt0_dot_edge = a_tangent_0 * edge_vector_normalized;
   const ScalarType tgt1_dot_edge = a_tangent_1 * edge_vector_normalized;
+  #ifdef VALDEBUG
+    std::cout << "edve vector : " << edge_vector << std::endl;
+    std::cout << "edge_vector_normalized" << edge_vector_normalized << std::endl;
+    std::cout << "square norm of edve vector : " << static_cast<double>(squaredMagnitude(edge_vector)) << std::endl;
+    std::cout << "lenght limit : " << static_cast<double>(DISTANCE_EPSILON * DISTANCE_EPSILON) << std::endl;
+    std::cout << "tgt0_dot_edge " << static_cast<double>(tgt0_dot_edge) << std::endl;
+    std::cout << "tgt1_dot_edge " << static_cast<double>(tgt1_dot_edge) << std::endl;
+  #endif
 
   // If start and end point are very close and tangents point toward each
   // other: the arc has no contribution to the moments
