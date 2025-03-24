@@ -479,7 +479,7 @@ double Spline::BBasisFunction(int i, int p,double u) {
     double Q2;
     if(p == 0){
         if(KnotVector[i] <= u && u <= KnotVector[i+1]) {
-            P = 1;
+            P = 1.0;
         } else {
             P = 0;
         }
@@ -947,12 +947,14 @@ double Spline::integratedSpline(double u) {
     // std::cout << "Determinant = " << determinant << "\n";
     double N3B;
     double D3B;
-    if(determinant >= 1e-6) { // Strictly Positive 
+    if(determinant >= 1e-12) { // Strictly Positive 
+        // std::cout << "positive\n";
         N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
                     6*a2*pow(h,2))*atan((g + 2*f2*u)/sqrt(determinant)));
 
         D3B = pow(determinant,2.5);
-    } else if(determinant <= -1e-6) { // Strictly Negative
+    } else if(determinant <= -1e-12) { // Strictly Negative
+        // std::cout << "negative\n";
         N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
                     6*a2*pow(h,2))*-1*atanh((g + 2*f2*u)/sqrt(-determinant)));
 
@@ -1205,20 +1207,29 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
     return {tempParameters,tempIndicators};
 }
 
-double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Testing Needed
+double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Should be working (Tested)
     std::vector<std::vector<double>> loop = this->getParameterLoop(square);
     std::vector<double> parameter = loop[0];
     std::vector<double> indicator = loop[1];
+    // std::cout << "Begin Parameter \n";
+    // for(int i = 0; i < parameter.size(); i++) {
+    //     std::cout << parameter[i] << ",";
+    // }
+    // std::cout << "\nEnd Parameter \n";
+
+    // std::cout << "Begin Indicator \n";
+    // for(int i = 0; i < indicator.size(); i++) {
+    //     std::cout << indicator[i] << ",";
+    // }
+    // std::cout << "\nEnd Indicator \n";
     double Area = 0;
 
     for(int i = 0;i<indicator.size()-1;i++) { // Loop over pairs of indicators/parameters
         double ind1 = indicator[i];
         double ind2 = indicator[i+1];
         // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
-        std::cout << "i = " << i+1 << "========================\n"; 
         
         if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
-            std::cout << "Case 1 \n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = square[parameter[i+1]];
 
@@ -1243,10 +1254,9 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
 
             double velocity = Pp;
             
-            std::cout << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
-            std::cout << "Case 2 \n";
+            
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
@@ -1270,10 +1280,10 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
-            std::cout << integrand*(m/2 + b) * velocity << "\n";
+            // std::cout << "Case 2 \n";
+            // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
-            std::cout << "Case 3 \n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = square[parameter[i+1]];
 
@@ -1297,10 +1307,10 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
-            std::cout << integrand*(m/2 + b) * velocity << "\n";
+            // std::cout << "Case 3 \n";
+            // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
-            std::cout << "Case 4 \n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
@@ -1324,10 +1334,9 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
-            std::cout << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
-            std::cout << "Case 5 \n";
+ 
             // Get Parameter Values
             double u1 = parameter[i];
             double u2 = parameter[i+1];
@@ -1335,14 +1344,16 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             // Find Spans, in order
             int spanIndex1 = findSpan(u1);
             int spanIndex2 = findSpan(u2);
-            
+            // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
+            // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
+
             double integral = 0;;
             // if u1,u2 in the same span, we can go direct.
             // If u1,u2 are in different spans, we have to segment through each span
             if(spanIndex1 == spanIndex2) { // Same Span
                 double V1 = integratedSpline(u1);
                 double V2 = integratedSpline(u2);
-
+                
                 integral = V2-V1;
             } else { // Different Spans
                 int numSpans = spans.size();
@@ -1356,6 +1367,8 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                 for(int j = spanIndex1+2;j<=tempSpanIndex2; j++) {
                     breakIndexSet.insert(breakIndexSet.end(),j);
                 }
+                
+
                 // Mod them into range
                 for(int j = 0; j < breakIndexSet.size();j++ ) {
                     breakIndexSet[i] = breakIndexSet[i]%numSpans;
@@ -1365,21 +1378,34 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                 for(int j = 0; j < breakIndexSet.size();j++) {
                     breaks.insert(breaks.end(),breakpoints[breakIndexSet[j]]);
                 }
+                
                 breaks.insert(breaks.end(),u2);
+                // std::cout << "Breaks\n";
+                // for(int j=0; j < breaks.size(); j++) {
+                //     std::cout << breaks[j] <<",";
+                // }
+                // std::cout <<"\n" ;
                 // Integral
-                double integral = 0;
                 double nudge = 1e-8;
-                for(int j = 0; j < breaks.size(); j++) {
+                double V1;
+                double V2;
+                for(int j = 0; j < breaks.size()-1; j++) {
                     u1 = breaks[j]+nudge;
-                    u2 = breaks[j]-nudge;
-
-                    double V1 = integratedSpline(u1);
-                    double V2 = integratedSpline(u2);
-
+                    u2 = breaks[j+1]-nudge;
+                    // std::cout << breaks[j]-breaks[j+1] <<"\n";
+                    V1 = integratedSpline(u1);
+                    V2 = integratedSpline(u2);
+                    if(fabs(breaks[j]-breaks[j+1]) <= 1e-12) {
+                        V2=V1;
+                    }
+                    // std::cout << "V1 = " << V1 << "\n";
+                    // std::cout << "V2 = " << V2 << "\n";
+                    // std::cout << "Contrib X = " <<V2-V1<< "\n";
                     integral += V2-V1;
                 }
             }
-            std::cout << integral << "\n";
+            // std::cout << "Case 5 \n";
+            // std::cout << "Component Integral = " << integral << "\n";
             Area += integral;
         }   
     }
@@ -1467,7 +1493,6 @@ void Spline::printControlPoints() {
     }
     std::cout << "End Control Points \n";
 }
-
 void Spline::printKnotVector() {
     std::cout << "\nPrinting Knot Vector\n";
     for(int i = 0; i < KnotVector.size(); i++ ){
@@ -1475,7 +1500,6 @@ void Spline::printKnotVector() {
     }
     std::cout << "\nEnd  Knot Vector \n";
 }
-
 void Spline::printWeights(){
     std::cout << "\nPrinting Weights\n";
     for(int i = 0; i < Weights.size(); i++ ){
