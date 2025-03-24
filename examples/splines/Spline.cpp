@@ -3,7 +3,7 @@
 #include <vector>
 #include <numeric>      // std::iota
 #include <algorithm>    // std::sort, std::stable_sort
-
+#include <complex>
 // Will Delete, for testing
 float Spline::add(float x, float y) {
     float add;
@@ -135,7 +135,7 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
 std::vector<std::vector<double>> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
                                                           std::vector<double> Q2,
                                                           std::vector<double> T1,
-                                                          std::vector<double> T2) { // Testing Needed
+                                                          std::vector<double> T2) {
         double detA = T2[0]*T1[1]-T2[1]*T1[0];
         double dQx = Q1[0]-Q2[0];
         double dQy = Q1[1]-Q2[1];
@@ -151,7 +151,7 @@ std::vector<std::vector<double>> Spline::solvePointTangentIntersection(std::vect
     }
 
 //Assumes 2D
-double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk) { // Testing Needed
+double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk) { 
     std::vector<double> dQmR = {0,0};
     std::vector<double> dQR = {0,0};
     // Set up Dot Product
@@ -167,22 +167,30 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
 
         dotProd += dQmR[i]*dQR[i];
     }
+    dQmRnorm = sqrt(dQmRnorm);
+    dQRnorm = sqrt(dQRnorm);
+
     dotProd /= dQmRnorm*dQRnorm;
     double tolerance = 1e-6;
     double weight = -1;
-    if(abs(dotProd-1) < tolerance) { // Collinear
-        weight = 1;
+    if(fabs(dotProd-1) < tolerance) { // Collinear
+        // std::cout << "Collinear\n";
+        weight = 0;
     } else {
-        if(abs(dQmRnorm-dQRnorm) < tolerance) { // Isosceles
+        if(fabs(dQmRnorm-dQRnorm) < tolerance) { // Isosceles
+            // std::cout << "Isosceles\n";
             std::vector<double> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
             double eVal = 0;
             for(int i = 0;i<M.size();i++) {
                 M[i] = Qk[i] - M[i];
                 eVal += pow(M[i],2);
             }
+            eVal = sqrt(eVal);
             weight = eVal/dQmRnorm;
         } else { // Other Case
+            // std::cout << "Other\n";
             std::vector<double> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+            // std::cout << "Qk = " << Qk[0] << "," << Qk[1] << "\n";
             // S1
             std::vector<double> MR = {0,0};
             double MRnorm = 0;
@@ -195,6 +203,7 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
             double MQnorm = 0;
             std::vector<double> QR = {0,0};
             double QRnorm = 0;
+
             for(int i = 0; i < MR.size(); i++) {
                 // S1
                 MR[i] = Rk[i] - M[i];
@@ -233,25 +242,29 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
             for(int i = 0; i < MR.size(); i++) {
                 // S1
                 BiVec1[i] = QRm[i] + MQm[i];
-                BiVec1norm += BiVec1[i];
+                BiVec1norm += pow(BiVec1[i],2);
                 // S2
                 BiVec2[i] = MQ[i]+QR[i];
-                BiVec2norm += BiVec2[i];
+                BiVec2norm += pow(BiVec2[i],2);
             }
             // Normalize
             BiVec1norm = sqrt(BiVec1norm);
             BiVec2norm = sqrt(BiVec2norm);
-            for(int i = 0; i < MR.size(); i++) {
+            // std::cout <<"BiVec1 = " <<BiVec1[0] << "," << BiVec1[1] << "\n";
+            // std::cout << "BiVec1norm = " << BiVec1norm << "\n";
+            // std::cout << "BiVec2norm = " << BiVec2norm << "\n";
+            for(int i = 0; i < BiVec1.size(); i++) {
                 // S1
                 BiVec1[i] /= BiVec1norm;
                 // S2
                 BiVec2[i] /= BiVec2norm;
             }
             // Solve for S1,S2
-            std::vector<double> S1 = Spline::solvePointTangentIntersection(Qkm,BiVec1,M,MR)[0];
-            std::vector<double> S2 = Spline::solvePointTangentIntersection(Qk,BiVec2,M,MR)[0];
+            std::vector<double> S1 = Spline::solvePointTangentIntersection(Qkm,M,BiVec1,MR)[0];
+            std::vector<double> S2 = Spline::solvePointTangentIntersection(Qk,M,BiVec2,MR)[0];
             // Get S
             std::vector<double> S = {(S1[0]+S2[0])/2,(S1[1]+S2[1])/2};
+            // std::cout <<"S = " <<S[0] << "," << S[1] << "\n";
             // Make Weight
             double numer = 0;
             double denom = 0;
@@ -265,14 +278,14 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
     return weight;
 }
 
-Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) { // Testing and Debugging Needed
+Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) { // Should be working (Tested)
     int n = Q.size()-1;
-    std::vector<std::vector<double>> CPoints = {Q[1]};
+    std::vector<std::vector<double>> CPoints = {Q[0]};
     std::vector<std::vector<double>> gamma = {{0,0}};
     std::vector<double> weight = {1};
     
     for(int i =0;i<n;i++) { // Loop over consecutive points.
-        std::cout << "i = " << i << "\n";
+        // std::cout << "i = " << i << "\n";
 
         // Involved Tangents and Points
         std::vector<double> Tk = T[i+1];
@@ -303,7 +316,13 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
         }
 
         // Check for Parallel
-        if(abs(abs(DotProductValue)-1) <= 1e-6) { // Parallel Case
+        // std::cout << "===================== i = " << i << " ================================\n";
+        // std::cout << "Current Qk:\n" << Qk[0] << "\n" << Qk[1] << "\n"; 
+        // std::cout << "Current Qkm:\n" << Qkm[0] << "\n" << Qkm[1] << "\n"; 
+        // std::cout << "Current Tk:\n" << Tk[0] << "\n" << Tk[1] << "\n"; 
+        // std::cout << "Current Tkm:\n" << Tkm[0] << "\n" << Tkm[1] << "\n"; 
+        if(fabs(fabs(DotProductValue)-1) <= 1e-6) { // Parallel Case
+            // std::cout << "Parallel Case\n";
             std::vector<double> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
             double dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
             dQVec[0] /= dQnorm;
@@ -311,12 +330,15 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
 
             // Dot Products
             double Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
-            if(abs(abs(Dk)-1) <= 1e-6) { // Straight Line Case
+            if(fabs(fabs(Dk)-1) <= 1e-6) { // Straight Line Case
                 std::vector<double> Rk = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+                // std::cout << "i = " << i << "\n";
+                // std::cout <<"Rk = \n" << Rk[0]<< "\n" << Rk[1] << "\n";
                 CPoints.insert(CPoints.end(),Rk);
                 CPoints.insert(CPoints.end(),Qk);
 
                 double w1 = makeWeight(Qkm,Rk,Qk);
+                // std::cout <<"w1 = \n" << w1<< "\n";
                 weight.insert(weight.end(),w1);
                 weight.insert(weight.end(),1);
             } else { // Parallel Tangents, not Parallel to Chord
@@ -333,30 +355,39 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
                 CPoints.insert(CPoints.end(),{Rkp,Qkp,Rkpp,Qk});
             }
         } else { // Not Parllel
+            // std::cout << "Not Parallel\n";
             std::vector<std::vector<double>> sol = solvePointTangentIntersection(Qkm,Qk,Tkm,Tk);
             std::vector<double> Rk1 = sol[0];
             std::vector<double> g = sol[1];
 
             if(g[0] <= 1e-12 || g[1] >= -1e12) { // Solution Exists, but not in bounds (Inflection Point or 180 turn)
+                // std::cout << "Inflection or 180\n";
+                // std::cout << "Qk = " << Qk[0] << "," << Qk[1] << "\n";
+                // std::cout << "Qkm = " << Qkm[0] << "," << Qkm[1] << "\n";
                 std::vector<double> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
                 double dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
+                // std::cout << "dQnorm = " << dQnorm << "\n"; 
                 dQVec[0] /= dQnorm;
                 dQVec[1] /= dQnorm;
 
                 // Dot Product
                 double Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
                 double Dkm = dQVec[0]*Tkm[0]+dQVec[1]*Tkm[1];
-
+                // std::cout << "Dk = " << Dk << "\n";
+                // std::cout << "Dkm = " << Dkm<< "\n";
                 //Angles
-                double thetak = abs(acos(Dk));
-                double thetakm = abs(acos(Dkm));
+                double thetak = fabs(acos(Dk));
+                double thetakm = fabs(acos(Dkm));
+                // std::cout << "thetak = " << thetak<< "\n";
+                // std::cout << "thetakm = " << thetakm<< "\n";
 
-                double a = 2/3; // Tunable Parameter
+                double a = 2.0/3.0; // Tunable Parameter
 
                 double numer = dQnorm;
                 double denom1 = 2*(1+a*cos(thetak)+(1-a)*cos(thetakm));
                 double denom2 = 2*(1+a*cos(thetakm)+(1-a)*cos(thetak));
-
+                // std::cout << "denom1 = " << (1-a)*cos(thetakm)<< "\n";
+                // std::cout << "denom2 = " << denom2<< "\n";
                 double gammak = numer/denom1;
                 double gammakp = numer/denom2;
 
@@ -370,6 +401,7 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
 
                 CPoints.insert(CPoints.end(),{Rkp,Qkp,Rkpp,Qk});
             } else { // Normal Case
+                // std::cout << "Normal\n";
                 double w1 = makeWeight(Qkm,Rk1,Qk);
 
                 weight.insert(weight.end(),{w1,1});
@@ -377,19 +409,22 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
             }
         }
     }
-    std::cout << "Loop Done\n";
+    // std::cout << "Loop Done\n";
     // At this point, weight and CPoints are made. The last thing we need is the knot vector
     // Split the Q and R sets
     std::vector<std::vector<double>> Qset = {CPoints[0]};
     std::vector<std::vector<double>> Rset = {CPoints[1]};
-    for(int i = 2; i < CPoints.size();i+=2){ 
+    // std::cout << "CHECK QSET and RSET Creation **********************************\n";
+    for(int i = 2; i < CPoints.size()-1;i+=2){ 
         Qset.insert(Qset.end(),CPoints[i]); // Get every other control point
         Rset.insert(Rset.end(),CPoints[i+1]); // Get every other other control point.
+        // std::cout << "Qset added: " << CPoints[i][0] <<","<<CPoints[i][1] <<"\n";
+        // std::cout << "Rset added: " << CPoints[i+1][0] <<","<<CPoints[i+1][1] <<"\n";
     }
     n = Qset.size()-1;
     // Make ubar Helper
-    std::vector<double> ubar= {0,1};
-    for(int i = 2;i < n+1; i++) {
+    std::vector<double> ubar= {0.0,1.0};
+    for(int i = 2;i <= n+1; i++) {
         double coeff = ubar[i-1]-ubar[i-2];
 
         double numer = sqrt(pow(Rset[i-1][0]-Qset[i-1][0],2)+pow(Rset[i-1][1]-Qset[i-1][1],2));
@@ -401,10 +436,14 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
     // Make Knot Vector
     std::vector<double> U = {0,0,0};
     for(int i = 1;i < ubar.size();i++) {
-        U.insert(U.end(),{ubar[i]/un,ubar[i]/un});
+        U.insert(U.end(),{double(i+1)/ubar.size(),double(i+1)/ubar.size()});
     }
     U.insert(U.end(),1);
-    // Finally Make the Spline Object
+    
+    // std::cout << " Knot Vector Inside: ";
+    // for(int i = 0; i < ubar.size();i++) {
+    //     std::cout << ubar[i] << ",";
+    // }
     Spline ret = Spline(CPoints,U,weight);
     return ret;
 }
@@ -552,6 +591,7 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
 
         // Loop Over spans, add coefficients to appropriate span 
         for(int j = 0;j < spans.size();j++) {
+            // std::cout << i << "," << j <<"\n";
             if(i == 0 && j > 0){
                 numerCoeffsX.insert(numerCoeffsX.end(),{0,0,0});
                 numerCoeffsY.insert(numerCoeffsY.end(),{0,0,0});
@@ -559,6 +599,7 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
             }
             // First Span
             if(bounds[0][0] == spans[j][0] && bounds[0][1] == spans[j][1]) { 
+                // std::cout << "First Span\n";
                 for(int k = 0;k < numerCoeffsX[j].size();k++) {
                     denomCoeffs[j][k] += coeffs[0][k]*Weights[i];
                     numerCoeffsX[j][k] += coeffs[0][k]*Weights[i]*ControlPoints[i][0];
@@ -566,7 +607,8 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
                 }
             }
             // Second Span
-            if(bounds[1][0] == spans[j][0] && bounds[1][1] == spans[j][1]) { 
+            if(bounds[1][0] == spans[j][0] && bounds[1][1] == spans[j][1]) {
+                // std::cout << "Second Span\n";
                 for(int k = 0;k < numerCoeffsX[j].size();k++) {
                     denomCoeffs[j][k] += coeffs[1][k]*Weights[i];
                     numerCoeffsX[j][k] += coeffs[1][k]*Weights[i]*ControlPoints[i][0];
@@ -575,13 +617,13 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
             }
             // Third Span
             if(bounds[2][0] == spans[j][0] && bounds[2][1] == spans[j][1]) { 
+                // std::cout << "Third Span\n";
                 for(int k = 0;k < numerCoeffsX[j].size();k++) {
                     denomCoeffs[j][k] += coeffs[2][k]*Weights[i];
                     numerCoeffsX[j][k] += coeffs[2][k]*Weights[i]*ControlPoints[i][0];
                     numerCoeffsY[j][k] += coeffs[2][k]*Weights[i]*ControlPoints[i][1];
                 }
             }
-
         }
     }
 
@@ -608,14 +650,22 @@ std::vector<std::vector<double>> Spline::makeSpans() {
     return spans;
 }
 // TEST BELOW HERE ***********************************************************************************
-double Spline::getArcLength() { // Testing Needed
+double Spline::getArcLength() { 
     double nudge = 1e-12;
     // Three Point Quadrature
     // std::vector<double> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
     // std::vector<double> GaussWeights = {5/9,8/9,5/9};
     // Five Point Quadrature
-    std::vector<double> GaussPoints = {-sqrt(5+2*sqrt(10/7))/3,-sqrt(5-2*sqrt(10/7))/3,0,sqrt(5-2*sqrt(10/7))/3,sqrt(5+2*sqrt(10/7))/3};
-    std::vector<double> GaussWeights = {(322-13*sqrt(70))/900,(322+13*sqrt(70))/900,128/225,(322+13*sqrt(70))/900,(322-13*sqrt(70))/900};
+    std::vector<double> GaussPoints = {-sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0,
+                                       -sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
+                                       0,
+                                       sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
+                                       sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0};
+    std::vector<double> GaussWeights = {(322.0-13.0*sqrt(70.0))/900.0,
+                                        (322.0+13.0*sqrt(70.0))/900.0,
+                                        128.0/225.0,
+                                        (322.0+13.0*sqrt(70.0))/900.0,
+                                        (322.0-13.0*sqrt(70.0))/900.0};
     double AL = 0;
     double u1;
     double u2;
@@ -632,6 +682,7 @@ double Spline::getArcLength() { // Testing Needed
             u2 = breakpoints[i+1]-nudge;
         }
 
+        // std::cout << "u1: " << u1 << "\n u2: "<< u2 << std::endl;
         // Change Endpoints
         double m = (u2-u1)/2;
         double bm = (u1+u2)/2;
@@ -655,7 +706,7 @@ double Spline::getArcLength() { // Testing Needed
             double ax = a*beta-b*alpha;
             double bx = 2*(a*gamma-alpha*c);
             double cx = b*gamma-beta*c;
-
+            
             double ay = d*beta-e*alpha;
             double by = 2*(d*gamma-alpha*f);
             double cy = e*gamma-beta*f;
@@ -667,19 +718,30 @@ double Spline::getArcLength() { // Testing Needed
             double n = sqrt(pow(nx,2)+pow(ny,2));
 
             AL += m*GaussWeights[j]*n;
+            // std::cout << "Gauss: " << GaussPoints[j] <<"\n";
         }
+        
     }
+    
     return AL;
 }
 
-double Spline::getSurfaceEnergy() { // Testing Needed
+double Spline::getSurfaceEnergy() {
     double nudge = 1e-12;
     // Three Point Quadrature
     // std::vector<double> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
     // std::vector<double> GaussWeights = {5/9,8/9,5/9};
     // Five Point Quadrature
-    std::vector<double> GaussPoints = {-sqrt(5+2*sqrt(10/7))/3,-sqrt(5-2*sqrt(10/7))/3,0,sqrt(5-2*sqrt(10/7))/3,sqrt(5+2*sqrt(10/7))/3};
-    std::vector<double> GaussWeights = {(322-13*sqrt(70))/900,(322+13*sqrt(70))/900,128/225,(322+13*sqrt(70))/900,(322-13*sqrt(70))/900};
+    std::vector<double> GaussPoints = {-sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0,
+        -sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
+        0,
+        sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
+        sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0};
+std::vector<double> GaussWeights = {(322.0-13.0*sqrt(70.0))/900.0,
+         (322.0+13.0*sqrt(70.0))/900.0,
+         128.0/225.0,
+         (322.0+13.0*sqrt(70.0))/900.0,
+         (322.0-13.0*sqrt(70.0))/900.0};
     double Ek = 0;
     double u1;
     double u2;
@@ -706,11 +768,11 @@ double Spline::getSurfaceEnergy() { // Testing Needed
             double a = numerCoeffsX[i][0];
             double b = numerCoeffsX[i][1];
             double c = numerCoeffsX[i][2];
-
+            
             double d = numerCoeffsY[i][0];
             double e = numerCoeffsY[i][1];
             double f = numerCoeffsY[i][2];
-
+    
             double alpha = denomCoeffs[i][0];
             double beta = denomCoeffs[i][1];
             double gamma = denomCoeffs[i][2];
@@ -723,22 +785,22 @@ double Spline::getSurfaceEnergy() { // Testing Needed
             double ay = d*beta-e*alpha;
             double by = 2*(d*gamma-alpha*f);
             double cy = e*gamma-beta*f;
-
+            
             // Normal Vector Magnitude
             double nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
             double ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
-
+            
             double n = sqrt(pow(nx,2)+pow(ny,2));
             
             // Curvature
             double k = this->getCurvature(ueff);
-            Ek += m*GaussWeights[j]*n*abs(k); // Unsigned Surface Energy is the real one
+            Ek += m*GaussWeights[j]*n*fabs(k); // Unsigned Surface Energy is the real one
         }
     }
     return Ek;
 }
 
-double Spline::getCurvature(double u) { // Testing Needed
+double Spline::getCurvature(double u) {
     
     // Find Span we are in
     int spanIndex = findSpan(u);
@@ -747,7 +809,7 @@ double Spline::getCurvature(double u) { // Testing Needed
     double a = numerCoeffsX[spanIndex][0];
     double b = numerCoeffsX[spanIndex][1];
     double c = numerCoeffsX[spanIndex][2];
-
+    
     double d = numerCoeffsY[spanIndex][0];
     double e = numerCoeffsY[spanIndex][1];
     double f = numerCoeffsY[spanIndex][2];
@@ -768,7 +830,6 @@ double Spline::getCurvature(double u) { // Testing Needed
     // First Derivatives 
     double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
     double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
-
     // Second Derivatives
 
     // X
@@ -784,13 +845,13 @@ double Spline::getCurvature(double u) { // Testing Needed
 
     // Curvature
     term1 = xp*ypp-yp*xpp;
-    term2 = pow(pow(xp,2)+pow(yp,2),3/2);
+    term2 = pow(pow(xp,2)+pow(yp,2),3.0/2.0);
 
     double k = term1/term2;
     return k;
 }
 
-std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset) { // Testing Needed
+std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset) {
     std::vector<std::vector<double>> curve = {{0,0}};
     for(int i = 0; i < uset.size();i++) { // Loop over all u values
         std::vector<double> numer = {0,0};
@@ -798,7 +859,7 @@ std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<doubl
         std::vector<double> val = {0,0};
         for(int j = 0; j < ControlPoints.size();j++){ // Loop over control points
             for(int k = 0; k < ControlPoints[0].size();k++) { // Loop over contorl point indices
-                numer[k] += BBasisFunction(j,2,uset[i])*Weights[j]*ControlPoints[j][k];
+                numer[k] += BBasisFunction(j,2,uset[i])*Weights[j]*ControlPoints[j][k]*2;
                 denom += BBasisFunction(j,2,uset[i])*Weights[j];
             }
         }
@@ -818,10 +879,10 @@ std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<doubl
     return curve;
 }
 
-double Spline::integratedSpline(double u) {// Testing Needed
+double Spline::integratedSpline(double u) {
     // Find Span we are in
     int spanIndex = findSpan(u);
-
+    // std::cout << "Found Span\n";
     // Get Appropriate Coefficients
     // 0th Derivative Coefficients
     double a = numerCoeffsX[spanIndex][0];
@@ -862,6 +923,7 @@ double Spline::integratedSpline(double u) {// Testing Needed
     double g = beta;
     double h = gamma;
 
+    // std::cout <<"\nParameters -" << g << "," << f2 << "," << u << "," << h << "\n";
     double N1B = c2*pow(f2,2)*pow(g,3) - b2*f2*pow(g,4) + a2*pow(g,5) +
                 2*c2*pow(f2,3)*g*h + 5*b2*pow(f2,2)*pow(g,2)*h - 8*a2*f2*pow(g,3)*h
                 - 16*b2*pow(f2,3)*pow(h,2) + 22*a2*pow(f2,2)*g*pow(h,2) +
@@ -881,35 +943,71 @@ double Spline::integratedSpline(double u) {// Testing Needed
     
     double D2B = (pow(f2,3)*(-pow(g,2) + 4*f2*h)*pow(h + u*(g + f2*u),2));
 
-    double N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
-                6*a2*pow(h,2))*atan((g + 2*f2*u)/sqrt(-pow(g,2) + 4*f2*h)));
+    double determinant = -pow(g,2) + 4*f2*h;
+    // std::cout << "Determinant = " << determinant << "\n";
+    double N3B;
+    double D3B;
+    if(determinant >= 1e-6) { // Strictly Positive 
+        N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
+                    6*a2*pow(h,2))*atan((g + 2*f2*u)/sqrt(determinant)));
 
-    double D3B = pow(-pow(g,2) + 4*f2*h,2.5);
+        D3B = pow(determinant,2.5);
+    } else if(determinant <= -1e-6) { // Strictly Negative
+        N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
+                    6*a2*pow(h,2))*-1*atanh((g + 2*f2*u)/sqrt(-determinant)));
+
+        D3B = pow(-determinant,2.5);
+    } else { // Near Zero
+        N3B = 0;
+        D3B = 1;
+    }
+
+    if(fabs(D2B) < 1e-6) { // Near 0
+        // D2B = 1;
+        // N2B = 0;
+        std::cout << "D2 Near 0\n";
+    }
+
+    if(fabs(D1B) < 1e-6) { // Near
+        // D1B = 1;
+        // N1B = 0;
+        std::cout << "D1 Near 0\n";
+    }
+
 
     double value = 0.5*(N1B/D1B + N2B/D2B + N3B/D3B);
 
     return value;
 }
 
-double Spline::getArea() { // Testing Needed
+double Spline::getArea() {
+    // std::cout << "GETTING AREA\n";
     double Area = 0;
     double nudge = 1e-8;
     // Loop over each breakpoint, find area of that section, then add them together.
     double uL;
     double uR;
     for(int i =0; i <breakpoints.size()-1; i++) {
+        // std:: cout << "====================== i = " << i << " ========================\n";
         uL = breakpoints[i]; // Left Breakpoint
         uR = breakpoints[i+1]; // Right Breakpoint
 
         uL += nudge;
         uR -= nudge;
 
+        // std :: cout << "uL = " << uL << "\n";
+        // std :: cout << "uLVal = " << integratedSpline(uL) << "\n";
+        // std :: cout << "uR = " << uR << "\n";
+        // std :: cout << "uRVal = " << integratedSpline(uR) << "\n";
+        
+
         Area += integratedSpline(uR) - integratedSpline(uL);
+        // std:: cout << "Area = " << Area << "\n";
     }
     return Area;
 }
 
-std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::vector<double> P2) { // Testing Needed
+std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::vector<double> P2) { // Should be working (Tested)
     std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
     std::vector<double> normal = {-tangent[1],tangent[0]};
     int numSpans = breakpoints.size()-1;
@@ -919,6 +1017,7 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
     double b = normal[1];
     double c = -(normal[0]*P1[0]+normal[1]*P1[1]);
     int count = 0;
+    int numInt = 0;
     for(int i = 0; i < numSpans; i ++) { // Loop Over Spans
         // Quadratic Coefficients
         double aPoly = a*numerCoeffsX[i][0] + b*numerCoeffsY[i][0]+c*denomCoeffs[i][0];
@@ -926,41 +1025,57 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
         double cPoly = a*numerCoeffsX[i][2] + b*numerCoeffsY[i][2]+c*denomCoeffs[i][2];
         // Solve Quadratic
         double discrim = pow(bPoly,2)-4*aPoly*cPoly;
+        
+        // std::cout << "Discrim = " << discrim << "\n";
+        // std::cout << "aPoly = " << aPoly << "\n";
+        // std::cout << "bPoly = " << bPoly << "\n";
+        // std::cout << "cPoly = " << cPoly << "\n";
         // Filter Values for real, in span on curve,and in spans of line
+        double u1;
+        double u2;
         if(discrim >= 0) { // Real Values Only
-            double u1 = (-bPoly + sqrt(discrim))/(2*aPoly);
-            double u2 = (-bPoly - sqrt(discrim))/(2*aPoly);
-            std::vector<double> Inters = {u1,u2};
+            std::vector<double> Inters;
+            if(aPoly == 0) {
+                u1 = -cPoly/bPoly;
+                Inters = {u1};
+            } else {
+                u1 = (-bPoly + sqrt(discrim))/(2*aPoly);
+                u2 = (-bPoly - sqrt(discrim))/(2*aPoly);
+                Inters = {u1,u2};
+            }
+
             std::vector<std::vector<double>> pointInter = this->makeRationalQuadCurve(Inters);
             // Check u1
             for(int j = 0; j < Inters.size();j++) {
                 u1 = Inters[j];
-                if(u1 >= spans[i][0] && u1 <= spans[i][1]) { // Within Span of curve
+                // std::cout << "span2= " << spans[i][1] << "\n"; 
+                if(u1 >= (spans[i][0]-1e-12) && (u1 < (spans[i][1]-1e-12))) { // Within Span of curve, not including the endpoint of span.
                     std::vector<double> Pcurr = pointInter[j];
+                    Pcurr = this->makeRationalQuadCurve({u1})[0];
                     std::vector<double> dP1 = {Pcurr[0]-P1[0],Pcurr[1]-P1[1]};
                     std::vector<double> dP2 = {Pcurr[0]-P2[0],Pcurr[1]-P2[1]};
                     std::vector<double> dP = {P1[0]-P2[0],P1[1]-P2[1]};
                     double lineCheck;
-                    if(abs(dP[0]) > abs(dP[1])) { // Checks if point between endpoints of line
-                        lineCheck = abs(dP1[0])+abs(dP2[0])-abs(dP[0]);
+                    if(fabs(dP[0]) > fabs(dP[1])) { // Checks if point between endpoints of line
+                        lineCheck = fabs(dP1[0])+fabs(dP2[0])-fabs(dP[0]);
                     } else {
-                        lineCheck = abs(dP1[1])+abs(dP2[1])-abs(dP[1]);
+                        lineCheck = fabs(dP1[1])+fabs(dP2[1])-fabs(dP[1]);
                     }
                     // If point on line, add
                     if(lineCheck <= 1e-8) {
                         if(count == 0){ // If first one, replace first value
                             uIntersections[0] = u1;
-                            sIntersections[0] = std::min(abs(dP1[0]/dP[0]),abs(dP1[1]/dP[1]));
+                            sIntersections[0] = std::min(fabs(dP1[0]/dP[0]),fabs(dP1[1]/dP[1]));
                             count++;
                         } else { // else, add to end
                             uIntersections.insert(uIntersections.end(),u1);
-                            sIntersections.insert(sIntersections.end(),std::min(abs(dP1[0]/dP[0]),abs(dP1[1]/dP[1])));
+                            sIntersections.insert(sIntersections.end(),std::min(fabs(dP1[0]/dP[0]),fabs(dP1[1]/dP[1])));
                         }
+                        numInt++;
                     }
                 }
             }
         }
-        return uIntersections;
     }
     // At this point we have finished looping over the spans. We now reorder the values to be along the line
     // This section of code was taken from https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
@@ -977,10 +1092,30 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
     for(int i = 0; i< idx.size(); i++) {
         ret[i] = uIntersections[idx[i]];
     }   
-    return ret;
+
+    // Finally, we will loop over u and only take unique values, since a line can only intersect a curve once at the same location
+    std::vector<double> ret2 = {ret[0]};
+    for(int i = 1; i < ret.size();i++) {
+        int present = 0;
+        for(int j = 0;j < ret2.size(); j++) {
+            if(ret2[j] == ret[i]) {
+                present = 1;
+            }
+        }
+
+        if(present == 0) {
+            ret2.insert(ret2.end(),ret[i]);
+        }
+    }
+    if(numInt > 0){
+        return ret2;
+    } else {
+        return {};
+    }
+    
 }
 
-std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square) { // Testing Needed
+std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square) { // Should be working (Tested)
     std::vector<double> P1 = square[0];
     std::vector<double> P2;
     int I = 0;
@@ -1007,7 +1142,6 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
     for(int i = 0; i < square.size()-1;i++) { // Square includes start twice, so we have to exclude the last one
         P1 = square[i];
         P2 = square[i+1];
-
         intersections = lineCurveIntersection(P1,P2);
 
         // Assign Intersections
@@ -1025,17 +1159,26 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
             }
         }
 
-        // Assign Endpoint
         parameter.insert(parameter.end(),(i+1)%4);
+        // std::cout << "\n Current INdicator \n";
+        // for(int i = 0; i < indicator.size() ;i++ ){
+        //     std :: cout << indicator[i] << ",";
+        // }
+        // std::cout << "\n Current Indicator \n";
         int lastInd = indicator[indicator.size()-1];
+        // std::cout << "Last Ind = " << lastInd << "\n";
         if(lastInd == 1) {
             indicator.insert(indicator.end(),1);
+
         } else if(lastInd == 2) {
             indicator.insert(indicator.end(),2);
+
         } else if(lastInd == 3) {
             indicator.insert(indicator.end(),2);
+
         } else if(lastInd == 4) {
             indicator.insert(indicator.end(),1);
+
         }
     }
     // Pop 1s
@@ -1054,33 +1197,34 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
             }
         }
     }
-    if(indicator[0] == 1 && count != 0) {
+    if(indicator[0] == 1.0 && count != 0) {
         tempParameters.insert(tempParameters.end(),tempParameters[0]);
-        tempParameters.insert(tempParameters.end(),tempParameters[0]);
+        tempIndicators.insert(tempIndicators.end(),tempIndicators[0]);
     }
 
-    return {parameter,indicator};
+    return {tempParameters,tempIndicators};
 }
 
 double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Testing Needed
-    std::vector<std::vector<double>> loop = getParameterLoop(square);
-    std::vector<double> parameter = square[0];
-    std::vector<double> indicator = square[1];
+    std::vector<std::vector<double>> loop = this->getParameterLoop(square);
+    std::vector<double> parameter = loop[0];
+    std::vector<double> indicator = loop[1];
     double Area = 0;
 
-    for(int i = 0;i<indicator.size()-2;i++) { // Loop over pairs of indicators/parameters
+    for(int i = 0;i<indicator.size()-1;i++) { // Loop over pairs of indicators/parameters
         double ind1 = indicator[i];
         double ind2 = indicator[i+1];
         // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
-
+        std::cout << "i = " << i+1 << "========================\n"; 
         
         if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
+            std::cout << "Case 1 \n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = square[parameter[i+1]];
 
             // Get Normal
             std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {-tangent[1],tangent[0]};
+            std::vector<double> normal = {tangent[1],-tangent[0]};
             // Normalize normal
             double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
@@ -1098,14 +1242,17 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
+            
+            std::cout << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
+            std::cout << "Case 2 \n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             // Get Normal
             std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {-tangent[1],tangent[0]};
+            std::vector<double> normal = {tangent[1],-tangent[0]};
             // Normalize normal
             double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
@@ -1123,14 +1270,16 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
+            std::cout << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
+            std::cout << "Case 3 \n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = square[parameter[i+1]];
 
             // Get Normal
             std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {-tangent[1],tangent[0]};
+            std::vector<double> normal = {tangent[1],-tangent[0]};
             // Normalize normal
             double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
@@ -1148,14 +1297,16 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
+            std::cout << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
+            std::cout << "Case 4 \n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             // Get Normal
             std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {-tangent[1],tangent[0]};
+            std::vector<double> normal = {tangent[1],-tangent[0]};
             // Normalize normal
             double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
@@ -1173,8 +1324,10 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             double b = x1;
 
             double velocity = Pp;
+            std::cout << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
+            std::cout << "Case 5 \n";
             // Get Parameter Values
             double u1 = parameter[i];
             double u2 = parameter[i+1];
@@ -1226,10 +1379,42 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                     integral += V2-V1;
                 }
             }
+            std::cout << integral << "\n";
             Area += integral;
         }   
     }
     return Area;
+}
+
+void Spline::saveToVTK(const std::string& filename, const int nsamples){
+    std::vector<double> uset(nsamples, 0.);
+    for (int i = 0; i < nsamples; i++){
+        uset[i] = KnotVector[0] + (KnotVector[KnotVector.size()-1] - KnotVector[0]) * static_cast<double>(i) / static_cast<double>(nsamples - 1);
+    }
+    const auto curve = this->makeRationalQuadCurve(uset);
+
+    std::ofstream file;
+    file.open(filename + std::string(".vtu"));
+    file << "<VTKFile type=\"UnstructuredGrid\">\n<UnstructuredGrid>\n";
+    file << "<Piece NumberOfPoints=\"" << nsamples << "\" NumberOfCells=\"" << 1 << "\">\n";
+    file << "<Points>\n<DataArray type=\"Float64\" NumberOfComponents=\"3\">\n";
+    for (int i = 0; i < nsamples; i++){
+        file << std::scientific << std::setprecision(15) << curve[i][0] << " " << curve[i][1] << " 0. \n";
+    }
+    file << "</DataArray>\n</Points>\n<Cells>\n<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
+    int count = 0;
+    for (int i = 0; i < nsamples; i++){
+        file << count++ << " ";
+    }
+    file << "\n</DataArray>\n";
+    file << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
+    file << nsamples << " ";
+    file << "\n</DataArray>\n";
+    file << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
+    file << "7 ";
+    file << "\n</DataArray>\n";
+    file << "</Cells>\n</Piece>\n</UnstructuredGrid>\n</VTKFile>\n";
+    file.close();
 }
 
 // Getters
@@ -1269,5 +1454,63 @@ void Spline::setKnotVector(std::vector<double> input) {
 }
 void Spline::setWeights(std::vector<double> input){
     Weights = input;
-    
 }
+
+// Bebugging
+void Spline::printControlPoints() {
+    std::cout << "\nPrinting Control Points \n";
+    for(int i = 0; i < ControlPoints.size(); i++ ){
+        for(int j = 0; j <ControlPoints[0].size();j++) {
+            std::cout << ControlPoints[i][j] << ",";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "End Control Points \n";
+}
+
+void Spline::printKnotVector() {
+    std::cout << "\nPrinting Knot Vector\n";
+    for(int i = 0; i < KnotVector.size(); i++ ){
+        std::cout << KnotVector[i] << ",";
+    }
+    std::cout << "\nEnd  Knot Vector \n";
+}
+
+void Spline::printWeights(){
+    std::cout << "\nPrinting Weights\n";
+    for(int i = 0; i < Weights.size(); i++ ){
+        std::cout << Weights[i] << ",";
+    }
+    std::cout << "\nEnd Weights \n";
+}
+void Spline::printXCoeffs() {
+    std::cout << "\nPrinting X Coeffs \n";
+    for(int i = 0; i < numerCoeffsX.size(); i++ ){
+        for(int j = 0; j <numerCoeffsX[0].size();j++) {
+            std::cout << numerCoeffsX[i][j] << ",";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "End X Coeffs \n";
+}
+void Spline::printYCoeffs() {
+    std::cout << "\nPrinting Y Coeffs \n";
+    for(int i = 0; i < numerCoeffsY.size(); i++ ){
+        for(int j = 0; j <numerCoeffsY[0].size();j++) {
+            std::cout << numerCoeffsY[i][j] << ",";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "End Y Coeffs\n";
+}
+void Spline::printDCoeffs() {
+    std::cout << "\nPrinting Denom Coeffs \n";
+    for(int i = 0; i < denomCoeffs.size(); i++ ){
+        for(int j = 0; j <denomCoeffs[0].size();j++) {
+            std::cout << denomCoeffs[i][j] << ",";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "End Denom Coeffs\n";
+}
+

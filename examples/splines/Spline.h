@@ -3,7 +3,9 @@
 #include <vector>
 #include <numeric>      // std::iota
 #include <algorithm>    // std::sort, std::stable_sort
-
+#include <fstream>
+#include <cmath>
+#include <iomanip>
 
 class Spline {
     private:
@@ -111,7 +113,7 @@ class Spline {
         // A method for getting points along a rational quadartic spline.
         std::vector<std::vector<double>> makeRationalQuadCurve(std::vector<double> uset);
 
-
+        void saveToVTK(const std::string& filename, const int nsamples = 100);
 
         // Getters ****************************
         std::vector<std::vector<double>> getControlPoints();
@@ -127,4 +129,12 @@ class Spline {
         void setControlPoints(std::vector<std::vector<double>> input);
         void setKnotVector(std::vector<double> input);
         void setWeights(std::vector<double> input);
+
+        // Printers
+        void printControlPoints();
+        void printKnotVector();
+        void printWeights();
+        void printXCoeffs();
+        void printYCoeffs();
+        void printDCoeffs();
 };
