@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -29,7 +29,7 @@
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 
 // this enable a lot of debug text when computing
-//#define VALDEBUG
+//#define DEBUG_CYL_IRL
 
 namespace IRL {
 
@@ -441,52 +441,52 @@ ReturnType computeType3Contribution(
                 cp[1] * (pt_0[2] - pt_1[2]));
 
 
-    #ifdef VALDEBUG
-    std::cout << "M3 computation :" << std::endl;
-    std::cout << "x0 : " << pt_0 << std::endl;
-    std::cout << "x* : " << cp << std::endl;
-    std::cout << "x1 : " << pt_1 << std::endl;
-    std::cout << "w : " << static_cast<double>(weight) << std::endl;
-    std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "M3 computation :" << std::endl;
+      std::cout << "x0 : " << pt_0 << std::endl;
+      std::cout << "x* : " << cp << std::endl;
+      std::cout << "x1 : " << pt_1 << std::endl;
+      std::cout << "w : " << static_cast<double>(weight) << std::endl;
+      std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
     #endif
 
     assert(weight >= ZERO);
     std::array<ScalarType, 2> coeffs;
     if (weight < ScalarType(0.35)) { // We use the exact expressions
-      #ifdef VALDEBUG
-      std::cout << "weight is low, using exact value" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is low, using exact value" << std::endl;
       #endif
       coeffs = coeffsVC3Exact<ScalarType, ScalarType>(weight);
     } else if (weight <
              ScalarType(1.7)) { // We use the 40th order Taylor series (w -> 1)
-      #ifdef VALDEBUG
-      std::cout << "weight is close to 1, using Taylor series" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is close to 1, using Taylor series" << std::endl;
       #endif
       coeffs = coeffsVC3SeriesOne<ScalarType, ScalarType>(weight);
     } else if (weight <
              ScalarType(1.0e9)) { // We use the series expansion (w -> infty)
-      #ifdef VALDEBUG
-      std::cout << "weight is high, using exact value" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is high, using exact value" << std::endl;
       #endif
       coeffs = coeffsVC3Exact<ScalarType, ScalarType>(weight);
     } else { // This is within EPSILON of the actual value
-      #ifdef VALDEBUG
-      std::cout << "weight is BIG, using limite" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is BIG, using limite" << std::endl;
       #endif
       coeffs = std::array<ScalarType, 2>({ONE / THREE, ONE / THREE});
     }
 
-    #ifdef VALDEBUG
-    std::cout << "coeffs :" << std::endl;
-    std::cout << "0 : " << static_cast<double>(coeffs[0]) << std::endl;
-    std::cout << "1 : " << static_cast<double>(coeffs[1]) << std::endl;
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "coeffs :" << std::endl;
+      std::cout << "0 : " << static_cast<double>(coeffs[0]) << std::endl;
+      std::cout << "1 : " << static_cast<double>(coeffs[1]) << std::endl;
     #endif
     const auto& C11 = (pt_0[0] + pt_1[0]);
     const auto& C12 = cp[0];
-    #ifdef VALDEBUG
-    std::cout << "C vector :" << std::endl;
-    std::cout << "C11 : " << static_cast<double>(C11) << std::endl;
-    std::cout << "C12 : " << static_cast<double>(C12) << std::endl;
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "C vector :" << std::endl;
+      std::cout << "C11 : " << static_cast<double>(C11) << std::endl;
+      std::cout << "C12 : " << static_cast<double>(C12) << std::endl;
     #endif
     return ReturnType::fromScalarConstant(ReturnScalarType(
         area_proj_triangle * (coeffs[0] * C11 +
@@ -515,34 +515,34 @@ ReturnType computeType3Contribution(
     const auto Z0 = pt_0[2], Z1 = pt_1[2], Z2 = cp[2];
     const ScalarType area_proj_triangle =
         HALF * (Y0 * (Z1 - Z2) + Y1 * (Z2 - Z0) + Y2 * (Z0 - Z1));
-    #ifdef VALDEBUG
-    std::cout << "M3 computation :" << std::endl;
-    std::cout << "x0 : " << pt_0 << std::endl;
-    std::cout << "x* : " << cp << std::endl;
-    std::cout << "x1 : " << pt_1 << std::endl;
-    std::cout << "w : " << static_cast<double>(weight) << std::endl;
-    std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "M3 computation :" << std::endl;
+      std::cout << "x0 : " << pt_0 << std::endl;
+      std::cout << "x* : " << cp << std::endl;
+      std::cout << "x1 : " << pt_1 << std::endl;
+      std::cout << "w : " << static_cast<double>(weight) << std::endl;
+      std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
     #endif
     assert(weight >= ZERO);
     // Compute coefficients (functions of the weight)
     std::array<ScalarType, 6> coeffs;
     if (weight < ScalarType(0.35))  // We use the exact expressions
     {
-      #ifdef VALDEBUG
-      std::cout << "weight is low, using exact value" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is low, using exact value" << std::endl;
       #endif
       coeffs = coeffsVC3andCC3Exact<ScalarType, ScalarType>(weight);
     } else if (weight <
                ScalarType(1.7))  // We use the 40th order Taylor series (w -> 1)
     {
-      #ifdef VALDEBUG
-      std::cout << "weight is close to 1, using Taylor series" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is close to 1, using Taylor series" << std::endl;
       #endif
       coeffs = coeffsVC3andCC3SeriesOne<ScalarType, ScalarType>(weight);
     } else if (weight < ScalarType(1.0e9))  // We use the exact expressions
     {
-      #ifdef VALDEBUG
-      std::cout << "weight is high, using exact value" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is high, using exact value" << std::endl;
       #endif
       coeffs = coeffsVC3andCC3Exact<ScalarType, ScalarType>(weight);
     }
@@ -550,8 +550,8 @@ ReturnType computeType3Contribution(
     //   coeffs = coeffsV3andC3SeriesInfinity(weight);
     else  // This is within EPSILON of the actual value
     {
-      #ifdef VALDEBUG
-      std::cout << "weight is BIG, using limite" << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "weight is BIG, using limite" << std::endl;
       #endif
       coeffs = std::array<ScalarType, 6>(
           {ScalarType(ONE / THREE), ScalarType(TWO / THREE),
@@ -560,14 +560,14 @@ ReturnType computeType3Contribution(
            ScalarType(ONE / ScalarType(12)),
            ScalarType(ONE / ScalarType(12))});
     }
-    #ifdef VALDEBUG
-    std::cout << "coeffs :" << std::endl;
-    std::cout << "0 : " << static_cast<double>(coeffs[0]) << std::endl;
-    std::cout << "1 : " << static_cast<double>(coeffs[1]) << std::endl;
-    std::cout << "2 : " << static_cast<double>(coeffs[2]) << std::endl;
-    std::cout << "3 : " << static_cast<double>(coeffs[3]) << std::endl;
-    std::cout << "4 : " << static_cast<double>(coeffs[4]) << std::endl;
-    std::cout << "5 : " << static_cast<double>(coeffs[5]) << std::endl;
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "coeffs :" << std::endl;
+      std::cout << "0 : " << static_cast<double>(coeffs[0]) << std::endl;
+      std::cout << "1 : " << static_cast<double>(coeffs[1]) << std::endl;
+      std::cout << "2 : " << static_cast<double>(coeffs[2]) << std::endl;
+      std::cout << "3 : " << static_cast<double>(coeffs[3]) << std::endl;
+      std::cout << "4 : " << static_cast<double>(coeffs[4]) << std::endl;
+      std::cout << "5 : " << static_cast<double>(coeffs[5]) << std::endl;
     #endif
     auto m0_basis = std::array<ScalarType, 2>(
         {X0 + X1,
@@ -587,22 +587,22 @@ ReturnType computeType3Contribution(
          TWO * (X0 * Z0 + X1 * Z1),
          (X0 + X1) * Z2 + (Z0 + Z1) * X2,
          TWO * X2 * Z2});
-      #ifdef VALDEBUG
-      std::cout << "C vector :" << std::endl;
-      std::cout << "C11 : " << static_cast<double>(m0_basis[0]) << std::endl;
-      std::cout << "C12 : " << static_cast<double>(m0_basis[1]) << std::endl;
-      std::cout << "C21 : " << static_cast<double>(m1x_basis[0]) << std::endl;
-      std::cout << "C22 : " << static_cast<double>(m1x_basis[1]) << std::endl;
-      std::cout << "C23 : " << static_cast<double>(m1x_basis[2]) << std::endl;
-      std::cout << "C24 : " << static_cast<double>(m1x_basis[3]) << std::endl;
-      std::cout << "C31 : " << static_cast<double>(m1y_basis[0]) << std::endl;
-      std::cout << "C32 : " << static_cast<double>(m1y_basis[1]) << std::endl;
-      std::cout << "C33 : " << static_cast<double>(m1y_basis[2]) << std::endl;
-      std::cout << "C34 : " << static_cast<double>(m1y_basis[3]) << std::endl;
-      std::cout << "C41 : " << static_cast<double>(m1z_basis[0]) << std::endl;
-      std::cout << "C42 : " << static_cast<double>(m1z_basis[1]) << std::endl;
-      std::cout << "C43 : " << static_cast<double>(m1z_basis[2]) << std::endl;
-      std::cout << "C44 : " << static_cast<double>(m1z_basis[3]) << std::endl;
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "C vector :" << std::endl;
+        std::cout << "C11 : " << static_cast<double>(m0_basis[0]) << std::endl;
+        std::cout << "C12 : " << static_cast<double>(m0_basis[1]) << std::endl;
+        std::cout << "C21 : " << static_cast<double>(m1x_basis[0]) << std::endl;
+        std::cout << "C22 : " << static_cast<double>(m1x_basis[1]) << std::endl;
+        std::cout << "C23 : " << static_cast<double>(m1x_basis[2]) << std::endl;
+        std::cout << "C24 : " << static_cast<double>(m1x_basis[3]) << std::endl;
+        std::cout << "C31 : " << static_cast<double>(m1y_basis[0]) << std::endl;
+        std::cout << "C32 : " << static_cast<double>(m1y_basis[1]) << std::endl;
+        std::cout << "C33 : " << static_cast<double>(m1y_basis[2]) << std::endl;
+        std::cout << "C34 : " << static_cast<double>(m1y_basis[3]) << std::endl;
+        std::cout << "C41 : " << static_cast<double>(m1z_basis[0]) << std::endl;
+        std::cout << "C42 : " << static_cast<double>(m1z_basis[1]) << std::endl;
+        std::cout << "C43 : " << static_cast<double>(m1z_basis[2]) << std::endl;
+        std::cout << "C44 : " << static_cast<double>(m1z_basis[3]) << std::endl;
       #endif
     for (size_t i = 0; i < 2; ++i) {
       moments.volume() += ReturnScalarType(coeffs[i] * m0_basis[i]);
@@ -629,143 +629,6 @@ ReturnType computeType3Contribution(
     return ReturnType::fromScalarConstant(ReturnScalarType(0));
   }
 }
-
-// template <class ReturnType, class ScalarType>
-// ReturnType computeFaceOnlyContribution(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PlaneBase<ScalarType>& a_face_plane,
-//     const PtBase<ScalarType>& a_pt_ref) {
-//   using ReturnScalarType = typename ReturnType::value_type;
-//   if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
-//     /* Defining constants and types */
-//     const ScalarType EPSILON = machine_epsilon<ScalarType>();
-//     const ScalarType ZERO = ScalarType(0);
-//     const ScalarType FOUR = ScalarType(4);
-
-//     /* Function */
-//     assert(a_paraboloid.a() * a_paraboloid.b() > ZERO);
-//     assert(fabs(a_face_plane.normal()[2]) > EPSILON);
-//     const ScalarType a =
-//         -a_face_plane.normal()[0] / safelyEpsilon(a_face_plane.normal()[2]);
-//     const ScalarType b =
-//         -a_face_plane.normal()[1] / safelyEpsilon(a_face_plane.normal()[2]);
-//     const ScalarType c =
-//         a_face_plane.distance() / safelyEpsilon(a_face_plane.normal()[2]);
-//     const ScalarType factor = FOUR * a_paraboloid.a() * a_paraboloid.b() * c -
-//                               a_paraboloid.a() * b * b -
-//                               a_paraboloid.b() * a * a;
-//     return ReturnType::fromScalarConstant(ReturnScalarType(copysign(
-//         machine_pi<ScalarType>() * factor * factor /
-//             (ScalarType(32) *
-//              pow(a_paraboloid.a() * a_paraboloid.b(), ScalarType(2.5))),
-//         -a_face_plane.normal()[2])));
-//   } else if constexpr (std::is_same_v<ReturnType,
-//                                       VolumeMomentsBase<ReturnScalarType>>) {
-//     /* Defining constants and types */
-//     const ScalarType EPSILON = machine_epsilon<ScalarType>();
-//     const ScalarType ZERO = ScalarType(0);
-//     const ScalarType FOUR = ScalarType(4);
-//     const ScalarType FIVE = ScalarType(5);
-
-//     /* Function */
-//     assert(a_paraboloid.a() * a_paraboloid.b() > ZERO);
-//     assert(fabs(a_face_plane.normal()[2]) > EPSILON);
-//     const ScalarType a = -a_face_plane.normal()[0] / a_face_plane.normal()[2];
-//     const ScalarType b = -a_face_plane.normal()[1] / a_face_plane.normal()[2];
-//     const ScalarType c = a_face_plane.distance() / a_face_plane.normal()[2];
-//     const auto A = a_paraboloid.a(), B = a_paraboloid.b();
-//     auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
-//     const ScalarType factor = (a * a * B + A * (b * b - FOUR * B * c)) *
-//                               (a * a * B + A * (b * b - FOUR * B * c)) *
-//                               machine_pi<ScalarType>();
-//     moments.volume() = ReturnScalarType(
-//         copysign(factor / (ScalarType(32) * pow(A * B, ScalarType(2.5))),
-//                  -a_face_plane.normal()[2]));
-//     moments.centroid()[0] = ReturnScalarType(
-//         a * B *
-//         copysign(factor / (ScalarType(64) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     moments.centroid()[1] = ReturnScalarType(
-//         b * A *
-//         copysign(factor / (ScalarType(64) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     moments.centroid()[2] = ReturnScalarType(
-//         (FIVE * A * (b * b) + FIVE * (a * a) * B - ScalarType(8) * A * B * c) *
-//         copysign(factor / (ScalarType(384) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     return moments;
-//   } else if constexpr (std::is_same_v<
-//                            ReturnType,
-//                            GeneralMomentsBase<2, 3, ReturnScalarType>>) {
-//     /* Defining constants and types */
-//     const ScalarType EPSILON = machine_epsilon<ScalarType>();
-//     const ScalarType ZERO = ScalarType(0);
-//     const ScalarType TWO = ScalarType(2);
-//     const ScalarType FOUR = ScalarType(4);
-//     const ScalarType FIVE = ScalarType(5);
-//     const ScalarType SEVEN = ScalarType(7);
-
-//     /* Function */
-//     assert(a_paraboloid.a() * a_paraboloid.b() > ZERO);
-//     assert(fabs(a_face_plane.normal()[2]) > EPSILON);
-//     const ScalarType a = -a_face_plane.normal()[0] / a_face_plane.normal()[2];
-//     const ScalarType b = -a_face_plane.normal()[1] / a_face_plane.normal()[2];
-//     const ScalarType c = a_face_plane.distance() / a_face_plane.normal()[2];
-//     const auto A = a_paraboloid.a(), B = a_paraboloid.b();
-//     auto moments = ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
-//     const ScalarType factor = (a * a * B + A * (b * b - FOUR * B * c)) *
-//                               (a * a * B + A * (b * b - FOUR * B * c)) *
-//                               machine_pi<ScalarType>();
-//     moments[0] = ReturnScalarType(
-//         copysign(factor / (ScalarType(32) * pow(A * B, ScalarType(2.5))),
-//                  -a_face_plane.normal()[2]));
-//     moments[1] = ReturnScalarType(
-//         a * B *
-//         copysign(factor / (ScalarType(64) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[2] = ReturnScalarType(
-//         b * A *
-//         copysign(factor / (ScalarType(64) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[3] = ReturnScalarType(
-//         (FIVE * A * (b * b) + FIVE * (a * a) * B - ScalarType(8) * A * B * c) *
-//         copysign(factor / (ScalarType(384) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[4] = ReturnScalarType(
-//         (A * B * b * b + SEVEN * B * B * a * a - FOUR * A * B * B * c) *
-//         copysign(factor / (ScalarType(768) * pow(A * B, ScalarType(4.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[5] = ReturnScalarType(
-//         (a * b) *
-//         copysign(factor / (ScalarType(128) * pow(A * B, ScalarType(3.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[6] = ReturnScalarType(
-//         (B * B * a * a * a + A * B * a * b * b - TWO * A * B * B * a * c) *
-//         copysign(factor / (ScalarType(128) * pow(A * B, ScalarType(4.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[7] = ReturnScalarType(
-//         (A * B * a * a + SEVEN * A * A * b * b - FOUR * A * A * B * c) *
-//         copysign(factor / (ScalarType(768) * pow(A * B, ScalarType(4.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[8] = ReturnScalarType(
-//         (A * A * b * b * b + A * B * a * a * b - TWO * A * A * B * b * c) *
-//         copysign(factor / (ScalarType(128) * pow(A * B, ScalarType(4.5))),
-//                  a_face_plane.normal()[2]));
-//     moments[9] = ReturnScalarType(
-//         (SEVEN * A * A * b * b * b * b + TWO * SEVEN * A * B * a * a * b * b +
-//          SEVEN * B * B * a * a * a * a -
-//          ScalarType(24) * A * A * B * b * b * c -
-//          ScalarType(24) * A * B * B * a * a * c +
-//          ScalarType(16) * A * A * B * B * c * c) *
-//         copysign(factor / (ScalarType(1024) * pow(A * B, ScalarType(4.5))),
-//                  a_face_plane.normal()[2]));
-//     return moments;
-//   } else {
-//     std::cout << "Type 4 for moments with order > 2 not yet implemented"
-//               << std::endl;
-//     return ReturnType::fromScalarConstant(ReturnScalarType(0));
-//   }
-// }
 
 template <class ReturnType, class ScalarType>
 ReturnType computeTriangleCorrection(

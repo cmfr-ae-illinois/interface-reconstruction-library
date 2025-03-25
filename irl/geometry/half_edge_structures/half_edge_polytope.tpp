@@ -50,7 +50,7 @@ void HalfEdgePolytope<
       a_number_of_half_edges * sizeof_round<HalfEdgeType>();
   initial_vertex_storage_size_m = a_number_of_vertices * sizeof_round<VertexType>();
   initial_face_storage_size_m = a_number_of_faces * sizeof_round<FaceType>();
-  #ifdef VAL_MEM_DEBUG
+  #ifdef DEBUG_MEMORY
   std::cout << "resizing a polytop to : \n" <<
                a_number_of_half_edges << " half edges (taking " << initial_half_edge_storage_size_m << "bytes)\n" <<
                a_number_of_vertices << " vertices (taking " << initial_vertex_storage_size_m << "bytes)\n" <<
@@ -62,24 +62,24 @@ void HalfEdgePolytope<
   half_edge_storage_m.resize(0);
   face_storage_m.resize(0);
   for (UnsignedIndex_t i = 0; i < a_number_of_half_edges; i++) {
-    #ifdef VAL_MEM_DEBUG
+    #ifdef DEBUG_MEMORY
     std::cout << "allocating HE # " << i << std::endl;
     #endif
         this->getNewHalfEdge();
   }
   for (UnsignedIndex_t i = 0; i < a_number_of_vertices; i++) {
-    #ifdef VAL_MEM_DEBUG
+    #ifdef DEBUG_MEMORY
     std::cout << "allocating vertex # " << i << std::endl;
     #endif
     this->getNewVertex();
   }
   for (UnsignedIndex_t i = 0; i < a_number_of_faces; i++) {
-    #ifdef VAL_MEM_DEBUG
+    #ifdef DEBUG_MEMORY
     std::cout << "allocating face # " << i << std::endl;
     #endif
     this->getNewFace();
   }
-  #ifdef VAL_MEM_DEBUG
+  #ifdef DEBUG_MEMORY
   std::cout << "done resize " << std::endl;
   #endif
 }
@@ -96,7 +96,7 @@ void HalfEdgePolytope<
       a_number_of_half_edges * sizeof_round<HalfEdgeType>();
   initial_vertex_storage_size_m = a_number_of_vertices * sizeof_round<VertexType>();
   initial_face_storage_size_m = a_number_of_faces * sizeof_round<FaceType>();
-  #ifdef VAL_MEM_DEBUG
+  #ifdef DEBUG_MEMORY
   std::cout << "resizing a polytop for : \n" <<
                a_number_of_half_edges << " half edges (taking " << initial_half_edge_storage_size_m << "bytes)\n" <<
                a_number_of_vertices << " vertices (taking " << initial_vertex_storage_size_m << "bytes)\n" <<

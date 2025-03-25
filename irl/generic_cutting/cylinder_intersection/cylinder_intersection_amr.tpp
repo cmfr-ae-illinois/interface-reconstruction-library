@@ -25,6 +25,7 @@
 #include "irl/geometry/general/reference_frame.h"
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
+#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 
 namespace IRL {
 

@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_
-#define IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_
+#ifndef IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_
+#define IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_
 
 #include <float.h>
 #include "irl/data_structures/small_vector.h"
@@ -70,4 +70,4 @@ intersectPolyhedronWithCylinderAMR(
 
 #include "irl/generic_cutting/cylinder_intersection/cylinder_intersection_amr.tpp"
 
-#endif  // IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_
+#endif  // IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_

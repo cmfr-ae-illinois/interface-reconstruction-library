@@ -1,13 +1,13 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2019 Robert Chiodi <robert.chiodi@gmail.com>
+// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// #define VALDEBUG
+// #define DEBUG_CYL_IRL
 // #define NUDGE_REGION
 
 #include "irl/geometry/general/new_pt_calculation_functors.h"

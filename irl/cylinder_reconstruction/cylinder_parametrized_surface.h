@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -55,8 +55,7 @@ template <class MomentType>
 struct has_cylinder_surface<AddSurfaceOutput<MomentType, CylinderParametrizedSurfaceOutput>>
     : std::true_type {};
 
-/// \brief Parametrized surface defined by coeffs B and R of Cylinder + list of
-/// rational Bézier arcs
+/// \brief Parametrized surface defined by a list of arcs and a list of cylinder
 class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
  public:
   /// \brief Default constructor.
@@ -72,8 +71,13 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   CylinderParametrizedSurfaceOutput& operator=(
       CylinderParametrizedSurfaceOutput&& a_rhs);
 
+  /// @brief set the cylinder to use for the next arcs, you for rotation and coefficient values
+  /// @param a_cylinder 
   void setCylinder(const Cylinder& a_cylinder);
+  /// @brief clear the list of cylinders and rotation. to be used if CylinderParametrizedSurfaceOutput.clear() is called
   void resetCylinder(void);
+  /// @brief set the scale that was used to compute the arcs
+  /// @param a_scale 
   void setScale(double a_scale);
 
   inline double getSurfaceArea(void);
@@ -99,6 +103,7 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   // ~CylinderParametrizedSurfaceOutput(void);
 
  private:
+  // indexes_of_flip[i] stores the index of the first arc that use cylinder_m[i]
   std::vector<int> indexes_of_flip;
   std::vector<Cylinder> cylinder_m;
   double scale_m;

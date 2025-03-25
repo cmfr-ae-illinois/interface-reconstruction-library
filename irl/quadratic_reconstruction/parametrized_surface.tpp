@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1202,7 +1202,7 @@ inline std::vector<Pt*>& ParametrizedSurfaceOutput::getPts(void) {
 
 inline void ParametrizedSurfaceOutput::addArc(
     const RationalBezierArc& a_rational_bezier_arc) {
-  #ifdef VALDEBUG2
+  #ifdef SURFACE_DEBUG
   std::cout << "adding the following arc to the output : " << a_rational_bezier_arc << std::endl;
   #endif
   arc_list_m.push_back(a_rational_bezier_arc);

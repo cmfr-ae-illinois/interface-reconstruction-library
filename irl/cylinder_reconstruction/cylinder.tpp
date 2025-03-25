@@ -1,5 +1,14 @@
-#ifndef IRL_PARABOLOID_RECONSTRUCTIONS_CYLINDER_TPP_
-#define IRL_PARABOLOID_RECONSTRUCTIONS_CYLINDER_TPP_
+// This file is part of the Interface Reconstruction Library (IRL),
+// a library for interface reconstruction and computational geometry operations.
+//
+// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#ifndef IRL_CYLINDER_RECONSTRUCTIONS_CYLINDER_TPP_
+#define IRL_CYLINDER_RECONSTRUCTIONS_CYLINDER_TPP_
 
 #include "irl/cylinder_reconstruction/cylinder.h"
 
@@ -256,4 +265,4 @@ inline std::ostream& operator<<(
 
 }  // namespace IRL
 
-#endif  // IRL_PARABOLOID_RECONSTRUCTIONS_CYLINDER_TPP_
+#endif  // IRL_CYLINDER_RECONSTRUCTIONS_CYLINDER_TPP_

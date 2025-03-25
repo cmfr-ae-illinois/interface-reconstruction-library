@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -53,12 +53,6 @@ template <class ReturnType, class ScalarType>
 ReturnType computeType3Contribution(
     const AlignedCylinderBase<ScalarType>& a_cylinder,
     const RationalBezierArcBase<ScalarType>& a_arc);
-
-// template <class ReturnType, class ScalarType>
-// ReturnType computeFaceOnlyContribution(
-//     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
-//     const PlaneBase<ScalarType>& a_face_plane,
-//     const PtBase<ScalarType>& a_pt_ref);
 
 template <class ReturnType, class ScalarType>
 ReturnType computeTriangleCorrection(
