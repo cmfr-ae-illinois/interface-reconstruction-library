@@ -1,35 +1,100 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2019 Robert Chiodi <robert.chiodi@gmail.com>
+// Copyright (C) 2019 Robert Chiodi <robert.chiodi@gmail.com> ?????????????????
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "gtest/gtest.h"
 #include "examples/splines/Spline.h"
+#include <iostream>
+#include <vector>
+#include "gtest/gtest.h" // I don't know why this is happening
+
 
 // =================================== TESTS FOR GETTERS =======================================
 // std::vector<std::vector<double>> Spline::getControlPoints()
 TEST(GetterTests,ControlPoints) {
-    
+    std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
+    std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
+    std::vector<double> W = {1,0.25,1,0.5,1};
+
+    Spline spline = Spline(CP,KV,W);
+    splineCP = spline.getControlPoints();
+    ASSERT_EQ(CP.size(),splineCP.size()) << "Different Number of Control Points";
+    ASSERT_EQ(CP[0].size(),splineCP[0].size())<< "Different Size of Control Points";
+
+    for(int i = 0; i < CP.size(); i++) {
+        for(int j = 0; j <CP[0].size(); j++) {
+            EXPECT_EQ(splineCP[i][j],CP[i][j]) << "Control Point " << i << " differ in index " << j;
+        }
+    }
+
+
 }
 // std::vector<double> Spline::getKnotVector()
 TEST(GetterTests,KnotVector) {
-    
+    std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
+    std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
+    std::vector<double> W = {1,0.25,1,0.5,1};
+
+    Spline spline = Spline(CP,KV,W);
+    splineKV = spline.getKnotVector();
+    ASSERT_EQ(KV.size(),splineKV.size()) << "Different Number of Knots";
+
+    for(int i = 0; i < KV.size(); i++) {
+        EXPECT_EQ(splineKV[i],KV[i]) << "Knot Vectors Differ at index " << i;
+    }
 }
 // std::vector<double> Spline::getWeights() 
 TEST(GetterTests,Weights) {
-    
+    std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
+    std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
+    std::vector<double> W = {1,0.25,1,0.5,1};
+
+    Spline spline = Spline(CP,KV,W);
+    splineW = spline.getKnotVector();
+    ASSERT_EQ(W.size(),splineW.size()) << "Different Number of Weights";
+
+    for(int i = 0; i < W.size(); i++) {
+        EXPECT_EQ(splineW[i],W[i]) << "Weights Differ at index " << i;
+    }
 }
 // std::vector<double> Spline::getBreakpoints()
 TEST(GetterTests,Breakpoints) {
-    
+    std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
+    std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
+    std::vector<double> W = {1,0.25,1,0.5,1};
+    std::vector<double> BP = {0,0.25,0.5,1};
+
+    Spline spline = Spline(CP,KV,W);
+    BPs = spline.getBreakpoints();
+
+    ASSERT_EQ(BP.size(),BPS.size()) << "Different Breakpoints Size";
+
+    for(int i = 0; i < BPs.size(); i++) {
+        EXPECT_EQ(BPs[i],BP[i]) << "Breakpoints Differ at Index" << i;
+    }
 }
 // std::vector<std::vector<double>> Spline::getSpans() 
 TEST(GetterTests,Spans) {
-    
+    std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
+    std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
+    std::vector<double> W = {1,0.25,1,0.5,1};
+    std::vector<std::vector<double>> S = {{0,0.25},{0.25,0.5},{0.5,1}};
+
+    Spline spline = Spline(CP,KV,W);
+    Spans = spline.getSpans();
+
+    ASSERT_EQ(S.size(),Spans.size()) << "Different Number of Control Points";
+    ASSERT_EQ(S[0].size(),Spans[0].size())<< "Different Size of Control Points";
+
+    for(int i = 0; i < S.size(); i++) {
+        for(int j = 0; j <S[0].size(); j++) {
+            EXPECT_EQ(Spans[i][j],S[i][j]) << "Spans " << i << " differ in index " << j;
+        }
+    }
 }
 // std::vector<std::vector<double>> Spline::getXCoeffs()
 TEST(GetterTests,XCoeffs) {
@@ -64,7 +129,6 @@ TEST(KnotVectorOperations,BreakpointMaking) {
 TEST(KnotVectorOperations,SpanMaking) {
 
 }
-
 
 
 // =================================== TESTS FOR SPLINE CONSTRUCTION =======================================
