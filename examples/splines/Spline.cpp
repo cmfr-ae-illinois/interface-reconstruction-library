@@ -737,7 +737,7 @@ double Spline::getSurfaceEnergy() {
         0,
         sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
         sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0};
-std::vector<double> GaussWeights = {(322.0-13.0*sqrt(70.0))/900.0,
+    std::vector<double> GaussWeights = {(322.0-13.0*sqrt(70.0))/900.0,
          (322.0+13.0*sqrt(70.0))/900.0,
          128.0/225.0,
          (322.0+13.0*sqrt(70.0))/900.0,
