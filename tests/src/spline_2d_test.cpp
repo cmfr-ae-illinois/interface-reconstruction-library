@@ -10,107 +10,129 @@
 #include "gtest/gtest.h"
 #include "examples/splines/Spline.h"
 
+// =================================== TESTS FOR GETTERS =======================================
+// std::vector<std::vector<double>> Spline::getControlPoints()
+TEST(GetterTests,ControlPoints) {
+    
+}
+// std::vector<double> Spline::getKnotVector()
+TEST(GetterTests,KnotVector) {
+    
+}
+// std::vector<double> Spline::getWeights() 
+TEST(GetterTests,Weights) {
+    
+}
+// std::vector<double> Spline::getBreakpoints()
+TEST(GetterTests,Breakpoints) {
+    
+}
+// std::vector<std::vector<double>> Spline::getSpans() 
+TEST(GetterTests,Spans) {
+    
+}
+// std::vector<std::vector<double>> Spline::getXCoeffs()
+TEST(GetterTests,XCoeffs) {
+    
+}
+// std::vector<std::vector<double>> Spline::getYCoeffs()
+TEST(GetterTests,YCoeffs) {
+    
+}
+// std::vector<std::vector<double>> Spline::getDCoeffs()
+TEST(GetterTests,DCoeffs) {
+    
+}
+// =================================== TESTS FOR KNOT VECTOR OPERATIONS =======================================
+// int Spline::findSpan(double u) 
+TEST(KnotVectorOperations,SpanFinding) {
+
+}
+// std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
+TEST(KnotVectorOperations,BasisCoeffs) {
+    
+}
+// std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i)
+TEST(KnotVectorOperations,BasisBounds) {
+    
+}
+// std::vector<double> Spline::makeBreakpoints()
+TEST(KnotVectorOperations,BreakpointMaking) {
+    
+}
+// std::vector<std::vector<double>> Spline::makeSpans()
+TEST(KnotVectorOperations,SpanMaking) {
+
+}
+
+
+
+// =================================== TESTS FOR SPLINE CONSTRUCTION =======================================
 // std::vector<std::vector<double>> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
 //                                                           std::vector<double> Q2,
 //                                                           std::vector<double> T1,
 //                                                           std::vector<double> T2)
-
+TEST(InterpolationMethods,PTInter) {
+    
+}
 
 // double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk)
-
+TEST(InterpolationMethods,WeightCalculator) {
+    
+}
 
 
 // Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T)
+TEST(InterpolationMethods,Interpolator) {
+    
+}
 
-
-
-// int Spline::findSpan(double u) 
-
-
-
-// std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
-
-
-
-// std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i)
-
-
-
+// =================================== TESTS FOR SPLINE PROPERTIES =======================================
 // std::vector<std::vector<double>> Spline::CurveCoefficients()
-
-
-
-// std::vector<double> Spline::makeBreakpoints()
-
-
-
-// std::vector<std::vector<double>> Spline::makeSpans()
-
-
+TEST(SplineProperties,CurveCoefficients) {
+    
+}
 
 // double Spline::getArcLength()
-
-
-
-// double Spline::getSurfaceEnergy()
-
+TEST(SplineProperties,ArcLength) {
+    
+}
 
 // double Spline::getCurvature(double u)
+TEST(SplineProperties,Curvature) {
+    
+}
 
-
-
-// std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset)
-
-
-
-// double Spline::integratedSpline(double u)
-
-
-
+// double Spline::getSurfaceEnergy()
+TEST(SplineProperties,SurfaceEnergy) {
+    
+}
 // double Spline::getArea()
+TEST(SplineProperties,Area) {
+
+}
 
 
-
+// =================================== TESTS FOR CLIPPING =======================================
 // std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::vector<double> P2)
-
-
-
+TEST(ClippingOperations,LineClip) {
+    
+}
 // std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square)
-
-
-
+TEST(ClippingOperations,ParamLoop) {
+    
+}
 // double Spline::integrateSplineSquare(std::vector<std::vector<double>> square)
+TEST(ClippingOperations,ClippedArea) {
 
+}
+// double Spline::integratedSpline(double u)
+TEST(ClippingOperations,analyticIntegration) {
+    
+}
 
+// =================================== TESTS FOR VISUALIZATION =======================================
+// std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset)
+TEST(Visualization,curveMaker) {
 
-// std::vector<std::vector<double>> Spline::getControlPoints()
-
-
-
-// std::vector<double> Spline::getKnotVector()
-
-
-
-// std::vector<double> Spline::getWeights() 
-
-
-
-// std::vector<double> Spline::getBreakpoints()
-
-
-
-// std::vector<std::vector<double>> Spline::getSpans() 
-
-
-
-// std::vector<std::vector<double>> Spline::getXCoeffs()
-
-
-
-// std::vector<std::vector<double>> Spline::getYCoeffs()
-
-
-
-// std::vector<std::vector<double>> Spline::getDCoeffs()
-
-
+}
