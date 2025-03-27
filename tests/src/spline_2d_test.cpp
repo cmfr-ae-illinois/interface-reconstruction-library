@@ -98,15 +98,16 @@ TEST(GetterTests,Spans) {
 }
 // std::vector<std::vector<double>> Spline::getXCoeffs()
 TEST(GetterTests,XCoeffs) {
-    
+    ASSERT_EQ(1,1)<< "Different Size of Control Points";
+
 }
 // std::vector<std::vector<double>> Spline::getYCoeffs()
 TEST(GetterTests,YCoeffs) {
-    
+    ASSERT_EQ(1,1)<< "Different Size of Control Points";
 }
 // std::vector<std::vector<double>> Spline::getDCoeffs()
 TEST(GetterTests,DCoeffs) {
-    
+    ASSERT_EQ(1,1)<< "Different Size of Control Points";
 }
 // =================================== TESTS FOR KNOT VECTOR OPERATIONS =======================================
 // int Spline::findSpan(double u) 
