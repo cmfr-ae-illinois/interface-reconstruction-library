@@ -249,58 +249,42 @@ ReturnType computeType3ContributionWithSplit(
                 a_cylinder, a_plane_normal, pt_0, pt_1, a_tangent_1,
                 projected_pt);
         // If the projected tangent cannot be calculated, then the arc contribution is 0
-        if (tangent_projected_pt[0] == ZERO && tangent_projected_pt[1] == ZERO &&
-            tangent_projected_pt[2] == ZERO) {
-          if constexpr (!std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
-            auto surface_arc = RationalBezierArc(
-                pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
-                pt_1.toDoublePt(), 0.0);
-            surface_arc.reset_start_point_id(
-                reinterpret_cast<std::uintptr_t>(&pt_0));
-            surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
-            a_surface->addArc(surface_arc);
+        if (tangent_projected_pt[0] != ZERO || tangent_projected_pt[1] != ZERO ||
+            tangent_projected_pt[2] != ZERO) {
+          // If we want to output the surface:
+          if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
+            // We need to store this vertex so that its address remains
+            // unique over time (for surface output purposes)
+            Pt* new_point = new Pt(projected_pt);
+            PtBase<double>* new_point_double =
+                new PtBase<double>(static_cast<double>(projected_pt[0]),
+                                  static_cast<double>(projected_pt[1]),
+                                  static_cast<double>(projected_pt[2]));
+            a_surface->addPt(new_point_double);
+            return computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                      a_cylinder, a_plane_normal, a_pt_ref, a_pt_0, *new_point,
+                      a_tangent_0, tangent_projected_pt, a_requires_nudge,
+                      a_split_counter, a_surface) +
+                  computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                      a_cylinder, a_plane_normal, a_pt_ref, *new_point, a_pt_1,
+                      -tangent_projected_pt, a_tangent_1, a_requires_nudge,
+                      a_split_counter, a_surface);
+          } else {
+            return computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                      a_cylinder, a_plane_normal, a_pt_ref, a_pt_0,
+                      PtType(projected_pt), a_tangent_0, tangent_projected_pt,
+                      a_requires_nudge, a_split_counter, a_surface) +
+                  computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                      a_cylinder, a_plane_normal, a_pt_ref, PtType(projected_pt),
+                      a_pt_1, -tangent_projected_pt, a_tangent_1, a_requires_nudge,
+                      a_split_counter, a_surface);
           }
-          return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
-        }
-
-        // If we want to output the surface:
-        if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
-          // We need to store this vertex so that its address remains
-          // unique over time (for surface output purposes)
-          Pt* new_point = new Pt(projected_pt);
-          PtBase<double>* new_point_double =
-              new PtBase<double>(static_cast<double>(projected_pt[0]),
-                                static_cast<double>(projected_pt[1]),
-                                static_cast<double>(projected_pt[2]));
-          a_surface->addPt(new_point_double);
-          return computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                    a_cylinder, a_plane_normal, a_pt_ref, a_pt_0, *new_point,
-                    a_tangent_0, tangent_projected_pt, a_requires_nudge,
-                    a_split_counter, a_surface) +
-                computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                    a_cylinder, a_plane_normal, a_pt_ref, *new_point, a_pt_1,
-                    -tangent_projected_pt, a_tangent_1, a_requires_nudge,
-                    a_split_counter, a_surface);
-        } else {
-          return computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                    a_cylinder, a_plane_normal, a_pt_ref, a_pt_0,
-                    PtType(projected_pt), a_tangent_0, tangent_projected_pt,
-                    a_requires_nudge, a_split_counter, a_surface) +
-                computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                    a_cylinder, a_plane_normal, a_pt_ref, PtType(projected_pt),
-                    a_pt_1, -tangent_projected_pt, a_tangent_1, a_requires_nudge,
-                    a_split_counter, a_surface);
         }
       }
     }
     // Compute average point and tangent
     const Pt average_pt = HALF * (pt_0 + pt_1);
     auto average_tangent = Normal(HALF * (a_tangent_0 + a_tangent_1));
-
-    #ifdef DEBUG_CYL_IRL
-    std::cout << "average point is : " << average_pt << std::endl;
-    std::cout << "its tangent is   : " << average_tangent << std::endl;
-    #endif
     // If the norm of the average tangent is very small (meaning that the
     // tangents are aligned), then we switch to QP and shake the polytope
     // if (squaredMagnitude(average_tangent) < DISTANCE_EPSILON) {
@@ -316,6 +300,12 @@ ReturnType computeType3ContributionWithSplit(
     // will be the end-point and start-point of the two new arcs
     Pt projected_pt = projectPtAlongHalfLineOntoCylinder<ScalarType>(
         a_cylinder, average_tangent, average_pt);
+
+    #ifdef DEBUG_CYL_IRL
+    std::cout << "average point is : " << average_pt << std::endl;
+    std::cout << "its tangent is   : " << average_tangent << std::endl;
+    std::cout << "projected point is   : " << projected_pt << std::endl;
+    #endif
     // If this point could not be found, switch to QP and shake the polytope
     if (projected_pt[0] == ScalarType(DBL_MAX)) {
       #ifdef NUDGE_REGION
@@ -349,18 +339,13 @@ ReturnType computeType3ContributionWithSplit(
             a_cylinder, a_plane_normal, pt_0, pt_1, a_tangent_1,
             projected_pt);
 
-    // If the projected tangent cannot be calculated, then the arc contribution is 0
+    // If the projected tangent cannot be calculated, then nudge
     if (tangent_projected_pt[0] == ZERO && tangent_projected_pt[1] == ZERO &&
          tangent_projected_pt[2] == ZERO) {
-      if constexpr (!std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
-        auto surface_arc = RationalBezierArc(
-            pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
-            pt_1.toDoublePt(), 0.0);
-        surface_arc.reset_start_point_id(
-            reinterpret_cast<std::uintptr_t>(&pt_0));
-        surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
-        a_surface->addArc(surface_arc);
-      }
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because splitting tangent is wrong" << std::endl;
+      #endif
+      *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
 
