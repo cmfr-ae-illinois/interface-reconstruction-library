@@ -14,10 +14,10 @@ int main () {
 
     int stencil_size = 3;
     int hidden_size = 100;
-    int output_size = 2; // Two numbers 0 = plane, 1 = paraboloid
+    int output_size = 3; // Two numbers 0 = plane, 1 = paraboloid, 2 = cylinder
     int batch_size = 64;
     double learning_rate = 0.01;
-    int no_generated_paraboloids = 16384; // Should be divisible by batch size?
+    int no_batches = 256; // Should be divisible by batch size?
     std::vector<double> lossVector;
 
     // Declare vectors of states and labels
@@ -26,7 +26,7 @@ int main () {
 
 
     IRL::Data_gen data_gen;
-    data_gen.generate_Data(&statesV, &labelsV, no_generated_paraboloids, stencil_size);
+    data_gen.generate_Data(&statesV, &labelsV, no_batches*batch_size, stencil_size);
 
 
     

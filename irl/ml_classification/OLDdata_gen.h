@@ -10,9 +10,6 @@ namespace IRL {
 
         public:
         std::mt19937_64 eng;
-        //int stencil_size = 3;
-        //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-
 
         Data_gen(){
             // Initialize random number generator with a seed from current time
@@ -21,10 +18,8 @@ namespace IRL {
             std::cout << "I'm a data generator!" << std::endl;
         }
 
-        std::vector<double> generate_Paraboloid (int stencil_size, int datapoint_type, int plane_bounds_coefficients) {
-            
-            std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-  
+        void generate_Paraboloid (double*** vfrac, int stencil_size, int datapoint_type, int plane_bounds_coefficients) {
+
             // Defining cell coordinates
             auto coords = std::vector<double>(stencil_size+1);
             for (int i = 0; i < stencil_size+1; i++) {
@@ -87,17 +82,6 @@ namespace IRL {
                     }
                 }
             }
-            // Flatten the 3D vector vfrac into a 1D vector
-            std::vector<double> flattened_vfrac;
-            for (int i = 0; i < stencil_size; ++i) {
-                for (int j = 0; j < stencil_size; ++j) {
-                    for (int k = 0; k < stencil_size; ++k) {
-                        flattened_vfrac.push_back(vfrac[i][j][k]);
-                    }
-                }
-            }
-            //return the result
-            return flattened_vfrac;
         }
 
         // Function to generate a random vector within given bounds
@@ -106,9 +90,8 @@ namespace IRL {
             return Eigen::Vector3d(dist(eng), dist(eng), dist(eng));  // Random point in 3D space
         }
 
-        std::vector<double> generate_Cylinder (int stencil_size) {
+        void generate_Cylinder (double*** vfrac, int stencil_size) {
 
-            std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
             const double cell_volume = 1.0;
             int refinement_factor = 3;
 
@@ -126,7 +109,7 @@ namespace IRL {
 
             // Create refined cells
             int refined_stencil_size = refinement_factor*stencil_size;
-            std::vector<std::vector<std::vector<double>>> refined_vfrac(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
+            std::vector<std::vector<std::vector<double>>> refined_vfrac(stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
             // Defining cell coordinates
             auto coords = std::vector<double>(refined_stencil_size+1);
             for (int i = 0; i < refined_stencil_size+1; i++) {
@@ -173,12 +156,11 @@ namespace IRL {
                         // Intersect cell with paraboloid -- return volume and surface
                         auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
                         auto volume_and_surface = IRL::getVolumeMoments<
-                            IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
+                            IRL::AddSurfaceOutput<IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
                             cell, paraboloid);
                         // Store surface and volume (fraction)
                         
                         refined_vfrac[i][j][k] = volume_and_surface.getMoments().volume() / (cell_volume/(refinement_factor*refinement_factor*refinement_factor));
-                                         //volume_and_surface.getMoments().centroid() / vol
                     }
                 }
             }
@@ -202,6 +184,56 @@ namespace IRL {
                 }
             }
 
+            // Debug:
+            bool valid_size = true;
+            // Check if the first level of pointers (vfrac) is valid
+            if (vfrac == nullptr) {
+                valid_size = false;
+                std::cout << "The 3D array has not been allocated properly (1st dimension)." << std::endl;
+            }
+
+            // Iterate over the first dimension (vfrac[i]) to check if it's properly allocated
+            for (int i = 0; i < stencil_size; ++i) {
+                if (vfrac[i] == nullptr) {
+                    valid_size = false;
+                    std::cout << "The 3D array has not been allocated properly (2nd dimension) at index " << i << "." << std::endl;
+                    break; // Exit if a nullptr is found in the second dimension
+                }
+
+                // Iterate over the second dimension (vfrac[i][j]) to check if it's properly allocated
+                for (int j = 0; j < stencil_size; ++j) {
+                    if (vfrac[i][j] == nullptr) {
+                        valid_size = false;
+                        std::cout << "The 3D array has not been allocated properly (3rd dimension) at indices [" << i << "][" << j << "]." << std::endl;
+                        break; // Exit if a nullptr is found in the third dimension
+                    }
+
+                    // Now check the third dimension (vfrac[i][j][k]) to make sure it points to valid double values
+                    for (int k = 0; k < stencil_size; ++k) {
+                        if (std::isnan(vfrac[i][j][k])) {
+                            valid_size = false;
+                            break; // Exit if an invalid value is found at [i][j][k]
+                        }
+                    }
+                }
+            }
+
+            // If size is invalid, print an error message
+            if (!valid_size) {
+                std::cout << "The 3D array does not have the desired size or was not properly allocated." << std::endl;
+            }
+        }
+
+        std::vector<double> generate_State(int datapoint_type, int stencil_size, double*** vfrac, double plane_bounds_coefficients){
+            // Create a vector of volume fractions and surfaces
+            // OLD std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
+
+            if (datapoint_type == 2) {
+                generate_Cylinder(vfrac, stencil_size);
+            } else {
+                generate_Paraboloid(vfrac, stencil_size, datapoint_type, plane_bounds_coefficients);
+            }
+            
             // Flatten the 3D vector vfrac into a 1D vector
             std::vector<double> flattened_vfrac;
             for (int i = 0; i < stencil_size; ++i) {
@@ -215,28 +247,35 @@ namespace IRL {
             return flattened_vfrac;
         }
 
-        std::vector<double> generate_State(int datapoint_type, int stencil_size, double plane_bounds_coefficients){
-            // Create a vector of volume fractions and surfaces
-            // OLD std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-
-            if (datapoint_type == 2) {
-                return generate_Cylinder(stencil_size);
-            } else {
-                return generate_Paraboloid(stencil_size, datapoint_type, plane_bounds_coefficients);
-            }
-        }
-
         void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, double plane_bounds_coefficients = 0.5){
             std::cout << no_datapoints << std::endl;
             // Initialize random number generator with a seed from current time
             std::srand(std::time(0));
+            
+            // Make a pointer, 3D array of volume fractions
+            double*** vfrac = new double**[stencil_size];
+            for (int i = 0; i < stencil_size; ++i) {
+                vfrac[i] = new double*[stencil_size];
+                for (int j = 0; j < stencil_size; ++j) {
+                    vfrac[i][j] = new double[stencil_size];
+                }
+            }
 
             for (int i=0; i<no_datapoints; i++) {
                 // Generate the data, init with a random number 0 or 1, 0=plane, 1=paraboloid, 2=cylinder
                 int datapoint_type = std::rand() % 3;
                 labelsV->push_back(datapoint_type);
-                statesV->push_back(generate_State(datapoint_type, stencil_size, plane_bounds_coefficients));
+                statesV->push_back(generate_State(datapoint_type, stencil_size, vfrac, plane_bounds_coefficients));
             }
+
+            // Free the memory
+            for (int i = 0; i < stencil_size; ++i) {
+                for (int j = 0; j < stencil_size; ++j) {
+                    delete[] vfrac[i][j];  // Free each row of doubles
+                }
+                delete[] vfrac[i];  // Free each 2D array
+            }
+            delete[] vfrac;  // Free the top-level array
         }
     };
 }
