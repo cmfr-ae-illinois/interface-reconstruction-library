@@ -122,14 +122,14 @@ TEST(KnotVectorOperations,BasisCoeffs) {
 TEST(KnotVectorOperations,BasisBounds) {
     
 }
-// std::vector<double> Spline::makeBreakpoints()
-TEST(KnotVectorOperations,BreakpointMaking) {
+// std::vector<double> Spline::makeBreakpoints() REDUNDANT TO GETTER
+// TEST(KnotVectorOperations,BreakpointMaking) {
     
-}
-// std::vector<std::vector<double>> Spline::makeSpans()
-TEST(KnotVectorOperations,SpanMaking) {
+// }
+// // std::vector<std::vector<double>> Spline::makeSpans() REDUNDANT TO GETTER
+// TEST(KnotVectorOperations,SpanMaking) {
 
-}
+// }
 
 
 // =================================== TESTS FOR SPLINE CONSTRUCTION =======================================
@@ -137,19 +137,77 @@ TEST(KnotVectorOperations,SpanMaking) {
 //                                                           std::vector<double> Q2,
 //                                                           std::vector<double> T1,
 //                                                           std::vector<double> T2)
+
 TEST(InterpolationMethods,PTInter) {
-    
+    // Case 1: Test Two Regular Sloped Lines
+    std::vector<double> Q1 = {1.0,2.0};
+    std::vector<double> Q2 = {5.0,1.0};
+    std::vector<double> T1 = {1.0,1.0};
+    std::vector<double> T2 = {-1.0,1.0};
+    std::vector<double> ExactIntersection = {2.5,3.5}
+
+    std::vector<std::vector<double>> Rg1 = Spline::solvePointTangentIntersection(Q1,Q2,T1,T2);
+    std::vector<double> R1 = Rg1[0];
+
+    for(int i = 0; i < ExactIntersection.size();i++) {
+        EXPECT_EQ(ExactIntersection[i],R1[i]) << "Case 1 Intersection differs at index " << i;
+    }
+
+    // Case 2: One Vertical Line
+    T1 = {0.0,1.0};
+    ExactIntersection = {1.0,5.0};
+    Rg1 = Spline::solvePointTangentIntersection(Q1,Q2,T1,T2);
+    R1 = Rg1[0];
+
+    for(int i = 0; i < ExactIntersection.size();i++) {
+        EXPECT_EQ(ExactIntersection[i],R1[i]) << "Case 2 Intersection differs at index " << i;
+    }
+
+    // Case 3: One Horizontal Line
+    T1 = {1.0,0};
+    ExactIntersection = {5.0,1.0};
+    Rg1 = Spline::solvePointTangentIntersection(Q1,Q2,T1,T2);
+    R1 = Rg1[0];
+
+    for(int i = 0; i < ExactIntersection.size();i++) {
+        EXPECT_EQ(ExactIntersection[i],R1[i]) << "Case 2 Intersection differs at index " << i;
+    }
+
+    // Case 4: No Intersections
+    // Not in Method yet
+
+    // Case 5: Infinite Intersections
+    // Not in Method yet
 }
 
 // double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk)
 TEST(InterpolationMethods,WeightCalculator) {
-    
+    // Collinear Case
+    std::vector<double> Qkm = {1,1};
+    std::vector<double> Rk = {4,1};
+    std::vector<double> Qk = {7,1};
+    double wExact = 0;
+    double w = Spline::makeWeight(Qkm,Rk,Qk); 
+
+    EXPECT_EQ(w,wExact) << "Collinear Weight Fail";
+
+    // Isosceles Case
+    Rk = {4,5};
+    wExact = 0.6;
+    w = Spline::makeWeight(Qkm,Rk,Qk); 
+    EXPECT_EQ(w,wExact) << "Isosceles Weight Fail";
+
+    // General Case
+    Rk = {3,5};
+    wExact = 0.597492359431871;
+    w = Spline::makeWeight(Qkm,Rk,Qk);
+    EXPECT_EQ(w,wExact) << "General Weight Fail";
 }
 
 
 // Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T)
 TEST(InterpolationMethods,Interpolator) {
-    
+    // Compare Control Points, Knot Vector, and Weights for Circle and Blob Cases
 }
 
 // =================================== TESTS FOR SPLINE PROPERTIES =======================================
@@ -165,7 +223,7 @@ TEST(SplineProperties,ArcLength) {
 
 // double Spline::getCurvature(double u)
 TEST(SplineProperties,Curvature) {
-    
+    // Figure out Later
 }
 
 // double Spline::getSurfaceEnergy()
