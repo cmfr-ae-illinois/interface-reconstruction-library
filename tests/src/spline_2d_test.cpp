@@ -23,8 +23,6 @@
 #include "gtest/gtest.h" // I don't know why this is happening
 
 // Remaining Tests:
-// KnotVectorOperations,BasisCoeffs
-// KnotVectorOperations,BasisBounds
 // InterpolationMethods,Interpolator
 // SplineProperties,Curvature
 // ClippingOperations,ParamLoop
@@ -206,7 +204,7 @@ TEST(KnotVectorOperations,SpanFinding) {
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
 
-    Spline SpanTester = Spline:spline(CP,U,W);
+    Spline SpanTester = Spline::Spline(CP,U,W);
 
     EXPECT_EQ(SpanTester.findSpan(-1.24),-2) << "Negative Value Fail";
     EXPECT_EQ(SpanTester.findSpan(24),-1) << "Large Value Fail";
@@ -219,13 +217,82 @@ TEST(KnotVectorOperations,SpanFinding) {
     EXPECT_EQ(SpanTester.findSpan(0.5959),2) << "In Span 2 Fail";
     EXPECT_EQ(SpanTester.findSpan(0.999),4) << "In Span 4 Fail";
 }
+
 // std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
 TEST(KnotVectorOperations,BasisCoeffs) {
-    // Examples in Book
+    std::vector<double> U = {0,0,0,1,2,3,4,4,5,5,5};
+    std::vector<double> W = {1,1,1,1,1,1,1,1};
+    std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
+
+    Spline BasisCoeffChecker = Spline::Spline(CP,U,W);
+
+    // Exact Values
+    std::vector<std::vector<double> N0 = {{0,0,0}      ,{0,0,0}        ,{1,-2,1}};
+    std::vector<std::vector<double> N1 = {{0,0,0}      ,{-1.5,2,0}     ,{-0.5,-2,2}};
+    std::vector<std::vector<double> N2 = {{0.5,0,0}    ,{-1,3,-1.5}    ,{0.5,-3,4.5}};
+    std::vector<std::vector<double> N3 = {{0.5,-1,0.5} ,{-1,5,-5.5}    ,{0.5,-4,8}};
+    std::vector<std::vector<double> N4 = {{0.5,-2,2}   ,{-1.5,10,-16}  ,{0,0,0}};
+    std::vector<std::vector<double> N5 = {{1,-6,9}     ,{0,0,0}        ,{1,-10,25}};
+    std::vector<std::vector<double> N6 = {{0,0,0}      ,{-2,18,-40}    ,{0,0,0}};
+    std::vector<std::vector<double> N7 = {{1,-8,16}    ,{0,0,0}        ,{0,0,0}};
+
+    // Combine into one vector
+    std::vector<std::vector<std::vector<double>>> Exacts = {N0,N1,N2,N3,N4,N5,N6,N7};
+
+    // Checking 
+    std::vector<std::vector<double>> NCurr;
+    std::vector<std::vector<double>> res;
+    for(int i = 0; i < Exacts.size(); i++) {
+        NCurr = Exacts[i];
+        res = BasisCoeffChecker.BasisCoefficients(i);
+
+        // Compare Sizes
+        ASSERT_EQ(res.size(),NCurr.size()) << "Different Number of Basis Coeffs";
+        ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Coeffs";
+        for(int j = 0; j < res.size(); j++) {
+            for(int k = 0; k < res[0].size(); k++){
+                EXPECT_EQ(res[i][j],NCurr[i][j]) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
+            }
+        }
+    }
 }
 // std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i)
-TEST(KnotVectorOperations,BasisBounds) {
-    // Examples in Book
+TEST(KnotVectorOperations,BasisBounds) { // Basically the same as above, but with the bounds now
+    std::vector<double> U = {0,0,0,1,2,3,4,4,5,5,5};
+    std::vector<double> W = {1,1,1,1,1,1,1,1};
+    std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
+
+    Spline BasisCoeffChecker = Spline::Spline(CP,U,W);
+
+    // Exact Values
+    std::vector<std::vector<double> N0 = {{0,0},{0,0},{0,1}};
+    std::vector<std::vector<double> N1 = {{0,0},{0,1},{1,2}};
+    std::vector<std::vector<double> N2 = {{0,1},{1,2},{2,3}};
+    std::vector<std::vector<double> N3 = {{1,2},{2,3},{3,4}};
+    std::vector<std::vector<double> N4 = {{2,3},{3,4},{4,4}};
+    std::vector<std::vector<double> N5 = {{3,4},{4,4},{4,5}};
+    std::vector<std::vector<double> N6 = {{4,4},{4,5},{5,5}};
+    std::vector<std::vector<double> N7 = {{4,5},{5,5},{5,5}};
+
+    // Combine into one vector
+    std::vector<std::vector<std::vector<double>>> Exacts = {N0,N1,N2,N3,N4,N5,N6,N7};
+
+    // Checking 
+    std::vector<std::vector<double>> NCurr;
+    std::vector<std::vector<double>> res;
+    for(int i = 0; i < Exacts.size(); i++) {
+        NCurr = Exacts[i];
+        res = BasisCoeffChecker.BasisCoefficientBounds(i);
+
+        // Compare Sizes
+        ASSERT_EQ(res.size(),NCurr.size()) << "Different Number of Basis Coeffs";
+        ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Coeffs";
+        for(int j = 0; j < res.size(); j++) {
+            for(int k = 0; k < res[0].size(); k++){
+                EXPECT_EQ(res[i][j],NCurr[i][j]) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
+            }
+        }
+    }
 }
 // std::vector<double> Spline::makeBreakpoints() REDUNDANT TO GETTER
 // TEST(KnotVectorOperations,BreakpointMaking) {
