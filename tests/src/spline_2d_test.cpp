@@ -25,7 +25,6 @@
 // Remaining Tests:
 // InterpolationMethods,Interpolator
 // SplineProperties,Curvature
-// ClippingOperations,ParamLoop
 // ClippingOperations,analyticIntegration
 // Visualization,curveMaker (this one is making me sad)
 
@@ -383,7 +382,11 @@ TEST(InterpolationMethods,Interpolator) {
 
     // Circle Case
 
-    // Do this from home
+    // Blob Case
+
+    // Home
+
+    
 }
 
 // =================================== TESTS FOR SPLINE PROPERTIES =======================================
@@ -476,7 +479,32 @@ TEST(ClippingOperations,LineClip) {
 }
 // std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square)
 TEST(Spline2DClippingOperations,ParamLoop) {
-    // Work
+    // Quarter Circle Case
+    std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
+    std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
+    Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
+
+    std::vector<std::vector<double>> square = {{{0,0},{1.5,0},{1.5,1.5},{0,1.5},{0,0}}};
+
+    std::vector<double> Ploop = {0,0,1.0/3.0,0};
+    std::vector<double> Indicators = {2,4,3,2};
+
+    std::vector<std::vector<double>> res = circle.getParameterLoop(square);
+
+    std::vector<double> resP = res[0];
+    std::vector<double> resI = res[1];
+
+    ASSERT_EQ(resP.size(),Ploop.size()) << "Different Number of Parameters";
+    ASSERT_EQ(resI.size(),Indicators.size()) << "Different Number of Indicators";
+    ASSERT_EQ(resI.size(),resP.size()) << "Different Number of Parameters and Indicators";
+
+    for(int i = 0; i < resP.size(); i++) {
+        EXPECT_EQ(resP[i],Ploop[i]) << "Parameters differ at index " << i;
+        EXPECT_EQ(resI[i],Indicators[i]) << "Indicators differ at index " << i;
+    }
+
+    // Blob Case
+
 }
 // double Spline::integrateSplineSquare(std::vector<std::vector<double>> square)
 TEST(ClippingOperations,ClippedArea) {
