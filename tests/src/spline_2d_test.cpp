@@ -23,7 +23,7 @@
 #include "gtest/gtest.h" // I don't know why this is happening
 
 // Remaining Tests:
-// InterpolationMethods,Interpolator
+// InterpolationMethods,Interpolato
 // SplineProperties,Curvature
 // ClippingOperations,ParamLoop
 // ClippingOperations,analyticIntegration
