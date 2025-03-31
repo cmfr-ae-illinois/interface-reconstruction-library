@@ -23,7 +23,7 @@
 #include "gtest/gtest.h" // I don't know why this is happening
 
 // Remaining Tests:
-// InterpolationMethods,Interpolato
+// InterpolationMethods,Interpolator
 // SplineProperties,Curvature
 // ClippingOperations,ParamLoop
 // ClippingOperations,analyticIntegration
@@ -285,11 +285,11 @@ TEST(KnotVectorOperations,BasisBounds) { // Basically the same as above, but wit
         res = BasisCoeffChecker.BasisCoefficientBounds(i);
 
         // Compare Sizes
-        ASSERT_EQ(res.size(),NCurr.size()) << "Different Number of Basis Coeffs";
-        ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Coeffs";
+        ASSERT_EQ(res.size(),NCurr.size()) << "Different Number of Basis Bounds";
+        ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Bounds";
         for(int j = 0; j < res.size(); j++) {
             for(int k = 0; k < res[0].size(); k++){
-                EXPECT_EQ(res[i][j],NCurr[i][j]) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
+                EXPECT_EQ(res[i][j],NCurr[i][j]) << "Basis Bound " << i << " Differs in span " << (j+1) << " Index " << k;
             }
         }
     }
@@ -381,6 +381,9 @@ TEST(InterpolationMethods,WeightCalculator) {
 TEST(InterpolationMethods,Interpolator) {
     // Compare Control Points, Knot Vector, and Weights for Circle and Blob Cases
 
+    // Circle Case
+
+    // Do this from home
 }
 
 // =================================== TESTS FOR SPLINE PROPERTIES =======================================
@@ -408,6 +411,8 @@ TEST(SplineProperties,ArcLength) {
 // double Spline::getCurvature(double u)
 TEST(SplineProperties,Curvature) {
     // Figure out Later
+
+    // Do this from work
 }
 
 // double Spline::getSurfaceEnergy()
@@ -471,7 +476,7 @@ TEST(ClippingOperations,LineClip) {
 }
 // std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square)
 TEST(Spline2DClippingOperations,ParamLoop) {
-    
+    // Work
 }
 // double Spline::integrateSplineSquare(std::vector<std::vector<double>> square)
 TEST(ClippingOperations,ClippedArea) {
@@ -498,7 +503,7 @@ TEST(ClippingOperations,analyticIntegration) {
 // =================================== TESTS FOR VISUALIZATION =======================================
 // std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset)
 TEST(Spline2DVisualization,curveMaker) {
-
+    // IDK yet
 }
 
 int main(int argc, char **argv) {
