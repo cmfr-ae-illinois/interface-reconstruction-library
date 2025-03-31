@@ -612,6 +612,14 @@ ReturnType computeType3Contribution(
       moments.centroid()[1] += ReturnScalarType(coeffs[2 + i] * m1y_basis[i]);
       moments.centroid()[2] += ReturnScalarType(coeffs[2 + i] * m1z_basis[i]);
     }
+
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "area : " << static_cast<double>(area_proj_triangle) << std::endl;
+      std::cout << "is area 0 ? : " << (abs(area_proj_triangle) < machine_epsilon<double>()) << std::endl;
+      std::cout << "area cast : " << static_cast<double>(ReturnScalarType(area_proj_triangle)) << std::endl;
+      std::cout << "moments.volume() befor : " << static_cast<double>(moments.volume()) << std::endl;
+      std::cout << "moments.volume() after : " << static_cast<double>(moments.volume()*ReturnScalarType(area_proj_triangle)) << std::endl;
+    #endif
     moments.volume() *= ReturnScalarType(area_proj_triangle);
     moments.centroid()[0] *= ReturnScalarType(area_proj_triangle);
     moments.centroid()[1] *= ReturnScalarType(area_proj_triangle);

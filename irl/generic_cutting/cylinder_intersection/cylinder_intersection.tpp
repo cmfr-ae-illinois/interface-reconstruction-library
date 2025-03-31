@@ -436,7 +436,7 @@ ReturnType computeNewEdgeSegmentContribution(
     const PtType& a_ref_pt, const HalfEdgeType a_entry_half_edge,
     const HalfEdgeType a_exit_half_edge, bool* skip_first,
     const NormalType& a_face_normal, const UnsignedIndex_t a_proj_dir,
-    const bool a_ignore_type3, bool* a_requires_nudge,
+    const bool a_ignore_type3, const bool small_face, bool* a_requires_nudge,
     SurfaceOutputType* a_surface) {
   using ReturnScalarType = typename ReturnType::value_type;
   ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
@@ -448,7 +448,7 @@ ReturnType computeNewEdgeSegmentContribution(
   full_moments += computeType2Contribution<ReturnType, ScalarType>(
       a_aligned_cylinder, a_exit_half_edge->getVertex()->getLocation(),
       a_entry_half_edge->getVertex()->getLocation());
-  if (!a_ignore_type3) {
+  if (!(a_ignore_type3 || small_face)) {
     full_moments += orientAndApplyType3Correction<ReturnType, ScalarType>(
         a_aligned_cylinder, a_exit_half_edge, a_entry_half_edge,
         a_requires_nudge, a_surface);
@@ -1611,13 +1611,14 @@ formCylinderIntersectionBasesClipped(
       std::cout << "doing face : " << face << std::endl;
     #endif
     const auto& face_normal = face.getPlane().normal();
-    // If magnitude(normal) ~ 0, the face area is ~ 0 so we can skip
-    if (squaredMagnitude(face_normal) < MACHINE_EPSILON) {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "face is small, skip to the next one" << std::endl;
-      #endif
-      continue;
-    }
+    // // If magnitude(normal) ~ 0, the face area is ~ 0 so we can skip
+    // not true for cylinders : M2 is not proportional to the face area !!!
+    bool small_face = (squaredMagnitude(face_normal) < MACHINE_EPSILON);
+    #ifdef DEBUG_CYL_IRL
+      if (small_face) {
+        std::cout << "face is small" << std::endl;
+      }
+    #endif
 
     // The starting half-edge is, by construction, an intersection which is
     // an entry (i.e. goes from outside to inside the cylinder, following the
@@ -1653,8 +1654,14 @@ formCylinderIntersectionBasesClipped(
     // type 1
     if (intersection_size == 0) {
       #ifdef DEBUG_CYL_IRL
-      std::cout << "the face has no intersection" << std::endl;
+        std::cout << "the face has no intersection" << std::endl;
       #endif
+      if (small_face) {
+        #ifdef DEBUG_CYL_IRL
+          std::cout << "the face is small, skip" << std::endl;
+        #endif
+        continue;
+      }
       // The face is entirely below (= unclipped)
       if (starting_half_edge->getVertex()->isNotClipped()) {
         // We need a reference point for the type 1 moment contribution
@@ -1706,17 +1713,17 @@ formCylinderIntersectionBasesClipped(
       // intersection (i.e. the exit)
       half_edge_type* exit_half_edge;
       bool skip_first = true;  // This avoid calculating a type 1 equal to 0
-          const auto& type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
-              ref_pt, starting_half_edge, exit_half_edge,
-              &skip_first, face_normal, max_component_index);
+      const auto& type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
+          ref_pt, starting_half_edge, exit_half_edge,
+          &skip_first, face_normal, max_component_index);
       #ifdef DEBUG_CYL_IRL
         std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
       #endif
       full_moments += type1contribution;
       // We can now compute the type 2 and 3 moment contribution
-          const auto& type3contribution = computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
+      const auto& type3contribution = computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
           a_aligned_cylinder, ref_pt, starting_half_edge, exit_half_edge,
-          &skip_first, face_normal, max_component_index, false, requires_nudge,
+          &skip_first, face_normal, max_component_index, false, small_face, requires_nudge,
           a_surface);
       #ifdef DEBUG_CYL_IRL
         std::cout << "\nType 3 contribution of the face : " << type3contribution << std::endl;
@@ -1730,7 +1737,13 @@ formCylinderIntersectionBasesClipped(
         std::cout << "the face has more than 2 intersections (i.e. more than 1 arc)" << std::endl;
       #endif
       // These flags identify the type of the conic section arcs in the face
-      const bool rectangle_face = fabs(face_normal[0]) < MACHINE_EPSILON;
+      const bool rectangle_face = fabs(face_normal[0]) < ANGLE_EPSILON;
+
+      #ifdef DEBUG_CYL_IRL
+        if (rectangle_face) {
+          std::cout << "it is a rectangular face" << std::endl;
+        }
+      #endif
 
       // If the face is convex and we do not want to output the parametrized
       // surface, we don't need to sort the intersections to avoid
@@ -1763,7 +1776,7 @@ formCylinderIntersectionBasesClipped(
                 computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                     a_aligned_cylinder, ref_pt, current_edge,
                     exit_half_edge, &skip_first, face_normal,
-                    max_component_index, false, requires_nudge, a_surface);
+                    max_component_index, false, small_face, requires_nudge, a_surface);
             current_edge = exit_half_edge->getNextHalfEdge();
             while (current_edge->getVertex()->needsToSeek()) {
               current_edge = current_edge->getNextHalfEdge();
@@ -1777,7 +1790,7 @@ formCylinderIntersectionBasesClipped(
                 computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                     a_aligned_cylinder, ref_pt, current_edge,
                     exit_half_edge, &skip_first, face_normal,
-                    max_component_index, false, requires_nudge, a_surface);
+                    max_component_index, false, small_face, requires_nudge, a_surface);
           }
           found_intersections += 2;
         } while (found_intersections != intersection_size);
@@ -2068,7 +2081,7 @@ formCylinderIntersectionBasesClipped(
               computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                   a_aligned_cylinder, ref_pt, entry_half_edge, exit_half_edge,
                   &entry_first, face_normal, max_component_index,
-                  ignore_type3_contributions, requires_nudge, a_surface);
+                  ignore_type3_contributions, small_face, requires_nudge, a_surface);
 
           #ifdef DEBUG_CYL_IRL
             std::cout << "moment contribution (1, 2 and 3) : " << moment_contribution << std::endl;

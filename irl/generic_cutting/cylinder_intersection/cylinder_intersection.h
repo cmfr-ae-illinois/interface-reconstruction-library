@@ -88,7 +88,7 @@ ReturnType computeNewEdgeSegmentContribution(
     const AlignedCylinderBase<ScalarType>& a_aligned_cylinder,
     const PtType& a_ref_pt, const HalfEdgeType a_entry_half_edge,
     const HalfEdgeType a_exit_half_edge, const bool skip_first,
-    const bool a_ignore_type3, bool* a_requires_nudge,
+    const bool a_ignore_type3, const bool small_face, bool* a_requires_nudge,
     SurfaceOutputType* a_surface = nullptr);
 
 template <class PtType, class ScalarType>
