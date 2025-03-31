@@ -23,7 +23,6 @@
 #include "gtest/gtest.h" // I don't know why this is happening
 
 // Remaining Tests:
-// KnotVectorOperations,SpanFinding
 // KnotVectorOperations,BasisCoeffs
 // KnotVectorOperations,BasisBounds
 // InterpolationMethods,Interpolator
@@ -202,8 +201,29 @@ TEST(GetterTests,DCoeffs) {
 }
 // =================================== TESTS FOR KNOT VECTOR OPERATIONS =======================================
 // int Spline::findSpan(double u) 
+<<<<<<< HEAD
+TEST(KnotVectorOperations,SpanFinding) {
+    std::vector<double> U = {0,0,0,0.2,0.5,0.6,0.6,0.9,1,1,1};
+    std::vector<double> W = {1,1,1,1,1,1,1,1};
+    std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
+
+    Spline SpanTester = Spline:spline(CP,U,W);
+
+    EXPECT_EQ(SpanTester.findSpan(-1.24),-2) << "Negative Value Fail";
+    EXPECT_EQ(SpanTester.findSpan(24),-1) << "Large Value Fail";
+    EXPECT_EQ(SpanTester.findSpan(0),0) << "Start Value Fail";
+    EXPECT_EQ(SpanTester.findSpan(1),4) << "End Value Fail";
+    EXPECT_EQ(SpanTester.findSpan(0.2),1) << "Breakpoint 1 Fail";
+    EXPECT_EQ(SpanTester.findSpan(0.5),2) << "Breakpoint 2 Fail";
+    EXPECT_EQ(SpanTester.findSpan(0.1),0) << "In Span 0 Fail";
+    EXPECT_EQ(SpanTester.findSpan(0.4),1) << "In Span 1 Fail";
+    EXPECT_EQ(SpanTester.findSpan(0.5959),2) << "In Span 2 Fail";
+    EXPECT_EQ(SpanTester.findSpan(0.999),4) << "In Span 4 Fail";
+
+=======
 TEST(Spline2DKnotVectorOperations,SpanFinding) {
     
+>>>>>>> c73316e37da337b5141531cb0ca9b1b2d04c2d5a
 }
 // std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
 TEST(KnotVectorOperations,BasisCoeffs) {
