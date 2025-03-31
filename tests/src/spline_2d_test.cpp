@@ -201,7 +201,6 @@ TEST(GetterTests,DCoeffs) {
 }
 // =================================== TESTS FOR KNOT VECTOR OPERATIONS =======================================
 // int Spline::findSpan(double u) 
-<<<<<<< HEAD
 TEST(KnotVectorOperations,SpanFinding) {
     std::vector<double> U = {0,0,0,0.2,0.5,0.6,0.6,0.9,1,1,1};
     std::vector<double> W = {1,1,1,1,1,1,1,1};
@@ -219,11 +218,6 @@ TEST(KnotVectorOperations,SpanFinding) {
     EXPECT_EQ(SpanTester.findSpan(0.4),1) << "In Span 1 Fail";
     EXPECT_EQ(SpanTester.findSpan(0.5959),2) << "In Span 2 Fail";
     EXPECT_EQ(SpanTester.findSpan(0.999),4) << "In Span 4 Fail";
-
-=======
-TEST(Spline2DKnotVectorOperations,SpanFinding) {
-    
->>>>>>> c73316e37da337b5141531cb0ca9b1b2d04c2d5a
 }
 // std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
 TEST(KnotVectorOperations,BasisCoeffs) {
