@@ -7,9 +7,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/splines/Spline.h"
+#include "Spline.h"
+
 #include <iostream>
+#include <cmath>
 #include <vector>
+#include <numeric>      // std::iota
+#include <algorithm>    // std::sort, std::stable_sort
+#include <fstream>
+#include <cmath>
+#include <iomanip>
+
+#include <complex>
+
 #include "gtest/gtest.h" // I don't know why this is happening
 
 // Remaining Tests:
@@ -24,13 +34,13 @@
 
 // =================================== TESTS FOR GETTERS =======================================
 // std::vector<std::vector<double>> Spline::getControlPoints()
-TEST(GetterTests,ControlPoints) {
+TEST(Spline2DGetterTests,ControlPoints) {
     std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
     std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
     std::vector<double> W = {1,0.25,1,0.5,1};
 
     Spline spline = Spline(CP,KV,W);
-    splineCP = spline.getControlPoints();
+    std::vector<std::vector<double>> splineCP = spline.getControlPoints();
     ASSERT_EQ(CP.size(),splineCP.size()) << "Different Number of Control Points";
     ASSERT_EQ(CP[0].size(),splineCP[0].size())<< "Different Size of Control Points";
 
@@ -43,13 +53,13 @@ TEST(GetterTests,ControlPoints) {
 
 }
 // std::vector<double> Spline::getKnotVector()
-TEST(GetterTests,KnotVector) {
+TEST(Spline2DGetterTests,KnotVector) {
     std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
     std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
     std::vector<double> W = {1,0.25,1,0.5,1};
 
     Spline spline = Spline(CP,KV,W);
-    splineKV = spline.getKnotVector();
+    std::vector<double> splineKV = spline.getKnotVector();
     ASSERT_EQ(KV.size(),splineKV.size()) << "Different Number of Knots";
 
     for(int i = 0; i < KV.size(); i++) {
@@ -57,13 +67,13 @@ TEST(GetterTests,KnotVector) {
     }
 }
 // std::vector<double> Spline::getWeights() 
-TEST(GetterTests,Weights) {
+TEST(Spline2DGetterTests,Weights) {
     std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
     std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
     std::vector<double> W = {1,0.25,1,0.5,1};
 
     Spline spline = Spline(CP,KV,W);
-    splineW = spline.getKnotVector();
+    std::vector<double> splineW = spline.getWeights();
     ASSERT_EQ(W.size(),splineW.size()) << "Different Number of Weights";
 
     for(int i = 0; i < W.size(); i++) {
@@ -71,30 +81,30 @@ TEST(GetterTests,Weights) {
     }
 }
 // std::vector<double> Spline::getBreakpoints()
-TEST(GetterTests,Breakpoints) {
+TEST(Spline2DGetterTests,Breakpoints) {
     std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
     std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
     std::vector<double> W = {1,0.25,1,0.5,1};
     std::vector<double> BP = {0,0.25,0.5,1};
 
     Spline spline = Spline(CP,KV,W);
-    BPs = spline.getBreakpoints();
+    std::vector<double> BPs = spline.getBreakpoints();
 
-    ASSERT_EQ(BP.size(),BPS.size()) << "Different Breakpoints Size";
+    ASSERT_EQ(BP.size(),BPs.size()) << "Different Breakpoints Size";
 
     for(int i = 0; i < BPs.size(); i++) {
         EXPECT_EQ(BPs[i],BP[i]) << "Breakpoints Differ at Index" << i;
     }
 }
 // std::vector<std::vector<double>> Spline::getSpans() 
-TEST(GetterTests,Spans) {
+TEST(Spline2DGetterTests,Spans) {
     std::vector<std::vector<double>> CP = {{1,2},{2,3},{5,2},{4,3},{4,2}};
     std::vector<double> KV = {0,0,0,0.25,0.5,1,1,1};
     std::vector<double> W = {1,0.25,1,0.5,1};
     std::vector<std::vector<double>> S = {{0,0.25},{0.25,0.5},{0.5,1}};
 
     Spline spline = Spline(CP,KV,W);
-    Spans = spline.getSpans();
+    std::vector<std::vector<double>> Spans = spline.getSpans();
 
     ASSERT_EQ(S.size(),Spans.size()) << "Different Number of Control Points";
     ASSERT_EQ(S[0].size(),Spans[0].size())<< "Different Size of Control Points";
@@ -192,8 +202,8 @@ TEST(GetterTests,DCoeffs) {
 }
 // =================================== TESTS FOR KNOT VECTOR OPERATIONS =======================================
 // int Spline::findSpan(double u) 
-TEST(KnotVectorOperations,SpanFinding) {
-
+TEST(Spline2DKnotVectorOperations,SpanFinding) {
+    
 }
 // std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
 TEST(KnotVectorOperations,BasisCoeffs) {
@@ -379,7 +389,7 @@ TEST(ClippingOperations,LineClip) {
 
 }
 // std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square)
-TEST(ClippingOperations,ParamLoop) {
+TEST(Spline2DClippingOperations,ParamLoop) {
     
 }
 // double Spline::integrateSplineSquare(std::vector<std::vector<double>> square)
@@ -406,6 +416,11 @@ TEST(ClippingOperations,analyticIntegration) {
 
 // =================================== TESTS FOR VISUALIZATION =======================================
 // std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset)
-TEST(Visualization,curveMaker) {
+TEST(Spline2DVisualization,curveMaker) {
 
 }
+
+int main(int argc, char **argv) {
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+  }
