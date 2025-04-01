@@ -23,10 +23,6 @@
 #include "gtest/gtest.h" // I don't know why this is happening
 
 // Remaining Tests:
-// InterpolationMethods,Interpolator
-// SplineProperties,Curvature
-// ClippingOperations,analyticIntegration
-// Visualization,curveMaker (this one is making me sad)
 
 // =================================== TESTS FOR GETTERS =======================================
 // std::vector<std::vector<double>> Spline::getControlPoints()
@@ -136,7 +132,7 @@ TEST(GetterTests,XCoeffs) {
     // Might need to change this for approximates
     for(int i = 0; i < XCoeffsExact.size(); i++) {
         for(int j = 0; j <XCoeffsExact[0].size(); j++) {
-            EXPECT_EQ(XCoeffsExact[i][j],XCoeffs[i][j]) << "XCoeffs Differ in Span " << i << " Index " << j;
+            EXPECT_NEAR(XCoeffsExact[i][j],XCoeffs[i][j],1e-12) << "XCoeffs Differ in Span " << i << " Index " << j;
         }
     }
 }
@@ -164,7 +160,7 @@ TEST(GetterTests,YCoeffs) {
     // Might need to change this for approximates
     for(int i = 0; i < YCoeffsExact.size(); i++) {
         for(int j = 0; j <YCoeffsExact[0].size(); j++) {
-            EXPECT_EQ(YCoeffsExact[i][j],YCoeffs[i][j]) << "YCoeffs Differ in Span " << i << " Index " << j;
+            EXPECT_NEAR(YCoeffsExact[i][j],YCoeffs[i][j],1e-12) << "YCoeffs Differ in Span " << i << " Index " << j;
         }
     }
 }
@@ -192,7 +188,7 @@ TEST(GetterTests,DCoeffs) {
     // Might need to change this for approximates
     for(int i = 0; i < DCoeffsExact.size(); i++) {
         for(int j = 0; j <DCoeffsExact[0].size(); j++) {
-            EXPECT_EQ(DCoeffsExact[i][j],DCoeffs[i][j]) << "DCoeffs Differ in Span " << i << " Index " << j;
+            EXPECT_NEAR(DCoeffsExact[i][j],DCoeffs[i][j],1e-12) << "DCoeffs Differ in Span " << i << " Index " << j;
         }
     }
 }
@@ -250,7 +246,7 @@ TEST(KnotVectorOperations,BasisCoeffs) {
         ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Coeffs";
         for(int j = 0; j < res.size(); j++) {
             for(int k = 0; k < res[0].size(); k++){
-                EXPECT_EQ(res[i][j],NCurr[i][j]) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
+                EXPECT_NEAR(res[i][j],NCurr[i][j],1e-12) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
             }
         }
     }
@@ -321,7 +317,7 @@ TEST(InterpolationMethods,PTInter) {
     std::vector<double> R1 = Rg1[0];
 
     for(int i = 0; i < ExactIntersection.size();i++) {
-        EXPECT_EQ(ExactIntersection[i],R1[i]) << "Case 1 Intersection differs at index " << i;
+        EXPECT_NEAR(ExactIntersection[i],R1[i],1e-12) << "Case 1 Intersection differs at index " << i;
     }
 
     // Case 2: One Vertical Line
@@ -331,7 +327,7 @@ TEST(InterpolationMethods,PTInter) {
     R1 = Rg1[0];
 
     for(int i = 0; i < ExactIntersection.size();i++) {
-        EXPECT_EQ(ExactIntersection[i],R1[i]) << "Case 2 Intersection differs at index " << i;
+        EXPECT_NEAR(ExactIntersection[i],R1[i],1e-12) << "Case 2 Intersection differs at index " << i;
     }
 
     // Case 3: One Horizontal Line
@@ -341,7 +337,7 @@ TEST(InterpolationMethods,PTInter) {
     R1 = Rg1[0];
 
     for(int i = 0; i < ExactIntersection.size();i++) {
-        EXPECT_EQ(ExactIntersection[i],R1[i]) << "Case 2 Intersection differs at index " << i;
+        EXPECT_NEAR(ExactIntersection[i],R1[i],1e-12) << "Case 2 Intersection differs at index " << i;
     }
 
     // Case 4: No Intersections
@@ -366,13 +362,13 @@ TEST(InterpolationMethods,WeightCalculator) {
     Rk = {4,5};
     wExact = 0.6;
     w = Spline::makeWeight(Qkm,Rk,Qk); 
-    EXPECT_EQ(w,wExact) << "Isosceles Weight Fail";
+    EXPECT_NEAR(w,wExact,1e-12) << "Isosceles Weight Fail";
 
     // General Case
     Rk = {3,5};
     wExact = 0.597492359431871;
     w = Spline::makeWeight(Qkm,Rk,Qk);
-    EXPECT_EQ(w,wExact) << "General Weight Fail";
+    EXPECT_NEAR(w,wExact,1e-12) << "General Weight Fail";
 }
 
 
@@ -381,12 +377,131 @@ TEST(InterpolationMethods,Interpolator) {
     // Compare Control Points, Knot Vector, and Weights for Circle and Blob Cases
 
     // Circle Case
+    std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
+    std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
+
+    Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
+
+    std::vector<std::vector<double>> CPExact = {{1,0},
+                                                {1,0.414213562373095},
+                                                {0.707106781186548,0.707106781186548},
+                                                {0.414213562373095,1},
+                                                {0,1},
+                                                {-0.414213562373095,1},
+                                                {-0.707106781186548,-0.707106781186548},
+                                                {-1,0.414213562373095},
+                                                {-1,1.224646799147353e-16},
+                                                {-1,-0.414213562373095},
+                                                {-0.707106781186548,-0.707106781186548},
+                                                {-0.414213562373095,-1},
+                                                {-1.836970198721030e-16,-1},
+                                                {0.414213562373095,-1},
+                                                {0.707106781186548,-0.707106781186548},
+                                                {1,-0.414213562373095},
+                                                {1,0}}
+    std::vector<double> UExact = {0,0,0,
+                                  2.0/9.0,2.0/9.0,
+                                  3.0/9.0,3.0/9.0,
+                                  4.0/9.0,4.0/9.0,
+                                  5.0/9.0,5.0/9.0,
+                                  6.0/9.0,6.0/9.0,
+                                  7.0/9.0,7.0/9.0,
+                                  8.0/9.0,8.0/9.0,
+                                  1,1,1};
+    std::vector<double> WExact =  {1,0.9238795325112871,
+                                   1,0.9238795325112871,
+                                   1,0.9238795325112871,
+                                   1,0.9238795325112871,
+                                   1,0.9238795325112871,
+                                   1,0.9238795325112871,
+                                   1,0.9238795325112871,
+                                   1,0.9238795325112871,1};
+
+    std::vector<std::vector<double>> CP = circle.getControlPoints();
+    std::vector<double> U = circle.getKnotVector();
+    std::vector<double> W = circle.getWeights();
+    
+    ASSERT_EQ(CP.size(),CPExact.size()) << "Different Number of Control Points";
+    ASSERT_EQ(CP[0].size(),CPExact[0].size()) << "Different Size of Control Points";
+    ASSERT_EQ(U.size(),UExact.size()) << "Different Number of Knots";
+    ASSERT_EQ(W.size(),WExact.size()) << "Different Number of Weights";
+    
+    // Loop over Control Points
+    for(int i = 0; i < CP.size(); i++) {
+        for(int j = 0; j < CP[0].size(); j++) {
+            EXPECT_NEAR(CP[i][j],CPExact[i][j],1e-12);
+        }
+    }
+    // Loop over Knots
+    for(int i = 0; i < U.size(); i++) {
+        EXPECT_NEAR(U[i],UExact[i],1e-12);
+    }
+    // Loop Over Weights
+    for(int i = 0; i < W.size(); i++) {
+        EXPECT_NEAR(W[i],WExact[i],1e-12);
+    }
+
 
     // Blob Case
+    std::vector<std::vector<double>> Blob = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{-3.0,0.0},{1.0,0.0}};
+    std::vector<std::vector<double>> BlobT = {{0.0,1.0},{-1.0,0.0},{-1.0,0.0},{-1.0,0.0},{0.0,1.0}};
 
-    // Home
+    Spline blob = Spline::LocalRQuadInterp(Blob,BlobT);
 
+    CPExact = {{1.0,0},
+               {1.0,0.414213562373095},
+               {0.707106781186548,0.707106781186548},
+               {0.414213562373095,1.0},
+               {0,1.0},
+               {-0.7071067811865481,},
+               {-0.5,0.5,},
+               {-0.292893218813452,0},
+               {-1.0,0},
+               {-2.0,0},
+               {-3.0,0},
+               {-6.0,0},
+               {-3.666666666666666,-2.0},
+               {1.0,-5.999999999999999},
+               {1.0,0}}
+    UExact = {0,0,0,
+              1.0/4.0,1.0/4.0,
+              3.0/8.0,3.0/8.0,
+              1.0/2.0,1.0/2.0,
+              5.0/8.0,5.0/8.0,
+              3.0/4.0,3.0/4.0,
+              7.0/8.0,7.0/8.0,
+              1.0,1.0,1.0};
+    WExact =  {1,0.923879532511287,
+               1,0.923879532511287,
+               1,0.572915223375334
+               1,0.572915223375333
+               1,0
+               1,0.347167685997458
+               1,0.418043000328400 ,1};
+
+    std::vector<std::vector<double>> CP = blob.getControlPoints();
+    std::vector<double> U = blob.getKnotVector();
+    std::vector<double> W = blob.getWeights();
     
+    ASSERT_EQ(CP.size(),CPExact.size()) << "Different Number of Control Points";
+    ASSERT_EQ(CP[0].size(),CPExact[0].size()) << "Different Size of Control Points";
+    ASSERT_EQ(U.size(),UExact.size()) << "Different Number of Knots";
+    ASSERT_EQ(W.size(),WExact.size()) << "Different Number of Weights";
+    
+    // Loop over Control Points
+    for(int i = 0; i < CP.size(); i++) {
+        for(int j = 0; j < CP[0].size(); j++) {
+            EXPECT_NEAR(CP[i][j],CPExact[i][j],1e-12);
+        }
+    }
+    // Loop over Knots
+    for(int i = 0; i < U.size(); i++) {
+        EXPECT_NEAR(U[i],UExact[i],1e-12);
+    }
+    // Loop Over Weights
+    for(int i = 0; i < W.size(); i++) {
+        EXPECT_NEAR(W[i],WExact[i],1e-12);
+    }
 }
 
 // =================================== TESTS FOR SPLINE PROPERTIES =======================================
@@ -405,17 +520,46 @@ TEST(SplineProperties,ArcLength) {
     double ALExact = 6.283185307900089;
     double AL = circle.getArcLength();
     
-    EXPECT_EQ(AL,ALExact) << "Circle Arc Length Fail";
+    EXPECT_NEAR(AL,ALExact,1e-12) << "Circle Arc Length Fail";
 
     // Blob Case
+    std::vector<std::vector<double>> Blob = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{-3.0,0.0},{1.0,0.0}};
+    std::vector<std::vector<double>> BlobT = {{0.0,1.0},{-1.0,0.0},{-1.0,0.0},{-1.0,0.0},{0.0,1.0}};
 
+    Spline blob = Spline::LocalRQuadInterp(Blob,BlobT);
+    ALExact = 14.340009149434596;
+    AL = blob.getArcLength();
+    
+    EXPECT_NEAR(AL,ALExact,1e-12) << "Circle Arc Length Fail";
 }
 
 // double Spline::getCurvature(double u)
 TEST(SplineProperties,Curvature) {
-    // Figure out Later
+    // Unit Circle
+    std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
+    std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
 
-    // Do this from work
+    Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
+    std::vector<double> uset = {0,0.25,0.5,0.75,1};
+
+    double k;
+    for(int i = 0; i <uset.size(); i++) {
+        k = circle.getCurvature(uset[i]);
+        EXPECT_NEAR(k,1.0,1e-12) << "Unit Circle Curvature Fail at u = " << u[i];
+    }
+
+    // Non-Unit Circle
+    std::vector<std::vector<double>> Circle = {{2.0,0.0},{0.0,2.0},{-2.0,0.0},{0.0,-2.0},{2.0,0.0}};
+    std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
+
+    Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
+    std::vector<double> uset = {0,0.25,0.5,0.75,1};
+
+    double k;
+    for(int i = 0; i <uset.size(); i++) {
+        k = circle.getCurvature(uset[i]);
+        EXPECT_NEAR(k,0.5,1e-12) << "R=2 Circle Curvature Fail at u = " << u[i];
+    }
 }
 
 // double Spline::getSurfaceEnergy()
@@ -425,11 +569,19 @@ TEST(SplineProperties,SurfaceEnergy) {
 
     Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
     double EkExact = 6.283185307900101;
-    double Ek = circle.getArcLength();
+    double Ek = circle.getSurfaceEnergy();
     
-    EXPECT_EQ(Ek,EkExact) << "Circle Surface Energy Fail";
+    EXPECT_NEAR(Ek,EkExact,1e-12) << "Circle Surface Energy Fail";
 
     // Blob Case
+    std::vector<std::vector<double>> Blob = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{-3.0,0.0},{1.0,0.0}};
+    std::vector<std::vector<double>> BlobT = {{0.0,1.0},{-1.0,0.0},{-1.0,0.0},{-1.0,0.0},{0.0,1.0}};
+
+    Spline blob = Spline::LocalRQuadInterp(Blob,BlobT);
+    EkExact = 10.210042233157300;
+    Ek = blob.getSurfaceEnergy();
+    
+    EXPECT_NEAR(Ek,EkExact,1e-12) << "Circle Arc Length Fail";
 }
 // double Spline::getArea()
 TEST(SplineProperties,Area) {
@@ -440,9 +592,17 @@ TEST(SplineProperties,Area) {
     double AExact = 3.141592257512612;
     double A = circle.getArea();
     
-    EXPECT_EQ(A,AExact) << "Circle Area Fail";
+    EXPECT_NEAR(A,AExact,1e-12) << "Circle Area Fail";
 
     // Blob Case
+    std::vector<std::vector<double>> Blob = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{-3.0,0.0},{1.0,0.0}};
+    std::vector<std::vector<double>> BlobT = {{0.0,1.0},{-1.0,0.0},{-1.0,0.0},{-1.0,0.0},{0.0,1.0}};
+
+    Spline blob = Spline::LocalRQuadInterp(Blob,BlobT);
+    double AExact = 12.341364192401300;
+    double A = blob.getArea();
+    
+    EXPECT_NEAR(A,AExact,1e-12) << "Circle Area Fail";
 }
 
 
@@ -459,15 +619,15 @@ TEST(ClippingOperations,LineClip) {
     std::vector<double> P2 = {1.5,1.2};
     std::vector<double> u1Exact = {0.650760969641606,0.190410828172100};
     std::vector<double> u1 = circle.lineCurveIntersection(P1,P2);
-    EXPECT_EQ(u1[0],u1Exact[0]) << "Simple Intersection Fail 1";
-    EXPECT_EQ(u1[1],u1Exact[1]) << "Simple Intersection Fail 2";
+    EXPECT_NEAR(u1[0],u1Exact[0],1e-12) << "Simple Intersection Fail 1";
+    EXPECT_NEAR(u1[1],u1Exact[1],1e-12) << "Simple Intersection Fail 2";
 
     // Through Interpolation Points
     P1 = {0,0};
     P2 = {0,1.5};
     u1Exact = {0.333333333333334};
     u1 = circle.lineCurveIntersection(P1,P2);
-    EXPECT_EQ(u1[0],u1Exact[0]) << "Through Interpolation Fail"; // Something is going wrong here, with other choices (at least in matlab)
+    EXPECT_NEAR(u1[0],u1Exact[0],1e-12) << "Through Interpolation Fail"; // Something is going wrong here, with other choices (at least in matlab)
 
     // No intersection Points
     P1 = {0,1.5};
@@ -499,7 +659,7 @@ TEST(Spline2DClippingOperations,ParamLoop) {
     ASSERT_EQ(resI.size(),resP.size()) << "Different Number of Parameters and Indicators";
 
     for(int i = 0; i < resP.size(); i++) {
-        EXPECT_EQ(resP[i],Ploop[i]) << "Parameters differ at index " << i;
+        EXPECT_NEAR(resP[i],Ploop[i],1e-12) << "Parameters differ at index " << i;
         EXPECT_EQ(resI[i],Indicators[i]) << "Indicators differ at index " << i;
     }
 
@@ -518,20 +678,41 @@ TEST(ClippingOperations,ClippedArea) {
     double A = circle.integrateSplineSquare(square);
     double AExact = 0.785398111735192;
 
-    EXPECT_EQ(A,AExact) << "Quarter Circle Area Fail";
+    EXPECT_NEAR(A,AExact,1e-12) << "Quarter Circle Area Fail";
 
 
 }
 // double Spline::integratedSpline(double u)
-TEST(ClippingOperations,analyticIntegration) {
-    // Don't yet know how to test this well
+// TEST(ClippingOperations,analyticIntegration) { // Redundant with area clipping operations
+//
 
-}
+// }
 
 // =================================== TESTS FOR VISUALIZATION =======================================
 // std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset)
 TEST(Spline2DVisualization,curveMaker) {
-    // IDK yet
+    // Circle 
+    std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
+    std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
+
+    Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
+    std::vector<double> uset = {0};
+    for(int i = 1; i <= 20; i++) {
+        uset.insert(uset.end(),i/20);
+    }
+    std::vector<std::vector<double>> curve = circle.makeRationalQuadCurve(uset);
+
+    // Check all distances are near 1
+    double dist;
+    for(int i =0; i < curve.size(); i++) {
+        dist = 0;
+        for(int j =0; j < curve[0].size(); j++) {
+            dist += pow(curve[i][j],2.0);
+        }
+        dist = sqrt(dist);
+        EXPECT_NEAR(dist,1.0,1e-12) << "Circle Radius Wrong at Point "<< i;
+    }
+    
 }
 
 int main(int argc, char **argv) {
