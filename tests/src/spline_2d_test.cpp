@@ -108,7 +108,7 @@ TEST(Spline2DGetterTests,Spans) {
     }
 }
 // std::vector<std::vector<double>> Spline::getXCoeffs()
-TEST(GetterTests,XCoeffs) {
+TEST(Spline2DGetterTests,XCoeffs) {
     // Circle Case
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
@@ -137,7 +137,7 @@ TEST(GetterTests,XCoeffs) {
     }
 }
 // std::vector<std::vector<double>> Spline::getYCoeffs()
-TEST(GetterTests,YCoeffs) {
+TEST(Spline2DGetterTests,YCoeffs) {
     // Circle Case
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
@@ -165,7 +165,7 @@ TEST(GetterTests,YCoeffs) {
     }
 }
 // std::vector<std::vector<double>> Spline::getDCoeffs()
-TEST(GetterTests,DCoeffs) {
+TEST(Spline2DGetterTests,DCoeffs) {
     // Circle Case
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
@@ -194,7 +194,7 @@ TEST(GetterTests,DCoeffs) {
 }
 // =================================== TESTS FOR KNOT VECTOR OPERATIONS =======================================
 // int Spline::findSpan(double u) 
-TEST(KnotVectorOperations,SpanFinding) {
+TEST(Spline2DKnotVectorOperations,SpanFinding) {
     std::vector<double> U = {0,0,0,0.2,0.5,0.6,0.6,0.9,1,1,1};
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
@@ -214,7 +214,7 @@ TEST(KnotVectorOperations,SpanFinding) {
 }
 
 // std::vector<std::vector<double>> Spline::BasisCoefficients(int i)
-TEST(KnotVectorOperations,BasisCoeffs) {
+TEST(Spline2DKnotVectorOperations,BasisCoeffs) {
     std::vector<double> U = {0,0,0,1,2,3,4,4,5,5,5};
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
@@ -223,7 +223,7 @@ TEST(KnotVectorOperations,BasisCoeffs) {
 
     // Exact Values
     std::vector<std::vector<double>> N0 = {{0,0,0}      ,{0,0,0}        ,{1,-2,1}};
-    std::vector<std::vector<double>> N1 = {{0,0,0}      ,{-1.5,2,0}     ,{-0.5,-2,2}};
+    std::vector<std::vector<double>> N1 = {{0,0,0}      ,{-1.5,2,0}     ,{0.5,-2,2}};
     std::vector<std::vector<double>> N2 = {{0.5,0,0}    ,{-1,3,-1.5}    ,{0.5,-3,4.5}};
     std::vector<std::vector<double>> N3 = {{0.5,-1,0.5} ,{-1,5,-5.5}    ,{0.5,-4,8}};
     std::vector<std::vector<double>> N4 = {{0.5,-2,2}   ,{-1.5,10,-16}  ,{0,0,0}};
@@ -240,19 +240,20 @@ TEST(KnotVectorOperations,BasisCoeffs) {
     for(int i = 0; i < Exacts.size(); i++) {
         NCurr = Exacts[i];
         res = BasisCoeffChecker.BasisCoefficients(i);
-
+        
         // Compare Sizes
         ASSERT_EQ(res.size(),NCurr.size()) << "Different Number of Basis Coeffs";
         ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Coeffs";
+
         for(int j = 0; j < res.size(); j++) {
             for(int k = 0; k < res[0].size(); k++){
-                EXPECT_NEAR(res[i][j],NCurr[i][j],1e-12) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
+                EXPECT_NEAR(res[j][k],NCurr[j][k],1e-12) << "Basis Function " << i << " Differs in span " << (j+1) << " Index " << k;
             }
         }
     }
 }
 // std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i)
-TEST(KnotVectorOperations,BasisBounds) { // Basically the same as above, but with the bounds now
+TEST(Spline2DKnotVectorOperations,BasisBounds) { // Basically the same as above, but with the bounds now
     std::vector<double> U = {0,0,0,1,2,3,4,4,5,5,5};
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
@@ -284,7 +285,7 @@ TEST(KnotVectorOperations,BasisBounds) { // Basically the same as above, but wit
         ASSERT_EQ(res[0].size(),NCurr[0].size())<< "Different Size of Basis Bounds";
         for(int j = 0; j < res.size(); j++) {
             for(int k = 0; k < res[0].size(); k++){
-                EXPECT_EQ(res[i][j],NCurr[i][j]) << "Basis Bound " << i << " Differs in span " << (j+1) << " Index " << k;
+                EXPECT_EQ(res[j][k],NCurr[j][k]) << "Basis Bound " << i << " Differs in span " << (j+1) << " Index " << k;
             }
         }
     }
@@ -305,7 +306,7 @@ TEST(KnotVectorOperations,BasisBounds) { // Basically the same as above, but wit
 //                                                           std::vector<double> T1,
 //                                                           std::vector<double> T2)
 
-TEST(InterpolationMethods,PTInter) {
+TEST(Spline2DInterpolationMethods,PTInter) {
     // Case 1: Test Two Regular Sloped Lines
     std::vector<double> Q1 = {1.0,2.0};
     std::vector<double> Q2 = {5.0,1.0};
@@ -332,12 +333,12 @@ TEST(InterpolationMethods,PTInter) {
 
     // Case 3: One Horizontal Line
     T1 = {1.0,0};
-    ExactIntersection = {5.0,1.0};
+    ExactIntersection = {4.0,2.0};
     Rg1 = Spline::solvePointTangentIntersection(Q1,Q2,T1,T2);
     R1 = Rg1[0];
 
     for(int i = 0; i < ExactIntersection.size();i++) {
-        EXPECT_NEAR(ExactIntersection[i],R1[i],1e-12) << "Case 2 Intersection differs at index " << i;
+        EXPECT_NEAR(ExactIntersection[i],R1[i],1e-12) << "Case 3 Intersection differs at index " << i;
     }
 
     // Case 4: No Intersections
@@ -348,7 +349,7 @@ TEST(InterpolationMethods,PTInter) {
 }
 
 // double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk)
-TEST(InterpolationMethods,WeightCalculator) {
+TEST(Spline2DInterpolationMethods,WeightCalculator) {
     // Collinear Case
     std::vector<double> Qkm = {1,1};
     std::vector<double> Rk = {4,1};
@@ -373,7 +374,7 @@ TEST(InterpolationMethods,WeightCalculator) {
 
 
 // Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T)
-TEST(InterpolationMethods,Interpolator) {
+TEST(Spline2DInterpolationMethods,Interpolator) {
     // Compare Control Points, Knot Vector, and Weights for Circle and Blob Cases
 
     // Circle Case
@@ -388,7 +389,7 @@ TEST(InterpolationMethods,Interpolator) {
                                                 {0.414213562373095,1},
                                                 {0,1},
                                                 {-0.414213562373095,1},
-                                                {-0.707106781186548,-0.707106781186548},
+                                                {-0.707106781186548,0.707106781186548},
                                                 {-1,0.414213562373095},
                                                 {-1,1.224646799147353e-16},
                                                 {-1,-0.414213562373095},
@@ -429,7 +430,7 @@ TEST(InterpolationMethods,Interpolator) {
     // Loop over Control Points
     for(int i = 0; i < CP.size(); i++) {
         for(int j = 0; j < CP[0].size(); j++) {
-            EXPECT_NEAR(CP[i][j],CPExact[i][j],1e-12);
+            EXPECT_NEAR(CP[i][j],CPExact[i][j],1e-12) << "Control Point Error in Index " << i << "," << j;
         }
     }
     // Loop over Knots
@@ -511,7 +512,7 @@ TEST(InterpolationMethods,Interpolator) {
 // }
 
 // double Spline::getArcLength()
-TEST(SplineProperties,ArcLength) {
+TEST(Spline2DSplineProperties,ArcLength) {
     // Circle Case
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
@@ -534,7 +535,7 @@ TEST(SplineProperties,ArcLength) {
 }
 
 // double Spline::getCurvature(double u)
-TEST(SplineProperties,Curvature) {
+TEST(Spline2DSplineProperties,Curvature) {
     // Unit Circle
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
@@ -562,7 +563,7 @@ TEST(SplineProperties,Curvature) {
 }
 
 // double Spline::getSurfaceEnergy()
-TEST(SplineProperties,SurfaceEnergy) {
+TEST(Spline2DSplineProperties,SurfaceEnergy) {
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
 
@@ -583,7 +584,7 @@ TEST(SplineProperties,SurfaceEnergy) {
     EXPECT_NEAR(Ek,EkExact,1e-12) << "Circle Arc Length Fail";
 }
 // double Spline::getArea()
-TEST(SplineProperties,Area) {
+TEST(Spline2DSplineProperties,Area) {
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
 
@@ -601,13 +602,13 @@ TEST(SplineProperties,Area) {
     AExact = 12.341364192401300;
     A = blob.getArea();
     
-    EXPECT_NEAR(A,AExact,1e-12) << "Circle Area Fail";
+    EXPECT_NEAR(A,AExact,1e-12) << "Blob Area Fail";
 }
 
 
 // =================================== TESTS FOR CLIPPING =======================================
 // std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::vector<double> P2)
-TEST(ClippingOperations,LineClip) {
+TEST(Spline2DClippingOperations,LineClip) {
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
 
@@ -666,7 +667,7 @@ TEST(Spline2DClippingOperations,ParamLoop) {
 
 }
 // double Spline::integrateSplineSquare(std::vector<std::vector<double>> square)
-TEST(ClippingOperations,ClippedArea) {
+TEST(Spline2DClippingOperations,ClippedArea) {
     // Quarter Circle Case
     std::vector<std::vector<double>> Circle = {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
     std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
@@ -713,8 +714,3 @@ TEST(Spline2DVisualization,curveMaker) {
     }
     
 }
-
-int main(int argc, char **argv) {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-  }
