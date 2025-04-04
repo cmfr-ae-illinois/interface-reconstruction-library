@@ -115,7 +115,7 @@ TEST(GetterTests,XCoeffs) {
 
     Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
 
-    XCoeffsExact = {{-2.848208747679525,-0.685084207398420,1.0},
+    std::vector<std::vector<double>> XCoeffsExact = {{-2.848208747679525,-0.685084207398420,1.0},
                     {-4.719066767034173,-3.742257271215488,1.771759842297852},
                     {4.719066767034200,-10.034346293927747,2.820441346083229},
                     {11.392834990718072,-14.028873960039150,3.277511770787770},
@@ -144,7 +144,7 @@ TEST(GetterTests,YCoeffs) {
 
     Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
 
-    YCoeffsExact = {{-1.179766691758548,3.444150891285807,0.0},
+    std::vector<std::vector<double>> YCoeffsExact = {{-1.179766691758548,3.444150891285807,0.0},
                     {-11.392834990718072,8.965391741942241,-0.722593359456511},
                     {-11.392834990718150,6.225054912348590,0.190852250408038},
                     {-4.719066767034176,-1.644894263644746,2.370332235060101},
@@ -172,7 +172,7 @@ TEST(GetterTests,DCoeffs) {
 
     Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
 
-    DCoeffsExact = {{3.082878933292889,-0.685084207398420,1.0},
+    std::vector<std::vector<double>> DCoeffsExact = {{3.082878933292889,-0.685084207398420,1.0},
                     {12.331515733171585,-6.850842073984197,1.913445609864562},
                     {12.331515733171500,-9.591178903577841,2.826891219729109},
                     {12.331515733171557,-12.331515733171543,4.044818699548534},
@@ -199,7 +199,7 @@ TEST(KnotVectorOperations,SpanFinding) {
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
 
-    Spline SpanTester = Spline::Spline(CP,U,W);
+    Spline SpanTester = Spline(CP,U,W);
 
     EXPECT_EQ(SpanTester.findSpan(-1.24),-2) << "Negative Value Fail";
     EXPECT_EQ(SpanTester.findSpan(24),-1) << "Large Value Fail";
@@ -219,17 +219,17 @@ TEST(KnotVectorOperations,BasisCoeffs) {
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
 
-    Spline BasisCoeffChecker = Spline::Spline(CP,U,W);
+    Spline BasisCoeffChecker = Spline(CP,U,W);
 
     // Exact Values
-    std::vector<std::vector<double> N0 = {{0,0,0}      ,{0,0,0}        ,{1,-2,1}};
-    std::vector<std::vector<double> N1 = {{0,0,0}      ,{-1.5,2,0}     ,{-0.5,-2,2}};
-    std::vector<std::vector<double> N2 = {{0.5,0,0}    ,{-1,3,-1.5}    ,{0.5,-3,4.5}};
-    std::vector<std::vector<double> N3 = {{0.5,-1,0.5} ,{-1,5,-5.5}    ,{0.5,-4,8}};
-    std::vector<std::vector<double> N4 = {{0.5,-2,2}   ,{-1.5,10,-16}  ,{0,0,0}};
-    std::vector<std::vector<double> N5 = {{1,-6,9}     ,{0,0,0}        ,{1,-10,25}};
-    std::vector<std::vector<double> N6 = {{0,0,0}      ,{-2,18,-40}    ,{0,0,0}};
-    std::vector<std::vector<double> N7 = {{1,-8,16}    ,{0,0,0}        ,{0,0,0}};
+    std::vector<std::vector<double>> N0 = {{0,0,0}      ,{0,0,0}        ,{1,-2,1}};
+    std::vector<std::vector<double>> N1 = {{0,0,0}      ,{-1.5,2,0}     ,{-0.5,-2,2}};
+    std::vector<std::vector<double>> N2 = {{0.5,0,0}    ,{-1,3,-1.5}    ,{0.5,-3,4.5}};
+    std::vector<std::vector<double>> N3 = {{0.5,-1,0.5} ,{-1,5,-5.5}    ,{0.5,-4,8}};
+    std::vector<std::vector<double>> N4 = {{0.5,-2,2}   ,{-1.5,10,-16}  ,{0,0,0}};
+    std::vector<std::vector<double>> N5 = {{1,-6,9}     ,{0,0,0}        ,{1,-10,25}};
+    std::vector<std::vector<double>> N6 = {{0,0,0}      ,{-2,18,-40}    ,{0,0,0}};
+    std::vector<std::vector<double>> N7 = {{1,-8,16}    ,{0,0,0}        ,{0,0,0}};
 
     // Combine into one vector
     std::vector<std::vector<std::vector<double>>> Exacts = {N0,N1,N2,N3,N4,N5,N6,N7};
@@ -257,17 +257,17 @@ TEST(KnotVectorOperations,BasisBounds) { // Basically the same as above, but wit
     std::vector<double> W = {1,1,1,1,1,1,1,1};
     std::vector<std::vector<double>> CP = {{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2},{1,2}};
 
-    Spline BasisCoeffChecker = Spline::Spline(CP,U,W);
+    Spline BasisCoeffChecker = Spline(CP,U,W);
 
     // Exact Values
-    std::vector<std::vector<double> N0 = {{0,0},{0,0},{0,1}};
-    std::vector<std::vector<double> N1 = {{0,0},{0,1},{1,2}};
-    std::vector<std::vector<double> N2 = {{0,1},{1,2},{2,3}};
-    std::vector<std::vector<double> N3 = {{1,2},{2,3},{3,4}};
-    std::vector<std::vector<double> N4 = {{2,3},{3,4},{4,4}};
-    std::vector<std::vector<double> N5 = {{3,4},{4,4},{4,5}};
-    std::vector<std::vector<double> N6 = {{4,4},{4,5},{5,5}};
-    std::vector<std::vector<double> N7 = {{4,5},{5,5},{5,5}};
+    std::vector<std::vector<double>> N0 = {{0,0},{0,0},{0,1}};
+    std::vector<std::vector<double>> N1 = {{0,0},{0,1},{1,2}};
+    std::vector<std::vector<double>> N2 = {{0,1},{1,2},{2,3}};
+    std::vector<std::vector<double>> N3 = {{1,2},{2,3},{3,4}};
+    std::vector<std::vector<double>> N4 = {{2,3},{3,4},{4,4}};
+    std::vector<std::vector<double>> N5 = {{3,4},{4,4},{4,5}};
+    std::vector<std::vector<double>> N6 = {{4,4},{4,5},{5,5}};
+    std::vector<std::vector<double>> N7 = {{4,5},{5,5},{5,5}};
 
     // Combine into one vector
     std::vector<std::vector<std::vector<double>>> Exacts = {N0,N1,N2,N3,N4,N5,N6,N7};
@@ -311,7 +311,7 @@ TEST(InterpolationMethods,PTInter) {
     std::vector<double> Q2 = {5.0,1.0};
     std::vector<double> T1 = {1.0,1.0};
     std::vector<double> T2 = {-1.0,1.0};
-    std::vector<double> ExactIntersection = {2.5,3.5}
+    std::vector<double> ExactIntersection = {2.5,3.5};
 
     std::vector<std::vector<double>> Rg1 = Spline::solvePointTangentIntersection(Q1,Q2,T1,T2);
     std::vector<double> R1 = Rg1[0];
@@ -398,7 +398,7 @@ TEST(InterpolationMethods,Interpolator) {
                                                 {0.414213562373095,-1},
                                                 {0.707106781186548,-0.707106781186548},
                                                 {1,-0.414213562373095},
-                                                {1,0}}
+                                                {1,0}};
     std::vector<double> UExact = {0,0,0,
                                   2.0/9.0,2.0/9.0,
                                   3.0/9.0,3.0/9.0,
@@ -462,7 +462,7 @@ TEST(InterpolationMethods,Interpolator) {
                {-6.0,0},
                {-3.666666666666666,-2.0},
                {1.0,-5.999999999999999},
-               {1.0,0}}
+               {1.0,0}};
     UExact = {0,0,0,
               1.0/4.0,1.0/4.0,
               3.0/8.0,3.0/8.0,
@@ -473,15 +473,15 @@ TEST(InterpolationMethods,Interpolator) {
               1.0,1.0,1.0};
     WExact =  {1,0.923879532511287,
                1,0.923879532511287,
-               1,0.572915223375334
-               1,0.572915223375333
-               1,0
-               1,0.347167685997458
+               1,0.572915223375334,
+               1,0.572915223375333,
+               1,0,
+               1,0.347167685997458,
                1,0.418043000328400 ,1};
 
-    std::vector<std::vector<double>> CP = blob.getControlPoints();
-    std::vector<double> U = blob.getKnotVector();
-    std::vector<double> W = blob.getWeights();
+    CP = blob.getControlPoints();
+    U = blob.getKnotVector();
+    W = blob.getWeights();
     
     ASSERT_EQ(CP.size(),CPExact.size()) << "Different Number of Control Points";
     ASSERT_EQ(CP[0].size(),CPExact[0].size()) << "Different Size of Control Points";
@@ -545,20 +545,19 @@ TEST(SplineProperties,Curvature) {
     double k;
     for(int i = 0; i <uset.size(); i++) {
         k = circle.getCurvature(uset[i]);
-        EXPECT_NEAR(k,1.0,1e-12) << "Unit Circle Curvature Fail at u = " << u[i];
+        EXPECT_NEAR(k,1.0,1e-12) << "Unit Circle Curvature Fail at u = " << uset[i];
     }
 
     // Non-Unit Circle
-    std::vector<std::vector<double>> Circle = {{2.0,0.0},{0.0,2.0},{-2.0,0.0},{0.0,-2.0},{2.0,0.0}};
-    std::vector<std::vector<double>> CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
+    Circle = {{2.0,0.0},{0.0,2.0},{-2.0,0.0},{0.0,-2.0},{2.0,0.0}};
+    CircleT = {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
 
-    Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
-    std::vector<double> uset = {0,0.25,0.5,0.75,1};
+    circle = Spline::LocalRQuadInterp(Circle,CircleT);
+    uset = {0,0.25,0.5,0.75,1};
 
-    double k;
     for(int i = 0; i <uset.size(); i++) {
         k = circle.getCurvature(uset[i]);
-        EXPECT_NEAR(k,0.5,1e-12) << "R=2 Circle Curvature Fail at u = " << u[i];
+        EXPECT_NEAR(k,0.5,1e-12) << "R=2 Circle Curvature Fail at u = " << uset[i];
     }
 }
 
@@ -599,8 +598,8 @@ TEST(SplineProperties,Area) {
     std::vector<std::vector<double>> BlobT = {{0.0,1.0},{-1.0,0.0},{-1.0,0.0},{-1.0,0.0},{0.0,1.0}};
 
     Spline blob = Spline::LocalRQuadInterp(Blob,BlobT);
-    double AExact = 12.341364192401300;
-    double A = blob.getArea();
+    AExact = 12.341364192401300;
+    A = blob.getArea();
     
     EXPECT_NEAR(A,AExact,1e-12) << "Circle Area Fail";
 }
