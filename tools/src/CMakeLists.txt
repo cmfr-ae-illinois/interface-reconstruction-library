@@ -9,3 +9,7 @@ add_subdirectory("${IRL_TOOLS_SRC_DIR}/surface_io")
 if(${PARABOLOID_TESTING})
     add_subdirectory("${IRL_TOOLS_SRC_DIR}/paraboloid_testing")
 endif()
+
+if(${CYLINDER_TESTING})
+    add_subdirectory("${IRL_TOOLS_SRC_DIR}/cylinder_testing")
+endif()

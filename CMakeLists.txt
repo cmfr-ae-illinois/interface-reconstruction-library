@@ -62,6 +62,9 @@ find_package(CGAL)
 
 if(${PARABOLOID_TESTING})
   find_package(MPI REQUIRED)
+endif()
+
+if((${PARABOLOID_TESTING}) OR (${CYLINDER_TESTING}))
   find_package(OpenMP REQUIRED)
 endif()
 
