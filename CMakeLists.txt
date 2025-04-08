@@ -60,6 +60,11 @@ message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
 find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
 find_package(CGAL)
 
+if(${PARABOLOID_TESTING})
+  find_package(MPI REQUIRED)
+  find_package(OpenMP REQUIRED)
+endif()
+
 # Add packages IRL stores in external
 set(IRL_USE_ABSL ON)
 
