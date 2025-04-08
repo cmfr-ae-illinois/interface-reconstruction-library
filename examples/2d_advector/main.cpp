@@ -11,6 +11,7 @@
 
 #include "examples/2d_advector/translation_2d.h"
 
+// declare startSim function
 static int startSimulation(const std::string& a_simulation_type,
                            const std::string& a_advection_method,
                            const std::string& a_reconstruction_method,
@@ -18,6 +19,7 @@ static int startSimulation(const std::string& a_simulation_type,
                            const double a_time_duration,
                            const int a_viz_frequency, const int a_nx);
 
+// define main function
 int main(int argc, char* argv[]) {
   if (argc != 8) {
     std::cout << "Incorrect amount of command line arguments supplied. \n";
@@ -64,6 +66,7 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
+// define startSim function
 static int startSimulation(const std::string& a_simulation_type,
                            const std::string& a_advection_method,
                            const std::string& a_reconstruction_method,

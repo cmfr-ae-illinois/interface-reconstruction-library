@@ -62,10 +62,11 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
   int activeCellCount = 0;
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      // go back to using max CFL number here
       double localCFL = std::fmax(a_U(i, j) * a_dt / mesh.dx(), 
                                   a_V(i, j) * a_dt / mesh.dy());
       
-      if (localCFL > 0) { 
+      if (localCFL > 0) { // needs liquid VOF> 0
         totalCFL += localCFL; 
         activeCellCount++;
       }

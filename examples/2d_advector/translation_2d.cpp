@@ -110,7 +110,8 @@ const IRL2D::Vec Translation2D::getExactVelocity2D(double t, const IRL2D::Vec& P
   // return IRL2D::Vec{1.0 - P.y() * P.y(), 1.0 + P.x() * P.x()};
   // return IRL2D::Vec{1.0 - P.y(), 1.0 + P.x()};
   // return IRL2D::Vec{1.0, 1.0};
-  return IRL2D::Vec{0.0, 1.0};
+  // return IRL2D::Vec{0.0, 1.0};
+  return IRL2D::Vec{0.0, 1.0 + 0.75*std::sin(M_PI * t/10)};
 }
 
 const IRL2D::Mat Translation2D::getExactVelocityGradient2D(double t,
