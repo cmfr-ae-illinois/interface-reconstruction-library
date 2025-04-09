@@ -1175,7 +1175,14 @@ formCylinderIntersectionBasesClipped(
     // when cutting the polyhedron, sometime the new points
     // are not exactly on the Oxy plane
     // check the point are above the horizontal plane
-    assert(vertex.getLocation().getPt()[2] > -MACHINE_EPSILON);
+    if (vertex.getLocation().getPt()[2] < -MACHINE_EPSILON) {
+      // when cutting, some point can land bellow Oxy plane. let's try again
+      #ifdef NUDGE_REGION
+      std::cout << "nudging because a point is below the Oxy plane" << std::endl;
+    #endif
+      *requires_nudge = true;
+      break;
+    }
     // if the point are below the plane but close to it, clipped it to the plane
     if (vertex.getLocation().getPt()[2] < ZERO) {
       auto& pt = vertex.getLocation().getPt();
@@ -2186,19 +2193,20 @@ formCylinderIntersectionBases(
   auto a_polytope_copy = a_complete_polytope_copy.generateSegmentedPolyhedron();
 
   if (quad_cut) {
+    ScalarType vector_norm = sqrt(1.0 + a_aligned_cylinder.b());
+    const ScalarType b1 = sqrt(a_aligned_cylinder.b()) / vector_norm;
     SegmentedHalfEdgePolyhedronType p2;
-    ScalarType vector_norm = sqrt(1.0 + a_aligned_cylinder.b() * a_aligned_cylinder.b());
     splitHalfEdgePolytope(
         &a_polytope_copy, &p2, &a_complete_polytope_copy,
-        Plane(Normal(0.0, a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+        Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
     SegmentedHalfEdgePolyhedronType p3;
     splitHalfEdgePolytope(
         &a_polytope_copy, &p3, &a_complete_polytope_copy,
-        Plane(Normal(0.0, -a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     SegmentedHalfEdgePolyhedronType p4;
     splitHalfEdgePolytope(
         &p2, &p4, &a_complete_polytope_copy,
-        Plane(Normal(0.0, -a_aligned_cylinder.b() / vector_norm, -1.0 / vector_norm), 0.0));
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     AlignedCylinder rotatedCylinder({1.0 / a_aligned_cylinder.b(), a_aligned_cylinder.r() / a_aligned_cylinder.b()});
     cylinder_list = {a_aligned_cylinder, rotatedCylinder, a_aligned_cylinder, rotatedCylinder};
     rotation_list = {0.0, PI * HALF, PI, PI * TREEHALF};
