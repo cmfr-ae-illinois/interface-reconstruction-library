@@ -33,21 +33,8 @@
 
 using namespace IRL;
 
-int polyhedron;
-int old_polyhedron;
-int re_scale;
-
 static struct option long_options[] =
     {
-        {"cube",                    no_argument, &polyhedron, 0},
-        {"old_cube",                no_argument, &old_polyhedron, 1},
-        {"tet",                     no_argument, &polyhedron, 1},
-        {"dodecahedron",            no_argument, &polyhedron, 2},
-        {"cube_hole",               no_argument, &polyhedron, 3},
-        {"cube_hole_convex",        no_argument, &polyhedron, 4},
-        {"bunny",                   no_argument, &polyhedron, 5},
-        {"no_rescale",              no_argument, &re_scale, 0},
-        {"force_rescale",           no_argument, &re_scale, 1},
         {"input_file",              required_argument, 0,   'f'},
         {"help",                    no_argument,       0,   'H'},
         {0, 0, 0, 0}
@@ -58,15 +45,6 @@ void print_help(std::string prg_name) {
     std::cout << "Options:\n";
     std::cout << "  -H, --help                             Show this help message\n";
     std::cout << "  -f, --input_file <string>              Path to input file (default: result.csv)\n";
-    std::cout << "      --no_rescale                       Disable rescaling\n";
-    std::cout << "      --force_rescale                    Force rescaling\n";
-    std::cout << "      --cube                             Use cube polyhedron (default)\n";
-    std::cout << "      --old_cube                         Use old cube (center is 0.5 0.5 0.5 and is not rescaled)\n";
-    std::cout << "      --tet                              Use tetrahedron\n";
-    std::cout << "      --dodecahedron                     Use dodecahedron\n";
-    std::cout << "      --cube_hole                        Use cube with hole\n";
-    std::cout << "      --cube_hole_convex                 Use convex cube with hole\n";
-    std::cout << "      --bunny                            Use bunny shape\n";
   }
 
 void displayProgress(int current, int total) {
@@ -84,6 +62,8 @@ void displayProgress(int current, int total) {
 }
 
 void processEntries(const std::string& filename) {
+    int polyhedron;
+    int re_scale;
     std::ifstream datafilecount(filename);
     if (!datafilecount) {
         std::cerr << "Error opening " << filename << std::endl;
@@ -152,14 +132,22 @@ void processEntries(const std::string& filename) {
         // Example operation: compute sum of all values in the row
         std::stringstream ss(line);
         char comma;
-        double b, r, rotation_1, rotation_2, rotation_3, datum_x, datum_y, datum_z, is_on_surface, VolumeData, Centroid_x, Centroid_y, Centroid_z;
+        double b, r, rotation_1, rotation_2, rotation_3, datum_x, datum_y, datum_z, is_on_surface, geom, VolumeData, Centroid_x, Centroid_y, Centroid_z;
         
         ss >> b >> comma >> r >> comma >> rotation_1 >> comma
            >> rotation_2 >> comma >> rotation_3 >> comma >> datum_x >> comma >> datum_y >> comma
-           >> datum_z >> comma >> is_on_surface >> comma >> VolumeData >> comma >> Centroid_x >> comma
-           >> Centroid_y >> comma >> Centroid_z;
+           >> datum_z >> comma >> is_on_surface >> comma >> geom >> comma >> VolumeData >> comma
+           >> Centroid_x >> comma >> Centroid_y >> comma >> Centroid_z;
 
-        file << b << "," << r << "," << rotation_1 << "," << rotation_2 << "," << rotation_3 << "," << datum_x << "," << datum_y << "," << datum_z << "," << is_on_surface << "," << VolumeData << "," << Centroid_x << "," << Centroid_y << "," << Centroid_z << std::endl;
+        file << b << "," << r << "," << rotation_1 << "," << rotation_2 << "," << rotation_3 << "," << datum_x << "," << datum_y << "," << datum_z << "," << is_on_surface << "," << geom << "," << VolumeData << "," << Centroid_x << "," << Centroid_y << "," << Centroid_z << std::endl;
+
+        if (geom < 0) {
+            re_scale = 0;
+            polyhedron = -geom;
+        } else {
+            re_scale = 1;
+            polyhedron = geom;
+        }
 
         IRL::Pt datum(datum_x, datum_y, datum_z);
         IRL::ReferenceFrame frame(IRL::Normal(1.0, 0.0, 0.0), IRL::Normal(0.0, 1.0, 0.0),
@@ -174,124 +162,71 @@ void processEntries(const std::string& filename) {
         Volume result_moments;
         VolumeMoments result_momentsS;
 
-        if (old_polyhedron) {
-            IRL::RectangularCuboid cube = IRL::RectangularCuboid::fromBoundingPts(
-                IRL::Pt(0.0, 0.0, 0.0), IRL::Pt(1.0, 1.0, 1.0));
-    
-            for (auto& vertex : cube) {
-                Pt tmp_pt = vertex - datum;
-                for (UnsignedIndex_t d = 0; d < 3; ++d) {
-                    vertex[d] = frame[d] * tmp_pt;
-                }
+        auto geometri_and_connectivityV = getGeometry(polyhedron, re_scale);
+        auto geometriV = geometri_and_connectivityV.first;
+        auto connectivityV = geometri_and_connectivityV.second;
+        auto geometri_and_connectivityM = getGeometry(polyhedron, re_scale);
+        auto geometriM = geometri_and_connectivityM.first;
+        auto connectivityM = geometri_and_connectivityM.second;
+        for (auto& vertex : geometriV) {
+            Pt tmp_pt = vertex - datum;
+            for (UnsignedIndex_t d = 0; d < 3; ++d) {
+                vertex[d] = frame[d] * tmp_pt;
             }
-          
-            if (is_on_surface)
-            {
-              Pt clip_translation = Pt(0.0, 0.0, sqrt(r))-cube[0];
-              for (auto& vertex : cube) {
-                Pt tmp_pt = vertex + clip_translation;
-                vertex = tmp_pt;
-              }
+        }
+        for (auto& vertex : geometriM) {
+            Pt tmp_pt = vertex - datum;
+            for (UnsignedIndex_t d = 0; d < 3; ++d) {
+                vertex[d] = frame[d] * tmp_pt;
             }
-    
-            IRL::Pt datum0(0.0, 0.0, 0.0);
-            IRL::ReferenceFrame frame0(IRL::Normal(1.0, 0.0, 0.0), IRL::Normal(0.0, 1.0, 0.0),
-                                IRL::Normal(0.0, 0.0, 1.0));
-    
-            IRL::Cylinder cylinder(datum0, frame0, b, r);
-            asm volatile ("" ::: "memory");
-            auto startV = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-            result_moments =
-                getVolumeMoments<Volume>(cube, cylinder);
-            asm volatile ("" ::: "memory");
-            auto endV = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-            time_Volume += std::chrono::duration<double, std::micro>(endV - startV);
-
-            asm volatile ("" ::: "memory");
-            auto startM = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-            result_momentsS =
-                getVolumeMoments<VolumeMoments>(cube, cylinder);
-                asm volatile ("" ::: "memory");
-            auto endM = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-
-            time_Moment += std::chrono::duration<double, std::micro>(endM - startM);
-
-            time_file << std::chrono::duration<double, std::micro>(endV - startV).count() << 
-                  "," << std::chrono::duration<double, std::micro>(endM - startM).count() << std::endl;
-
-        } else {
-
-            auto geometri_and_connectivityV = getGeometry(polyhedron, re_scale);
-            auto geometriV = geometri_and_connectivityV.first;
-            auto connectivityV = geometri_and_connectivityV.second;
-            auto geometri_and_connectivityM = getGeometry(polyhedron, re_scale);
-            auto geometriM = geometri_and_connectivityM.first;
-            auto connectivityM = geometri_and_connectivityM.second;
+        }
+        
+        if (is_on_surface)
+        {
+            Pt clip_translationV = Pt(0.0, 0.0, sqrt(r))-geometriV[0];
             for (auto& vertex : geometriV) {
-                Pt tmp_pt = vertex - datum;
-                for (UnsignedIndex_t d = 0; d < 3; ++d) {
-                    vertex[d] = frame[d] * tmp_pt;
-                }
+            Pt tmp_pt = vertex + clip_translationV;
+            for (int d = 0; d < 3; d++) {
+                vertex[d] = tmp_pt[d];
             }
+            }
+            Pt clip_translationM = Pt(0.0, 0.0, sqrt(r))-geometriM[0];
             for (auto& vertex : geometriM) {
-                Pt tmp_pt = vertex - datum;
-                for (UnsignedIndex_t d = 0; d < 3; ++d) {
-                    vertex[d] = frame[d] * tmp_pt;
-                }
+            Pt tmp_pt = vertex + clip_translationM;
+            for (int d = 0; d < 3; d++) {
+                vertex[d] = tmp_pt[d];
             }
-          
-            if (is_on_surface)
-            {
-              Pt clip_translationV = Pt(0.0, 0.0, sqrt(r))-geometriV[0];
-              for (auto& vertex : geometriV) {
-                Pt tmp_pt = vertex + clip_translationV;
-                for (int d = 0; d < 3; d++) {
-                    vertex[d] = tmp_pt[d];
-                }
-              }
-              Pt clip_translationM = Pt(0.0, 0.0, sqrt(r))-geometriM[0];
-              for (auto& vertex : geometriM) {
-                Pt tmp_pt = vertex + clip_translationM;
-                for (int d = 0; d < 3; d++) {
-                    vertex[d] = tmp_pt[d];
-                }
-              }
             }
-    
-            IRL::Pt datum0(0.0, 0.0, 0.0);
-            IRL::ReferenceFrame frame0(IRL::Normal(1.0, 0.0, 0.0), IRL::Normal(0.0, 1.0, 0.0),
-                                IRL::Normal(0.0, 0.0, 1.0));
-    
-            IRL::Cylinder cylinder(datum0, frame0, b, r);
-            asm volatile ("" ::: "memory");
-            auto startV = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-            result_moments =
-                getVolumeMoments<Volume>(geometriV, cylinder);
-            asm volatile ("" ::: "memory");
-            auto endV = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-            time_Volume += std::chrono::duration<double, std::micro>(endV - startV);
-
-            asm volatile ("" ::: "memory");
-            auto startM = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-            result_momentsS =
-                getVolumeMoments<VolumeMoments>(geometriM, cylinder);
-                asm volatile ("" ::: "memory");
-            auto endM = std::chrono::steady_clock::now();
-            asm volatile ("" ::: "memory");
-
-            time_Moment += std::chrono::duration<double, std::micro>(endM - startM);
-
-            time_file << std::chrono::duration<double, std::micro>(endV - startV).count() << 
-                  "," << std::chrono::duration<double, std::micro>(endM - startM).count() << std::endl;
         }
 
+        IRL::Pt datum0(0.0, 0.0, 0.0);
+        IRL::ReferenceFrame frame0(IRL::Normal(1.0, 0.0, 0.0), IRL::Normal(0.0, 1.0, 0.0),
+                            IRL::Normal(0.0, 0.0, 1.0));
+
+        IRL::Cylinder cylinder(datum0, frame0, b, r);
+        asm volatile ("" ::: "memory");
+        auto startV = std::chrono::steady_clock::now();
+        asm volatile ("" ::: "memory");
+        result_moments =
+            getVolumeMoments<Volume>(geometriV, cylinder);
+        asm volatile ("" ::: "memory");
+        auto endV = std::chrono::steady_clock::now();
+        asm volatile ("" ::: "memory");
+        time_Volume += std::chrono::duration<double, std::micro>(endV - startV);
+
+        asm volatile ("" ::: "memory");
+        auto startM = std::chrono::steady_clock::now();
+        asm volatile ("" ::: "memory");
+        result_momentsS =
+            getVolumeMoments<VolumeMoments>(geometriM, cylinder);
+            asm volatile ("" ::: "memory");
+        auto endM = std::chrono::steady_clock::now();
+        asm volatile ("" ::: "memory");
+
+        time_Moment += std::chrono::duration<double, std::micro>(endM - startM);
+
+        time_file << std::chrono::duration<double, std::micro>(endV - startV).count() << 
+                "," << std::chrono::duration<double, std::micro>(endM - startM).count() << std::endl;
 
         auto volume = result_moments;
         auto volumeS = result_momentsS.volume();
@@ -339,7 +274,7 @@ void processEntries(const std::string& filename) {
         if (volume_error > threshold || //  || Centroid_x_error > threshold || Centroid_y_error > threshold || Centroid_z_error > threshold
             volume_errorS > threshold || Centroid_x_errorS > threshold || Centroid_y_errorS > threshold || Centroid_z_errorS > threshold) {
 
-            file2 << "The moment were wrong for this configuration :\n" << b << "," << r << "," << rotation_1 << "," << rotation_2 << "," << rotation_3 << "," << datum_x << "," << datum_y << "," << datum_z << "," << is_on_surface << "\n";
+            file2 << "The moment were wrong for this configuration :\n" << b << "," << r << "," << rotation_1 << "," << rotation_2 << "," << rotation_3 << "," << datum_x << "," << datum_y << "," << datum_z << "," << is_on_surface << "," << geom << "\n";
             file2 << 
             "actual   results :\n" << volume << "\n" << // "," << Centroid[0] << "," << Centroid[1] << "," << Centroid[2] << "\n" <<
             "actual   results :\n" << volumeS << "," << CentroidS[0] << "," << CentroidS[1] << "," << CentroidS[2] << "\n"
@@ -397,9 +332,6 @@ void processEntries(const std::string& filename) {
 int main(int argc, char* argv[]) {
     std::string file_path = "result.csv";
     int long_id = 0;
-    re_scale = 1;
-    polyhedron = 0;
-    old_polyhedron = 0;
     
     while(1) {
         int result = getopt_long(argc, argv, "f:H", long_options, &long_id);

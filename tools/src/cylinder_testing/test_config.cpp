@@ -205,7 +205,7 @@ void procede_case(Cylinder a_cylinder, CuttingType irl_cutting, SegmentedHalfEdg
 }
 
 struct DataEntry {
-    double b, r, rotation_1, rotation_2, rotation_3, datum_x, datum_y, datum_z, is_on_surface;
+    double b, r, rotation_1, rotation_2, rotation_3, datum_x, datum_y, datum_z, is_on_surface, geometry;
 };
 
 void read_file(char* filepath, int max_amr_level, float tri_level) {
@@ -224,22 +224,22 @@ void read_file(char* filepath, int max_amr_level, float tri_level) {
         std::stringstream ss(line);
         DataEntry entry;
         char comma;
-        if (old_format) {
-            ss >> entry.b >> comma >> entry.r >> comma >> entry.rotation_1 >> comma
-            >> entry.rotation_2 >> comma >> entry.datum_x >> comma >> entry.datum_y >> comma
-            >> entry.datum_z;
-            entry.rotation_3 = 0.0;
-            entry.is_on_surface = 0.0;
-        } else {
-            ss >> entry.b >> comma >> entry.r >> comma >> entry.rotation_1 >> comma
-            >> entry.rotation_2 >> comma >> entry.rotation_3 >> comma >> entry.datum_x >> comma >> entry.datum_y >> comma
-            >> entry.datum_z >> comma >> entry.is_on_surface;
-        }
+        ss >> entry.b >> comma >> entry.r >> comma >> entry.rotation_1 >> comma
+        >> entry.rotation_2 >> comma >> entry.rotation_3 >> comma >> entry.datum_x >> comma >> entry.datum_y >> comma
+        >> entry.datum_z >> comma >> entry.is_on_surface >> comma >> entry.geometry;
         
         datas.push_back(entry);
         totalEntries++;
     }
     for (auto data : datas) {
+
+        if (data.geometry < 0) {
+            re_scale = 0;
+            polyhedron = -data.geometry;
+        } else {
+            re_scale = 1;
+            polyhedron = data.geometry;
+        }
         std::cout << "configuration :\n";
 
         std::cout << std::setprecision(20);
@@ -252,7 +252,8 @@ void read_file(char* filepath, int max_amr_level, float tri_level) {
                 << "rot_x : " << data.rotation_1 << std::endl
                 << "rot_y : " << data.rotation_2 << std::endl
                 << "rot_z : " << data.rotation_3 << std::endl
-                << "is_on_surface : " << data.is_on_surface << std::endl;
+                << "is_on_surface : " << data.is_on_surface << std::endl
+                << "is rescaled : " << re_scale << std::endl;
 
         AlignedCylinder aligned_cylinder = AlignedCylinder({data.b, data.r});
 
@@ -411,8 +412,8 @@ int main(int argc, char* argv[]) {
     }
 
     if (filepath == nullptr && (optind != argc - 1 && optind != argc - 8) && !random_coords) {
-        std::cerr << "Usage: " << argv[0] << " -- b r datum_x datum_y datum_z rotation_x rotation_y rotation_z [first_vertex_on_surface]\n";
-        std::cerr << "or   : " << argv[0] << " -- b,r,rotation_x,rotation_y,rotation_z,datum_x,datum_y,datum_z[,first_vertex_on_surface]\n";
+        std::cerr << "Usage: " << argv[0] << " -- b r datum_x datum_y datum_z rotation_x rotation_y rotation_z\n";
+        std::cerr << "or   : " << argv[0] << " -- b,r,rotation_x,rotation_y,rotation_z,datum_x,datum_y,datum_z[,first_vertex_on_surface[,geometry]]\n";
         std::cerr << "or   : " << argv[0] << " -file [file path]\n";
         std::cerr << "or   : " << argv[0] << " -r <seed>\n";
         return 1;
@@ -452,34 +453,6 @@ int main(int argc, char* argv[]) {
             std::cout << first_vertex_on_surface << std::endl;
         } else {
             if (optind == argc - 8) {
-                if (old_format) {
-                    double dbl_fvos;
-                    sscanf(argv[optind],"%lf",&b);
-                    sscanf(argv[optind+1],"%lf",&r);
-
-                    sscanf(argv[optind+2],"%lf",&datum_x);
-                    sscanf(argv[optind+3],"%lf",&datum_y);
-                    sscanf(argv[optind+4],"%lf",&datum_z);
-
-                    sscanf(argv[optind+5],"%lf",&rotation_x);
-                    sscanf(argv[optind+6],"%lf",&rotation_y);
-                    sscanf(argv[optind+7],"%lf",&dbl_fvos);
-                    first_vertex_on_surface = dbl_fvos;
-                } else {
-                    sscanf(argv[optind],"%lf",&b);
-                    sscanf(argv[optind+1],"%lf",&r);
-
-                    sscanf(argv[optind+2],"%lf",&datum_x);
-                    sscanf(argv[optind+3],"%lf",&datum_y);
-                    sscanf(argv[optind+4],"%lf",&datum_z);
-
-                    sscanf(argv[optind+5],"%lf",&rotation_x);
-                    sscanf(argv[optind+6],"%lf",&rotation_y);
-                    sscanf(argv[optind+7],"%lf",&rotation_z);
-                }
-            }
-            if (optind == argc - 9) {
-                double dbl_fvos;
                 sscanf(argv[optind],"%lf",&b);
                 sscanf(argv[optind+1],"%lf",&r);
 
@@ -490,26 +463,23 @@ int main(int argc, char* argv[]) {
                 sscanf(argv[optind+5],"%lf",&rotation_x);
                 sscanf(argv[optind+6],"%lf",&rotation_y);
                 sscanf(argv[optind+7],"%lf",&rotation_z);
-                sscanf(argv[optind+8],"%lf",&dbl_fvos);
-                first_vertex_on_surface = dbl_fvos;
             }
 
             if (optind == argc - 1) {
                 std::stringstream ss(argv[optind]);
                 char comma;
-                if (old_format) {
-                    ss >> b >> comma >> r >> comma >> rotation_x >> comma
-                    >> rotation_y >> comma >> datum_x >> comma >> datum_y >> comma
-                    >> datum_z;
-                    rotation_z = 0.0;
-                    first_vertex_on_surface = 0;
+                double dbl_fvos;
+                double geom;
+                ss >> b >> comma >> r >> comma >> rotation_x >> comma
+                >> rotation_y >> comma
+                >> rotation_z >> comma >> datum_x >> comma >> datum_y >> comma
+                >> datum_z >> comma >> dbl_fvos >> comma >> geom;
+                first_vertex_on_surface = dbl_fvos;
+                if (geom < 0) {
+                    re_scale = 0;
+                    polyhedron = -geom;
                 } else {
-                    double dbl_fvos;
-                    ss >> b >> comma >> r >> comma >> rotation_x >> comma
-                    >> rotation_y >> comma
-                    >> rotation_z >> comma >> datum_x >> comma >> datum_y >> comma
-                    >> datum_z >> comma >> dbl_fvos;
-                    first_vertex_on_surface = dbl_fvos;
+                    polyhedron = geom;
                 }
             }
         }
@@ -525,7 +495,9 @@ int main(int argc, char* argv[]) {
                 << "rot_x : " << rotation_x << std::endl
                 << "rot_y : " << rotation_y << std::endl
                 << "rot_z : " << rotation_z << std::endl
-                << "is the first vertex on surface ? : " << first_vertex_on_surface << std::endl;
+                << "is the first vertex on surface ? : " << first_vertex_on_surface << std::endl
+                << "geometry use :" << polyhedron << std::endl
+                << "rescale ? " << re_scale << std::endl;
 
         AlignedCylinder aligned_cylinder = AlignedCylinder({b, r});
 

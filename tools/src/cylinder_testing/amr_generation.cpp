@@ -187,6 +187,8 @@ int main(int argc, char* argv[]) {
       }
   }
 
+  int geom = re_scale ? polyhedron : - polyhedron;
+
   #pragma omp parallel
   {
     #pragma omp single
@@ -200,6 +202,7 @@ int main(int argc, char* argv[]) {
           << "rotation_1,rotation_2,rotation_3,"
           << "datum_x,datum_y,datum_z,"
           << "is_on_surface,"
+          << "geometry,"
           << "Volume,"
           << "Centroid_x,Centroid_y,Centroid_z"
           << std::endl;
@@ -331,6 +334,7 @@ int main(int argc, char* argv[]) {
         file << angles[0] << "," << angles[1] << ","<< angles[2] << ",";
         file << datum[0] << "," << datum[1] << "," << datum[2] << ",";
         file << first_vertex_on_surface << ",";
+        file << geom << ",";
         file << amr_volume_moments.volume() << ",";
         auto amr_Centroid = amr_volume_moments.centroid();
         file << amr_Centroid[0] << "," << amr_Centroid[1] << "," << amr_Centroid[2] << std::endl;
