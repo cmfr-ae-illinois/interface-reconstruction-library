@@ -153,28 +153,29 @@ void printError(const BasicMesh& mesh,
     }
   }
   l1_error_m0 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
-  l1_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
-  l1_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
-  l2_error_m0 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
-  l2_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
-  l2_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
-  linf_error_m0 *= scale_m0;
-  linf_error_m1 *= scale_m1;
-  linf_error_m2 *= scale_m2;
+  // l1_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  // l1_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  // l2_error_m0 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  // l2_error_m1 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  // l2_error_m2 /= (static_cast<double>(mesh.getNx() * mesh.getNy()));
+  // linf_error_m0 *= scale_m0;
+  // linf_error_m1 *= scale_m1;
+  // linf_error_m2 *= scale_m2;
   l1_error_m0 *= scale_m0;
-  l1_error_m1 *= scale_m1;
-  l1_error_m2 *= scale_m2;
-  l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
-  l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
-  l2_error_m2 = std::sqrt(l2_error_m2) * scale_m2;
+  // l1_error_m1 *= scale_m1;
+  // l1_error_m2 *= scale_m2;
+  // l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
+  // l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
+  // l2_error_m2 = std::sqrt(l2_error_m2) * scale_m2;
   std::cout << std::scientific << std::setprecision(3)
-            << "Linf M0 = " << linf_error_m0 << std::endl;
-  std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
-  std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
-  std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
-  std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
-  std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
-  std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
-  std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
-  std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
+  //           << "Linf M0 = " << linf_error_m0 << std::endl;
+  // std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
+  // std::cout << "Linf M2 = " << linf_error_m2 << std::endl;
+  // std::cout 
+  << "L1   M0 = " << l1_error_m0 << std::endl;
+  // std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
+  // std::cout << "L1   M2 = " << l1_error_m2 << std::endl;
+  // std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
+  // std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
+  // std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
 }
