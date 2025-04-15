@@ -103,7 +103,7 @@ void Rotation2D::setVelocity(const double a_time, Data<double>* a_U,
 }
 
 const IRL2D::Vec Rotation2D::getExactVelocity2D(double t, const IRL2D::Vec& P) {
-  const double vel_scale = 2.0 * M_PI;
+  const double vel_scale = 2.0 * M_PI + 0.75*std::sin(M_PI * t/5);
   // return IRL2D::Vec{-1.0, -1.0};
   return IRL2D::Vec{-vel_scale * P.y(), vel_scale * P.x()};
   // return IRL2D::Vec{P.y() * P.y() * P.y(), P.x() * P.x() * P.x()};
@@ -114,7 +114,7 @@ const IRL2D::Vec Rotation2D::getExactVelocity2D(double t, const IRL2D::Vec& P) {
 
 const IRL2D::Mat Rotation2D::getExactVelocityGradient2D(double t,
                                                         const IRL2D::Vec& P) {
-  const double vel_scale = 2.0 * M_PI;
+  const double vel_scale = 2.0 * M_PI + 0.75*std::sin(M_PI * t/5);
   // return IRL2D::Mat(IRL2D::Vec{0.0, 0.0}, IRL2D::Vec{0.0, 0.0});
   return IRL2D::Mat(IRL2D::Vec{0.0, -vel_scale}, IRL2D::Vec{vel_scale, 0.0});
   // return IRL2D::Mat(IRL2D::Vec{0.0, 3.0 * P.y() * P.y()},
