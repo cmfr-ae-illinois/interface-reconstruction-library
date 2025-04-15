@@ -12,13 +12,15 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-// #define VALDEBUG_S
 // #define DEBUG_CYL_IRL
+// DEBUG_CYL_IRL add general log in the standard output about cylinder intersection
 
+// #define SURFACE_DEBUG
 // SURFACE_DEBUG add log about the cylinder output surface, including:
 // when new arcs are added and the computation of the closed loops
-// #define VALDEBUG2
+
 // #define NUDGE_REGION
+// NUDGE_REGION add log about why nudging is perform
 
 #include "irl/data_structures/small_vector.h"
 #include "irl/generic_cutting/generic_cutting.h"

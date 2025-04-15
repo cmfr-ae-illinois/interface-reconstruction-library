@@ -16,8 +16,7 @@
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 #include "irl/geometry/general/geometry_type_traits.h"
-#include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
 
 namespace IRL {

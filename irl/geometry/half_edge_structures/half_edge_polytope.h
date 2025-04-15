@@ -65,7 +65,7 @@ class HalfEdgeStorage {
 
   void resize(const std::size_t a_size) {
     #ifdef DEBUG_MEMORY
-    std::cout << "HalfEdge storage " << static_cast<void*>(this) << " is resized to " << a_size << std::endl;
+      std::cout << "HalfEdge storage " << static_cast<void*>(this) << " is resized to " << a_size << std::endl;
     #endif
     this->resetToSize(a_size);
     open_block_m = 0;
@@ -76,7 +76,7 @@ class HalfEdgeStorage {
 
   void resizeFor(const std::size_t a_size) {
     #ifdef DEBUG_MEMORY
-    std::cout << "HalfEdge storage " << static_cast<void*>(this) << " is resized for " << a_size << std::endl;
+      std::cout << "HalfEdge storage " << static_cast<void*>(this) << " is resized for " << a_size << std::endl;
     #endif
     this->resetToSize(a_size);
     open_block_m = 0;
@@ -105,12 +105,12 @@ class HalfEdgeStorage {
   template <class ObjectType>
   ObjectType* getNewObject(void) {
     #ifdef DEBUG_MEMORY
-    std::cout << "HalfEdge storage " << static_cast<void*>(this) << " create a new object of type " << typeid(ObjectType).name() << ", the size is " << sizeof_round<ObjectType>() << " bytes or 0x" << std::hex << sizeof_round<ObjectType>() << std::dec << std::endl;
+      std::cout << "HalfEdge storage " << static_cast<void*>(this) << " create a new object of type " << typeid(ObjectType).name() << ", the size is " << sizeof_round<ObjectType>() << " bytes or 0x" << std::hex << sizeof_round<ObjectType>() << std::dec << std::endl;
     #endif
     auto OBJECT_SIZE = sizeof_round<ObjectType>(); // float128 require to be memory aligned with adress that are multiple of 16, so we restrict object to have a size that is also a multiple of 16.
     if (free_location_m + OBJECT_SIZE > open_block_end_m) {
       #ifdef DEBUG_MEMORY
-      std::cout << "not enough place in the current block, switching to the next one" << std::endl;
+        std::cout << "not enough place in the current block, switching to the next one" << std::endl;
       #endif
       if (open_block_m + 1 == data_blocks_start_m.size()) {
         this->allocateAndAppendNewBlock();
@@ -125,7 +125,7 @@ class HalfEdgeStorage {
         reinterpret_cast<ObjectType*>(free_location_m);
     free_location_m += OBJECT_SIZE;
     #ifdef DEBUG_MEMORY
-    std::cout << "new object allocated at " << static_cast<void*>(new_object) << ", next allocation should be at " << static_cast<void*>(free_location_m) << std::endl;
+      std::cout << "new object allocated at " << static_cast<void*>(new_object) << ", next allocation should be at " << static_cast<void*>(free_location_m) << std::endl;
     #endif
     return new_object;
   }
@@ -139,15 +139,8 @@ class HalfEdgeStorage {
   }
 
   HalfEdgeStorage(const HalfEdgeStorage& a_rhs) noexcept {
-    // this->resize(a_rhs.size());
-    // assert(this->size() == a_rhs.size());
-    // if (a_rhs.size() > 0) {
-    //   assert(a_rhs.size() <= a_rhs.blockSize(0));
-    //   this->copyData(a_rhs.data_blocks_start_m[0], data_blocks_start_m[0],
-    //                  a_rhs.size());
-    // }
     #ifdef DEBUG_MEMORY
-    std::cout << "initializing HalfEdge storage " << static_cast<void*>(this) << " based on another HalfEdge storage" << std::endl;
+      std::cout << "initializing HalfEdge storage " << static_cast<void*>(this) << " based on another HalfEdge storage" << std::endl;
     #endif
     for (auto& block : data_blocks_start_m) {
         #ifdef DEBUG_MEMORY
@@ -164,19 +157,19 @@ class HalfEdgeStorage {
           static_cast<char*>(::operator new(new_block_size)));
       this->block_size_m.push_back(new_block_size);
       #ifdef DEBUG_MEMORY
-      std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[n]) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec << std::endl;
+        std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[n]) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec << std::endl;
       #endif
       if (n != a_rhs.open_block_m) {
         this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
                         block_size_m[n]);
         #ifdef DEBUG_MEMORY
-        std::cout << "and copying " << block_size_m[n] << "bytes of data or 0x" << std::hex << block_size_m[n] << std::dec << std::endl;
+          std::cout << "and copying " << block_size_m[n] << "bytes of data or 0x" << std::hex << block_size_m[n] << std::dec << std::endl;
         #endif
       } else {
         this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
                         a_rhs.free_location_m - a_rhs.data_blocks_start_m[n]);
         #ifdef DEBUG_MEMORY
-        std::cout << "and copying " << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << "bytes of data or 0x" << std::hex << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << std::dec << std::endl;
+          std::cout << "and copying " << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << "bytes of data or 0x" << std::hex << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << std::dec << std::endl;
         #endif
       }
     }
@@ -193,53 +186,43 @@ class HalfEdgeStorage {
     }
     assert(this->size() == a_rhs.size());
     #ifdef DEBUG_MEMORY
-    std::cout << "done initializing HalfEdge storage " << static_cast<void*>(this) << std::endl;
+      std::cout << "done initializing HalfEdge storage " << static_cast<void*>(this) << std::endl;
     #endif
   }
 
-  // NOTE: ONLY EVER COPIES FIRST BLOCK FROM RHS.
   HalfEdgeStorage(const HalfEdgeStorage&& a_rhs) noexcept = delete;
 
   HalfEdgeStorage& operator=(const HalfEdgeStorage& a_rhs) noexcept {
     #ifdef DEBUG_MEMORY
-    std::cout << "copying a HalfEdge storage to HalfEdge storage " << static_cast<void*>(this) << std::endl;
+      std::cout << "copying a HalfEdge storage to HalfEdge storage " << static_cast<void*>(this) << std::endl;
     #endif
     if (this != &a_rhs) {
-      // this->resize(a_rhs.size());
-      // assert(this->size() == a_rhs.size());
-      // if (a_rhs.size() > 0) {
-      //   assert(a_rhs.size() <= a_rhs.blockSize(0));
-      //   for (std::size_t n = 0; n < data_blocks_start_m.size(); ++n) {
-      //     this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
-      //                   block_size_m[n]);
-      //   }
-      // }
       std::size_t old_size = this->data_blocks_start_m.size();
       std::size_t smaller_value = old_size <= a_rhs.data_blocks_start_m.size() ? old_size : a_rhs.data_blocks_start_m.size();
       for (std::size_t n = 0; n < smaller_value; n++) {
         if (a_rhs.block_size_m[n] != this->block_size_m[n]) {
           #ifdef DEBUG_MEMORY
-          std::cout << "deleting block " << static_cast<void*>(data_blocks_start_m[n]) << std::endl;
+            std::cout << "deleting block " << static_cast<void*>(data_blocks_start_m[n]) << std::endl;
           #endif
           ::operator delete(this->data_blocks_start_m[n]);
           std::size_t new_block_size = a_rhs.block_size_m[n];
           this->data_blocks_start_m[n] = static_cast<char*>(::operator new(new_block_size));
           this->block_size_m[n] = new_block_size;
           #ifdef DEBUG_MEMORY
-          std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[n]) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec << std::endl;
+            std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[n]) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec << std::endl;
           #endif
         }
         if (n != a_rhs.open_block_m) {
           this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
                           a_rhs.block_size_m[n]);
         #ifdef DEBUG_MEMORY
-        std::cout << "and copying " << block_size_m[n] << "bytes of data or 0x" << std::hex << block_size_m[n] << std::dec << std::endl;
+          std::cout << "and copying " << block_size_m[n] << "bytes of data or 0x" << std::hex << block_size_m[n] << std::dec << std::endl;
         #endif
         } else {
           this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
                           a_rhs.free_location_m - a_rhs.data_blocks_start_m[n]);
           #ifdef DEBUG_MEMORY
-          std::cout << "and copying " << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << "bytes of data or 0x" << std::hex << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << std::dec << std::endl;
+            std::cout << "and copying " << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << "bytes of data or 0x" << std::hex << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << std::dec << std::endl;
           #endif
         }
       }
@@ -250,26 +233,26 @@ class HalfEdgeStorage {
               static_cast<char*>(::operator new(new_block_size)));
           this->block_size_m.push_back(new_block_size);
           #ifdef DEBUG_MEMORY
-          std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[n]) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec  << std::endl;
+            std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[n]) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec  << std::endl;
           #endif
           if (n != a_rhs.open_block_m) {
             this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
                             block_size_m[n]);
         #ifdef DEBUG_MEMORY
-        std::cout << "and copying " << block_size_m[n] << "bytes of data or 0x" << std::hex << block_size_m[n] << std::dec << std::endl;
+          std::cout << "and copying " << block_size_m[n] << "bytes of data or 0x" << std::hex << block_size_m[n] << std::dec << std::endl;
         #endif
           } else {
             this->copyData(a_rhs.data_blocks_start_m[n], data_blocks_start_m[n],
                             a_rhs.free_location_m - a_rhs.data_blocks_start_m[n]);
           #ifdef DEBUG_MEMORY
-          std::cout << "and copying " << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << "bytes of data or 0x" << std::hex << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << std::dec << std::endl;
+            std::cout << "and copying " << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << "bytes of data or 0x" << std::hex << a_rhs.free_location_m - a_rhs.data_blocks_start_m[n] << std::dec << std::endl;
           #endif
           }
         }
       } else {
         for (std::size_t n = smaller_value; n < old_size; ++n) {
           #ifdef DEBUG_MEMORY
-          std::cout << "deleting block " << static_cast<void*>(data_blocks_start_m[n]) << std::endl;
+            std::cout << "deleting block " << static_cast<void*>(data_blocks_start_m[n]) << std::endl;
           #endif
           ::operator delete(this->data_blocks_start_m[n]);
         }
@@ -290,7 +273,7 @@ class HalfEdgeStorage {
       assert(this->size() == a_rhs.size());
     }
     #ifdef DEBUG_MEMORY
-    std::cout << "done copying to HalfEdge storage " << static_cast<void*>(this) << std::endl;
+      std::cout << "done copying to HalfEdge storage " << static_cast<void*>(this) << std::endl;
     #endif
     return (*this);
   }
@@ -299,11 +282,11 @@ class HalfEdgeStorage {
 
   ~HalfEdgeStorage(void) {
     #ifdef DEBUG_MEMORY
-    std::cout << "deleting HalfEdge storage " << static_cast<void*>(this) << std::endl;
+      std::cout << "deleting HalfEdge storage " << static_cast<void*>(this) << std::endl;
     #endif
     for (auto& block : data_blocks_start_m) {
       #ifdef DEBUG_MEMORY
-      std::cout << "deleting block " << static_cast<void*>(block) << std::endl;
+        std::cout << "deleting block " << static_cast<void*>(block) << std::endl;
       #endif
       ::operator delete(block);
     }
@@ -320,12 +303,12 @@ class HalfEdgeStorage {
 
   void resetToSize(const std::size_t a_size) {
     #ifdef DEBUG_MEMORY
-    std::cout << "HalfEdge storage " << static_cast<void*>(this) << " : reseting to size : " << a_size << std::endl;
+      std::cout << "HalfEdge storage " << static_cast<void*>(this) << " : reseting to size : " << a_size << std::endl;
     #endif
     if (data_blocks_start_m.empty() || this->blockSize(0) < a_size) {
       for (auto& block : data_blocks_start_m) {
         #ifdef DEBUG_MEMORY
-        std::cout << "deleting block " << static_cast<void*>(block) << std::endl;
+          std::cout << "deleting block " << static_cast<void*>(block) << std::endl;
         #endif
         ::operator delete(block);
         block = nullptr;
@@ -335,7 +318,7 @@ class HalfEdgeStorage {
       data_blocks_start_m[0] = static_cast<char*>(::operator new(a_size));
       block_size_m[0] = a_size;
       #ifdef DEBUG_MEMORY
-      std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[0]) << " of size " << a_size << " bytes or 0x" << std::hex << a_size << std::dec << std::endl;
+        std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m[0]) << " of size " << a_size << " bytes or 0x" << std::hex << a_size << std::dec << std::endl;
       #endif
     }
   }
@@ -352,7 +335,7 @@ class HalfEdgeStorage {
     free_location_m = data_blocks_start_m[open_block_m];
     open_block_end_m = free_location_m + new_block_size;
     #ifdef DEBUG_MEMORY
-    std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m.back()) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec   << std::endl;
+      std::cout << "creating new block " << static_cast<void*>(data_blocks_start_m.back()) << " of size " << new_block_size << " bytes or 0x" << std::hex << new_block_size << std::dec   << std::endl;
     #endif
   }
 

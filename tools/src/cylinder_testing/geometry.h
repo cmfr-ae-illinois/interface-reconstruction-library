@@ -12,10 +12,6 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-// #define VALDEBUG
-// #define VALDEBUG2
-// #define NUDGE_REGION
-
 #include "irl/data_structures/small_vector.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting.h"

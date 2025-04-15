@@ -488,14 +488,14 @@ void computeMomentContributionAMR(
   //     }
 
   if (z_limits.first) {
-    // Max of triangle is smaller than min of paraboloid
+    // Max of triangle is smaller than min of cylinder
     moments_to_add[0] = computeMomentContributionUnclippedTriangle<ReturnType>(
         a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
     return;
   } else if (z_limits.second && abs(a_signed_area) <= max_length) {
-    // Max of triangle is smaller than min of paraboloid
+    // Max of triangle is smaller than min of cylinder
     moments_to_add[0] = computeMomentContributionClippedTriangle<ReturnType>(
         a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,

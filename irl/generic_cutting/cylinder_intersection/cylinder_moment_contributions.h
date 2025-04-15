@@ -23,7 +23,7 @@
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {

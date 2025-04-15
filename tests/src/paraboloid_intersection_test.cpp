@@ -18,7 +18,9 @@
 #include <cmath>
 #include <random>
 
-// nothing to see here, not fusing two file to compile them together
+// quadratic_intersection_amr have some definition
+// if paraboloid_intersection_test and cylinder_intersection_test
+// are compile separatly, we get an error during linking.
 #include "tests/src/cylinder_intersection_test.cpp"
 
 #include "gtest/gtest.h"

@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_TPP_
-#define IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_TPP_
+#ifndef IRL_GENERIC_CUTTING_QUADRATIC_INTERSECTION_MOMENT_CONTRIBUTIONS_TPP_
+#define IRL_GENERIC_CUTTING_QUADRATIC_INTERSECTION_MOMENT_CONTRIBUTIONS_TPP_
 
 #include <float.h>
 #include <cassert>
@@ -25,7 +25,6 @@
 #include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
 
 namespace IRL {
 
@@ -889,4 +888,4 @@ ReturnType computeType1Contribution(const PtBase<ScalarType>& a_ref_pt,
 
 }  // namespace IRL
 
-#endif  // IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_TPP_
+#endif  // IRL_GENERIC_CUTTING_QUADRATIC_INTERSECTION_MOMENT_CONTRIBUTIONS_TPP_

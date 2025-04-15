@@ -23,12 +23,11 @@
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {
 
-// The definition seems to be commented, soooo useless???
+// The definition seems to be commented, useless?
 // template <class ReturnType, class ScalarType>
 // ReturnType computeType1ContributionQuadrature(
 //     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
@@ -43,4 +42,4 @@ ReturnType computeType1Contribution(const PtBase<ScalarType>& a_ref_pt,
 
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.tpp"
 
-#endif  // IRL_GENERIC_CUTTING_PARABOLOID_INTERSECTION_MOMENT_CONTRIBUTIONS_H_
+#endif  // IRL_GENERIC_CUTTING_QUADRATIC_INTERSECTION_MOMENT_CONTRIBUTIONS_H_
