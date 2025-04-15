@@ -43,7 +43,7 @@ class CylinderBase {
 
   /// a_reference_frame should have the normal vector in a_reference_frame[2],
   /// and the tangent vectors corresponding to the axe of the cylinder and a_coef_b in
-  /// element 0 and 1, respectively.
+  /// element 0 and 1, respectively. (a_coef_r correspond to the radius squared, like for AlignedCylinderBase)
   CylinderBase(const PtBase<ScalarType>& a_datum,
                  const ReferenceFrameBase<ScalarType>& a_reference_frame,
                  const ScalarType a_coef_b, const ScalarType a_coef_r);

@@ -58,6 +58,12 @@ struct has_cylinder_surface<AddSurfaceOutput<MomentType, CylinderParametrizedSur
 /// \brief Parametrized surface defined by a list of arcs and a list of cylinder
 class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
  public:
+
+  // the cylinder intersection output the surface as 2 to 4 patch with different rotation
+  // we store each arc generated for the patches and the cylinder with the correct rotation
+  // when we change rotation, we set the cylinder with setCylinder
+  // all arcs defined after a setCylinder is consider to be in the rotation of that cylinder.
+
   /// \brief Default constructor.
   CylinderParametrizedSurfaceOutput(void);
   CylinderParametrizedSurfaceOutput(const Cylinder& a_cylinder);
@@ -71,7 +77,7 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   CylinderParametrizedSurfaceOutput& operator=(
       CylinderParametrizedSurfaceOutput&& a_rhs);
 
-  /// @brief set the cylinder to use for the next arcs, you for rotation and coefficient values
+  /// @brief set the cylinder to use for the next arcs, for rotation and coefficient values
   /// @param a_cylinder 
   void setCylinder(const Cylinder& a_cylinder);
   /// @brief clear the list of cylinders and rotation. to be used if CylinderParametrizedSurfaceOutput.clear() is called

@@ -38,6 +38,9 @@ void HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
   this->resize(0, 0, 0);
 }
 
+
+/// @brief resize the memory allocation to allow for the give polyhedron.
+/// this function does create the request number of face, point or edge.
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
@@ -84,6 +87,9 @@ void HalfEdgePolytope<
   #endif
 }
 
+/// @brief resize the memory allocation to allow for the give polyhedron.
+/// this function does not create any face, point or edge. only prepare the memory to
+/// have enough space
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>

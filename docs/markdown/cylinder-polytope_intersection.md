@@ -75,13 +75,13 @@ The shapes available for testing are those introduced in Table 1 of the manuscri
 |:---:|:---:|:---:|:---:|
 |<img src="./figures/table1a.png" style="max-width:20%; object-fit: contain;"/>|<img src="./figures/table1b.png" style="max-width:20%; object-fit: contain;"/>|<img src="./figures/table1c.png" style="max-width:20%; object-fit: contain;"/>|<img src="./figures/table1d.png" style="max-width:20%; object-fit: contain;"/>|
 
-The input files used for producing the reference results used in Section 4.2 are given in the file specify after the `-o`. 
+The reference results used in Section 4.2 are given in the file specify after the `-o`. 
 
 For instance,
 ``` bash
 ./cylinder_amr_generation --tet -l 15 -n 1000 -o tet_result.csv -h
 ``` 
-will generate the reference results of __1000__ random parameter sweep configuration for the tet, using a max amr level of __15__ and only generating hyperbolique case (-e is for elliptic, -h for hyperbolic and -b for both). These calculation are expensive, so we recommend to first test them for a limited number of cases, e.g., with `"number_of_tests": 1e2`.
+will generate the reference results of __1000__ random parameter sweep configuration for the tetrahedron (`--tet`), using a max amr level of __15__ (`-l 15`) and only generating hyperbolique case (-e is for elliptic, -h for hyperbolic and -b for both). These calculation are expensive, so we recommend to first test them for a limited number of cases, e.g., with `-n 100`.
 
 the code will use openMP to parallelize the execution. you can change the number of thread by running :
 ```bash
@@ -93,12 +93,10 @@ export OMP_NUM_THREADS=[num]
 Once reference results have been produced and stored, our algorithm for calculating the first moments of a polyhedron-paraboloid intersection can be tested using the executable `cylinder_verification`. For instance,
 
 ```bash
-./cylinder_verification -f ./tet_result.csv --tet
+./cylinder_verification -f ./tet_result.csv
 ``` 
 
-will test IRL against the results of the random parameter sweep of the cube, and the result will be display in the standard output
-
-`cylinder_verification` still need to be given the shape to use (and `--no_rescale` if using graded sweep was used)
+will test IRL against the results of the random parameter sweep of the tetrahedron, and the result will be display in the standard output
 
 ##
 

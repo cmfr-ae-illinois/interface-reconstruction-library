@@ -10,15 +10,7 @@
 #ifndef IRL_CYLINDER_RECONSTRUCTIONS_ALIGNED_PARABOLOID_H_
 #define IRL_CYLINDER_RECONSTRUCTIONS_ALIGNED_PARABOLOID_H_
 
-#include <math.h>
-#include <cassert>
 #include <ostream>
-
-#include "irl/geometry/general/plane.h"
-#include "irl/geometry/general/polynomial.h"
-#include "irl/geometry/general/pt.h"
-#include "irl/geometry/general/unit_quaternion.h"
-#include "irl/quadratic_reconstruction/ellipse.h"
 
 namespace IRL {
 
