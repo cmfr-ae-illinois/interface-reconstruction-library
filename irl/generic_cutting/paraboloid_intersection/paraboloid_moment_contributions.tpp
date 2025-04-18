@@ -91,7 +91,7 @@ inline ScalarType MomentParaboloidIntegrand(
     const auto x2 = x * x;
     const auto y2 = y * y;
     const auto x4 = x2 * x2;
-    return dy * (inv4 * inv3 * A * A * x4 * x2 * y + inv4 * A * B * x4 * y2 +
+    return dy * (inv4 * inv3 * A * A * x4 * x2 + inv4 * A * B * x4 * y2 +
                  inv4 * B * B * x2 * y2 * y2);
   }
   // M2yy
