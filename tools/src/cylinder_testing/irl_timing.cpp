@@ -33,10 +33,13 @@
 
 using namespace IRL;
 
+static int multiplier;
+
 static struct option long_options[] =
     {
         {"input_file",              required_argument, 0,   'f'},
         {"help",                    no_argument,       0,   'H'},
+        {"multiplier",              required_argument, 0,   'm'},
         {0, 0, 0, 0}
     };
 
@@ -45,7 +48,8 @@ void print_help(std::string prg_name) {
     std::cout << "Options:\n";
     std::cout << "  -H, --help                             Show this help message\n";
     std::cout << "  -f, --input_file <string>              Path to input file (default: result.csv)\n";
-  }
+    std::cout << "  -m, --multiplier <int>                 how many time each configuration is run\n";
+}
 
 void displayProgress(int current, int total) {
     int barWidth = 50;
@@ -204,24 +208,22 @@ void processEntries(const std::string& filename) {
                             IRL::Normal(0.0, 0.0, 1.0));
 
         IRL::Cylinder cylinder(datum0, frame0, b, r);
-        asm volatile ("" ::: "memory");
         auto startV = std::chrono::steady_clock::now();
-        asm volatile ("" ::: "memory");
-        result_moments =
-            getVolumeMoments<Volume>(geometriV, cylinder);
-        asm volatile ("" ::: "memory");
+        for (int i = 0; i< multiplier; i++){
+            asm volatile ("" ::: "memory");
+            result_moments =
+                getVolumeMoments<Volume>(geometriV, cylinder);
+        }
         auto endV = std::chrono::steady_clock::now();
-        asm volatile ("" ::: "memory");
         time_Volume += std::chrono::duration<double, std::micro>(endV - startV);
 
-        asm volatile ("" ::: "memory");
         auto startM = std::chrono::steady_clock::now();
-        asm volatile ("" ::: "memory");
-        result_momentsS =
-            getVolumeMoments<VolumeMoments>(geometriM, cylinder);
+        for (int i = 0; i < multiplier; i++) {
             asm volatile ("" ::: "memory");
+            result_momentsS =
+                getVolumeMoments<VolumeMoments>(geometriM, cylinder);
+        }
         auto endM = std::chrono::steady_clock::now();
-        asm volatile ("" ::: "memory");
 
         time_Moment += std::chrono::duration<double, std::micro>(endM - startM);
 
@@ -323,18 +325,19 @@ void processEntries(const std::string& filename) {
     std::cout << "    Centroid z : " << max_centroid_z_error << "\n";
 
     std::cout << "\n\ntime taken to do " << (total) << " cases : \n"
-        << "    Only Volume :" << time_Volume.count() / 1e6 << " s or an average of " << time_Volume.count() / (total) << " µs per case\n"
-        << "    with Moment :" << time_Moment.count() / 1e6 << " s or an average of " << time_Moment.count() / (total) << " µs per case" << std::endl;
+        << "    Only Volume :" << time_Volume.count() / 1e6 << " s or an average of " << time_Volume.count() / (total * multiplier) << " µs per case\n"
+        << "    with Moment :" << time_Moment.count() / 1e6 << " s or an average of " << time_Moment.count() / (total * multiplier) << " µs per case" << std::endl;
     
-    std::cout << "sanity check : i = " << i <<", total = " << total << std::endl;
+    std::cout << "sanity check : i = " << i <<", total = " << total * multiplier << std::endl;
 }
 
 int main(int argc, char* argv[]) {
     std::string file_path = "result.csv";
     int long_id = 0;
+    multiplier = 1;
     
     while(1) {
-        int result = getopt_long(argc, argv, "f:H", long_options, &long_id);
+        int result = getopt_long(argc, argv, "f:Hm:", long_options, &long_id);
         if (result == -1)
         {
             break;
@@ -343,6 +346,10 @@ int main(int argc, char* argv[]) {
         {
         case 'f':
             file_path = optarg;
+            break;
+
+        case 'm':
+            multiplier = atoi(optarg);
             break;
 
         case 'H':
