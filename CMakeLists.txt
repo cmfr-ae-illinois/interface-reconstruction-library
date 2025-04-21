@@ -51,7 +51,7 @@ endif()
 
 # If not debug, add -DNDEBUG and -DNDEBUG_PERF to compiler options
 if(NOT "${CMAKE_BUILD_TYPE_UC}" MATCHES "DEBUG")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG -DNDEBUG_PERF")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG -DNDEBUG_PERF -Wno-psabi")
 endif()
 
 message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
@@ -59,7 +59,6 @@ message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
 # Find external packages needed by IRL
 find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
 find_package(CGAL)
-
 if(${PARABOLOID_TESTING})
   find_package(MPI REQUIRED)
 endif()
@@ -73,8 +72,10 @@ set(IRL_USE_ABSL ON)
 
 if(DEFINED USE_ABSL)
   if(NOT USE_ABSL)
+    message("USE ABSL = ${USE_ABSL}")
     set(IRL_CXX_FLAGS "${IRL_CXX_FLAGS} -D IRL_NO_ABSL")
-  endif()
+    set(IRL_USE_ABSL OFF)
+    endif()
 endif()
 
 if(IRL_USE_ABSL)
@@ -89,6 +90,8 @@ if(IRL_USE_ABSL)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX_ORIG}")
   set(BUILD_TESTING ${BUILD_TESTING_ORIG})
 endif()
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${IRL_CXX_FLAGS}")
 
 # Path for Fortran Module files
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/mod)
@@ -170,6 +173,7 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/irl" # source directory
   FILES_MATCHING # install only matched files
   PATTERN "*.tpp" # select header files
 )
+if(IRL_USE_ABSL)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/external/abseil-cpp" # source directory
   DESTINATION "include/external" # target directory
   FILES_MATCHING # install only matched files
@@ -180,6 +184,7 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/external/abseil-cpp" # source directory
   FILES_MATCHING # install only matched files
   PATTERN "*.inc" # select header files
 )
+endif()
 
 if(IRL_BUILD_FORTRAN)
   install(TARGETS irl_c EXPORT "irl_c_exp" ARCHIVE DESTINATION "lib")
