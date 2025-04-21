@@ -2281,6 +2281,31 @@ formCylinderIntersectionBases(
         moments.centroid()[n] = frame[n] * centroid01;
       }
     }
+    else if constexpr (std::is_same_v<ReturnType,
+                                        GeneralMoments3D<2>>) {
+      const Eigen::Matrix<ScalarType, 3, 3> R{
+          {frame[0][0], frame[1][0], frame[2][0]},
+          {frame[0][1], frame[1][1], frame[2][1]},
+          {frame[0][2], frame[1][2], frame[2][2]}};
+      const ScalarType M0 = moments[0];
+      const Eigen::Matrix<ScalarType, 3, 1> M1prime{moments[1], moments[2],
+                                                    moments[3]};
+      const Eigen::Matrix<ScalarType, 3, 3> M2prime{
+          {moments[4], moments[5], moments[6]},
+          {moments[5], moments[7], moments[8]},
+          {moments[6], moments[8], moments[9]}};
+      const Eigen::Matrix<ScalarType, 3, 1> M1 = R * M1prime;
+      const Eigen::Matrix<ScalarType, 3, 3> M2 = R * M2prime * R.transpose();
+      moments[1] = M1(0);
+      moments[2] = M1(1);
+      moments[3] = M1(2);
+      moments[4] = M2(0, 0);
+      moments[5] = M2(0, 1);
+      moments[6] = M2(0, 2);
+      moments[7] = M2(1, 1);
+      moments[8] = M2(1, 2);
+      moments[9] = M2(2, 2);
+    }
     for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices(); ++v) {
       const Pt original_pt = current_segmented->getVertex(v)->getLocation().getPt();
       Pt pt(0, 0, 0);

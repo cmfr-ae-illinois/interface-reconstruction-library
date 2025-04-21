@@ -83,6 +83,42 @@ double ExactM1zTranslatingCube_cylinder(const double u) {
   }
 }
 
+double ExactM2yyTranslatingCube_cylinder(const double u) {
+  double sqrt_1 = sqrt(u * (4.0 - u));
+  if (u < 2.0) {
+    return ((- u * u * u + 6.0 * u * u - 2.0 * u - 12.0) * sqrt_1
+            + 24.0 * atan(sqrt_1 / (2.0 - u))) / 192.0;
+  } else {
+    double sqrt_2 = sqrt(8.0 * u - 12.0 - u * u);
+    return (- (u - 2.0) * (u * (u - 4.0) - 6.0) * sqrt_1
+            + (u - 4.0) * (u * (u - 8.0) + 6) * sqrt_2
+            + 24.0 * atan(sqrt_1 / (u - 2.0)) + 24.0 * atan(sqrt_2 / (u - 4.0))
+            + 48.0 * acos(sqrt_1 / 2.0)) / 192.0;
+  }
+}
+
+double ExactM2yzTranslatingCube_cylinder(const double u) {
+  if (u < 2.0) {
+    return (16.0 - 8.0 * u + u * u ) * u * u / 128.0;
+  } else {
+    return (u * u * u - 9.0 * u * u + 24.0 * u - 18.0) / 16.0;
+  }
+}
+
+double ExactM2zzTranslatingCube_cylinder(const double u) {
+  double sqrt_1 = sqrt(u * (4.0 - u));
+  if (u < 2.0) {
+    return (3.0 * sqrt_1 * (u * u * u - 6.0 * u * u + 10.0 * u - 4.0) -
+            8.0 * atan( sqrt_1 / (2.0 - u)) + 32.0 * asin( sqrt_1 / 2.0 )) / 192.0;
+  } else {
+    double sqrt_2 = sqrt((u - 2.0) * (6.0 - u));
+    return (sqrt_1 * (3.0 * u * u * u - 18.0 * u * u + 30.0 * u - 12.0) +
+            sqrt_2 * (168.0 - 138.0 * u + 36.0 * u * u - 3.0 * u * u * u ) +
+            48.0 * acos( sqrt_1 / 2.0) + 32.0 * asin( sqrt_1 / 2.0) - 32.0 * asin( sqrt_2 / 2.0) -
+            8.0 * atan( sqrt_1 / (u - 2.0) ) - 8.0 * atan( sqrt_2 / (u - 4.0))) / 192.0;
+  }
+}
+
 using namespace IRL;
 
 TEST(CylinderIntersection, SISCPaperFig1) {
@@ -271,6 +307,112 @@ TEST(CylinderIntersection, SISCPaperFig2) {
   EXPECT_NEAR(max_volume_error, 0.0, 1.0e-14);
 }
 
+TEST(CylinderIntersection, SISCPaperFig2_M2) {
+
+  AlignedCylinder aligned_cylinder({1.0, 1.0});  // DO NOT CHANGE
+  Pt datum(0, 0, 0);
+  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  Cylinder cylinder(datum, frame, aligned_cylinder.b(),
+                        aligned_cylinder.r());
+
+  // const double VOLUME_MAX = sqrt(3.0) / 4.0 + M_PI / 6.0;
+  // const double M1Z_MAX = 1.0 / 3.0;
+  // const double M1Y_MAX = 11.0 / 24.0;
+
+  //////////////////////////////// YOU CAN CHANGE THESE PARAMETERS
+  int Ntests = 3001;  // Number of tests
+  ////////////////////////////////
+
+  double max_volume_error = 0.0, rms_volume_error = 0.0;
+  // double max_surface_error = 0.0, rms_surface_error = 0.0;
+
+  std::string file_name = "fig_cylinderM2.csv";
+
+  std::ofstream myfile;
+  myfile.open(file_name);
+  myfile << "k,M0,M1x,M1y,M1z,M2xx,M2xy,M2xz,M2yy,M2yz,M2zz,M0_error,M1x_error,M1y_error,M1z_error,M2xx_error,M2xy_error,M2xz_error,M2yy_error,M2yz_error,M2zz_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
+  myfile.close();
+
+  for (UnsignedIndex_t i = 0; i < Ntests; i++) {
+    // Create and translate unit cube
+    const double u = 3.0 * static_cast<double>(i) / static_cast<double>(Ntests - 1);
+    double k = 1.5 - u / 2.0;
+    RectangularCuboid cube =
+        RectangularCuboid::fromBoundingPts(Pt(0.0, 0.0, k - 0.5), Pt(1.0, 1.0, k + 0.5));
+
+    // Compute moments and return parametrized surface
+    auto our_moments =
+        getVolumeMoments<GeneralMoments3D<2>>(cube, cylinder);
+
+    std::cout << "-------------------------------------------------------------"
+                 "---------------------------------------------------------"
+              << std::endl;
+    std::cout << "Test " << i + 1 << "/" << Ntests << std::endl;
+
+    // Compute exact value for verification purposes
+    std::array<double, 10> exact_moment = {
+      ExactM0TranslatingCube_cylinder(u), 0.5 * ExactM0TranslatingCube_cylinder(u), ExactM1yTranslatingCube_cylinder(u), ExactM1zTranslatingCube_cylinder(u),
+      ExactM0TranslatingCube_cylinder(u) / 3.0, 0.5 * ExactM1yTranslatingCube_cylinder(u), 0.5 * ExactM1zTranslatingCube_cylinder(u),
+      ExactM2yyTranslatingCube_cylinder(u), ExactM2yzTranslatingCube_cylinder(u), ExactM2zzTranslatingCube_cylinder(u)};
+
+    std::array<double, 10> errors;
+    double max_error =  0.0;
+    for (int j = 0; j <10; j++) {
+      errors[j] = exact_moment[j] - our_moments[j];
+      max_error = maximum(max_error, errors[j]);
+    }
+    std::cout << "max error = "
+              << max_error
+              << std::endl;
+    std::cout << "-------------------------------------------------------------"
+                 "---------------------------------------------------------"
+              << std::endl;
+
+    myfile.open(file_name, std::ios::app);
+    // myfile << "k,m0p,m0p_exact,m0p_error" << std::endl; // ,m1yp,m1yp_exact,m1yp_error
+    myfile << std::scientific << std::setprecision(20) << (3.0 * static_cast<double>(i) /
+    static_cast<double>(Ntests - 1)) << ",";
+    for (int j = 0 ; j < 10; j++) {
+      myfile << exact_moment[j] << ",";
+    }
+    for (int j = 0 ; j < 10; j++) {
+      myfile << errors[j];
+      if (j < 9) { myfile << ","; }
+      else {myfile << std::endl; }
+    }
+    myfile.close();
+
+    max_volume_error =
+        max_volume_error >
+                std::fabs(errors[0])
+            ? max_volume_error
+            : std::fabs(errors[0]);
+    // max_surface_error =
+    //     max_surface_error > std::fabs(our_surface_area - exact_surface_area) /
+    //                             std::pow(poly_vol, 2.0 / 3.0)
+    //         ? max_surface_error
+    //         : std::fabs(our_surface_area - exact_surface_area) /
+    //               std::pow(poly_vol, 2.0 / 3.0);
+    rms_volume_error += std::fabs(errors[0]) *
+                        std::fabs(errors[0]);
+    // rms_surface_error += std::fabs(our_surface_area - exact_surface_area) *
+    //                      std::fabs(our_surface_area - exact_surface_area) /
+    //                      std::pow(poly_vol, 4.0 / 3.0);
+  }
+  rms_volume_error = sqrt(rms_volume_error / static_cast<double>(Ntests));
+  // rms_surface_error = sqrt(rms_surface_error / static_cast<double>(Ntests));
+
+  // std::cout << "Max surface error = " << max_surface_error << std::endl;
+  // std::cout << "RMS surface error = " << rms_surface_error << std::endl;
+  std::cout << "Max volume error  = " << max_volume_error << std::endl;
+  std::cout << "RMS volume error  = " << rms_volume_error << std::endl;
+  std::cout << "-------------------------------------------------------------"
+               "---------------------------------------------------------"
+            << std::endl;
+
+  EXPECT_NEAR(max_volume_error, 0.0, 1.0e-12);
+}
+
 TEST(CylinderIntersection, Debug1) {
   using VolumeAndSuface =
       AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
@@ -297,6 +439,8 @@ TEST(CylinderIntersection, Debug1) {
   std::array<std::string, 6> clipped_faces_filenames(
       {"_cube_a", "_cube_b", "_cube_c", "_cube_d", "_cube_e", "_cube_f"});
 
+  std::array<std::string, 10> moment_name(
+      {"M0", "M1x", "M1y", "M1z", "M2xx", "M2xy", "M2xz", "M2yy", "M2yz", "M2zz"});
 
   std::array<HalfEdgePolyhedronQuadratic<Pt>, 6> half_edges;
   std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<IRL::FaceQuadratic<IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>, IRL::VertexQuadratic<IRL::Pt>>, 6> seg_half_edges;
@@ -311,6 +455,7 @@ TEST(CylinderIntersection, Debug1) {
     auto temp_moments = getVolumeMoments<VolumeMoments>(cubes[i], cylinder);
     auto temp_surface_and_moments =
         getVolumeMoments<VolumeAndSuface>(cubes[i], cylinder);
+    auto temp_moment_with_integral = getVolumeMoments<GeneralMoments3D<2>>(cubes[i], cylinder);
     auto amr_moments =
         intersectPolyhedronWithCylinderAMR<VolumeMoments>(
             &(seg_half_edges[i]), &(half_edges[i]), aligned_cylinder, nlevels, clipped_faces_filenames[i]);
@@ -334,6 +479,12 @@ TEST(CylinderIntersection, Debug1) {
               << std::endl;
     std::cout << "the " << i << "th amr      center of mass is :" << amr_centroid
               << std::endl << std::endl;
+
+    std::cout << "\nmoment 2 is : " << std::endl;
+    for (int i = 0; i < 10; i++) {
+      std::cout << moment_name[i] << " : " << temp_moment_with_integral[i] << std::endl;
+    }
+    std::cout << std::endl;
 
 
     EXPECT_NEAR(temp_surface_and_moments.getMoments().volume().volume(),

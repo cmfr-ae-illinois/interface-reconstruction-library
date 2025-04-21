@@ -40,7 +40,7 @@ inline ScalarType MomentCylinderIntegrand(
     const PtBase<ScalarType>& a_derivative, const ScalarType& B,
     const ScalarType& R) {
   const ScalarType &x = a_position[0], &y = a_position[1],
-                   &dy = a_derivative[1];
+                   &z = a_position[2], &dy = a_derivative[1];
   const ScalarType inv2 = CstHalf<ScalarType>();
   const ScalarType inv3 = CstThird<ScalarType>();
   const ScalarType inv4 = CstFourth<ScalarType>();
@@ -50,21 +50,51 @@ inline ScalarType MomentCylinderIntegrand(
 
   // M0
   if constexpr (OrderX == 0 && OrderY == 0 && OrderZ == 0) {
-    return -dy * x * sqrt(R - B * y * y);
+    return dy * x * z;
   }
   // M1x
   else if constexpr (OrderX == 1 && OrderY == 0 && OrderZ == 0) {
     const auto x2 = x * x;
-    return -dy * inv2 * x2 * sqrt(R - B * y * y);
+    return dy * inv2 * x2 * z;
   }
   // M1y
   else if constexpr (OrderX == 0 && OrderY == 1 && OrderZ == 0) {
-    return -dy * x * y * sqrt(R - B * y * y);
+    return dy * x * y * z;
   }
   // M1z
   else if constexpr (OrderX == 0 && OrderY == 0 && OrderZ == 1) {
+    return dy * inv2 * x * z * z;
+  }
+  // M2xx
+  else if constexpr (OrderX == 2 && OrderY == 0 && OrderZ == 0) {
+    const auto x3 = x * x * x;
+    return dy * inv3 * x3 * z; 
+  }
+  // M2yy
+  else if constexpr (OrderX == 0 && OrderY == 2 && OrderZ == 0) {
     const auto y2 = y * y;
-    return dy * inv2 * x * (R - B * y2);
+    return dy * x * y2 * z;
+  }
+  // M2zz
+  else if constexpr (OrderX == 0 && OrderY == 0 && OrderZ == 2) {
+    const auto z3 = z * z * z;
+    return dy * inv3 * x * z3;
+  }
+  // M2xy
+  else if constexpr (OrderX == 1 && OrderY == 1 && OrderZ == 0) {
+    const auto x2 = x * x;
+    return dy * inv2 * x2 * y * z;
+  }
+  // M2yz
+  else if constexpr (OrderX == 0 && OrderY == 1 && OrderZ == 1) {
+    const auto z2 = z * z;
+    return dy * inv2 * x * y * z2;
+  }
+  // M2xz
+  else if constexpr (OrderX == 1 && OrderY == 0 && OrderZ == 1) {
+    const auto x2 = x * x;
+    const auto z2 = z * z;
+    return dy * inv4 * x2 * z2;
   }
   return ScalarType(0);
 }
@@ -106,8 +136,53 @@ inline ReturnType MomentsIntegrandCylinderArc(const ScalarType a_t,
         MomentPlaneIntegrand<ScalarType, 0, 0, 1, ProjDir>(pos_t, der_t, normal,
                                                            dist, weight));
     return integrand;
+  } else if constexpr (std::is_same_v<
+                           ReturnType,
+                           GeneralMomentsBase<2, 3, ReturnScalarType>>) {
+    auto integrand = ReturnType::fromScalarConstant(ReturnScalarType(0));
+    integrand[0] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 0, 0, 0>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 0, 0, 0, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[1] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 1, 0, 0>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 1, 0, 0, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[2] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 0, 1, 0>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 0, 1, 0, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[3] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 0, 0, 1>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 0, 0, 1, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[4] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 2, 0, 0>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 2, 0, 0, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[5] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 1, 1, 0>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 1, 1, 0, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[6] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 1, 0, 1>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 1, 0, 1, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[7] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 0, 2, 0>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 0, 2, 0, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[8] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 0, 1, 1>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 0, 1, 1, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    integrand[9] = ReturnScalarType(
+        MomentCylinderIntegrand<ScalarType, 0, 0, 2>(pos_t, der_t, b, r) -
+        MomentPlaneIntegrand<ScalarType, 0, 0, 2, ProjDir>(pos_t, der_t, normal,
+                                                           dist, weight));
+    return integrand;
   } else {
-    std::cout << "Cylinder M>1 not available yet" << std::endl;
+    std::cout << "Cylinder M>2 not available yet" << std::endl;
     return ReturnType::fromScalarConstant(ReturnScalarType(0));
   }
 }
