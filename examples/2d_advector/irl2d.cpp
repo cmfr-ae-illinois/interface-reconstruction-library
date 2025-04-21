@@ -2128,7 +2128,7 @@ std::pair<Vec, Vec> BoundingBox(const BezierList& cell) {
   return std::make_pair(mi, ma);
 }
 
-// Functions for mapping centroids -----------------------------------------------
+// Functions for mapping moments -----------------------------------------------
 
 std::vector<BezierList> TriangulateCell(const BezierList& cell, const bool is_preimage){
   std::vector<BezierList> triangles;
@@ -2208,5 +2208,411 @@ Moments ComputeMappedTriangleMoments(const Moments& triangle_liq_moments, const 
    
   return MappedTriangleMoments;
 }
+
+// for MOF reconstruction on Unit cell
+
+BezierList ComputeTransformedCell(const BezierList& cell, const bool& toUnitCell){
+  double dx = std::abs(cell[1].first[0] - cell[0].first[0]); 
+  Vec x0; Vec x1;
+
+  if (toUnitCell == true){
+    x0 = cell[0].first - Vec((1-dx)/2.0, (1-dx)/2.0);
+    x1 = cell[2].first + Vec((1-dx)/2.0, (1-dx)/2.0);
+  } else {
+    x0 = cell[0].first + Vec((1-dx)/2.0, (1-dx)/2.0);
+    x1 = cell[2].first - Vec((1-dx)/2.0, (1-dx)/2.0);
+  }
+  
+  return RectangleFromBounds(x0, x1);
+}
+
+
+Mat MappingCellMat(const BezierList& cell, const bool& toUnitCell){
+  Mat A = Mat();
+  const auto TransformedCell = ComputeTransformedCell(cell, toUnitCell);
+
+  double x1, x1p, y1, y1p, x2, x2p, y2, y2p;
+
+  x1 = cell[0].first[0]; y1 = cell[0].first[1];
+  x2 = cell[1].first[0]; y2 = cell[1].first[1];
+
+  x1p = TransformedCell[0].first[0]; y1p = TransformedCell[0].first[1];
+  x2p = TransformedCell[1].first[0]; y2p = TransformedCell[1].first[1];
+
+  //std::cout << x1 << " " << x2 << " " << y1 <<  " " << y2 << std::endl;
+
+  // mapping matrix components
+  double denominator = x2*y1 - x1*y2;
+  A[0][0] = (x2p*y1 - x1p*y2) / denominator;
+  A[0][1] = -(x1*x2p - x2*x1p) / denominator;
+  A[1][0] = (y1*y2p - y2*y1p) / denominator;
+  A[1][1] = (x2*y1p - x1*y2p) / denominator;
+
+  return A;
+}
+
+
+Parabola ComputeTransformedParabola(const BezierList& cell, const Parabola& parabola,
+                                    const bool& toUnitCell){
+  Mat A = MappingCellMat(cell, toUnitCell);
+  Vec new_datum = A * parabola.datum();
+  double new_coeff = parabola.coeff() * A[1][1] / std::pow(A[0][0], 2.0);    
+
+  return Parabola(new_datum, parabola.frame(), new_coeff);
+}
+
+
+Moments ComputeTransformedCellMoments(const BezierList& cell, const Parabola& parabola, 
+                                      const bool& toUnitCell){
+  Moments TransformedCellMoments;
+  Moments moments = ComputeMoments(cell, parabola);
+  Mat A = MappingCellMat(cell, toUnitCell);
+
+  // scaling 0th moment
+  TransformedCellMoments.m0() = A[0][0] * A[1][1] * moments.m0();
+
+  // scaling 1st moment
+  TransformedCellMoments.m1()[0] = std::pow(A[0][0], 2.0) * A[1][1] * moments.m1()[0];
+  TransformedCellMoments.m1()[1] = std::pow(A[0][0], 2.0) * A[1][1] * moments.m1()[1];
+
+  // scaling 2nd moment
+  TransformedCellMoments.m2()[0][0] = std::pow(A[0][0], 3.0) * A[1][1] * moments.m2()[0][0];
+  TransformedCellMoments.m2()[1][1] = std::pow(A[1][1], 3.0) * A[0][0] * moments.m2()[1][1];
+  TransformedCellMoments.m2()[0][1] = std::pow(A[0][0], 2.0) * std::pow(A[1][1], 2.0) * moments.m2()[0][1];
+  TransformedCellMoments.m2()[1][0] = TransformedCellMoments.m2()[0][1];
+
+  return TransformedCellMoments;
+}
+
+// for curvature estimation -------------------------------------------------
+
+std::vector<Vec> ComputeParticlePositions(const int& N, const Vec& p, const double& phi,
+                                          const double& theta, const double& hp){
+  // N: Number of particles (odd)
+  // p: coordinate of central particle (origin)
+  // phi: orientation angle (angle between tangent of p and x-axis)
+  // theta: bending angle (turning angle between chords of the circle)
+  // hp: distance between particles (or chord length)
+
+  std::vector<Vec> particle_positions(N);
+
+  int c = (N - 1) / 2; // central particle index
+
+  // computing coordinates of all other particles on the arc
+  for (int i = 0; i < N; i++){
+    if (i > c){
+      for (int j = 1; j <= i-c; j++){
+        particle_positions[i] += hp * Vec( std::cos( phi + ( static_cast<double>(j) - 0.5 ) * theta ) ,
+                                           std::sin( phi + ( static_cast<double>(j) - 0.5 ) * theta ) );
+      }
+      particle_positions[i] = p + particle_positions[i];
+    } else if (i < c){
+        for (int j = 1; j <= c-i; j++){
+          particle_positions[i] += hp * Vec( std::cos( phi - ( static_cast<double>(j) - 0.5 ) * theta ) , 
+                                             std::sin( phi - ( static_cast<double>(j) - 0.5 ) * theta ) );
+        }
+        particle_positions[i] = p - particle_positions[i];
+    } else {
+      particle_positions[i] = p;
+    }
+
+  }
+
+  return particle_positions;
+}
+
+
+Vec ComputeParticleForce(const Vec& x, const std::vector<std::pair<Vec,Vec>>& line_seg_endpoints,
+                         const double& eta){
+
+  // x: position of particle
+  // line_seg_endpoints: endpoints {a,b} of line segments that are cloest to the particle
+  
+  Vec particle_force;
+
+  // Computing closest distance to all line segments in the vicinity of the particle
+
+  for (int i = 0; i < line_seg_endpoints.size(); i++){
+    Vec a = line_seg_endpoints[i].first;
+    Vec b = line_seg_endpoints[i].second;
+
+    // finding t using projection
+    Vec ab = b - a;
+    Vec ax = x - a;
+    double t = ax * ab / std::pow(ab.magnitude(), 2.0);
+    double t_clamped = std::max(0.0, std::min(1.0, t));
+
+    // finding closet point on the line segment to the point
+    Vec y = a + t_clamped * ab;
+
+    // Finding xy distance and keeping minimum value of "force"
+    Vec xy = y - x;
+
+    if (i == 0){
+      particle_force = xy;
+    } else {
+      if (xy.magnitude() < particle_force.magnitude()){
+        particle_force = xy;
+      }
+    }
+
+  }
+
+  return (eta * particle_force);
+}
+
+std::vector<Vec> InitializeParticlePositions(const std::pair<Vec,Vec>& target_endpoints, const double& hp,
+                                             const int& N){
+
+  // target_endpoints: end points of the target interface where curvature is to be estimated
+  // hp: spacing between particles along line segment
+  // N: number of particles (odd)
+
+  std::vector<Vec> initial_particle_positions(N);
+  
+  // line segment end points
+  Vec a = target_endpoints.first;
+  Vec b = target_endpoints.second;
+  
+  // unit vector along the line segment
+  Vec unit_ab = (b - a) / (b - a).magnitude();
+
+  // central particle at midpoint of line segment
+  initial_particle_positions[(N-1)/2] = (a + b) / 2.0;
+  
+  // other particles are spaced by hp on either side of the central particle along the line segment
+  for (int i = 1; i <= (N-1)/2; i++){
+    initial_particle_positions[(N-1)/2 + i] = initial_particle_positions[(N-1)/2] + hp * unit_ab * i;
+    initial_particle_positions[(N-1)/2 - i] = initial_particle_positions[(N-1)/2] - hp * unit_ab * i;
+  }
+
+  return initial_particle_positions;
+
+}
+
+double ComputeParticleForceProjection(const int& N, const double& phi, const double& theta, const double& hp,
+                                      const bool& iswrtPhi, const std::vector<Vec> particle_forces){
+
+  // iswrtPhi: true will compute derivative wrt phi else wrt theta
+
+  int c = (N - 1) / 2; // central particle index
+
+  std::vector<Vec> position_derivative(N);
+
+  position_derivative[c] = Vec(0.0, 0.0); // central particle
+
+  if (iswrtPhi == true){
+    for (int i = 1; i <= c; i++){
+      // i > c
+      position_derivative[c+i] = position_derivative[c + (i-1)] + 
+                                hp * Vec( std::cos( phi + ( static_cast<double>(i) - static_cast<double>(c) - 0.5 ) * theta + M_PI/2.0 ) ,
+                                          std::sin( phi + ( static_cast<double>(i) - static_cast<double>(c) - 0.5 ) * theta + M_PI/2.0) );
+      // i < c
+      position_derivative[c-i] = position_derivative[c - (i-1)] - 
+                                hp * Vec( std::cos( phi - ( static_cast<double>(c) - static_cast<double>(i) - 0.5 ) * theta + M_PI/2.0) ,
+                                          std::sin( phi - ( static_cast<double>(c) - static_cast<double>(i) - 0.5 ) * theta + M_PI/2.0) );
+    }
+  } else {
+    for (int i = 1; i <= c; i++){
+      // i > c
+      position_derivative[c+i] = position_derivative[c + (i-1)] + hp * (static_cast<double>(i) - static_cast<double>(c) - 0.5) *
+                                 Vec( std::cos( phi + ( static_cast<double>(i) - static_cast<double>(c) - 0.5 ) * theta + M_PI/2.0 ) ,
+                                      std::sin( phi + ( static_cast<double>(i) - static_cast<double>(c) - 0.5 ) * theta + M_PI/2.0) );
+      // i < c
+      position_derivative[c-i] = position_derivative[c - (i-1)] - hp * (static_cast<double>(c) - static_cast<double>(i) - 0.5) *
+                                 Vec( std::cos( phi - ( static_cast<double>(c) - static_cast<double>(i) - 0.5 ) * theta + M_PI/2.0) ,
+                                      std::sin( phi - ( static_cast<double>(c) - static_cast<double>(i) - 0.5 ) * theta + M_PI/2.0) );
+    }
+  }
+
+  // projecting force on derivative
+  double num = 0.0, denom = 0.0;
+  for (int i = 0; i < N; i++){
+    num += particle_forces[i] * position_derivative[i]; 
+    denom += position_derivative[i] * position_derivative[i];
+  }
+
+  return (num / denom);
+}
+
+double getCurvature(const Parabola& target_interface, const BezierList& target_cell,
+                    const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells,
+                    const int& N, const double& Hp, const double& h, const double& eta) {
+  
+  double theta, phi;
+  std::vector<Vec> particle_positions(N), particle_forces(N), particle_positions_prev(N),
+                   particle_forces_prev(N), particle_positions_s(N), particle_positions_ss(N),
+                   particle_forces_s(N), particle_forces_ss(N);
+  
+  // target interface end points
+  BezierList clipped_target_interface  = ParabolaClip(target_cell, target_interface, true);
+  std::pair<Vec, Vec> target_endpoints = {clipped_target_interface[0].first,
+                                          clipped_target_interface[1].first};
+  
+  // end points of all linear interfaces
+  std::vector<std::pair<Vec, Vec>> line_seg_endpoints(interfaces.size());
+  BezierList clipped_interface;
+  for (int i = 0; i < interfaces.size(); i++){
+    clipped_interface = ParabolaClip(cells[i], interfaces[i], true);
+    line_seg_endpoints[i] = {clipped_interface[0].first, clipped_interface[1].first};
+  }
+
+  // particle spacing
+  double hp = Hp * h / (static_cast<double>(N) - 1.0);
+
+  // initializing particle positions
+  particle_positions = InitializeParticlePositions(target_endpoints, hp, N);
+
+  // initialize forces
+  for (int i = 0; i < N; i++){
+    particle_forces[i] = ComputeParticleForce(particle_positions[i], line_seg_endpoints, eta);
+  }
+
+  // initialize orientation and bending angle
+  theta = 0.0;
+  Vec ab_star = target_endpoints.second - target_endpoints.first;
+  phi = std::atan2(ab_star[1], ab_star[0]);
+  if (phi < 0.0){
+    phi += 2.0 * M_PI;
+  }
+  
+  // iteration parameters
+  int max_iter = 100;
+  double tol = 1e-6;
+  int iter = 0;
+  double residual = 1.0;
+
+  // index of central particle
+  int c = (N - 1) / 2;
+
+  // update positions and forces
+  while (std::abs(residual) > tol){
+
+    iter++;
+
+    // prev iter
+    particle_positions_prev = particle_positions;
+    particle_forces_prev = particle_forces;
+
+    // step 1: correct central particle position using force
+    particle_positions[c] += particle_forces[c];
+    
+    // step 1: change in position for other particles
+    particle_positions_s = ComputeParticlePositions(N, particle_positions[c], phi, theta, hp);
+
+    // step 1: subtracting change of position from forces
+    for (int i = 0; i < N; i++){
+      particle_forces_s[i] = particle_forces_prev[i] - (particle_positions_s[i] - particle_positions_prev[i]);
+    }
+
+    // step 2: correct phi by projection of force
+    phi += ComputeParticleForceProjection(N, phi, theta, hp, true, particle_forces_s);
+
+    // step 2: change in position for other particles
+    particle_positions_ss = ComputeParticlePositions(N, particle_positions[c], phi, theta, hp);
+
+    // step 2: subtracting change of position from forces
+    for (int i = 0; i < N; i++){
+      particle_forces_ss[i] = particle_forces_s[i] - (particle_positions_ss[i] - particle_positions_s[i]);
+    }
+
+    // step 3: correct theta by projection of force
+    theta -= ComputeParticleForceProjection(N, phi, theta, hp, false, particle_forces_ss);
+
+    // step 3: update particle positions
+    particle_positions = ComputeParticlePositions(N, particle_positions[c], phi, theta, hp);
+
+    // step 3: update particle forces
+    for (int i = 0; i < N; i++){
+      particle_forces[i] = ComputeParticleForce(particle_positions[i], line_seg_endpoints, eta);
+    }
+
+    // residual: change in position for all particles (max value among all particles)
+    residual = 0.0;
+    for (int i = 0; i < N; i++){
+      residual = std::max(residual, (particle_positions[i] - particle_positions_prev[i]).magnitude()) / (eta * h);
+    }
+
+    if (iter == max_iter){
+      break;
+    }
+
+  }
+
+  // std::cout << "phi: " << phi * 180.0/M_PI << " theta: " << theta* 180.0/M_PI << " iter: " << iter << std::endl;
+  // std::cout << "residual: " << residual << std::endl;
+
+  return (2 * std::sin(theta/2.0) / hp); // curvature
+}
+
+// 2D Jibben -------------------------------------------------------------------------
+
+Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
+                           const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells){
+
+  Parabola parabolaJibben;
+
+  using segment = std::pair<Vec, Vec>;
+
+  // interface end points
+  std::vector<segment> line_seg_endpoints(interfaces.size());
+  BezierList clipped_interface;
+  for (int i = 0; i < interfaces.size(); i++){
+    clipped_interface = ParabolaClip(cells[i], interfaces[i], true);
+    line_seg_endpoints[i] = {clipped_interface[0].first, clipped_interface[1].first};
+  }
+
+  // printing line segment end points
+  // for(int i = 0; i < line_seg_endpoints.size(); i++){
+  //   std::cout << "line segment end points: " << line_seg_endpoints[i].first << " " << line_seg_endpoints[i].second << std::endl;
+  // }
+
+  // local reference frame and origin
+  Vec datum = target_interface.datum();
+  Vec t = target_interface.frame()[0]; Vec n = target_interface.frame()[1];
+
+  // least squares matrix and vector
+  Eigen::Matrix3d A = Eigen::Matrix3d::Zero();
+  Eigen::Vector3d b = Eigen::Vector3d::Zero();
+
+  for (const auto& [p1, p2]: line_seg_endpoints){
+    
+    // translation
+    Vec r1 = p1 - datum; Vec r2 = p2 - datum;
+
+    // projection,  (xi,eta): local frame coordinates
+    double xi1 = r1 * t; double eta1 = r1 * n;
+    double xi2 = r2 * t; double eta2 = r2 * n;
+    
+    // Linear form: eta = a * xi + b
+    double a_i = (eta2 - eta1) / (xi2 - xi1);
+    double b_i = eta1 - a_i * xi1; 
+
+    // terms from integral equation
+    double s0 = xi2 - xi1;
+    double s1 = 0.5 * (std::pow(xi2, 2.0) - std::pow(xi1, 2.0));
+    double s2 = (1.0 / 3.0) * (std::pow(xi2, 3.0) - std::pow(xi1, 3.0));
+    Eigen::Vector3d S(s0, s1, s2);
+    double d_i = b_i * s0 + a_i * s1;
+
+    A += S * S.transpose();
+    b += d_i * S;
+  }
+
+  // parabgola coefficients in local frame of reference
+  Eigen::Vector3d coeffs = A.ldlt().solve(b);  // c0, c1, c2
+  
+  // vertex in local coordinates
+  double xi_v = - coeffs(1) / (2.0 * coeffs(2));
+  double eta_v = coeffs(0) + coeffs(1) * xi_v + coeffs(2) * std::pow(xi_v, 2.0);
+
+  // parabola parameters
+  parabolaJibben.coeff() = coeffs(2);
+  parabolaJibben.frame() = target_interface.frame();
+  parabolaJibben.datum() = datum + xi_v * t + eta_v * n;
+
+  return parabolaJibben;
+}
+
 
 }  // namespace IRL2D

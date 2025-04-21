@@ -88,26 +88,3 @@ static int startSimulation(const std::string& a_simulation_type,
   }
   return -1;
 }
-
-// int main(){
-//   // unit cell function test
-// const auto cell = IRL2D::RectangleFromBounds(IRL2D::Vec(-0.25,-0.25), IRL2D::Vec(0.25,0.25));
-// IRL2D::Print(cell);
-// const auto moments = IRL2D::ComputeMoments(cell);
-// std::cout << "Cell M0 = " << moments.m0() << std::endl;
-// std::cout << "Cell M1 = " << moments.m1() << std::endl;
-// std::cout << "Cell M2 = " << moments.m2() << std::endl;
-// auto results = IRL2D::ComputeUnitSquareScaledMoments(cell, moments);
-// auto unit_cell = results.first; auto scaled_moments = results.second;
-// auto unit_moments = IRL2D::ComputeMoments(unit_cell);
-// IRL2D::Print(unit_cell);
-// // // testing recentering of moments
-// // RecenterMoments(&unit_moments, unit_moments.m1()/unit_moments.m0());
-// std::cout << "Unit Cell M0 = " << unit_moments.m0() << std::endl;
-// std::cout << "Unit Cell M1 = " << unit_moments.m1() << std::endl;
-// std::cout << "Unit Cell M2 = " << unit_moments.m2() << std::endl;
-// RecenterMoments(&scaled_moments, scaled_moments.m1()/scaled_moments.m0());
-// std::cout << "Scaled M0 = " << scaled_moments.m0() << std::endl;
-// std::cout << "Scaled M1 = " << scaled_moments.m1() << std::endl;
-// std::cout << "Scaled M2 = " << scaled_moments.m2() << std::endl;
-// }

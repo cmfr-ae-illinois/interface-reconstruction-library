@@ -13,6 +13,7 @@
 #include <random>
 #include <string>
 #include <unsupported/Eigen/Polynomials>
+#include <Eigen/Dense>
 #include <vector>
 #include "irl/generic_cutting/paraboloid_intersection/moment_contributions.h"
 #include "irl/geometry/general/math_vector.h"
@@ -477,6 +478,34 @@ Vec MappingPoint(const Mat& A, const Vec& b, const Vec& point);
 Mat MappingM2(const Mat& A, const Vec& b, const Moments& tri_liq_moment);
 
 Moments ComputeMappedTriangleMoments(const Moments& triangle_liq_moments, const Mat& A, const Vec& b);
+
+BezierList ComputeTransformedCell(const BezierList& cell, const bool& toUnitCell);
+
+Mat MappingCellMat(const BezierList& cell, const bool& toUnitCell);
+
+Parabola ComputeTransformedParabola(const BezierList& cell, const Parabola& parabola,
+  const bool& toUnitCell);
+
+Moments ComputeTransformedCellMoments(const BezierList& cell, const Parabola& parabola, 
+  const bool& toUnitCell);
+
+std::vector<Vec> ComputeParticlePositions(const int& N, const Vec& p, const double& phi,
+                                          const double& theta, const double& hp);
+
+Vec ComputeParticleForce(const Vec& x, const std::vector<std::pair<Vec,Vec>>& line_seg_endpoints, const double& eta);
+
+std::vector<Vec> InitializeParticlePositions(const std::pair<Vec,Vec>& target_endpoints, const double& hp,
+                                             const int& N);
+
+double ComputeParticleForceProjection(const int& N, const double& phi, const double& theta, const double& hp,
+                                      const bool& iswrtPhi, const std::vector<Vec> particle_forces);
+                            
+double getCurvature(const Parabola& target_interface, const BezierList& target_cell,
+                    const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells,
+                    const int& N, const double& Hp, const double& h, const double& eta);
+
+Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
+                           const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells);
 
 }  // namespace IRL2D
 
