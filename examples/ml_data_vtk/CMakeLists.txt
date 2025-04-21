@@ -1,0 +1,11 @@
+IRLAddExample_cpp(
+  TARGET_NAME
+    ml_data_vtk
+  HDRS
+  SRCS
+    "main.cpp"
+  OUTPUT_DIR
+    "${IRL_EXAMPLES_OUTPUT_DIR}/ml_data_vtk"
+  COLLECTION
+    "examples_ml_data_vtk"
+)

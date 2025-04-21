@@ -13,11 +13,14 @@ int main () {
     std::cout << tensor << std::endl;
 
     int stencil_size = 3;
-    int hidden_size = 100;
-    int output_size = 3; // Two numbers 0 = plane, 1 = paraboloid, 2 = cylinder
+    int hidden_size1 = 100;
+    int hidden_size2 = 100;
+    int hidden_size3 = 100;
+    int output_size = 4; // Two numbers 0 = plane, 1 = paraboloid, 2 = cylinder
     int batch_size = 64;
     double learning_rate = 0.01;
-    int no_batches = 256; // Should be divisible by batch size?
+    int no_batches = 1024; // Should be divisible by batch size?
+    int epochs = 20;
     std::vector<double> lossVector;
 
     // Declare vectors of states and labels
@@ -26,7 +29,7 @@ int main () {
 
 
     IRL::Data_gen data_gen;
-    data_gen.generate_Data(&statesV, &labelsV, no_batches*batch_size, stencil_size);
+    data_gen.generate_Data(&statesV, &labelsV, no_batches*batch_size, stencil_size, output_size); //if include planes = true, dont forget to adjust output size.
 
 
     
@@ -58,7 +61,7 @@ int main () {
     std::cout << "State: " << example.data << std::endl;
     std::cout << "Label: " << example.target << std::endl;
 
-    IRL::Net net(stencil_size*stencil_size*stencil_size, hidden_size, output_size);
+    IRL::Net net(stencil_size*stencil_size*stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
 
     auto data_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
         std::move(dataset).map(torch::data::transforms::Stack<>()), 
@@ -67,7 +70,7 @@ int main () {
 
     torch::optim::SGD optimizer(net.parameters(), learning_rate);
     
-    for (int epoch=1; epoch<=10; ++epoch) {
+    for (int epoch=1; epoch<=epochs; ++epoch) {
         int batch_index = 0;
         double total_loss = 0.0;
         int correct_predictions = 0;  // To count the number of correct predictions
