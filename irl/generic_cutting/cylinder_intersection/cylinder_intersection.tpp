@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Valentin Wasquel <wasquel.valentin@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -227,7 +227,7 @@ ReturnType computeType3ContributionWithSplit(
       const ScalarType f = (y - pt_0[1]) / (pt_1[1] - pt_0[1]);
       const ScalarType g = (x - pt_0[0]) / (pt_1[0] - pt_0[0]);
       #ifdef DEBUG_CYL_IRL
-      std::cout << "value checkpoint\n\n" << std::endl;
+      std::cout << "value verification\n\n" << std::endl;
       std::cout << "b : " << static_cast<double>(b) << std::endl;
       std::cout << "r : " << static_cast<double>(r) << std::endl;
       std::cout << "nx : " << static_cast<double>(nx) << std::endl;
