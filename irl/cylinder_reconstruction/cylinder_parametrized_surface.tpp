@@ -12,6 +12,7 @@
 
 #include <fstream>
 #include <iomanip>
+#include <stdexcept>
 
 // #define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
@@ -279,46 +280,57 @@ inline void CylinderParametrizedSurfaceOutput::resetCylinder(void) {
 // }
 
 inline double CylinderParametrizedSurfaceOutput::getSurfaceArea(void) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getSurfaceArea() is not yet implemented");
+  // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getMeanCurvatureIntegral(
     void) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getMeanCurvatureIntegral() is not yet implemented");
+  // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureIntegral(
     void) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getGaussianCurvatureIntegral() is not yet implemented");
+  // return 0.0;
 };
 inline Normal CylinderParametrizedSurfaceOutput::getAverageNormal(void) {
-  return Normal(0.0, 0.0, 0.0);
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getAverageNormal() is not yet implemented");
+  // return Normal(0.0, 0.0, 0.0);
 };
 inline Normal CylinderParametrizedSurfaceOutput::getAverageNormalNonAligned(
     void) {
-  return Normal(0.0, 0.0, 0.0);
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getAverageNormalNonAligned() is not yet implemented");
+  // return Normal(0.0, 0.0, 0.0);
 };
 inline Normal CylinderParametrizedSurfaceOutput::getNormalAligned(
     const Pt a_pt) {
-  return Normal(0.0, 0.0, 0.0);
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getNormalAligned() is not yet implemented");
+  // return Normal(0.0, 0.0, 0.0);
 };
 inline Normal CylinderParametrizedSurfaceOutput::getNormalNonAligned(
     const Pt a_pt) {
-  return Normal(0.0, 0.0, 0.0);
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getNormalNonAligned() is not yet implemented");
+  // return Normal(0.0, 0.0, 0.0);
 };
 inline double CylinderParametrizedSurfaceOutput::getMeanCurvatureAligned(
     const Pt a_pt) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getMeanCurvatureAligned() is not yet implemented");
+  // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getMeanCurvatureNonAligned(
     const Pt a_pt) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getMeanCurvatureNonAligned() is not yet implemented");
+  // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureAligned(
     const Pt a_pt) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getGaussianCurvatureAligned() is not yet implemented");
+  // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
     const Pt a_pt) {
-  return 0.0;
+  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getGaussianCurvatureNonAligned() is not yet implemented");
+  // return 0.0;
 };
 
 inline TriangulatedSurfaceOutput CylinderParametrizedSurfaceOutput::triangulate(

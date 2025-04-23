@@ -192,6 +192,10 @@ class NormalBase : public Expr<NormalBase<ScalarType>> {
   Vec3<ScalarType> normal_m;
 };
 
+
+template <class ScalarType>
+inline bool isnan(NormalBase<ScalarType> a_normal);
+
 using Normal = NormalBase<double>;
 
 }  // namespace IRL

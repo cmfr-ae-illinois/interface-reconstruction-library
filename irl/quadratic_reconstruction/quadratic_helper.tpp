@@ -12,44 +12,6 @@
 
 namespace IRL {
 
-  // solveQuadraticBetween0And1 Doesn't seems to be used 
-  // TODO : Remove?
-
-  // // Returns solution to quadratic equation solve.
-  // // The smallest solution will always be first.
-  // template <class ScalarType>
-  // inline StackVector<ScalarType, 2> solveQuadraticBetween0And1(
-  //     const ScalarType a, const ScalarType b, const ScalarType c) {
-  //   ScalarType discriminant = b * b - static_cast<ScalarType>(4) * a * c;
-
-  //   if (discriminant > static_cast<ScalarType>(0)) {
-  //       if (a != static_cast<ScalarType>(0)) {
-  //         /* First fast try in 32-bit precision */
-  //         const ScalarType approx_discriminant = approxsqrt(discriminant);
-  //         const ScalarType approx_q = -static_cast<ScalarType>(0.5) *
-  //                                     (b + copysign(approx_discriminant, b));
-  //         const ScalarType approx_sol1 = approx_q / safelyTiny(a);
-  //         const ScalarType approx_sol2 = c / safelyTiny(approx_q);
-  //         if ((approx_sol1 < -0.01 || approx_sol1 > 1.01) &&
-  //             (approx_sol2 < -0.01 || approx_sol2 > 1.01)) {
-  //             return StackVector<ScalarType, 2>();
-  //         }
-
-  //         /* Real calculation */
-  //         discriminant = sqrt(discriminant);
-  //         const ScalarType q =
-  //             -static_cast<ScalarType>(0.5) * (b + copysign(discriminant, b));
-  //         const ScalarType sol1 = q / safelyTiny(a);
-  //         const ScalarType sol2 = c / safelyTiny(q);
-  //         return sol1 < sol2 ? StackVector<ScalarType, 2>({sol1, sol2})
-  //                             : StackVector<ScalarType, 2>({sol2, sol1});
-  //       } else {
-  //         return StackVector<ScalarType, 2>({-c / b});
-  //       }
-  //   }
-  //   return StackVector<ScalarType, 2>();
-  // };
-
   // Returns solution to quadratic equation solve.
   // The smallest solution will always be first.
   template <class ScalarType>

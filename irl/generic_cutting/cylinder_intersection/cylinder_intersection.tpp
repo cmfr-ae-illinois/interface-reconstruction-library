@@ -147,7 +147,7 @@ ReturnType computeType3ContributionWithSplit(
 
   // this is to catch Normal.normalize returning NAN
   // using the fact that any comparaison with nan is false
-  if (!(edge_vector_normalized == edge_vector_normalized)) {
+  if (isnan(edge_vector_normalized)) {
     #ifdef NUDGE_REGION
     std::cout << "nudging because edge vector normalization failed" << std::endl;
     #endif
@@ -208,7 +208,10 @@ ReturnType computeType3ContributionWithSplit(
     (*a_split_counter)++;
 
     // for the first split, let's try to split at the maximum of the ellipse
-    if (*a_split_counter == 1 && abs(a_plane_normal[2]) > MACHINE_EPSILON) {
+    const bool has_a_maximum = abs(a_plane_normal[1] * a_plane_normal[1] 
+                                    + a_cylinder.b() * a_plane_normal[2] * a_plane_normal[2])
+                                > MACHINE_EPSILON;
+    if (*a_split_counter == 1 && has_a_maximum) {
       #ifdef DEBUG_CYL_IRL
       std::cout << "first split, let's try to catch the maximum of the ellipse" << std::endl;
       #endif
@@ -1150,6 +1153,26 @@ formCylinderIntersectionBasesClipped(
   // Identify elliptic case
   const bool elliptic = b > -MACHINE_EPSILON;
 
+  for (UnsignedIndex_t v = 0; v < a_polytope->getNumberOfVertices(); ++v) {
+    auto& vertex = *(a_polytope->getVertex(v));
+    // when cutting/rotating the polyhedron, sometime the new points
+    // are not exactly on the Oxy plane
+    // check the point are above the horizontal plane
+    if (vertex.getLocation().getPt()[2] < -MACHINE_EPSILON) {
+      // when cutting/rotating, some point can land bellow Oxy plane. let's try again
+      #ifdef NUDGE_REGION
+        std::cout << "nudging because a point is below the Oxy plane" << std::endl;
+      #endif
+      *requires_nudge = true;
+      return full_moments;
+    }
+    // if the point are below the plane but close to it, clipped it to the plane
+    if (vertex.getLocation().getPt()[2] < ZERO) {
+      auto& pt = vertex.getLocation().getPt();
+      pt[2] = ZERO;
+    }
+  }
+
   // First, triangulate faces (if necessary) and compute normals
   // The triangulation criterion is based on face planarity
   #ifdef DEBUG_CYL_IRL
@@ -1172,22 +1195,6 @@ formCylinderIntersectionBasesClipped(
     auto& vertex = *(a_polytope->getVertex(v));
     vertex.setAsUnnecessaryToSeek();  // Reset all
     vertex.markToBeClipped();
-    // when cutting the polyhedron, sometime the new points
-    // are not exactly on the Oxy plane
-    // check the point are above the horizontal plane
-    if (vertex.getLocation().getPt()[2] < -MACHINE_EPSILON) {
-      // when cutting, some point can land bellow Oxy plane. let's try again
-      #ifdef NUDGE_REGION
-      std::cout << "nudging because a point is below the Oxy plane" << std::endl;
-    #endif
-      *requires_nudge = true;
-      break;
-    }
-    // if the point are below the plane but close to it, clipped it to the plane
-    if (vertex.getLocation().getPt()[2] < ZERO) {
-      auto& pt = vertex.getLocation().getPt();
-      pt[2] = ZERO;
-    }
 
     #ifdef DEBUG_CYL_IRL
       std::cout << "point nb : " << v << ", vertex : " << vertex << std::endl;
