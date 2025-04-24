@@ -850,6 +850,38 @@ double Spline::getCurvature(double u) {
     double k = term1/term2;
     return k;
 }
+std::vector<double> Spline::getTangent(double u) {
+    // Find Span we are in
+    int spanIndex = findSpan(u);
+
+    // 0th Derivative Coefficients
+    double a = numerCoeffsX[spanIndex][0];
+    double b = numerCoeffsX[spanIndex][1];
+    double c = numerCoeffsX[spanIndex][2];
+    
+    double d = numerCoeffsY[spanIndex][0];
+    double e = numerCoeffsY[spanIndex][1];
+    double f = numerCoeffsY[spanIndex][2];
+
+    double alpha = denomCoeffs[spanIndex][0];
+    double beta = denomCoeffs[spanIndex][1];
+    double gamma = denomCoeffs[spanIndex][2];
+
+    // 1st Derivative Coefficients
+    double ax = a*beta-b*alpha;
+    double bx = 2*(a*gamma-alpha*c);
+    double cx = b*gamma-beta*c;
+
+    double ay = d*beta-e*alpha;
+    double by = 2*(d*gamma-alpha*f);
+    double cy = e*gamma-beta*f;
+
+    // First Derivatives 
+    double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+
+    return {xp,yp};
+}
 
 std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset) {
     std::vector<std::vector<double>> curve = {{0,0}};

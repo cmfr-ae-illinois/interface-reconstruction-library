@@ -91,7 +91,10 @@ class Spline {
         // gets the signed curvature at the point given by parameter value u
         // This also is supposed to return first and second derivatives, but that may need to be a new Method
         double getCurvature(double u);
-
+        
+        // Given a parameter u, returns the tangent vector at the point on the spline
+        std::vector<double> getTangent(double u);
+        
         // Clips the intersection between a grid cell and the spline, returjning parameter values and indicators.
         std::vector<std::vector<double>> getParameterLoop(std::vector<std::vector<double>> square);
 

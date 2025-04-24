@@ -14,8 +14,8 @@ add_subdirectory(parameters)
 add_subdirectory(planar_reconstruction)
 add_subdirectory(paraboloid_reconstruction)
 add_subdirectory(surface_mesher)
+add_subdirectory(splines)
 
 # Other directories for the C/Fortran interface.
-
 add_subdirectory(c_interface)
 add_subdirectory(fortran_interface)
