@@ -385,6 +385,24 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       indexes_of_close.push_back(list_of_closed_curves.size());
       continue;
     }
+
+    // triangulated face can lead to the surface beeing compose of triangles cliping to each other
+    // let's remove dubplicated arcs by marking them as visited
+
+    for (std::size_t t = an_indexes_of_flip[i]; t < an_indexes_of_flip[i+1] - 1; ++t) {
+
+      const std::uintptr_t start_id = arc_list_m[t].start_point_id();
+      const std::uintptr_t end_id = arc_list_m[t].end_point_id();
+      for (std::size_t e = t+1; e < an_indexes_of_flip[i+1]; ++e) {
+        if (arc_list_m[e].start_point_id() == end_id && 
+              arc_list_m[e].end_point_id() == start_id) {
+                visited[t] = true;
+                visited[e] = true;
+                break;
+        }
+      }
+    }
+
     for (std::size_t t = an_indexes_of_flip[i]; t < an_indexes_of_flip[i+1]; ++t) {
       if (visited[t]) {
         continue;

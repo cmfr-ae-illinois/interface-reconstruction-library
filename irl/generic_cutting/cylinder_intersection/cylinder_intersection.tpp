@@ -2150,6 +2150,7 @@ formCylinderIntersectionBases(
   const ScalarType PI = machine_pi<ScalarType>();
   const ScalarType HALF = ScalarType(1) / ScalarType(2);
   const ScalarType TREEHALF = ScalarType(3) / ScalarType(2);
+  const ScalarType ANGLE_EPSILON = angle_epsilon<ScalarType>();
 
   assert(!(a_surface != nullptr &&
            std::is_same<SurfaceOutputType, NoSurfaceOutput>::value));
@@ -2171,14 +2172,136 @@ formCylinderIntersectionBases(
     }
   }
 
+  bool require_nudge = false; 
+
   #ifdef DEBUG_CYL_IRL
   std::cout << "computing the volume" << std::endl;
   #endif
 
+  // if b = 0, then the cylinder is two plan located at +/- sqrt(r)
+  if (abs(a_aligned_cylinder.b()) < DBL_EPSILON) {
+
+    #ifdef DEBUG_CYL_IRL
+      std::cout << "b is 0, splitting by two plane instead" << std::endl;
+    #endif
+    const ScalarType ONE = ScalarType(1);
+    const ScalarType ZERO = ScalarType(0);
+    const ScalarType z = sqrt(a_aligned_cylinder.r());
+    Normal top_normal = Normal(ZERO, ZERO, ONE);
+    Plane top_plane = Plane(top_normal, z);
+    Plane bottom_plane = Plane(Normal(ZERO, ZERO, - ONE), z);
+    SegmentedHalfEdgePolyhedronType p2;
+    splitHalfEdgePolytope(
+        a_polytope, &p2, a_complete_polytope,
+        top_plane);
+    SegmentedHalfEdgePolyhedronType p3;
+    splitHalfEdgePolytope(
+        a_polytope, &p3, a_complete_polytope,
+        bottom_plane);
+
+    if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
+
+      const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
+      triangulatePolytopeAndComputeNormals(a_polytope, a_complete_polytope,
+        DISTANCE_EPSILON, &require_nudge);
+
+      if (require_nudge) {
+        return reformQuadraticIntersectionBases<ReturnType>(
+          a_polytope, a_complete_polytope, a_aligned_cylinder, a_nudge_iter,
+          a_surface, a_datum, a_frame);
+      }
+
+      #ifdef DEBUG_CYL_IRL
+        std::cout << "there is surface output" << std::endl;
+      #endif
+      // set cylinder for reconstruction
+      auto db_datum = a_datum.toDoublePt();
+      auto db_fram = ReferenceFrame(a_frame[0].toDoubleNormal(),
+                a_frame[1].toDoubleNormal(), a_frame[2].toDoubleNormal());
+      Cylinder cylinder = Cylinder(db_datum, db_fram, 
+              static_cast<long double>(a_aligned_cylinder.b()), 
+              static_cast<long double>(a_aligned_cylinder.r()));
+      a_surface->setCylinder(cylinder);
+
+
+      const auto nb_faces = a_polytope->getNumberOfFaces();
+      
+      for (UnsignedIndex_t f = 0; f < nb_faces; f++) {
+        auto& face = *(*a_polytope)[f];
+        const auto& face_normal = face.getPlane().normal();
+        if ((abs(face_normal[2] + ONE) < ANGLE_EPSILON || abs(face_normal[2] - ONE) < ANGLE_EPSILON) &&
+        abs(face.getStartingHalfEdge()->getPreviousVertex()->getLocation()[2] - z) < DISTANCE_EPSILON) {
+          auto starting_edge = face.getStartingHalfEdge();
+          auto current_edge = starting_edge;
+          do {
+            auto pt_0 = current_edge->getPreviousVertex()->getLocation();
+            auto pt_1 = current_edge->getVertex()->getLocation();
+            auto pt_center = 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt());
+            // We need to store this vertex so that its address remains
+            // unique over time (for surface output purposes)
+            PtBase<double>* new_point =
+                new PtBase<double>(static_cast<double>(pt_center[0]),
+                                  static_cast<double>(pt_center[1]),
+                                  static_cast<double>(pt_center[2]));
+            a_surface->addPt(new_point);
+            auto surface_arc = RationalBezierArc(
+                pt_0, *new_point, pt_1, 0.5);
+            surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getPreviousVertex()));
+            surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getVertex()));
+            a_surface->addArc(surface_arc);
+            current_edge = current_edge->getNextHalfEdge();
+          } while (current_edge != starting_edge);
+          
+        }
+      }
+
+      // set rotated_cylinder for reconstruction
+      UnitQuaternionBase<ScalarType> x_rotation(PI, Normal(ONE, ZERO, ZERO));
+      x_rotation.normalize();
+      auto rotated_quad_ref = x_rotation * a_frame;
+      auto db_rotated_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
+                rotated_quad_ref[1].toDoubleNormal(), rotated_quad_ref[2].toDoubleNormal());
+      Cylinder rotated_cylinder = Cylinder(db_datum, db_rotated_fram, 
+              static_cast<long double>(a_aligned_cylinder.b()), 
+              static_cast<long double>(a_aligned_cylinder.r()));
+      a_surface->setCylinder(rotated_cylinder);
+
+      for (UnsignedIndex_t f = 0; f < nb_faces; f++) {
+        auto& face = *(*a_polytope)[f];
+        const auto& face_normal = face.getPlane().normal();
+        if ((abs(face_normal[2] + ONE) < ANGLE_EPSILON || abs(face_normal[2] - ONE) < ANGLE_EPSILON) &&
+        abs(face.getStartingHalfEdge()->getPreviousVertex()->getLocation()[2] + z) < DISTANCE_EPSILON) {
+          auto starting_edge = face.getStartingHalfEdge();
+          auto current_edge = starting_edge;
+          do {
+            auto pt_0 = current_edge->getPreviousVertex()->getLocation();
+            auto pt_1 = current_edge->getVertex()->getLocation();
+            auto pt_center = 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt());
+            // We need to store this vertex so that its address remains
+            // unique over time (for surface output purposes)
+            PtBase<double>* new_point =
+                new PtBase<double>(static_cast<double>(pt_center[0]),
+                                  static_cast<double>(-pt_center[1]),
+                                  static_cast<double>(-pt_center[2]));
+            a_surface->addPt(new_point);
+            auto surface_arc = RationalBezierArc(
+                Pt(pt_0[0], -pt_0[1], -pt_0[2]), *new_point,
+                Pt(pt_1[0], -pt_1[1], -pt_1[2]), 0.5);
+            surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getPreviousVertex()));
+            surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getVertex()));
+            a_surface->addArc(surface_arc);
+            current_edge = current_edge->getNextHalfEdge();
+          } while (current_edge != starting_edge);
+          
+        }
+      }
+    }
+
+    return ReturnType::calculateMoments(a_polytope);
+  }
+
   // only cut in quarter if ouputing a elliptic cylinder surface
   bool quad_cut = (a_aligned_cylinder.b() > 0) && std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value;
-
-  bool require_nudge = false; 
 
   ReturnType total_moments = ReturnType::fromScalarConstant(0.0);
 
