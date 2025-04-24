@@ -13,11 +13,6 @@
 #include <vector>
 #include "irl/quadratic_reconstruction/parametrized_surface.h"
 
-// #define IRL_USE_EARCUT
-// #define IRL_USE_TRIANGLE
-#define IRL_USE_CGAL
-// #define IRL_USE_GEOGRAM
-
 #ifdef IRL_USE_EARCUT
 #include "external/earcut.hpp/include/mapbox/earcut.hpp"
 #elif defined IRL_USE_TRIANGLE

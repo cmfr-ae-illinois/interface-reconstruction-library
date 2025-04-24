@@ -13,10 +13,7 @@
 #include <fstream>
 #include <iomanip>
 
-// #define IRL_USE_EARCUT
-// #define IRL_USE_TRIANGLE
-#define IRL_USE_CGAL
-// #define IRL_USE_GEOGRAM
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
 
 #include "external/NumericalIntegration/NumericalIntegration.h"
 

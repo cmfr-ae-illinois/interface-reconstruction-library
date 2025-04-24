@@ -14,11 +14,6 @@
 #include <iomanip>
 #include <stdexcept>
 
-// #define IRL_USE_EARCUT
-// #define IRL_USE_TRIANGLE
-#define IRL_USE_CGAL
-// #define IRL_USE_GEOGRAM
-
 #include "external/NumericalIntegration/NumericalIntegration.h"
 #include "irl/cylinder_reconstruction/cylinder_parametrized_surface.h"
 
