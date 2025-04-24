@@ -11,7 +11,7 @@
 #define IRL_C_INTERFACE_DATA_STRUCTURES_C_OBJECT_ALLOCATION_SERVER_TRIANGULATED_PARABOLOID_H_
 
 #include "irl/data_structures/object_allocation_server.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 
 extern "C" {
 
