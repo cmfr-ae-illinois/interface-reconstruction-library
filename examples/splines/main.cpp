@@ -175,6 +175,9 @@ int main() {
 
     // Printing Results
     std::cout << "\n======= Weight Result ========== \n";
+    // Notice that, starting at the first, every other weight is 1. This is just a choice. The other weights
+    // (index 1,3,5,...) are the ones which should be used when converting to the rational Bezier curves
+    // of the form in the paper.
     for(int i = 0; i < weights.size(); i++) {
         std::cout << weights[i] << ",";
     }
