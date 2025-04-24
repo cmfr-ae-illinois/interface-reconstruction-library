@@ -13,6 +13,7 @@
 #include "irl/generic_cutting/default_cutting_method.h"
 #include "irl/moments/moments_type_traits.h"
 #include "irl/paraboloid_reconstruction/paraboloid_reconstruction_type_traits.h"
+#include "irl/cylinder_reconstruction/cylinder_reconstruction_type_traits.h"
 #include "irl/planar_reconstruction/planar_reconstruction_type_traits.h"
 
 namespace IRL {
@@ -80,6 +81,30 @@ template <class ReconstructionType>
 struct IsNotAParaboloidReconstruction {
   static constexpr bool value =
       !IsParaboloidReconstruction<ReconstructionType>::value;
+};
+
+template <class ReconstructionType>
+struct HasACylinderReconstruction {
+  static constexpr bool value =
+      has_cylinder_reconstruction<ReconstructionType>::value;
+};
+
+template <class ReconstructionType>
+struct DoesNotHaveACylinderReconstruction {
+  static constexpr bool value =
+      !HasACylinderReconstruction<ReconstructionType>::value;
+};
+
+template <class ReconstructionType>
+struct IsCylinderReconstruction {
+  static constexpr bool value =
+      is_cylinder_reconstruction<ReconstructionType>::value;
+};
+
+template <class ReconstructionType>
+struct IsNotACylinderReconstruction {
+  static constexpr bool value =
+      !IsCylinderReconstruction<ReconstructionType>::value;
 };
 
 template <class ReconstructionType>

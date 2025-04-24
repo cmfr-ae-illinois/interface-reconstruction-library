@@ -18,7 +18,7 @@
 #include "irl/geometry/general/polynomial.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/general/unit_quaternion.h"
-#include "irl/paraboloid_reconstruction/ellipse.h"
+#include "irl/quadratic_reconstruction/ellipse.h"
 
 namespace IRL {
 
@@ -40,6 +40,7 @@ class AlignedParaboloidBase {
   //           static_cast<ScalarType>(a_aligned_paraboloid.a()),
   //           static_cast<ScalarType>(a_aligned_paraboloid.b())}){};
 
+ //
   constexpr AlignedParaboloidBase(void) {
     std::fill(coefficients_m.begin(), coefficients_m.end(), ScalarType(0));
   }

@@ -161,8 +161,9 @@ std::array<Pt, 2> SegmentedHalfEdgePolytope<
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
+template <class ScalarType>
 int SegmentedHalfEdgePolytope<FaceType, VertexType, kMaxFaces, kMaxVertices>::
-    calculateAndStoreDistanceToVertices(const Plane& a_plane) {
+    calculateAndStoreDistanceToVertices(const PlaneBase<ScalarType>& a_plane) {
   // No actual object
   if (this->getNumberOfVertices() == 0) {
     return -1;
@@ -350,8 +351,13 @@ inline std::ostream& operator<<(
   out << "<DataArray type=\"Float32\" NumberOfComponents=\"3\">\n";
   for (UnsignedIndex_t n = 0; n < a_polytope.getNumberOfVertices(); ++n) {
     const auto& vert_pt = a_polytope.getVertex(n)->getLocation();
-    out << std::scientific << std::setprecision(20) << vert_pt[0] << " "
-        << vert_pt[1] << " " << vert_pt[2] << '\n';
+    if constexpr (std::is_same<typename VertexType::value_type, __float128>::value) {
+      out << std::scientific << std::setprecision(20) << static_cast<double>(vert_pt[0]) << " "
+          << static_cast<double>(vert_pt[1]) << " " << static_cast<double>(vert_pt[2]) << '\n';
+    } else {
+      out << std::scientific << std::setprecision(20) << vert_pt[0] << " "
+          << vert_pt[1] << " " << vert_pt[2] << '\n';
+    }
   }
   out << "</DataArray>\n";
   out << "</Points>\n";

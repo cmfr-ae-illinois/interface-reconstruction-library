@@ -41,23 +41,16 @@ This produces a text file named `fig6.txt` containing the raw data (i.e., the *u
 
 ## Parameter sweep study (Section 7.2)
 
-The moment estimation errors and execution times resulting from the graded and random parameter sweeps of Section 7.2, presented in Tables 2, 3, 4, and 6, have been generated using our [testing suite](https://github.com/fabienevrard/irl-paraboloid-testing).
+The moment estimation errors and execution times resulting from the graded and random parameter sweeps of Section 7.2, presented in Tables 2, 3, 4, and 6, have been generated using the paraboloid_testing tool-set. 
 
-This project can be cloned and built using:
-```
-git clone https://github.com/fabienevrard/irl-paraboloid-testing.git
-cd irl-paraboloid-testing
-cd external
-git clone https://github.com/nlohmann/json.git
-cd ..
-mkdir build
-cd build
-cmake -DIRL_ROOT_LOCATION=<path_to_IRL_project_directory> -DIRL_INSTALL_LOCATION=<path_to_IRL_install_directory> -DEIGEN_DIR=<path_to_eigen_directory> ..
-make
-```
-This will generate two executables named `amr_generate_result` and `irl_confirm_result`. 
+To generate the executables, the option `-D PARABOLOID_TESTING=ON` must be provided when configuring IRL via CMake, then execution the command
 
-As the name indicates, `amr_generate_result` produces reference results for our parameter sweeps using AMR (adaptive mesh-refinement) of the clipped polyhedron's faces. It takes an input file in the JSON format, which read as:
+```
+make paraboloid_testing
+```
+This will generate two executables named `paraboloid_amr_generate_result` and `paraboloid_irl_confirm_result`. 
+
+As the name indicates, `paraboloid_amr_generate_result` produces reference results for our parameter sweeps using AMR (adaptive mesh-refinement) of the clipped polyhedron's faces. It takes an input file in the JSON format, which read as:
 ```
 {
   "test_name": "parameter_sweep",                       <- type of test: "parameter_sweep", or "translating_cube"
@@ -83,11 +76,11 @@ The shapes available for testing are those introduced in Table 1 of the manuscri
 
 The input files used for producing the reference results used in Section 7.2 are given in the folder `example_inputs`. For instance,
 ```
-mpirun -np 4 ./amr_generate_result ../example_inputs/input_random_cube.json
+mpirun -np 4 ./paraboloid_amr_generate_result ../tools/src/paraboloid_testing/example_inputs/input_random_cube.json
 ``` 
 will use 4 CPU-cores to generate the reference results of the random parameter sweep for the cube. These calculation are expensive, so we recommend to first test them for a limited number of cases, e.g., with `"number_of_tests": 1e2`.
 
-Once reference results have been produced and stored, our algorithm for calculating the first moments of a polyhedron-paraboloid intersection can be tested using the executable `irl_confirm_result`. For instance,
+Once reference results have been produced and stored, our algorithm for calculating the first moments of a polyhedron-paraboloid intersection can be tested using the executable `paraboloid_irl_confirm_result`. For instance,
 ```
 ./irl_confirm_result random_cube_results.txt random_cube.bin
 ``` 

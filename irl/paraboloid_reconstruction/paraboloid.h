@@ -23,6 +23,7 @@
 #include "irl/geometry/general/pt_with_data.h"
 #include "irl/geometry/general/reference_frame.h"
 #include "irl/graphs/un_directed_graph_node.h"
+#include "irl/quadratic_reconstruction/quadratic_helper.h"
 #include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
 #include "irl/paraboloid_reconstruction/gradient_paraboloid.h"
 #include "irl/planar_reconstruction/joined_reconstructions.h"
@@ -126,18 +127,6 @@ template <class PtTypeWithGradient, class ScalarType>
 inline PtTypeWithGradient getParaboloidSurfaceNormalWithGradient(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const PtTypeWithGradient& a_pt);
-
-template <class ScalarType>
-inline StackVector<ScalarType, 2> solveQuadratic(const ScalarType a,
-                                                 const ScalarType b,
-                                                 const ScalarType c);
-
-template <class GradientType, class ScalarType>
-inline StackVector<std::pair<ScalarType, GradientType>, 2>
-solveQuadraticWithGradient(const ScalarType a, const ScalarType b,
-                           const ScalarType c, const GradientType& a_grad,
-                           const GradientType& b_grad,
-                           const GradientType& c_grad);
 
 template <class ScalarType>
 inline PtBase<ScalarType> projectPtAlongLineOntoParaboloid(

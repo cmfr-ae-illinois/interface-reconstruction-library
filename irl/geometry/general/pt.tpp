@@ -289,11 +289,19 @@ inline PtBase<ScalarType>& PtBase<ScalarType>::operator=(Expr<E>&& a_expr) {
 template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const PtBase<ScalarType>& a_pt) {
+  if constexpr (std::is_same<ScalarType, __float128>::value) {
   out << std::setprecision(15);
-  out << "( " << a_pt[0];
-  out << ", " << a_pt[1];
-  out << ", " << a_pt[2];
+  out << "( " << static_cast<double>(a_pt[0]);
+  out << ", " << static_cast<double>(a_pt[1]);
+  out << ", " << static_cast<double>(a_pt[2]);
   out << " )";
+  } else {
+    out << std::setprecision(15);
+    out << "( " << a_pt[0];
+    out << ", " << a_pt[1];
+    out << ", " << a_pt[2];
+    out << " )";
+  }
   return out;
 }
 

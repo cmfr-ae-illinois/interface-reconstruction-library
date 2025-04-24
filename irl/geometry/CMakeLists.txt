@@ -75,11 +75,11 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/segme
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_polygon.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/segmented_half_edge_polyhedron.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge.h)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_paraboloid.h)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_paraboloid.tpp)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_polyhedron_paraboloid.h)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_polyhedron_paraboloid.tpp)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/segmented_half_edge_polyhedron_paraboloid.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_quadratic.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_quadratic.tpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_polyhedron_quadratic.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_polyhedron_quadratic.tpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/segmented_half_edge_polyhedron_quadratic.h)
 
 
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/polygons/tri.tpp)

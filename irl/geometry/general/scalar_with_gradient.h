@@ -581,7 +581,7 @@ inline std::ostream& operator<<(
     std::ostream& out,
     const ScalarWithGradientBase<FloatType, GradientType>& a_scalar) {
   out << std::scientific << std::setprecision(6) << std::showpos
-      << a_scalar.value() << std::setprecision(3)
+      << static_cast<double>(a_scalar.value()) << std::setprecision(3)
       << " (grad = " << a_scalar.gradient() << ")";
   return out;
 }

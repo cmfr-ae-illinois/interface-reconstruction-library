@@ -147,10 +147,10 @@ template <class ScalarType>
 inline std::ostream& operator<<(
     std::ostream& out,
     const ParaboloidGradientLocalBase<ScalarType>& a_gradient) {
-  out << a_gradient.getGradA() << ", " << a_gradient.getGradB() << ", "
-      << a_gradient.getGradTx() << ", " << a_gradient.getGradTy() << ", "
-      << a_gradient.getGradTz() << ", " << a_gradient.getGradRx() << ", "
-      << a_gradient.getGradRy() << ", " << a_gradient.getGradRz();
+  out << static_cast<double>(a_gradient.getGradA()) << ", " << static_cast<double>(a_gradient.getGradB()) << ", "
+      << static_cast<double>(a_gradient.getGradTx()) << ", " << static_cast<double>(a_gradient.getGradTy()) << ", "
+      << static_cast<double>(a_gradient.getGradTz()) << ", " << static_cast<double>(a_gradient.getGradRx()) << ", "
+      << static_cast<double>(a_gradient.getGradRy()) << ", " << static_cast<double>(a_gradient.getGradRz());
   return out;
 }
 

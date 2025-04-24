@@ -186,6 +186,21 @@ inline ReturnType getVolumeMomentsProvidedStorage<
       a_polytope, a_complete_polytope, a_reconstruction);
 }
 
+template <class ReturnType, class CuttingMethod, class SegmentedPolytopeType,
+          class HalfEdgePolytopeType, class ScalarType>
+inline ReturnType getVolumeMomentsProvidedStorage<
+    ReturnType, CuttingMethod, SegmentedPolytopeType, HalfEdgePolytopeType,
+    CylinderBase<ScalarType>,
+    enable_if_t<IsCylinderReconstruction<CylinderBase<ScalarType>>::value &&
+                !is_separated_moments<ReturnType>::value>>::
+    getVolumeMomentsImplementation(
+        SegmentedPolytopeType* a_polytope,
+        HalfEdgePolytopeType* a_complete_polytope,
+        const CylinderBase<ScalarType>& a_reconstruction) {
+  return intersectPolyhedronWithCylinder<ReturnType>(
+      a_polytope, a_complete_polytope, a_reconstruction);
+}
+
 template <class ReturnType, class CuttingMethod, class EncompassingType>
 ReturnType getVolumeMoments<
     ReturnType, CuttingMethod, EncompassingType, PlanarSeparatorPathGroup,
@@ -224,6 +239,8 @@ ReturnType getVolumeMoments<
                 !(IsPlanarSeparator<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value) &&
                 !(IsParaboloidReconstruction<ReconstructionType>::value &&
+                  is_separated_moments<ReturnType>::value) &&
+                !(IsCylinderReconstruction<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value)>>::
     getVolumeMomentsImplementation(const EncompassingType& a_polytope,
                                    const ReconstructionType& a_reconstruction) {
@@ -240,6 +257,8 @@ ReturnType getVolumeMoments<
                 !(IsPlanarSeparator<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value) &&
                 !(IsParaboloidReconstruction<ReconstructionType>::value &&
+                  is_separated_moments<ReturnType>::value) &&
+                !(IsCylinderReconstruction<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value)>>::
     getVolumeMomentsImplementation(const EncompassingType& a_polytope,
                                    const ReconstructionType& a_reconstruction) {
@@ -256,6 +275,8 @@ ReturnType getVolumeMoments<
                 !(IsPlanarSeparator<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value) &&
                 !(IsParaboloidReconstruction<ReconstructionType>::value &&
+                  is_separated_moments<ReturnType>::value) &&
+                !(IsCylinderReconstruction<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value)>>::
     getVolumeMomentsImplementation(const EncompassingType& a_polytope,
                                    const ReconstructionType& a_reconstruction) {
@@ -271,9 +292,12 @@ inline ReturnType getVolumeMomentsProvidedStorage<
                 IsNotANullReconstruction<ReconstructionType>::value &&
                 IsNotAPlanarSeparatorPathGroup<ReconstructionType>::value &&
                 IsNotAParaboloidReconstruction<ReconstructionType>::value &&
+                IsNotACylinderReconstruction<ReconstructionType>::value &&
                 !(IsPlanarSeparator<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value) &&
                 !(IsParaboloidReconstruction<ReconstructionType>::value &&
+                  is_separated_moments<ReturnType>::value) &&
+                !(IsCylinderReconstruction<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value)>>::
     getVolumeMomentsImplementation(SegmentedPolytopeType* a_polytope,
                                    HalfEdgePolytopeType* a_complete_polytope,
@@ -311,6 +335,8 @@ inline ReturnType getVolumeMomentsProvidedStorage<
                 !(IsPlanarSeparator<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value) &&
                 !(IsParaboloidReconstruction<ReconstructionType>::value &&
+                  is_separated_moments<ReturnType>::value) &&
+                !(IsCylinderReconstruction<ReconstructionType>::value &&
                   is_separated_moments<ReturnType>::value)>>::
     getVolumeMomentsImplementation(SegmentedPolytopeType* a_polytope,
                                    HalfEdgePolytopeType* a_complete_polytope,
