@@ -1,6 +1,6 @@
 #include <array>
 #include <iostream>
-#include "Spline.h"
+#include "irl/splines/Spline.h"
 
 
 static double ASeries[41][2] = {
@@ -68,6 +68,7 @@ std::array<double, 2> coeffsAreaSeries(const double w) {
   }
   return K;
 }
+#include "irl/splines/Spline.h"
 
 int main() {
   // std::vector<std::vector<double>> V1 =

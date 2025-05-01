@@ -7,14 +7,16 @@
 
 
 // Will Delete, for testing
-float Spline::add(float x, float y) {
+template <class ScalarType>
+float Spline<ScalarType>::add(float x, float y) {
     float add;
     add = x-y;
     return add;
 }
 
 // Constructors
-Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::vector<double> W) {
+template <class ScalarType>
+Spline<ScalarType>::Spline(std::vector<std::vector<ScalarType>> CP,std::vector<ScalarType> KV,std::vector<ScalarType> W) {
     Spline::ControlPoints = CP;
     Spline::KnotVector = KV;
     Spline::Weights = W;
@@ -27,13 +29,14 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
 
 // Static Methods ***********************
 // TEST ALL STATIC METHODS ***************************************************************************************
-std::vector<double> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q) {// Testing Needed
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::BesselTangentUVec(std::vector<std::vector<ScalarType>> Q) {// Testing Needed
     int n = Q.size()-1;
-    double d = 0;
-    std::vector<double> dset = {0};
+    ScalarType d = ScalarType(0);
+    std::vector<ScalarType> dset = {ScalarType(0)};
     // Make Distance Vector
     for(int i =1; i <Q.size();i++){
-        double mag = 0;
+        ScalarType mag = 0;
         for(int j = 0;j < Q[0].size();j++) {
             mag += pow(Q[i][j]-Q[i-1][j],2);
         } 
@@ -46,7 +49,7 @@ std::vector<double> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q
         d += mag;
     }
     // Make U from Distance Vector
-    std::vector<double> ubar = {0};
+    std::vector<ScalarType> ubar = {0};
     for(int i = 1; i < n+1; i++) {
         ubar.insert(ubar.end(),ubar[i-1]+dset[i-1]/d);
     }
@@ -54,14 +57,15 @@ std::vector<double> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q
     return ubar;
 }
 
-std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<double>> Q) { // Testing Needed
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::BesselTangents(std::vector<std::vector<ScalarType>> Q) { // Testing Needed
     int n = Q.size()-1;
 
-    std::vector<double> ubar = BesselTangentUVec(Q);
+    std::vector<ScalarType> ubar = BesselTangentUVec(Q);
 
-    std::vector<double> dUbar = {0};
+    std::vector<ScalarType> dUbar = {ScalarType(0)};
     
-    std::vector<std::vector<double>> q = {{0,0}};
+    std::vector<std::vector<ScalarType>> q = {{ScalarType(0),ScalarType(0)}};
     for(int i = 0;i<n;i++) {
         if(i == 0) {
             dUbar[i] = ubar[i+1]-ubar[i];
@@ -70,7 +74,7 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
             }
         } else {
             dUbar.insert(dUbar.end(),ubar[i+1]-ubar[i]);
-            std::vector<double> temp = {0,1};
+            std::vector<ScalarType> temp = {0,1};
             for(int j = 0; j < temp.size(); j++) {
                 temp[j] = Q[i+1][j]-Q[i][j];
             }
@@ -84,17 +88,17 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
     }
 
     // Calculate Alphas
-    std::vector<double> alpha = {0};
+    std::vector<ScalarType> alpha = {ScalarType(0)};
     for(int i = 1; i<n;i++) { 
-        double numer = dUbar[i-1];
-        double denom = dUbar[i-1]-dUbar[i];
+        ScalarType numer = dUbar[i-1];
+        ScalarType denom = dUbar[i-1]-dUbar[i];
 
         alpha.insert(alpha.end(),numer/denom);
     }
 
     // Calculate D
-    std::vector<std::vector<double>> D = {{0,0}};
-    std::vector<double> temp = {0,0};
+    std::vector<std::vector<ScalarType>> D = {{0,0}};
+    std::vector<ScalarType> temp = {0,0};
     for(int i = 1; i < n; i++) {
         temp = {0,0};
         for(int j = 0; j <temp.size();j++) {
@@ -118,7 +122,7 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
 
     //  Loop through and normalize
     for(int i = 0; i < D.size(); i++) {
-        double mag = 0;
+        ScalarType mag = ScalarType(0);
         for(int j = 0; j<D[0].size();j++) {
             mag += pow(D[i][j],2);
         }
@@ -132,20 +136,20 @@ std::vector<std::vector<double>> Spline::BesselTangents(std::vector<std::vector<
     // Return
     return D;
 }
-
 //Assumes 2D
-std::vector<std::vector<double>> Spline::solvePointTangentIntersection(std::vector<double> Q1, 
-                                                          std::vector<double> Q2,
-                                                          std::vector<double> T1,
-                                                          std::vector<double> T2) {
-        double detA = T2[0]*T1[1]-T2[1]*T1[0];
-        double dQx = Q1[0]-Q2[0];
-        double dQy = Q1[1]-Q2[1];
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::solvePointTangentIntersection(std::vector<ScalarType> Q1, 
+                                                          std::vector<ScalarType> Q2,
+                                                          std::vector<ScalarType> T1,
+                                                          std::vector<ScalarType> T2) {
+        ScalarType detA = T2[0]*T1[1]-T2[1]*T1[0];
+        ScalarType dQx = Q1[0]-Q2[0];
+        ScalarType dQy = Q1[1]-Q2[1];
         
-        double g1 = (T2[1]*dQx-T2[0]*dQy)/detA;
-        double g2 = (T1[1]*dQx-T2[0]*dQy)/detA;
-        std::vector<double> R = {0,0};
-        std::vector<double> g = {g1,g2};
+        ScalarType g1 = (T2[1]*dQx-T2[0]*dQy)/detA;
+        ScalarType g2 = (T1[1]*dQx-T2[0]*dQy)/detA;
+        std::vector<ScalarType> R = {ScalarType(0),ScalarType(0)};
+        std::vector<ScalarType> g = {g1,g2};
         for(int i = 0;i <R.size();i++){
             R[i] = Q1[i] + g1*T1[i];
         }
@@ -153,13 +157,14 @@ std::vector<std::vector<double>> Spline::solvePointTangentIntersection(std::vect
     }
 
 //Assumes 2D
-double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::vector<double> Qk) { 
-    std::vector<double> dQmR = {0,0};
-    std::vector<double> dQR = {0,0};
+template <class ScalarType>
+ScalarType Spline<ScalarType>::makeWeight(std::vector<ScalarType> Qkm, std::vector<ScalarType> Rk, std::vector<ScalarType> Qk) { 
+    std::vector<ScalarType> dQmR = {ScalarType(0),ScalarType(0)};
+    std::vector<ScalarType> dQR = {ScalarType(0),ScalarType(0)};
     // Set up Dot Product
-    double dQmRnorm = 0;
-    double dQRnorm = 0;
-    double dotProd = 0;
+    ScalarType dQmRnorm = ScalarType(0);
+    ScalarType dQRnorm = ScalarType(0);
+    ScalarType dotProd = ScalarType(0);
     for(int i = 0;i < dQR.size(); i++) {
         dQmR[i] = Rk[i]-Qkm[i];
         dQmRnorm += pow(dQmR[i],2);
@@ -173,16 +178,16 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
     dQRnorm = sqrt(dQRnorm);
 
     dotProd /= dQmRnorm*dQRnorm;
-    double tolerance = 1e-6;
-    double weight = -1;
+    ScalarType tolerance = 1e-6;
+    ScalarType weight = ScalarType(-1);
     if(fabs(dotProd-1) < tolerance) { // Collinear
         // std::cout << "Collinear\n";
         weight = 0;
     } else {
         if(fabs(dQmRnorm-dQRnorm) < tolerance) { // Isosceles
             // std::cout << "Isosceles\n";
-            std::vector<double> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
-            double eVal = 0;
+            std::vector<ScalarType> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+            ScalarType eVal = ScalarType(0);
             for(int i = 0;i<M.size();i++) {
                 M[i] = Qk[i] - M[i];
                 eVal += pow(M[i],2);
@@ -191,20 +196,20 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
             weight = eVal/dQmRnorm;
         } else { // Other Case
             // std::cout << "Other\n";
-            std::vector<double> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+            std::vector<ScalarType> M = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
             // std::cout << "Qk = " << Qk[0] << "," << Qk[1] << "\n";
             // S1
-            std::vector<double> MR = {0,0};
-            double MRnorm = 0;
-            std::vector<double> MQm = {0,0};
-            double MQmnorm = 0;
-            std::vector<double> QRm = {0,0};
-            double QRmnorm = 0;
+            std::vector<ScalarType> MR = {0,0};
+            ScalarType MRnorm = 0;
+            std::vector<ScalarType> MQm = {0,0};
+            ScalarType MQmnorm = 0;
+            std::vector<ScalarType> QRm = {0,0};
+            ScalarType QRmnorm = 0;
             // S2
-            std::vector<double> MQ = {0,0};
-            double MQnorm = 0;
-            std::vector<double> QR = {0,0};
-            double QRnorm = 0;
+            std::vector<ScalarType> MQ = {0,0};
+            ScalarType MQnorm = 0;
+            std::vector<ScalarType> QR = {0,0};
+            ScalarType QRnorm = 0;
 
             for(int i = 0; i < MR.size(); i++) {
                 // S1
@@ -237,10 +242,10 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
                 QR[i] /= QRnorm;   
             }
             // Bisection Vectors
-            std::vector<double> BiVec1 = {0,0};
-            double BiVec1norm = 0;
-            std::vector<double> BiVec2 = {0,0};
-            double BiVec2norm = 0;
+            std::vector<ScalarType> BiVec1 = {0,0};
+            ScalarType BiVec1norm = 0;
+            std::vector<ScalarType> BiVec2 = {0,0};
+            ScalarType BiVec2norm = 0;
             for(int i = 0; i < MR.size(); i++) {
                 // S1
                 BiVec1[i] = QRm[i] + MQm[i];
@@ -262,14 +267,14 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
                 BiVec2[i] /= BiVec2norm;
             }
             // Solve for S1,S2
-            std::vector<double> S1 = Spline::solvePointTangentIntersection(Qkm,M,BiVec1,MR)[0];
-            std::vector<double> S2 = Spline::solvePointTangentIntersection(Qk,M,BiVec2,MR)[0];
+            std::vector<ScalarType> S1 = Spline::solvePointTangentIntersection(Qkm,M,BiVec1,MR)[0];
+            std::vector<ScalarType> S2 = Spline::solvePointTangentIntersection(Qk,M,BiVec2,MR)[0];
             // Get S
-            std::vector<double> S = {(S1[0]+S2[0])/2,(S1[1]+S2[1])/2};
+            std::vector<ScalarType> S = {(S1[0]+S2[0])/2,(S1[1]+S2[1])/2};
             // std::cout <<"S = " <<S[0] << "," << S[1] << "\n";
             // Make Weight
-            double numer = 0;
-            double denom = 0;
+            ScalarType numer = 0;
+            ScalarType denom = 0;
             for(int i = 0; i < S.size(); i++) {
                 numer += pow(M[i]-S[i],2);
                 denom += pow(Rk[i]-S[i],2);
@@ -280,24 +285,25 @@ double Spline::makeWeight(std::vector<double> Qkm, std::vector<double> Rk, std::
     return weight;
 }
 
-Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) { // Should be working (Tested)
+template <class ScalarType>
+Spline<ScalarType> Spline<ScalarType>::LocalRQuadInterp(std::vector<std::vector<ScalarType>> Q,std::vector<std::vector<ScalarType>> T) { // Should be working (Tested)
     int n = Q.size()-1;
-    std::vector<std::vector<double>> CPoints = {Q[0]};
-    std::vector<std::vector<double>> gamma = {{0,0}};
-    std::vector<double> weight = {1};
-    
+    std::vector<std::vector<ScalarType>> CPoints = {Q[0]};
+    std::vector<std::vector<ScalarType>> gamma = {{0,0}};
+    std::vector<ScalarType> weight = {ScalarType(1)};
+
     for(int i =0;i<n;i++) { // Loop over consecutive points.
         // std::cout << "i = " << i << "\n";
 
         // Involved Tangents and Points
-        std::vector<double> Tk = T[i+1];
-        double normTk = 0;
+        std::vector<ScalarType> Tk = T[i+1];
+        ScalarType normTk = 0;
 
-        std::vector<double> Tkm = T[i];
-        double normTkm = 0;
+        std::vector<ScalarType> Tkm = T[i];
+        ScalarType normTkm = 0;
 
-        std::vector<double> Qk = Q[i+1];
-        std::vector<double> Qkm = Q[i];
+        std::vector<ScalarType> Qk = Q[i+1];
+        std::vector<ScalarType> Qkm = Q[i];
 
         // Normalize Tangents
         for(int j = 0; j < Tk.size();j++) {
@@ -312,7 +318,7 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
         }
 
         // Dot Product of Tangents
-        double DotProductValue = 0;
+        ScalarType DotProductValue = 0;
         for(int j = 0; j < Tk.size();j++) {
             DotProductValue += Tk[j]*Tkm[j];
         }
@@ -325,86 +331,86 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
         // std::cout << "Current Tkm:\n" << Tkm[0] << "\n" << Tkm[1] << "\n"; 
         if(fabs(fabs(DotProductValue)-1) <= 1e-6) { // Parallel Case
             // std::cout << "Parallel Case\n";
-            std::vector<double> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
-            double dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
+            std::vector<ScalarType> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
+            ScalarType dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
             dQVec[0] /= dQnorm;
             dQVec[1] /= dQnorm;
 
             // Dot Products
-            double Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
+            ScalarType Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
             if(fabs(fabs(Dk)-1) <= 1e-6) { // Straight Line Case
-                std::vector<double> Rk = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
+                std::vector<ScalarType> Rk = {(Qkm[0]+Qk[0])/2,(Qkm[1]+Qk[1])/2};
                 // std::cout << "i = " << i << "\n";
                 // std::cout <<"Rk = \n" << Rk[0]<< "\n" << Rk[1] << "\n";
                 CPoints.insert(CPoints.end(),Rk);
                 CPoints.insert(CPoints.end(),Qk);
 
-                double w1 = makeWeight(Qkm,Rk,Qk);
+                ScalarType w1 = makeWeight(Qkm,Rk,Qk);
                 // std::cout <<"w1 = \n" << w1<< "\n";
                 weight.insert(weight.end(),w1);
                 weight.insert(weight.end(),1);
             } else { // Parallel Tangents, not Parallel to Chord
-                double gammak = 0.5*dQnorm;
-                double gammakp = gammak;
-                std::vector<double> Rkp = {Qkm[0]+gammak*Tkm[0],Qkm[1]+gammak*Tkm[1]};
-                std::vector<double> Rkpp = {Qk[0]-gammakp*Tk[0],Qk[1]-gammakp*Tk[1]};
-                std::vector<double> Qkp = {(gammak*Rkpp[0]+gammakp*Rkp[0])/(gammak+gammakp),
+                ScalarType gammak = 0.5*dQnorm;
+                ScalarType gammakp = gammak;
+                std::vector<ScalarType> Rkp = {Qkm[0]+gammak*Tkm[0],Qkm[1]+gammak*Tkm[1]};
+                std::vector<ScalarType> Rkpp = {Qk[0]-gammakp*Tk[0],Qk[1]-gammakp*Tk[1]};
+                std::vector<ScalarType> Qkp = {(gammak*Rkpp[0]+gammakp*Rkp[0])/(gammak+gammakp),
                                            (gammak*Rkpp[1]+gammakp*Rkp[1])/(gammak+gammakp)};
                 
-                double w1 = makeWeight(Qkm,Rkp,Qkp);
-                double w2 = makeWeight(Qkp,Rkpp,Qk);
+                ScalarType w1 = makeWeight(Qkm,Rkp,Qkp);
+                ScalarType w2 = makeWeight(Qkp,Rkpp,Qk);
                 weight.insert(weight.end(),{w1,1,w2,1});
                 CPoints.insert(CPoints.end(),{Rkp,Qkp,Rkpp,Qk});
             }
         } else { // Not Parllel
             // std::cout << "Not Parallel\n";
-            std::vector<std::vector<double>> sol = solvePointTangentIntersection(Qkm,Qk,Tkm,Tk);
-            std::vector<double> Rk1 = sol[0];
-            std::vector<double> g = sol[1];
+            std::vector<std::vector<ScalarType>> sol = solvePointTangentIntersection(Qkm,Qk,Tkm,Tk);
+            std::vector<ScalarType> Rk1 = sol[0];
+            std::vector<ScalarType> g = sol[1];
 
             if(g[0] <= 1e-12 || g[1] >= -1e12) { // Solution Exists, but not in bounds (Inflection Point or 180 turn)
                 // std::cout << "Inflection or 180\n";
                 // std::cout << "Qk = " << Qk[0] << "," << Qk[1] << "\n";
                 // std::cout << "Qkm = " << Qkm[0] << "," << Qkm[1] << "\n";
-                std::vector<double> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
-                double dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
+                std::vector<ScalarType> dQVec = {Qk[0] - Qkm[0],Qk[1] - Qkm[1]};
+                ScalarType dQnorm = sqrt(pow(dQVec[0],2) + pow(dQVec[1],2));
                 // std::cout << "dQnorm = " << dQnorm << "\n"; 
                 dQVec[0] /= dQnorm;
                 dQVec[1] /= dQnorm;
 
                 // Dot Product
-                double Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
-                double Dkm = dQVec[0]*Tkm[0]+dQVec[1]*Tkm[1];
+                ScalarType Dk = dQVec[0]*Tk[0]+dQVec[1]*Tk[1];
+                ScalarType Dkm = dQVec[0]*Tkm[0]+dQVec[1]*Tkm[1];
                 // std::cout << "Dk = " << Dk << "\n";
                 // std::cout << "Dkm = " << Dkm<< "\n";
                 //Angles
-                double thetak = fabs(acos(Dk));
-                double thetakm = fabs(acos(Dkm));
+                ScalarType thetak = fabs(acos(Dk));
+                ScalarType thetakm = fabs(acos(Dkm));
                 // std::cout << "thetak = " << thetak<< "\n";
                 // std::cout << "thetakm = " << thetakm<< "\n";
 
-                double a = 2.0/3.0; // Tunable Parameter
+                ScalarType a = ScalarType(2.0)/ScalarType(3.0); // Tunable Parameter
 
-                double numer = dQnorm;
-                double denom1 = 2*(1+a*cos(thetak)+(1-a)*cos(thetakm));
-                double denom2 = 2*(1+a*cos(thetakm)+(1-a)*cos(thetak));
+                ScalarType numer = dQnorm;
+                ScalarType denom1 = 2*(1+a*cos(thetak)+(1-a)*cos(thetakm));
+                ScalarType denom2 = 2*(1+a*cos(thetakm)+(1-a)*cos(thetak));
                 // std::cout << "denom1 = " << (1-a)*cos(thetakm)<< "\n";
                 // std::cout << "denom2 = " << denom2<< "\n";
-                double gammak = numer/denom1;
-                double gammakp = numer/denom2;
+                ScalarType gammak = numer/denom1;
+                ScalarType gammakp = numer/denom2;
 
-                std::vector<double> Rkp = {Qkm[0]+gammak*Tkm[0],Qkm[1]+gammak*Tkm[1]};
-                std::vector<double> Rkpp = {Qk[0]-gammakp*Tk[0],Qk[1]-gammakp*Tk[1]};
-                std::vector<double> Qkp = {(gammak*Rkpp[0]+gammakp*Rkp[0])/(gammak+gammakp),
+                std::vector<ScalarType> Rkp = {Qkm[0]+gammak*Tkm[0],Qkm[1]+gammak*Tkm[1]};
+                std::vector<ScalarType> Rkpp = {Qk[0]-gammakp*Tk[0],Qk[1]-gammakp*Tk[1]};
+                std::vector<ScalarType> Qkp = {(gammak*Rkpp[0]+gammakp*Rkp[0])/(gammak+gammakp),
                                            (gammak*Rkpp[1]+gammakp*Rkp[1])/(gammak+gammakp)};
-                double w1 = makeWeight(Qkm,Rkp,Qkp);
-                double w2 = makeWeight(Qkp,Rkpp,Qk);
+                ScalarType w1 = makeWeight(Qkm,Rkp,Qkp);
+                ScalarType w2 = makeWeight(Qkp,Rkpp,Qk);
                 weight.insert(weight.end(),{w1,1,w2,1});
 
                 CPoints.insert(CPoints.end(),{Rkp,Qkp,Rkpp,Qk});
             } else { // Normal Case
                 // std::cout << "Normal\n";
-                double w1 = makeWeight(Qkm,Rk1,Qk);
+                ScalarType w1 = makeWeight(Qkm,Rk1,Qk);
 
                 weight.insert(weight.end(),{w1,1});
                 CPoints.insert(CPoints.end(),{Rk1,Qk});
@@ -414,8 +420,8 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
     // std::cout << "Loop Done\n";
     // At this point, weight and CPoints are made. The last thing we need is the knot vector
     // Split the Q and R sets
-    std::vector<std::vector<double>> Qset = {CPoints[0]};
-    std::vector<std::vector<double>> Rset = {CPoints[1]};
+    std::vector<std::vector<ScalarType>> Qset = {CPoints[0]};
+    std::vector<std::vector<ScalarType>> Rset = {CPoints[1]};
     // std::cout << "CHECK QSET and RSET Creation **********************************\n";
     for(int i = 2; i < CPoints.size()-1;i+=2){ 
         Qset.insert(Qset.end(),CPoints[i]); // Get every other control point
@@ -425,20 +431,20 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
     }
     n = Qset.size()-1;
     // Make ubar Helper
-    std::vector<double> ubar= {0.0,1.0};
+    std::vector<ScalarType> ubar= {0.0,ScalarType(1.0)};
     for(int i = 2;i <= n+1; i++) {
-        double coeff = ubar[i-1]-ubar[i-2];
+        ScalarType coeff = ubar[i-1]-ubar[i-2];
 
-        double numer = sqrt(pow(Rset[i-1][0]-Qset[i-1][0],2)+pow(Rset[i-1][1]-Qset[i-1][1],2));
-        double denom = sqrt(pow(Qset[i-1][0]-Rset[i-2][0],2)+pow(Qset[i-1][1]-Rset[i-2][1],2));
+        ScalarType numer = sqrt(pow(Rset[i-1][0]-Qset[i-1][0],2)+pow(Rset[i-1][1]-Qset[i-1][1],2));
+        ScalarType denom = sqrt(pow(Qset[i-1][0]-Rset[i-2][0],2)+pow(Qset[i-1][1]-Rset[i-2][1],2));
 
         ubar.insert(ubar.end(),ubar[i-1]+coeff*numer/denom);
     }
-    double un = ubar[ubar.size()-1];
+    ScalarType un = ubar[ubar.size()-1];
     // Make Knot Vector
-    std::vector<double> U = {0,0,0};
+    std::vector<ScalarType> U = {0,0,0};
     for(int i = 1;i < ubar.size();i++) {
-        U.insert(U.end(),{double(i+1)/ubar.size(),double(i+1)/ubar.size()});
+        U.insert(U.end(),{ScalarType(i+1)/ubar.size(),ScalarType(i+1)/ubar.size()});
     }
     U.insert(U.end(),1);
     
@@ -446,13 +452,14 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
     // for(int i = 0; i < ubar.size();i++) {
     //     std::cout << ubar[i] << ",";
     // }
-    Spline ret = Spline(CPoints,U,weight);
+    Spline<ScalarType> ret = Spline<ScalarType>(CPoints,U,weight);
     return ret;
 }
 
 // Dynamic Methods **************************
 // Assuming 2D
-int Spline::findSpan(double u) {
+template <class ScalarType>
+int Spline<ScalarType>::findSpan(ScalarType u) {
     int spanIndex = -1;
     if(u > 1) {// Too Large Error
         spanIndex = -1; 
@@ -471,14 +478,15 @@ int Spline::findSpan(double u) {
     return spanIndex;
 }
 
-double Spline::BBasisFunction(int i, int p,double u) { 
-    double numer1 = u - KnotVector[i];
-    double numer2 = KnotVector[i+p+1]-u;
-    double denom1 = KnotVector[i+p] - KnotVector[i];
-    double denom2 = KnotVector[i+p+1]-KnotVector[i+1];
-    double P;
-    double Q1;
-    double Q2;
+template <class ScalarType>
+ScalarType Spline<ScalarType>::BBasisFunction(int i, int p,ScalarType u) { 
+    ScalarType numer1 = u - KnotVector[i];
+    ScalarType numer2 = KnotVector[i+p+1]-u;
+    ScalarType denom1 = KnotVector[i+p] - KnotVector[i];
+    ScalarType denom2 = KnotVector[i+p+1]-KnotVector[i+1];
+    ScalarType P;
+    ScalarType Q1;
+    ScalarType Q2;
     if(p == 0){
         if(KnotVector[i] <= u && u <= KnotVector[i+1]) {
             P = 1.0;
@@ -502,8 +510,9 @@ double Spline::BBasisFunction(int i, int p,double u) {
 }
 
 // Assumes Quadratic NURBs
-std::vector<std::vector<double>> Spline::BasisCoefficients(int i) { 
-    std::vector<std::vector<double>> coeffs = {{0,0,0},{0,0,0},{0,0,0}};
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::BasisCoefficients(int i) { 
+    std::vector<std::vector<ScalarType>> coeffs = {{0,0,0},{0,0,0},{0,0,0}};
     // Make sure i is within possible bounds
     if(i+4 > KnotVector.size()){
         // Error Case, once I learn to throw errors
@@ -511,25 +520,25 @@ std::vector<std::vector<double>> Spline::BasisCoefficients(int i) {
         return coeffs;
     }
     // Denominators for all terms
-    const double denom1 = (KnotVector[i+2]-KnotVector[i])*(KnotVector[i+1]-KnotVector[i]);
-    const double denom2 = (KnotVector[i+2]-KnotVector[i])*(KnotVector[i+2]-KnotVector[i+1]);
-    const double denom3 = (KnotVector[i+3]-KnotVector[i+1])*(KnotVector[i+2]-KnotVector[i+1]);
-    const double denom4 = (KnotVector[i+3]-KnotVector[i+1])*(KnotVector[i+3]-KnotVector[i+2]);
+    const ScalarType denom1 = (KnotVector[i+2]-KnotVector[i])*(KnotVector[i+1]-KnotVector[i]);
+    const ScalarType denom2 = (KnotVector[i+2]-KnotVector[i])*(KnotVector[i+2]-KnotVector[i+1]);
+    const ScalarType denom3 = (KnotVector[i+3]-KnotVector[i+1])*(KnotVector[i+2]-KnotVector[i+1]);
+    const ScalarType denom4 = (KnotVector[i+3]-KnotVector[i+1])*(KnotVector[i+3]-KnotVector[i+2]);
     // Quadratic Term
-    const double numer1Q = BBasisFunction(i,0,KnotVector[i]);
-    const double numer2Q = -BBasisFunction(i+1,0,KnotVector[i+1]);
-    const double numer3Q = -BBasisFunction(i+1,0,KnotVector[i+1]);
-    const double numer4Q = BBasisFunction(i+2,0,KnotVector[i+2]);
+    const ScalarType numer1Q = BBasisFunction(i,0,KnotVector[i]);
+    const ScalarType numer2Q = -BBasisFunction(i+1,0,KnotVector[i+1]);
+    const ScalarType numer3Q = -BBasisFunction(i+1,0,KnotVector[i+1]);
+    const ScalarType numer4Q = BBasisFunction(i+2,0,KnotVector[i+2]);
     // Linear Terms
-    const double numer1L = -2*KnotVector[i]*BBasisFunction(i,0,KnotVector[i]);
-    const double numer2L = (KnotVector[i+2]+KnotVector[i])*BBasisFunction(i+1,0,KnotVector[i+1]);
-    const double numer3L = (KnotVector[i+3]+KnotVector[i+1])*BBasisFunction(i+1,0,KnotVector[i+1]);
-    const double numer4L = -2*KnotVector[i+3]*BBasisFunction(i+2,0,KnotVector[i+2]);
+    const ScalarType numer1L = -2*KnotVector[i]*BBasisFunction(i,0,KnotVector[i]);
+    const ScalarType numer2L = (KnotVector[i+2]+KnotVector[i])*BBasisFunction(i+1,0,KnotVector[i+1]);
+    const ScalarType numer3L = (KnotVector[i+3]+KnotVector[i+1])*BBasisFunction(i+1,0,KnotVector[i+1]);
+    const ScalarType numer4L = -2*KnotVector[i+3]*BBasisFunction(i+2,0,KnotVector[i+2]);
     // Constant Term
-    const double numer1C = pow(KnotVector[i],2)*BBasisFunction(i,0,KnotVector[i]);
-    const double numer2C = -KnotVector[i]*KnotVector[i+2]*BBasisFunction(i+1,0,KnotVector[i+1]);
-    const double numer3C = -KnotVector[i+1]*KnotVector[i+3]*BBasisFunction(i+1,0,KnotVector[i+1]);
-    const double numer4C = pow(KnotVector[i+3],2)*BBasisFunction(i+2,0,KnotVector[i+2]);
+    const ScalarType numer1C = pow(KnotVector[i],2)*BBasisFunction(i,0,KnotVector[i]);
+    const ScalarType numer2C = -KnotVector[i]*KnotVector[i+2]*BBasisFunction(i+1,0,KnotVector[i+1]);
+    const ScalarType numer3C = -KnotVector[i+1]*KnotVector[i+3]*BBasisFunction(i+1,0,KnotVector[i+1]);
+    const ScalarType numer4C = pow(KnotVector[i+3],2)*BBasisFunction(i+2,0,KnotVector[i+2]);
     // Set up Coefficients and BOunds
     // First Span
     if(denom1 == 0){
@@ -564,8 +573,9 @@ std::vector<std::vector<double>> Spline::BasisCoefficients(int i) {
     return coeffs;
 }
 
-std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i) {
-    std::vector<std::vector<double>> bounds = {{0,0},{0,0},{0,0}};
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::BasisCoefficientBounds(int i) {
+    std::vector<std::vector<ScalarType>> bounds = {{0,0},{0,0},{0,0}};
     // First Span
     bounds[0][0] = KnotVector[i];
     bounds[0][1] = KnotVector[i+1];
@@ -580,7 +590,8 @@ std::vector<std::vector<double>> Spline::BasisCoefficientBounds(int i) {
 }
 
 // Currently for 2D
-std::vector<std::vector<double>> Spline::CurveCoefficients() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::CurveCoefficients() {
     int spansSize = spans.size();
 
     numerCoeffsX = {{0,0,0}};
@@ -588,8 +599,8 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
     denomCoeffs = {{0,0,0}};
     // Loop over basis functions:
     for(int i = 0;i < KnotVector.size()-3;i++){
-        std::vector<std::vector<double>> coeffs = this->BasisCoefficients(i);
-        std::vector<std::vector<double>> bounds = this->BasisCoefficientBounds(i);
+        std::vector<std::vector<ScalarType>> coeffs = this->BasisCoefficients(i);
+        std::vector<std::vector<ScalarType>> bounds = this->BasisCoefficientBounds(i);
 
         // Loop Over spans, add coefficients to appropriate span 
         for(int j = 0;j < spans.size();j++) {
@@ -632,7 +643,8 @@ std::vector<std::vector<double>> Spline::CurveCoefficients() {
     return denomCoeffs;
 }
 
-std::vector<double> Spline::makeBreakpoints() {
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::makeBreakpoints() {
     breakpoints = {KnotVector[0]};
     int lenBreak = 1;
     for(int i = 1; i < KnotVector.size();i++) {
@@ -644,7 +656,8 @@ std::vector<double> Spline::makeBreakpoints() {
     return breakpoints;
 }
 
-std::vector<std::vector<double>> Spline::makeSpans() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::makeSpans() {
     spans = {{breakpoints[0],breakpoints[1]}};
     for(int i = 1; i< breakpoints.size()-1;i++) {
         spans.insert(spans.end(),{breakpoints[i],breakpoints[i+1]});
@@ -652,25 +665,26 @@ std::vector<std::vector<double>> Spline::makeSpans() {
     return spans;
 }
 // TEST BELOW HERE ***********************************************************************************
-double Spline::getArcLength() { 
-    double nudge = 1e-12;
+template <class ScalarType>
+ScalarType Spline<ScalarType>::getArcLength() { 
+    ScalarType nudge = 1e-12;
     // Three Point Quadrature
-    // std::vector<double> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
-    // std::vector<double> GaussWeights = {5/9,8/9,5/9};
+    // std::vector<ScalarType> GaussPoints = {ScalarType(-sqrt(3/5)),ScalarType(0),ScalarType(sqrt(3/5))};
+    // std::vector<ScalarType> GaussWeights = {ScalarType(5)/ScalarType(9),ScalarType(8)/ScalarType(9),ScalarType(5)/ScalarType(9)};
     // Five Point Quadrature
-    std::vector<double> GaussPoints = {-sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0,
-                                       -sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
-                                       0,
-                                       sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
-                                       sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0};
-    std::vector<double> GaussWeights = {(322.0-13.0*sqrt(70.0))/900.0,
-                                        (322.0+13.0*sqrt(70.0))/900.0,
-                                        128.0/225.0,
-                                        (322.0+13.0*sqrt(70.0))/900.0,
-                                        (322.0-13.0*sqrt(70.0))/900.0};
-    double AL = 0;
-    double u1;
-    double u2;
+    std::vector<ScalarType> GaussPoints = {ScalarType(-sqrt(5.0+2.0*sqrt(10.0/7.0)))/ScalarType(3.0),
+                                           ScalarType(-sqrt(5.0-2.0*sqrt(10.0/7.0)))/ScalarType(3.0),
+                                           ScalarType(0),
+                                           ScalarType(sqrt(5.0-2.0*sqrt(10.0/7.0)))/ScalarType(3.0),
+                                           ScalarType(sqrt(5.0+2.0*sqrt(10.0/7.0)))/ScalarType(3.0)};
+    std::vector<ScalarType> GaussWeights = {ScalarType((322.0-13.0*sqrt(70.0)))/ScalarType(900.0),
+                                            ScalarType((322.0+13.0*sqrt(70.0)))/ScalarType(900.0),
+                                            ScalarType(128.0)/ScalarType(225.0),
+                                            ScalarType((322.0+13.0*sqrt(70.0)))/ScalarType(900.0),
+                                            ScalarType((322.0-13.0*sqrt(70.0)))/ScalarType(900.0)};
+    ScalarType AL = 0;
+    ScalarType u1;
+    ScalarType u2;
     for(int i = 0;i < breakpoints.size()-1;i++) {
         // Determine integrating bounds for segment
         if(i == 0) {
@@ -686,38 +700,38 @@ double Spline::getArcLength() {
 
         // std::cout << "u1: " << u1 << "\n u2: "<< u2 << std::endl;
         // Change Endpoints
-        double m = (u2-u1)/2;
-        double bm = (u1+u2)/2;
+        ScalarType m = (u2-u1)/2;
+        ScalarType bm = (u1+u2)/2;
         for(int j = 0; j < GaussPoints.size(); j++) {
-            double ueff = m*GaussPoints[j] + bm;
+            ScalarType ueff = m*GaussPoints[j] + bm;
 
             // Coefficients
-            double a = numerCoeffsX[i][0];
-            double b = numerCoeffsX[i][1];
-            double c = numerCoeffsX[i][2];
+            ScalarType a = numerCoeffsX[i][0];
+            ScalarType b = numerCoeffsX[i][1];
+            ScalarType c = numerCoeffsX[i][2];
 
-            double d = numerCoeffsY[i][0];
-            double e = numerCoeffsY[i][1];
-            double f = numerCoeffsY[i][2];
+            ScalarType d = numerCoeffsY[i][0];
+            ScalarType e = numerCoeffsY[i][1];
+            ScalarType f = numerCoeffsY[i][2];
 
-            double alpha = denomCoeffs[i][0];
-            double beta = denomCoeffs[i][1];
-            double gamma = denomCoeffs[i][2];
+            ScalarType alpha = denomCoeffs[i][0];
+            ScalarType beta = denomCoeffs[i][1];
+            ScalarType gamma = denomCoeffs[i][2];
 
             // Derivative Coefficients
-            double ax = a*beta-b*alpha;
-            double bx = 2*(a*gamma-alpha*c);
-            double cx = b*gamma-beta*c;
+            ScalarType ax = a*beta-b*alpha;
+            ScalarType bx = 2*(a*gamma-alpha*c);
+            ScalarType cx = b*gamma-beta*c;
             
-            double ay = d*beta-e*alpha;
-            double by = 2*(d*gamma-alpha*f);
-            double cy = e*gamma-beta*f;
+            ScalarType ay = d*beta-e*alpha;
+            ScalarType by = 2*(d*gamma-alpha*f);
+            ScalarType cy = e*gamma-beta*f;
 
             // Normal Vector Magnitude
-            double nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
-            double ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
+            ScalarType nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
+            ScalarType ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
 
-            double n = sqrt(pow(nx,2)+pow(ny,2));
+            ScalarType n = sqrt(pow(nx,2)+pow(ny,2));
 
             AL += m*GaussWeights[j]*n;
             // std::cout << "Gauss: " << GaussPoints[j] <<"\n";
@@ -728,25 +742,26 @@ double Spline::getArcLength() {
     return AL;
 }
 
-double Spline::getSurfaceEnergy() {
-    double nudge = 1e-12;
+template <class ScalarType>
+ScalarType Spline<ScalarType>::getSurfaceEnergy() {
+    ScalarType nudge = 1e-12;
     // Three Point Quadrature
-    // std::vector<double> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
-    // std::vector<double> GaussWeights = {5/9,8/9,5/9};
+    // std::vector<ScalarType> GaussPoints = {-sqrt(3/5),0,sqrt(3/5)};
+    // std::vector<ScalarType> GaussWeights = {5/9,8/9,5/9};
     // Five Point Quadrature
-    std::vector<double> GaussPoints = {-sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0,
-        -sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
-        0,
-        sqrt(5.0-2.0*sqrt(10.0/7.0))/3.0,
-        sqrt(5.0+2.0*sqrt(10.0/7.0))/3.0};
-    std::vector<double> GaussWeights = {(322.0-13.0*sqrt(70.0))/900.0,
-         (322.0+13.0*sqrt(70.0))/900.0,
-         128.0/225.0,
-         (322.0+13.0*sqrt(70.0))/900.0,
-         (322.0-13.0*sqrt(70.0))/900.0};
-    double Ek = 0;
-    double u1;
-    double u2;
+    std::vector<ScalarType> GaussPoints = {ScalarType(-sqrt(5.0+2.0*sqrt(10.0/7.0)))/ScalarType(3.0),
+                                           ScalarType(-sqrt(5.0-2.0*sqrt(10.0/7.0)))/ScalarType(3.0),
+                                           ScalarType(0),
+                                           ScalarType(sqrt(5.0-2.0*sqrt(10.0/7.0)))/ScalarType(3.0),
+                                           ScalarType(sqrt(5.0+2.0*sqrt(10.0/7.0)))/ScalarType(3.0)};
+    std::vector<ScalarType> GaussWeights = {ScalarType((322.0-13.0*sqrt(70.0)))/ScalarType(900.0),
+                                            ScalarType((322.0+13.0*sqrt(70.0)))/ScalarType(900.0),
+                                            ScalarType(128.0)/ScalarType(225.0),
+                                            ScalarType((322.0+13.0*sqrt(70.0)))/ScalarType(900.0),
+                                            ScalarType((322.0-13.0*sqrt(70.0)))/ScalarType(900.0)};
+    ScalarType Ek = 0;
+    ScalarType u1;
+    ScalarType u2;
     for(int i = 0;i < breakpoints.size()-1;i++) {
         // Determine integrating bounds for segment
         if(i == 0) {
@@ -761,137 +776,140 @@ double Spline::getSurfaceEnergy() {
         }
 
         // Change Endpoints
-        double m = (u2-u1)/2;
-        double bm = (u1+u2)/2;
+        ScalarType m = (u2-u1)/2;
+        ScalarType bm = (u1+u2)/2;
         for(int j = 0; j < GaussPoints.size(); j++) {
-            double ueff = m*GaussPoints[j] + bm;
+            ScalarType ueff = m*GaussPoints[j] + bm;
 
             // Coefficients
-            double a = numerCoeffsX[i][0];
-            double b = numerCoeffsX[i][1];
-            double c = numerCoeffsX[i][2];
+            ScalarType a = numerCoeffsX[i][0];
+            ScalarType b = numerCoeffsX[i][1];
+            ScalarType c = numerCoeffsX[i][2];
             
-            double d = numerCoeffsY[i][0];
-            double e = numerCoeffsY[i][1];
-            double f = numerCoeffsY[i][2];
+            ScalarType d = numerCoeffsY[i][0];
+            ScalarType e = numerCoeffsY[i][1];
+            ScalarType f = numerCoeffsY[i][2];
     
-            double alpha = denomCoeffs[i][0];
-            double beta = denomCoeffs[i][1];
-            double gamma = denomCoeffs[i][2];
+            ScalarType alpha = denomCoeffs[i][0];
+            ScalarType beta = denomCoeffs[i][1];
+            ScalarType gamma = denomCoeffs[i][2];
 
             // Derivative Coefficients
-            double ax = a*beta-b*alpha;
-            double bx = 2*(a*gamma-alpha*c);
-            double cx = b*gamma-beta*c;
+            ScalarType ax = a*beta-b*alpha;
+            ScalarType bx = 2*(a*gamma-alpha*c);
+            ScalarType cx = b*gamma-beta*c;
 
-            double ay = d*beta-e*alpha;
-            double by = 2*(d*gamma-alpha*f);
-            double cy = e*gamma-beta*f;
+            ScalarType ay = d*beta-e*alpha;
+            ScalarType by = 2*(d*gamma-alpha*f);
+            ScalarType cy = e*gamma-beta*f;
             
             // Normal Vector Magnitude
-            double nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
-            double ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
+            ScalarType nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
+            ScalarType ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
             
-            double n = sqrt(pow(nx,2)+pow(ny,2));
+            ScalarType n = sqrt(pow(nx,2)+pow(ny,2));
             
             // Curvature
-            double k = this->getCurvature(ueff);
+            ScalarType k = this->getCurvature(ueff);
             Ek += m*GaussWeights[j]*n*fabs(k); // Unsigned Surface Energy is the real one
         }
     }
     return Ek;
 }
 
-double Spline::getCurvature(double u) {
+template <class ScalarType>
+ScalarType Spline<ScalarType>::getCurvature(ScalarType u) {
     
     // Find Span we are in
     int spanIndex = findSpan(u);
 
     // 0th Derivative Coefficients
-    double a = numerCoeffsX[spanIndex][0];
-    double b = numerCoeffsX[spanIndex][1];
-    double c = numerCoeffsX[spanIndex][2];
+    ScalarType a = numerCoeffsX[spanIndex][0];
+    ScalarType b = numerCoeffsX[spanIndex][1];
+    ScalarType c = numerCoeffsX[spanIndex][2];
     
-    double d = numerCoeffsY[spanIndex][0];
-    double e = numerCoeffsY[spanIndex][1];
-    double f = numerCoeffsY[spanIndex][2];
+    ScalarType d = numerCoeffsY[spanIndex][0];
+    ScalarType e = numerCoeffsY[spanIndex][1];
+    ScalarType f = numerCoeffsY[spanIndex][2];
 
-    double alpha = denomCoeffs[spanIndex][0];
-    double beta = denomCoeffs[spanIndex][1];
-    double gamma = denomCoeffs[spanIndex][2];
+    ScalarType alpha = denomCoeffs[spanIndex][0];
+    ScalarType beta = denomCoeffs[spanIndex][1];
+    ScalarType gamma = denomCoeffs[spanIndex][2];
 
     // 1st Derivative Coefficients
-    double ax = a*beta-b*alpha;
-    double bx = 2*(a*gamma-alpha*c);
-    double cx = b*gamma-beta*c;
+    ScalarType ax = a*beta-b*alpha;
+    ScalarType bx = 2*(a*gamma-alpha*c);
+    ScalarType cx = b*gamma-beta*c;
 
-    double ay = d*beta-e*alpha;
-    double by = 2*(d*gamma-alpha*f);
-    double cy = e*gamma-beta*f;
+    ScalarType ay = d*beta-e*alpha;
+    ScalarType by = 2*(d*gamma-alpha*f);
+    ScalarType cy = e*gamma-beta*f;
 
     // First Derivatives 
-    double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
-    double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    ScalarType xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    ScalarType yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
     // Second Derivatives
 
     // X
-    double denom = pow(alpha*pow(u,2)+beta*u+gamma,4);
-    double term1 = (2*ax*u+bx)*pow(alpha*pow(u,2)+beta*u+gamma,2);
-    double term2 = 2*(alpha*pow(u,2)+beta*u+gamma)*(2*alpha*u+beta)*(ax*pow(u,2)+bx*u+cx);
-    double xpp = (term1-term2)/denom;
+    ScalarType denom = pow(alpha*pow(u,2)+beta*u+gamma,4);
+    ScalarType term1 = (2*ax*u+bx)*pow(alpha*pow(u,2)+beta*u+gamma,2);
+    ScalarType term2 = 2*(alpha*pow(u,2)+beta*u+gamma)*(2*alpha*u+beta)*(ax*pow(u,2)+bx*u+cx);
+    ScalarType xpp = (term1-term2)/denom;
 
     // Y
     term1 = (2*ay*u+by)*pow(alpha*pow(u,2)+beta*u+gamma,2);
     term2 = 2*(alpha*pow(u,2)+beta*u+gamma)*(2*alpha*u+beta)*(ay*pow(u,2)+by*u+cy);
-    double ypp = (term1-term2)/denom;   
+    ScalarType ypp = (term1-term2)/denom;   
 
     // Curvature
     term1 = xp*ypp-yp*xpp;
     term2 = pow(pow(xp,2)+pow(yp,2),3.0/2.0);
 
-    double k = term1/term2;
+    ScalarType k = term1/term2;
     return k;
 }
 
-std::vector<double> Spline::getTangent(double u) {
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::getTangent(ScalarType u) {
     // Find Span we are in
     int spanIndex = findSpan(u);
 
     // 0th Derivative Coefficients
-    double a = numerCoeffsX[spanIndex][0];
-    double b = numerCoeffsX[spanIndex][1];
-    double c = numerCoeffsX[spanIndex][2];
+    ScalarType a = numerCoeffsX[spanIndex][0];
+    ScalarType b = numerCoeffsX[spanIndex][1];
+    ScalarType c = numerCoeffsX[spanIndex][2];
     
-    double d = numerCoeffsY[spanIndex][0];
-    double e = numerCoeffsY[spanIndex][1];
-    double f = numerCoeffsY[spanIndex][2];
+    ScalarType d = numerCoeffsY[spanIndex][0];
+    ScalarType e = numerCoeffsY[spanIndex][1];
+    ScalarType f = numerCoeffsY[spanIndex][2];
 
-    double alpha = denomCoeffs[spanIndex][0];
-    double beta = denomCoeffs[spanIndex][1];
-    double gamma = denomCoeffs[spanIndex][2];
+    ScalarType alpha = denomCoeffs[spanIndex][0];
+    ScalarType beta = denomCoeffs[spanIndex][1];
+    ScalarType gamma = denomCoeffs[spanIndex][2];
 
     // 1st Derivative Coefficients
-    double ax = a*beta-b*alpha;
-    double bx = 2*(a*gamma-alpha*c);
-    double cx = b*gamma-beta*c;
+    ScalarType ax = a*beta-b*alpha;
+    ScalarType bx = 2*(a*gamma-alpha*c);
+    ScalarType cx = b*gamma-beta*c;
 
-    double ay = d*beta-e*alpha;
-    double by = 2*(d*gamma-alpha*f);
-    double cy = e*gamma-beta*f;
+    ScalarType ay = d*beta-e*alpha;
+    ScalarType by = 2*(d*gamma-alpha*f);
+    ScalarType cy = e*gamma-beta*f;
 
     // First Derivatives 
-    double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
-    double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    ScalarType xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    ScalarType yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
 
     return {xp,yp};
 }
 
-std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset) {
-    std::vector<std::vector<double>> curve = {{0,0}};
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::makeRationalQuadCurve(std::vector<ScalarType> uset) {
+    std::vector<std::vector<ScalarType>> curve = {{0,0}};
     for(int i = 0; i < uset.size();i++) { // Loop over all u values
-        std::vector<double> numer = {0,0};
-        double denom = 0;
-        std::vector<double> val = {0,0};
+        std::vector<ScalarType> numer = {0,0};
+        ScalarType denom = 0;
+        std::vector<ScalarType> val = {0,0};
         for(int j = 0; j < ControlPoints.size();j++){ // Loop over control points
             for(int k = 0; k < ControlPoints[0].size();k++) { // Loop over contorl point indices
                 numer[k] += BBasisFunction(j,2,uset[i])*Weights[j]*ControlPoints[j][k]*2;
@@ -914,52 +932,53 @@ std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<doubl
     return curve;
 }
 
-double Spline::integratedSpline(double u) {
+template <class ScalarType>
+ScalarType Spline<ScalarType>::integratedSpline(ScalarType u) {
     // Find Span we are in
     int spanIndex = findSpan(u);
     // std::cout << "Found Span\n";
     // Get Appropriate Coefficients
     // 0th Derivative Coefficients
-    double a = numerCoeffsX[spanIndex][0];
-    double b = numerCoeffsX[spanIndex][1];
-    double c = numerCoeffsX[spanIndex][2];
+    ScalarType a = numerCoeffsX[spanIndex][0];
+    ScalarType b = numerCoeffsX[spanIndex][1];
+    ScalarType c = numerCoeffsX[spanIndex][2];
 
-    double d = numerCoeffsY[spanIndex][0];
-    double e = numerCoeffsY[spanIndex][1];
-    double f = numerCoeffsY[spanIndex][2];
+    ScalarType d = numerCoeffsY[spanIndex][0];
+    ScalarType e = numerCoeffsY[spanIndex][1];
+    ScalarType f = numerCoeffsY[spanIndex][2];
 
-    double alpha = denomCoeffs[spanIndex][0];
-    double beta = denomCoeffs[spanIndex][1];
-    double gamma = denomCoeffs[spanIndex][2];
+    ScalarType alpha = denomCoeffs[spanIndex][0];
+    ScalarType beta = denomCoeffs[spanIndex][1];
+    ScalarType gamma = denomCoeffs[spanIndex][2];
 
     // 1st Derivative Coefficients
-    double ax = a*beta-b*alpha;
-    double bx = 2*(a*gamma-alpha*c);
-    double cx = b*gamma-beta*c;
+    ScalarType ax = a*beta-b*alpha;
+    ScalarType bx = 2*(a*gamma-alpha*c);
+    ScalarType cx = b*gamma-beta*c;
 
-    double ay = d*beta-e*alpha;
-    double by = 2*(d*gamma-alpha*f);
-    double cy = e*gamma-beta*f;
+    ScalarType ay = d*beta-e*alpha;
+    ScalarType by = 2*(d*gamma-alpha*f);
+    ScalarType cy = e*gamma-beta*f;
 
     // Numerator Coefficients
-    double term1 = a*ay;
-    double term2 = a*by+b*ay;
-    double term3 = a*cy+b*by+c*ay;
-    double term4 = b*cy+c*by;
-    double term5 = c*cy;
+    ScalarType term1 = a*ay;
+    ScalarType term2 = a*by+b*ay;
+    ScalarType term3 = a*cy+b*by+c*ay;
+    ScalarType term4 = b*cy+c*by;
+    ScalarType term5 = c*cy;
 
     // Rename to match Mathematica
-    double a2 = term1;
-    double b2 = term2;
-    double c2 = term3;
-    double d2 = term4;
-    double e2 = term5;
-    double f2 = alpha;
-    double g = beta;
-    double h = gamma;
+    ScalarType a2 = term1;
+    ScalarType b2 = term2;
+    ScalarType c2 = term3;
+    ScalarType d2 = term4;
+    ScalarType e2 = term5;
+    ScalarType f2 = alpha;
+    ScalarType g = beta;
+    ScalarType h = gamma;
 
     // std::cout <<"\nParameters -" << g << "," << f2 << "," << u << "," << h << "\n";
-    double N1B = c2*pow(f2,2)*pow(g,3) - b2*f2*pow(g,4) + a2*pow(g,5) +
+    ScalarType N1B = c2*pow(f2,2)*pow(g,3) - b2*f2*pow(g,4) + a2*pow(g,5) +
                 2*c2*pow(f2,3)*g*h + 5*b2*pow(f2,2)*pow(g,2)*h - 8*a2*f2*pow(g,3)*h
                 - 16*b2*pow(f2,3)*pow(h,2) + 22*a2*pow(f2,2)*g*pow(h,2) +
                 2*c2*pow(f2,3)*pow(g,2)*u - 2*a2*f2*pow(g,4)*u + 4*c2*pow(f2,4)*h*u
@@ -967,21 +986,21 @@ double Spline::integratedSpline(double u) {
                 20*a2*pow(f2,3)*pow(h,2)*u + 6*e2*pow(f2,4)*(g + 2*f2*u) -
                 3*d2*pow(f2,3)*g*(g + 2*f2*u);
 
-    double D1B = (pow(f2,3)*pow(pow(g,2) - 4*f2*h,2)*(h + u*(g + f2*u)));
+    ScalarType D1B = (pow(f2,3)*pow(pow(g,2) - 4*f2*h,2)*(h + u*(g + f2*u)));
 
-    double N2B = (c2*pow(f2,2)*g*h - b2*f2*pow(g,2)*h + a2*pow(g,3)*h +
+    ScalarType N2B = (c2*pow(f2,2)*g*h - b2*f2*pow(g,2)*h + a2*pow(g,3)*h +
                 2*b2*pow(f2,2)*pow(h,2) - 3*a2*f2*g*pow(h,2) +
                 c2*pow(f2,2)*pow(g,2)*u - b2*f2*pow(g,3)*u + a2*pow(g,4)*u -
                 2*c2*pow(f2,3)*h*u + 3*b2*pow(f2,2)*g*h*u - 4*a2*f2*pow(g,2)*h*u +
                 2*a2*pow(f2,2)*pow(h,2)*u + e2*pow(f2,3)*(g + 2*f2*u) -
                 d2*pow(f2,3)*(2*h + g*u));
     
-    double D2B = (pow(f2,3)*(-pow(g,2) + 4*f2*h)*pow(h + u*(g + f2*u),2));
+    ScalarType D2B = (pow(f2,3)*(-pow(g,2) + 4*f2*h)*pow(h + u*(g + f2*u),2));
 
-    double determinant = -pow(g,2) + 4*f2*h;
+    ScalarType determinant = -pow(g,2) + 4*f2*h;
     // std::cout << "Determinant = " << determinant << "\n";
-    double N3B;
-    double D3B;
+    ScalarType N3B;
+    ScalarType D3B;
     if(determinant >= 1e-12) { // Strictly Positive 
         // std::cout << "positive\n";
         N3B = (4*(6*e2*pow(f2,2) - 3*d2*f2*g + c2*pow(g,2) + 2*c2*f2*h - 3*b2*g*h +
@@ -1012,18 +1031,19 @@ double Spline::integratedSpline(double u) {
     }
 
 
-    double value = 0.5*(N1B/D1B + N2B/D2B + N3B/D3B);
+    ScalarType value = 0.5*(N1B/D1B + N2B/D2B + N3B/D3B);
 
     return value;
 }
 
-double Spline::getArea() {
+template <class ScalarType>
+ScalarType Spline<ScalarType>::getArea() {
     // std::cout << "GETTING AREA\n";
-    double Area = 0;
-    double nudge = 1e-8;
+    ScalarType Area = 0;
+    ScalarType nudge = 1e-8;
     // Loop over each breakpoint, find area of that section, then add them together.
-    double uL;
-    double uR;
+    ScalarType uL;
+    ScalarType uR;
     for(int i =0; i <breakpoints.size()-1; i++) {
         // std:: cout << "====================== i = " << i << " ========================\n";
         uL = breakpoints[i]; // Left Breakpoint
@@ -1044,34 +1064,35 @@ double Spline::getArea() {
     return Area;
 }
 
-std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::vector<double> P2) { // Should be working (Tested)
-    std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-    std::vector<double> normal = {-tangent[1],tangent[0]};
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::lineCurveIntersection(std::vector<ScalarType> P1, std::vector<ScalarType> P2) { // Should be working (Tested)
+    std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+    std::vector<ScalarType> normal = {-tangent[1],tangent[0]};
     int numSpans = breakpoints.size()-1;
-    std::vector<double> uIntersections = {0};
-    std::vector<double> sIntersections = {0};
-    double a = normal[0];
-    double b = normal[1];
-    double c = -(normal[0]*P1[0]+normal[1]*P1[1]);
+    std::vector<ScalarType> uIntersections = {0};
+    std::vector<ScalarType> sIntersections = {0};
+    ScalarType a = normal[0];
+    ScalarType b = normal[1];
+    ScalarType c = -(normal[0]*P1[0]+normal[1]*P1[1]);
     int count = 0;
     int numInt = 0;
     for(int i = 0; i < numSpans; i ++) { // Loop Over Spans
         // Quadratic Coefficients
-        double aPoly = a*numerCoeffsX[i][0] + b*numerCoeffsY[i][0]+c*denomCoeffs[i][0];
-        double bPoly = a*numerCoeffsX[i][1] + b*numerCoeffsY[i][1]+c*denomCoeffs[i][1];
-        double cPoly = a*numerCoeffsX[i][2] + b*numerCoeffsY[i][2]+c*denomCoeffs[i][2];
+        ScalarType aPoly = a*numerCoeffsX[i][0] + b*numerCoeffsY[i][0]+c*denomCoeffs[i][0];
+        ScalarType bPoly = a*numerCoeffsX[i][1] + b*numerCoeffsY[i][1]+c*denomCoeffs[i][1];
+        ScalarType cPoly = a*numerCoeffsX[i][2] + b*numerCoeffsY[i][2]+c*denomCoeffs[i][2];
         // Solve Quadratic
-        double discrim = pow(bPoly,2)-4*aPoly*cPoly;
+        ScalarType discrim = pow(bPoly,2)-4*aPoly*cPoly;
         
         // std::cout << "Discrim = " << discrim << "\n";
         // std::cout << "aPoly = " << aPoly << "\n";
         // std::cout << "bPoly = " << bPoly << "\n";
         // std::cout << "cPoly = " << cPoly << "\n";
         // Filter Values for real, in span on curve,and in spans of line
-        double u1;
-        double u2;
+        ScalarType u1;
+        ScalarType u2;
         if(discrim >= 0) { // Real Values Only
-            std::vector<double> Inters;
+            std::vector<ScalarType> Inters;
             if(aPoly == 0) {
                 u1 = -cPoly/bPoly;
                 Inters = {u1};
@@ -1081,18 +1102,18 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
                 Inters = {u1,u2};
             }
 
-            std::vector<std::vector<double>> pointInter = this->makeRationalQuadCurve(Inters);
+            std::vector<std::vector<ScalarType>> pointInter = this->makeRationalQuadCurve(Inters);
             // Check u1
             for(int j = 0; j < Inters.size();j++) {
                 u1 = Inters[j];
                 // std::cout << "span2= " << spans[i][1] << "\n"; 
                 if(u1 >= (spans[i][0]-1e-12) && (u1 < (spans[i][1]-1e-12))) { // Within Span of curve, not including the endpoint of span.
-                    std::vector<double> Pcurr = pointInter[j];
+                    std::vector<ScalarType> Pcurr = pointInter[j];
                     Pcurr = this->makeRationalQuadCurve({u1})[0];
-                    std::vector<double> dP1 = {Pcurr[0]-P1[0],Pcurr[1]-P1[1]};
-                    std::vector<double> dP2 = {Pcurr[0]-P2[0],Pcurr[1]-P2[1]};
-                    std::vector<double> dP = {P1[0]-P2[0],P1[1]-P2[1]};
-                    double lineCheck;
+                    std::vector<ScalarType> dP1 = {Pcurr[0]-P1[0],Pcurr[1]-P1[1]};
+                    std::vector<ScalarType> dP2 = {Pcurr[0]-P2[0],Pcurr[1]-P2[1]};
+                    std::vector<ScalarType> dP = {P1[0]-P2[0],P1[1]-P2[1]};
+                    ScalarType lineCheck;
                     if(fabs(dP[0]) > fabs(dP[1])) { // Checks if point between endpoints of line
                         lineCheck = fabs(dP1[0])+fabs(dP2[0])-fabs(dP[0]);
                     } else {
@@ -1125,13 +1146,13 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
     stable_sort(idx.begin(), idx.end(),
         [&sIntersections](size_t i1, size_t i2) {return sIntersections[i1] < sIntersections[i2];});
     // Now back to me, rearrange uInters to be along the line
-    std::vector<double> ret(uIntersections.size());
+    std::vector<ScalarType> ret(uIntersections.size());
     for(int i = 0; i< idx.size(); i++) {
         ret[i] = uIntersections[idx[i]];
     }   
 
     // Finally, we will loop over u and only take unique values, since a line can only intersect a curve once at the same location
-    std::vector<double> ret2 = {ret[0]};
+    std::vector<ScalarType> ret2 = {ret[0]};
     for(int i = 1; i < ret.size();i++) {
         int present = 0;
         for(int j = 0;j < ret2.size(); j++) {
@@ -1152,9 +1173,10 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
     
 }
 
-std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square) { // Should be working (Tested)
-    std::vector<double> P1 = square[0];
-    std::vector<double> P2;
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::getParameterLoop(std::vector<std::vector<ScalarType>> square) { // Should be working (Tested)
+    std::vector<ScalarType> P1 = square[0];
+    std::vector<ScalarType> P2;
     int I = 0;
     for(int i = 0; i < ControlPoints.size();i++) { // Loop over control points
         if(ControlPoints[i][0] > ControlPoints[I][0]) { // Find Furthest Right Point
@@ -1163,10 +1185,10 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
     }
     P2 = ControlPoints[I];
     P2[0] += 1; // Move a little to the right
-    std::vector<double> intersections = lineCurveIntersection(P1,P2);
+    std::vector<ScalarType> intersections = lineCurveIntersection(P1,P2);
     
-    std::vector<double> parameter;
-    std::vector<double> indicator; // 1 = corner (outside), 2 = corner (inside), 3 = Curve hit (entry), 4 = curve hit (Exit)
+    std::vector<ScalarType> parameter;
+    std::vector<ScalarType> indicator; // 1 = corner (outside), 2 = corner (inside), 3 = Curve hit (entry), 4 = curve hit (Exit)
     // If number of intersections even, outside. If odd, inside.
     if(intersections.size() % 2 == 0) {
         parameter = {0};
@@ -1184,7 +1206,7 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
         // Assign Intersections
         for(int j = 0;j < intersections.size();j++) {
             parameter.insert(parameter.end(),intersections[j]);
-            double lastInd = indicator[indicator.size()-1];
+            ScalarType lastInd = indicator[indicator.size()-1];
             if(lastInd == 1) {
                 indicator.insert(indicator.end(),3);
             } else if(lastInd == 2) {
@@ -1219,8 +1241,8 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
         }
     }
     // Pop 1s
-    std::vector<double> tempParameters = {0};
-    std::vector<double> tempIndicators = {0};
+    std::vector<ScalarType> tempParameters = {0};
+    std::vector<ScalarType> tempIndicators = {0};
     int count = 0;
     for(int i = 0; i < indicator.size();i++) {
         if(indicator[i] != 1) {
@@ -1242,10 +1264,11 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
     return {tempParameters,tempIndicators};
 }
 
-double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Should be working (Tested)
-    std::vector<std::vector<double>> loop = this->getParameterLoop(square);
-    std::vector<double> parameter = loop[0];
-    std::vector<double> indicator = loop[1];
+template <class ScalarType>
+ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<ScalarType>> square) { // Should be working (Tested)
+    std::vector<std::vector<ScalarType>> loop = this->getParameterLoop(square);
+    std::vector<ScalarType> parameter = loop[0];
+    std::vector<ScalarType> indicator = loop[1];
     // std::cout << "Begin Parameter \n";
     // for(int i = 0; i < parameter.size(); i++) {
     //     std::cout << parameter[i] << ",";
@@ -1257,124 +1280,124 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
     //     std::cout << indicator[i] << ",";
     // }
     // std::cout << "\nEnd Indicator \n";
-    double Area = 0;
+    ScalarType Area = 0;
 
     for(int i = 0;i<indicator.size()-1;i++) { // Loop over pairs of indicators/parameters
-        double ind1 = indicator[i];
-        double ind2 = indicator[i+1];
+        ScalarType ind1 = indicator[i];
+        ScalarType ind2 = indicator[i+1];
         // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
         
         if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
-            std::vector<double> P1 = square[parameter[i]];
-            std::vector<double> P2 = square[parameter[i+1]];
+            std::vector<ScalarType> P1 = square[parameter[i]];
+            std::vector<ScalarType> P2 = square[parameter[i+1]];
 
             // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
+            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
             // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
             normal[1] /= normalNorm;
 
             // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
+            ScalarType integrand = normal[0];
+            ScalarType Pp = normalNorm;
             // integrand *= Pp;
 
             // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
+            ScalarType x1 = P1[0];
+            ScalarType x2 = P2[0];
+            ScalarType m = x2-x1;
+            ScalarType b = x1;
 
-            double velocity = Pp;
+            ScalarType velocity = Pp;
             
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
             
-            std::vector<double> P1 = square[parameter[i]];
-            std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
+            std::vector<ScalarType> P1 = square[parameter[i]];
+            std::vector<ScalarType> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
+            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
             // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
             normal[1] /= normalNorm;
 
             // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
+            ScalarType integrand = normal[0];
+            ScalarType Pp = normalNorm;
             // integrand *= Pp;
 
             // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
+            ScalarType x1 = P1[0];
+            ScalarType x2 = P2[0];
+            ScalarType m = x2-x1;
+            ScalarType b = x1;
 
-            double velocity = Pp;
+            ScalarType velocity = Pp;
             // std::cout << "Case 2 \n";
             // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
-            std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
-            std::vector<double> P2 = square[parameter[i+1]];
+            std::vector<ScalarType> P1 = makeRationalQuadCurve({parameter[i]})[0];
+            std::vector<ScalarType> P2 = square[parameter[i+1]];
 
             // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
+            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
             // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
             normal[1] /= normalNorm;
 
             // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
+            ScalarType integrand = normal[0];
+            ScalarType Pp = normalNorm;
             // integrand *= Pp;
 
             // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
+            ScalarType x1 = P1[0];
+            ScalarType x2 = P2[0];
+            ScalarType m = x2-x1;
+            ScalarType b = x1;
 
-            double velocity = Pp;
+            ScalarType velocity = Pp;
             // std::cout << "Case 3 \n";
             // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
-            std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
-            std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
+            std::vector<ScalarType> P1 = makeRationalQuadCurve({parameter[i]})[0];
+            std::vector<ScalarType> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
+            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
+            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
             // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
+            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
             normal[0] /= normalNorm;
             normal[1] /= normalNorm;
 
             // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
+            ScalarType integrand = normal[0];
+            ScalarType Pp = normalNorm;
             // integrand *= Pp;
 
             // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
+            ScalarType x1 = P1[0];
+            ScalarType x2 = P2[0];
+            ScalarType m = x2-x1;
+            ScalarType b = x1;
 
-            double velocity = Pp;
+            ScalarType velocity = Pp;
             Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
  
             // Get Parameter Values
-            double u1 = parameter[i];
-            double u2 = parameter[i+1];
+            ScalarType u1 = parameter[i];
+            ScalarType u2 = parameter[i+1];
 
             // Find Spans, in order
             int spanIndex1 = findSpan(u1);
@@ -1382,12 +1405,12 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
             // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
             // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
 
-            double integral = 0;;
+            ScalarType integral = 0;;
             // if u1,u2 in the same span, we can go direct.
             // If u1,u2 are in different spans, we have to segment through each span
             if(spanIndex1 == spanIndex2) { // Same Span
-                double V1 = integratedSpline(u1);
-                double V2 = integratedSpline(u2);
+                ScalarType V1 = integratedSpline(u1);
+                ScalarType V2 = integratedSpline(u2);
                 
                 integral = V2-V1;
             } else { // Different Spans
@@ -1409,7 +1432,7 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                     breakIndexSet[i] = breakIndexSet[i]%numSpans;
                 }
                 // Calculate Break Values
-                std::vector<double> breaks = {u1};
+                std::vector<ScalarType> breaks = {u1};
                 for(int j = 0; j < breakIndexSet.size();j++) {
                     breaks.insert(breaks.end(),breakpoints[breakIndexSet[j]]);
                 }
@@ -1421,9 +1444,9 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                 // }
                 // std::cout <<"\n" ;
                 // Integral
-                double nudge = 1e-8;
-                double V1;
-                double V2;
+                ScalarType nudge = 1e-8;
+                ScalarType V1;
+                ScalarType V2;
                 for(int j = 0; j < breaks.size()-1; j++) {
                     u1 = breaks[j]+nudge;
                     u2 = breaks[j+1]-nudge;
@@ -1447,10 +1470,11 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
     return Area;
 }
 
-void Spline::saveToVTK(const std::string& filename, const int nsamples){
-    std::vector<double> uset(nsamples, 0.);
+template <class ScalarType>
+void Spline<ScalarType>::saveToVTK(const std::string& filename, const int nsamples){
+    std::vector<ScalarType> uset(nsamples, 0.);
     for (int i = 0; i < nsamples; i++){
-        uset[i] = KnotVector[0] + (KnotVector[KnotVector.size()-1] - KnotVector[0]) * static_cast<double>(i) / static_cast<double>(nsamples - 1);
+        uset[i] = KnotVector[0] + (KnotVector[KnotVector.size()-1] - KnotVector[0]) * static_cast<ScalarType>(i) / static_cast<ScalarType>(nsamples - 1);
     }
     const auto curve = this->makeRationalQuadCurve(uset);
 
@@ -1479,46 +1503,58 @@ void Spline::saveToVTK(const std::string& filename, const int nsamples){
 }
 
 // Getters
-std::vector<std::vector<double>> Spline::getControlPoints() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::getControlPoints() {
     return ControlPoints;
 }
-std::vector<double> Spline::getKnotVector() {
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::getKnotVector() {
     return KnotVector;
 }
-std::vector<double> Spline::getWeights() {
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::getWeights() {
     return Weights;
 }
-std::vector<double> Spline::getBreakpoints() {
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::getBreakpoints() {
     return breakpoints;
 }
-std::vector<std::vector<double>> Spline::getSpans() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::getSpans() {
     return spans;
 }
-std::vector<std::vector<double>> Spline::getXCoeffs() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::getXCoeffs() {
     return numerCoeffsX;
 }
-std::vector<std::vector<double>> Spline::getYCoeffs() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::getYCoeffs() {
     return numerCoeffsY;
 }
-std::vector<std::vector<double>> Spline::getDCoeffs() {
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::getDCoeffs() {
     return denomCoeffs;
 }
 
 // Setters
-void Spline::setControlPoints(std::vector<std::vector<double>> input) {
+template <class ScalarType>
+void Spline<ScalarType>::setControlPoints(std::vector<std::vector<ScalarType>> input) {
     ControlPoints = input;
 }
-void Spline::setKnotVector(std::vector<double> input) {
+template <class ScalarType>
+void Spline<ScalarType>::setKnotVector(std::vector<ScalarType> input) {
     KnotVector = input;
     this->makeBreakpoints();
     this->makeSpans();
 }
-void Spline::setWeights(std::vector<double> input){
+template <class ScalarType>
+void Spline<ScalarType>::setWeights(std::vector<ScalarType> input){
     Weights = input;
 }
 
 // Bebugging
-void Spline::printControlPoints() {
+template <class ScalarType>
+void Spline<ScalarType>::printControlPoints() {
     std::cout << "\nPrinting Control Points \n";
     for(int i = 0; i < ControlPoints.size(); i++ ){
         for(int j = 0; j <ControlPoints[0].size();j++) {
@@ -1528,21 +1564,24 @@ void Spline::printControlPoints() {
     }
     std::cout << "End Control Points \n";
 }
-void Spline::printKnotVector() {
+template <class ScalarType>
+void Spline<ScalarType>::printKnotVector() {
     std::cout << "\nPrinting Knot Vector\n";
     for(int i = 0; i < KnotVector.size(); i++ ){
         std::cout << KnotVector[i] << ",";
     }
     std::cout << "\nEnd  Knot Vector \n";
 }
-void Spline::printWeights(){
+template <class ScalarType>
+void Spline<ScalarType>::printWeights(){
     std::cout << "\nPrinting Weights\n";
     for(int i = 0; i < Weights.size(); i++ ){
         std::cout << Weights[i] << ",";
     }
     std::cout << "\nEnd Weights \n";
 }
-void Spline::printXCoeffs() {
+template <class ScalarType>
+void Spline<ScalarType>::printXCoeffs() {
     std::cout << "\nPrinting X Coeffs \n";
     for(int i = 0; i < numerCoeffsX.size(); i++ ){
         for(int j = 0; j <numerCoeffsX[0].size();j++) {
@@ -1552,7 +1591,8 @@ void Spline::printXCoeffs() {
     }
     std::cout << "End X Coeffs \n";
 }
-void Spline::printYCoeffs() {
+template <class ScalarType>
+void Spline<ScalarType>::printYCoeffs() {
     std::cout << "\nPrinting Y Coeffs \n";
     for(int i = 0; i < numerCoeffsY.size(); i++ ){
         for(int j = 0; j <numerCoeffsY[0].size();j++) {
@@ -1562,7 +1602,8 @@ void Spline::printYCoeffs() {
     }
     std::cout << "End Y Coeffs\n";
 }
-void Spline::printDCoeffs() {
+template <class ScalarType>
+void Spline<ScalarType>::printDCoeffs() {
     std::cout << "\nPrinting Denom Coeffs \n";
     for(int i = 0; i < denomCoeffs.size(); i++ ){
         for(int j = 0; j <denomCoeffs[0].size();j++) {
