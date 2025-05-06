@@ -7,7 +7,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/2d_advector/rotation_2d.h"
+#include "examples/2d_advector/modulated_translation_2d.h"
 
 #include <float.h>
 #include <chrono>
@@ -23,7 +23,7 @@
 
 constexpr int GC = 3;
 
-BasicMesh Rotation2D::setMesh(const int a_nx) {
+BasicMesh ModulatedTranslation2D::setMesh(const int a_nx) {
   BasicMesh mesh(a_nx, a_nx, GC);
   IRL2D::Vec my_lower_domain(-0.5, -0.5);
   IRL2D::Vec my_upper_domain(0.5, 0.5);
@@ -31,10 +31,10 @@ BasicMesh Rotation2D::setMesh(const int a_nx) {
   return mesh;
 }
 
-void Rotation2D::initialize(Data<double>* a_U, Data<double>* a_V,
+void ModulatedTranslation2D::initialize(Data<double>* a_U, Data<double>* a_V,
                             Data<IRL2D::Parabola>* a_interface,
                             const double a_time) {
-  Rotation2D::setVelocity(a_time, a_U, a_V);
+  ModulatedTranslation2D::setVelocity(a_time, a_U, a_V);
   const BasicMesh& mesh = a_U->getMesh();
   const auto circle_center = 0.25 * IRL2D::Vec(-std::sin(2.0 * M_PI * a_time),
                                                std::cos(2.0 * M_PI * a_time));
@@ -89,37 +89,25 @@ void Rotation2D::initialize(Data<double>* a_U, Data<double>* a_V,
   correctInterfaceBorders(a_interface);
 }
 
-void Rotation2D::setVelocity(const double a_time, Data<double>* a_U,
+void ModulatedTranslation2D::setVelocity(const double a_time, Data<double>* a_U,
                              Data<double>* a_V) {
   const BasicMesh& mesh = a_U->getMesh();
-  const double vel_scale = 2.0 * M_PI;
+  // const double vel_scale = 2.0 * M_PI;
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       auto loc = IRL2D::Vec(mesh.xm(i), mesh.ym(j));
-      (*a_U)(i, j) = -vel_scale * loc[1];
-      (*a_V)(i, j) = vel_scale * loc[0];
+      (*a_U)(i, j) = 0;
+      (*a_V)(i, j) = 1;
     }
   }
 }
 
-const IRL2D::Vec Rotation2D::getExactVelocity2D(double t, const IRL2D::Vec& P) {
-  const double vel_scale = 2.0 * M_PI + 0.75*std::sin(M_PI * t/5);
-  // return IRL2D::Vec{-1.0, -1.0};
-  // return IRL2D::Vec{P.y() * P.y() * P.y(), P.x() * P.x() * P.x()};
-  // return IRL2D::Vec{1.0 - P.y() * P.y(), 1.0 + P.x() * P.x()};
-  // return IRL2D::Vec{1.0 - P.y(), 1.0 + P.x()};
-  return IRL2D::Vec{1.0, 1.0};
+const IRL2D::Vec ModulatedTranslation2D::getExactVelocity2D(double t, const IRL2D::Vec& P) {
+  // const double vel_scale = 2.0 * M_PI;
+  return IRL2D::Vec{1.5*std::sin(M_PI * t/5), 1.0 + 0.75*std::sin(M_PI * t/5)};
 }
 
-const IRL2D::Mat Rotation2D::getExactVelocityGradient2D(double t,
+const IRL2D::Mat ModulatedTranslation2D::getExactVelocityGradient2D(double t,
                                                         const IRL2D::Vec& P) {
-  const double vel_scale = 2.0 * M_PI + 0.75*std::sin(M_PI * t/5);
   return IRL2D::Mat(IRL2D::Vec{0.0, 0.0}, IRL2D::Vec{0.0, 0.0});
-  // return IRL2D::Mat(IRL2D::Vec{0.0, -vel_scale}, IRL2D::Vec{vel_scale, 0.0});
-  // return IRL2D::Mat(IRL2D::Vec{0.0, 3.0 * P.y() * P.y()},
-  //                   IRL2D::Vec{3.0 * P.x() * P.x(), 0.0});
-  // return IRL2D::Mat(IRL2D::Vec{0.0, -2.0 * P.y()},
-  //                   IRL2D::Vec{2.0 * P.x(), 0.0});
-  // return IRL2D::Mat(IRL2D::Vec{0.0, -1.0}, IRL2D::Vec{1.0, 0.0});
-  // return IRL2D::Mat(IRL2D::Vec{0.0, 0.0}, IRL2D::Vec{0.0, 0.0});
 }

@@ -54,56 +54,56 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
                          std::chrono::duration<double> a_VOF_duration,
                          std::chrono::duration<double> a_recon_duration,
                          std::chrono::duration<double> a_write_duration) {
-  // const BasicMesh& mesh = a_U.getMesh();
-  // static double initial_liquid_volume_fraction_sum;
-  // static double initial_liquid_volume_sum;
-  // // Calculate CFL
-  // double totalCFL = 0.0;
-  // int activeCellCount = 0;
-  // for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-  //   for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-  //     // went back to using max CFL number here
-  //     double localCFL = std::fmax(a_U(i, j) * a_dt / mesh.dx(), 
-  //                                 a_V(i, j) * a_dt / mesh.dy());
+  const BasicMesh& mesh = a_U.getMesh();
+  static double initial_liquid_volume_fraction_sum;
+  static double initial_liquid_volume_sum;
+  // Calculate CFL
+  double totalCFL = 0.0;
+  int activeCellCount = 0;
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      // went back to using max CFL number here
+      double localCFL = std::fmax(a_U(i, j) * a_dt / mesh.dx(), 
+                                  a_V(i, j) * a_dt / mesh.dy());
       
-  //     if (localCFL > 0) { // needs liquid VOF> 0
-  //       totalCFL += localCFL; 
-  //       activeCellCount++;
-  //     }
-  //   }
-  // }
-  // double CFL = totalCFL / activeCellCount;
+      if (localCFL > 0) { // needs liquid VOF> 0
+        totalCFL += localCFL; 
+        activeCellCount++;
+      }
+    }
+  }
+  double CFL = totalCFL / activeCellCount;
 
-  // // Calculate sum of volume fraction and sum of liquid volume
-  // double liquid_volume_fraction_sum = 0.0;
-  // double liquid_volume_sum = 0.0;
-  // int number_of_interface_cells = 0;
-  // for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-  //   for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-  //     const double liquid_volume_fraction =
-  //         a_liquid_moments(i, j).m0() / mesh.cell_volume();
-  //     liquid_volume_fraction_sum += liquid_volume_fraction;
-  //     liquid_volume_sum += a_liquid_moments(i, j).m0();
-  //     if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-  //         liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-  //       ++number_of_interface_cells;
-  //     }
-  //   }
-  // }
-  // // Save initial values to compare against.
-  // if (a_iteration == 0) {
-  //   initial_liquid_volume_fraction_sum = liquid_volume_fraction_sum;
-  //   initial_liquid_volume_sum = liquid_volume_sum;
-  // }
-  // printf(
-  //     "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20d"
-  //     "\n",
-  //     a_iteration, a_simulation_time, CFL, liquid_volume_fraction_sum,
-  //     liquid_volume_sum,
-  //     liquid_volume_fraction_sum - initial_liquid_volume_fraction_sum,
-  //     liquid_volume_sum - initial_liquid_volume_sum, a_VOF_duration.count(),
-  //     a_recon_duration.count(), a_write_duration.count(),
-  //     number_of_interface_cells);
+  // Calculate sum of volume fraction and sum of liquid volume
+  double liquid_volume_fraction_sum = 0.0;
+  double liquid_volume_sum = 0.0;
+  int number_of_interface_cells = 0;
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          a_liquid_moments(i, j).m0() / mesh.cell_volume();
+      liquid_volume_fraction_sum += liquid_volume_fraction;
+      liquid_volume_sum += a_liquid_moments(i, j).m0();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        ++number_of_interface_cells;
+      }
+    }
+  }
+  // Save initial values to compare against.
+  if (a_iteration == 0) {
+    initial_liquid_volume_fraction_sum = liquid_volume_fraction_sum;
+    initial_liquid_volume_sum = liquid_volume_sum;
+  }
+  printf(
+      "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20d"
+      "\n",
+      a_iteration, a_simulation_time, CFL, liquid_volume_fraction_sum,
+      liquid_volume_sum,
+      liquid_volume_fraction_sum - initial_liquid_volume_fraction_sum,
+      liquid_volume_sum - initial_liquid_volume_sum, a_VOF_duration.count(),
+      a_recon_duration.count(), a_write_duration.count(),
+      number_of_interface_cells);
 }
 
 void printError(const BasicMesh& mesh,

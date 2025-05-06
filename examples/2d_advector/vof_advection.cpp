@@ -14,7 +14,9 @@
 #include "examples/2d_advector/oscillation_2d.h"
 #include "examples/2d_advector/reconstruction_types.h"
 #include "examples/2d_advector/rotation_2d.h"
+#include "examples/2d_advector/modulated_rotation_2d.h"
 #include "examples/2d_advector/translation_2d.h"
+#include "examples/2d_advector/modulated_translation_2d.h"
 #include "examples/2d_advector/vof_advection.h"
 #include "examples/2d_advector/vtk.h"
 
@@ -98,6 +100,12 @@ void SemiLag::advectVOF(const std::string& a_simulation_type,
   } else if (a_simulation_type == "Translation2D") {
     getExactVelocity2D = Translation2D::getExactVelocity2D;
     getExactGradient2D = Translation2D::getExactVelocityGradient2D;
+  } else if (a_simulation_type == "ModulatedTranslation2D") {
+    getExactVelocity2D = ModulatedTranslation2D::getExactVelocity2D;
+    getExactGradient2D = ModulatedTranslation2D::getExactVelocityGradient2D;
+  } else if (a_simulation_type == "ModulatedRotation2D") {
+    getExactVelocity2D = ModulatedRotation2D::getExactVelocity2D;
+    getExactGradient2D = ModulatedRotation2D::getExactVelocityGradient2D;
   }
 
   // Allocate storage for face fluxes
@@ -537,6 +545,12 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
   } else if (a_simulation_type == "Translation2D") {
     getExactVelocity2D = Translation2D::getExactVelocity2D;
     getExactGradient2D = Translation2D::getExactVelocityGradient2D;
+  } else if (a_simulation_type == "ModulatedTranslation2D") {
+    getExactVelocity2D = ModulatedTranslation2D::getExactVelocity2D;
+    getExactGradient2D = ModulatedTranslation2D::getExactVelocityGradient2D;
+  } else if (a_simulation_type == "ModulatedRotation2D") {
+    getExactVelocity2D = ModulatedRotation2D::getExactVelocity2D;
+    getExactGradient2D = ModulatedRotation2D::getExactVelocityGradient2D;
   }
 
   // Calculate CFL
