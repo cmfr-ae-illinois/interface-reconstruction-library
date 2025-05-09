@@ -29,6 +29,60 @@ Spline<ScalarType>::Spline(std::vector<std::vector<ScalarType>> CP,std::vector<S
 
 // Static Methods ***********************
 // TEST ALL STATIC METHODS ***************************************************************************************
+// Packing for Optimization
+template <class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::pack(std::vector<std::vector<ScalarType>> Q,std::vector<std::vector<ScalarType>> T) {
+    int Nq = Q.size();
+    int Nt = T.size();
+
+    if(Nq == Nt) {// Needed
+        std::vector<ScalarType> ret(2*(Nq-1)+(Nt-1));
+        for(int i = 0;i < Nq-1; i++) {
+            ret[3*i] = Q[i][0];
+            ret[3*i+1] = Q[i][1];
+            ret[3*i+2] = atan2(T[i][1],T[i][0]); // Convert into angle, from -pi to pi.
+            // Higher Accuracy atan2 may be needed?
+        }
+        // std::cout << "Size ret = " << ret.size() << "\n [";
+        // for(int i = 0; i < ret.size(); i++) {
+        //     std::cout << ret[i] << ",";
+        // }
+        // std::cout << "]\n";
+        return ret;
+    } else {
+        return {ScalarType(-1)};
+    }
+    return {0};
+}
+
+// Unpacking from Optimization to Interpolation
+template <class ScalarType>
+std::vector<std::vector<std::vector<ScalarType>>> Spline<ScalarType>::unpack(std::vector<ScalarType> V) {
+    int N = V.size();
+    int Nq = (int) (N/4)+1;
+    // std::cout << "Nq = " << Nq << "\n";
+    if(N%4 == 0) { // Required
+        std::vector<std::vector<ScalarType>> Q(Nq,std::vector<ScalarType> (2));
+        std::vector<std::vector<ScalarType>> T(Nq,std::vector<ScalarType> (2));
+        for(int i = 0; i < Q.size(); i++) {
+            Q[i][0] = V[3*i];
+            Q[i][1] = V[3*i+1];
+            T[i][0] = cos(V[3*i+2]); // These operations seem questionable in higher precisions
+            T[i][1] = sin(V[3*i+2]);
+        }
+        // Make sure we are periodic
+        Q[Nq-1][0] = Q[0][0];
+        Q[Nq-1][1] = Q[0][1];
+        T[Nq-1][0] = T[0][0];
+        T[Nq-1][1] = T[0][1];
+        return {Q,T};
+    } else {
+        return {{{ScalarType(-1)}}};
+    }
+    return {{{ScalarType(0)}}};
+}
+
+
 template <class ScalarType>
 std::vector<ScalarType> Spline<ScalarType>::BesselTangentUVec(std::vector<std::vector<ScalarType>> Q) {// Testing Needed
     int n = Q.size()-1;

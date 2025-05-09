@@ -81,6 +81,10 @@ class Spline { // : public Expr<Spline<ScalarType>>
         static float add(float x, float y);
 
         // Static Methods ***********************
+        // Package for Optimization
+        static std::vector<ScalarType> pack(std::vector<std::vector<ScalarType>> Q, std::vector<std::vector<ScalarType>> T);
+        // Unpack from Optimization
+        static std::vector<std::vector<std::vector<ScalarType>>> unpack(std::vector<ScalarType> V);
 
         // Tangent Finding with Akima Method
         static std::vector<std::vector<ScalarType>> AkimaTangents(std::vector<std::vector<ScalarType>> Q); 
