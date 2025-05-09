@@ -2,117 +2,11 @@
 #include <iostream>
 #include "irl/splines/Spline.h"
 #include <math.h>
-
-// static double ASeries[41][2] = {
-//     {-1.666666666666667e-1, 3.333333333333333e-1},
-//     {1.333333333333333e-1, 1.333333333333333e-1},
-//     {-8.57142857142857e-2, -8.57142857142857e-2},
-//     {5.079365079365079e-2, 5.079365079365079e-2},
-//     {-2.886002886002886e-2, -2.886002886002886e-2},
-//     {1.598401598401598e-2, 1.598401598401598e-2},
-//     {-8.7024087024087e-3, -8.7024087024087e-3},
-//     {4.680287033228209e-3, 4.680287033228209e-3},
-//     {-2.494100326917664e-3, -2.494100326917664e-3},
-//     {1.319629802601939e-3, 1.319629802601939e-3},
-//     {-6.942400265862374e-4, -6.942400265862374e-4},
-//     {3.635293230124298e-4, 3.635293230124298e-4},
-//     {-1.896186900898167e-4, -1.896186900898167e-4},
-//     {9.8581600152796e-5, 9.8581600152796e-5},
-//     {-5.110797242944491e-5, -5.110797242944491e-5},
-//     {2.643159786250081e-5, 2.643159786250081e-5},
-//     {-1.364059246832631e-5, -1.364059246832631e-5},
-//     {7.026314721363631e-6, 7.026314721363631e-6},
-//     {-3.613247313977594e-6, -3.613247313977594e-6},
-//     {1.855325963531499e-6, 1.855325963531499e-6},
-//     {-9.5139389525278e-7, -9.5139389525278e-7},
-//     {4.872747569336991e-7, 4.872747569336991e-7},
-//     {-2.492924046595037e-7, -2.492924046595037e-7},
-//     {1.274112023814322e-7, 1.274112023814322e-7},
-//     {-6.505882474542089e-8, -6.505882474542089e-8},
-//     {3.319227587011661e-8, 3.319227587011661e-8},
-//     {-1.692109727924127e-8, -1.692109727924127e-8},
-//     {8.61997418253746e-9, 8.61997418253746e-9},
-//     {-4.388255621981843e-9, -4.388255621981843e-9},
-//     {2.232577761324849e-9, 2.232577761324849e-9},
-//     {-1.135189009858826e-9, -1.135189009858826e-9},
-//     {5.768900973178349e-10, 5.768900973178349e-10},
-//     {-2.930192705126503e-10, -2.930192705126503e-10},
-//     {1.48761649851833e-10, 1.48761649851833e-10},
-//     {-7.549006672265758e-11, -7.549006672265758e-11},
-//     {3.82916346272267e-11, 3.82916346272267e-11},
-//     {-1.941527696469384e-11, -1.941527696469384e-11},
-//     {9.84052647841976e-12, 9.84052647841976e-12},
-//     {-4.985823042530466e-12, -4.985823042530466e-12},
-//     {2.525266498274373e-12, 2.525266498274373e-12},
-//     {-1.278606320361211e-12, -1.278606320361211e-12}};
-
-// std::array<double, 2> coeffsAreaExact(const double w) {
-//   const auto L = 1.0 / (w * w - 1.0);
-//   const auto S = (w < 1.0) ? sqrt(1.0 - w * w) : sqrt(w * w - 1.0);
-//   const auto T = (w < 1.0) ? atan((1.0 - w) / S) / S : atanh((w - 1.0) / S) / S;
-//   return {L * (0.5 - w * T), L * (0.5 * w * w - w * T)};
-// }
-
-// std::array<double, 2> coeffsAreaSeries(const double w) {
-//   std::array<double, 2> K;
-//   K.fill(0.0);
-//   double x = 1.0;
-//   int i = 0;
-//   while (i <= 40) {
-//     for (int j = 0; j < 2; ++j) {
-//       double add_to_coeff = Spline<double>::ASeries[i][j] * x;
-//       K[j] += add_to_coeff;
-//     }
-//     x *= w - 1.0;
-//     i++;
-//   }
-//   return K;
-// }
+#include <nlopt.hpp>
 
 int main() {
-  // std::vector<std::vector<double>> V1 =
-  // {{1,2},{0.7239,3.3806},{2.1078,2},{3.6852,0.4262},{4,2}};
-  // std::vector<double> KV = {0,0,0,0.6667,0.6667,1,1,1};
-  // std::vector<double> W = {1,0.3361,1,0.5025,1};
-
-  // std::vector<std::vector<double>> Circle =
-  // {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0}};
-  // std::vector<std::vector<double>> CircleT =
-  // {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
-
-  // std::vector<std::vector<double>> InterpTester =
-  // {{1.0,0.0},{0.0,1.0},{-1.0,0.0},{-3.0,0.0},{1.0,0.0}};
-  // std::vector<std::vector<double>> InterpTesterT =
-  // {{0.0,1.0},{-1.0,0.0},{-1.0,0.0},{-1.0,0.0},{0.0,1.0}};
-
-  // Spline spline = Spline(V1,KV,W);
-  // Spline circle = Spline::LocalRQuadInterp(Circle,CircleT);
-
-  // std::cout << "================== Being Circle test
-  // ===========================\n"; std::cout << "Total Area = "
-  // <<circle.getArea() << "\n"; std::cout << "Total Arc Length = " <<
-  // circle.getArcLength() << "\n"; std::cout << "Surface Energy = " <<
-  // circle.getSurfaceEnergy() << "\n"; std::vector<std::vector<double>> square
-  // = {{{0,0},{1.5,0},{1.5,1.5},{0,1.5},{0,0}}}; double A =
-  // circle.integrateSplineSquare(square); std::cout << "Clipped Area = " << A
-  // << "\n";
-
-  // circle.saveToVTK("circle_test");
-  // // Circle Tests Working and Matching
-
-  // std::cout << "\n================== Being Weird shape test
-  // ===========================\n"; Spline InterpTest =
-  // Spline::LocalRQuadInterp(InterpTester,InterpTesterT);
-
-  // InterpTest.saveToVTK("InterpTester_test");
-  // std::cout << "Total Area = " <<InterpTest.getArea() << "\n";
-  // std::cout << "Total Arc Length = " << InterpTest.getArcLength() << "\n";
-  // std::cout << "Surface Energy = " << InterpTest.getSurfaceEnergy() << "\n";
-  // square = {{-4,-2},{-2,-2},{-2,0.5},{-4,0.5},{-4,-2}};
-  // A = InterpTest.integrateSplineSquare(square);
-  // std::cout << "Clipped Area = " << A << "\n";
-
-  // Define Rectange for Clipping
+  
+  // Define Rectangle for Clipping
   std::vector<std::vector<double>> square = {
       {0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}, {0.0, 0.0}};
 
@@ -123,6 +17,7 @@ int main() {
   std::vector<std::vector<double>> Tangents = {
     {-0.555, -0.832}, {1.0, 0},        {-0.196, 0.981},
     {-0.707, -0.707}, {-0.707, 0.707}, {-0.555, -0.832}};
+    
   // Circle
   double R = 0.999999;
   std::vector<std::vector<double>> Circle =

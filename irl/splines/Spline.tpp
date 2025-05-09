@@ -24,7 +24,6 @@ Spline<ScalarType>::Spline(std::vector<std::vector<ScalarType>> CP,std::vector<S
     this->makeBreakpoints();
     this->makeSpans();
     this->CurveCoefficients();
-    std::cout << "ASERIES RETURn = " << Spline::ASeries[40][1] << "\n";
 }
 
 

@@ -60,6 +60,12 @@ message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
 find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
 find_package(CGAL)
 
+# Manually setting nlopt paths
+set(NLOPT_INCLUDE_DIR /usr/local/include)
+set(NLOPT_LIBRARY /usr/local/lib/libnlopt.so)
+
+include_directories(${NLOPT_INCLUDE_DIR})
+
 # Add packages IRL stores in external
 set(IRL_USE_ABSL ON)
 
@@ -114,6 +120,7 @@ target_include_directories(irl PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(irl INTERFACE PUBLIC Eigen3::Eigen)
 target_link_libraries(irl INTERFACE PUBLIC CGAL)
 target_link_libraries(irl PUBLIC quadmath)
+target_link_libraries(irl PUBLIC ${NLOPT_LIBRARY})
 
 if(IRL_USE_ABSL)
   target_include_directories(irl SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/abseil-cpp")
