@@ -1,74 +1,73 @@
 #include <array>
 #include <iostream>
 #include "irl/splines/Spline.h"
+#include <math.h>
 
+// static double ASeries[41][2] = {
+//     {-1.666666666666667e-1, 3.333333333333333e-1},
+//     {1.333333333333333e-1, 1.333333333333333e-1},
+//     {-8.57142857142857e-2, -8.57142857142857e-2},
+//     {5.079365079365079e-2, 5.079365079365079e-2},
+//     {-2.886002886002886e-2, -2.886002886002886e-2},
+//     {1.598401598401598e-2, 1.598401598401598e-2},
+//     {-8.7024087024087e-3, -8.7024087024087e-3},
+//     {4.680287033228209e-3, 4.680287033228209e-3},
+//     {-2.494100326917664e-3, -2.494100326917664e-3},
+//     {1.319629802601939e-3, 1.319629802601939e-3},
+//     {-6.942400265862374e-4, -6.942400265862374e-4},
+//     {3.635293230124298e-4, 3.635293230124298e-4},
+//     {-1.896186900898167e-4, -1.896186900898167e-4},
+//     {9.8581600152796e-5, 9.8581600152796e-5},
+//     {-5.110797242944491e-5, -5.110797242944491e-5},
+//     {2.643159786250081e-5, 2.643159786250081e-5},
+//     {-1.364059246832631e-5, -1.364059246832631e-5},
+//     {7.026314721363631e-6, 7.026314721363631e-6},
+//     {-3.613247313977594e-6, -3.613247313977594e-6},
+//     {1.855325963531499e-6, 1.855325963531499e-6},
+//     {-9.5139389525278e-7, -9.5139389525278e-7},
+//     {4.872747569336991e-7, 4.872747569336991e-7},
+//     {-2.492924046595037e-7, -2.492924046595037e-7},
+//     {1.274112023814322e-7, 1.274112023814322e-7},
+//     {-6.505882474542089e-8, -6.505882474542089e-8},
+//     {3.319227587011661e-8, 3.319227587011661e-8},
+//     {-1.692109727924127e-8, -1.692109727924127e-8},
+//     {8.61997418253746e-9, 8.61997418253746e-9},
+//     {-4.388255621981843e-9, -4.388255621981843e-9},
+//     {2.232577761324849e-9, 2.232577761324849e-9},
+//     {-1.135189009858826e-9, -1.135189009858826e-9},
+//     {5.768900973178349e-10, 5.768900973178349e-10},
+//     {-2.930192705126503e-10, -2.930192705126503e-10},
+//     {1.48761649851833e-10, 1.48761649851833e-10},
+//     {-7.549006672265758e-11, -7.549006672265758e-11},
+//     {3.82916346272267e-11, 3.82916346272267e-11},
+//     {-1.941527696469384e-11, -1.941527696469384e-11},
+//     {9.84052647841976e-12, 9.84052647841976e-12},
+//     {-4.985823042530466e-12, -4.985823042530466e-12},
+//     {2.525266498274373e-12, 2.525266498274373e-12},
+//     {-1.278606320361211e-12, -1.278606320361211e-12}};
 
-static double ASeries[41][2] = {
-    {-1.666666666666667e-1, 3.333333333333333e-1},
-    {1.333333333333333e-1, 1.333333333333333e-1},
-    {-8.57142857142857e-2, -8.57142857142857e-2},
-    {5.079365079365079e-2, 5.079365079365079e-2},
-    {-2.886002886002886e-2, -2.886002886002886e-2},
-    {1.598401598401598e-2, 1.598401598401598e-2},
-    {-8.7024087024087e-3, -8.7024087024087e-3},
-    {4.680287033228209e-3, 4.680287033228209e-3},
-    {-2.494100326917664e-3, -2.494100326917664e-3},
-    {1.319629802601939e-3, 1.319629802601939e-3},
-    {-6.942400265862374e-4, -6.942400265862374e-4},
-    {3.635293230124298e-4, 3.635293230124298e-4},
-    {-1.896186900898167e-4, -1.896186900898167e-4},
-    {9.8581600152796e-5, 9.8581600152796e-5},
-    {-5.110797242944491e-5, -5.110797242944491e-5},
-    {2.643159786250081e-5, 2.643159786250081e-5},
-    {-1.364059246832631e-5, -1.364059246832631e-5},
-    {7.026314721363631e-6, 7.026314721363631e-6},
-    {-3.613247313977594e-6, -3.613247313977594e-6},
-    {1.855325963531499e-6, 1.855325963531499e-6},
-    {-9.5139389525278e-7, -9.5139389525278e-7},
-    {4.872747569336991e-7, 4.872747569336991e-7},
-    {-2.492924046595037e-7, -2.492924046595037e-7},
-    {1.274112023814322e-7, 1.274112023814322e-7},
-    {-6.505882474542089e-8, -6.505882474542089e-8},
-    {3.319227587011661e-8, 3.319227587011661e-8},
-    {-1.692109727924127e-8, -1.692109727924127e-8},
-    {8.61997418253746e-9, 8.61997418253746e-9},
-    {-4.388255621981843e-9, -4.388255621981843e-9},
-    {2.232577761324849e-9, 2.232577761324849e-9},
-    {-1.135189009858826e-9, -1.135189009858826e-9},
-    {5.768900973178349e-10, 5.768900973178349e-10},
-    {-2.930192705126503e-10, -2.930192705126503e-10},
-    {1.48761649851833e-10, 1.48761649851833e-10},
-    {-7.549006672265758e-11, -7.549006672265758e-11},
-    {3.82916346272267e-11, 3.82916346272267e-11},
-    {-1.941527696469384e-11, -1.941527696469384e-11},
-    {9.84052647841976e-12, 9.84052647841976e-12},
-    {-4.985823042530466e-12, -4.985823042530466e-12},
-    {2.525266498274373e-12, 2.525266498274373e-12},
-    {-1.278606320361211e-12, -1.278606320361211e-12}};
+// std::array<double, 2> coeffsAreaExact(const double w) {
+//   const auto L = 1.0 / (w * w - 1.0);
+//   const auto S = (w < 1.0) ? sqrt(1.0 - w * w) : sqrt(w * w - 1.0);
+//   const auto T = (w < 1.0) ? atan((1.0 - w) / S) / S : atanh((w - 1.0) / S) / S;
+//   return {L * (0.5 - w * T), L * (0.5 * w * w - w * T)};
+// }
 
-std::array<double, 2> coeffsAreaExact(const double w) {
-  const auto L = 1.0 / (w * w - 1.0);
-  const auto S = (w < 1.0) ? sqrt(1.0 - w * w) : sqrt(w * w - 1.0);
-  const auto T = (w < 1.0) ? atan((1.0 - w) / S) / S : atanh((w - 1.0) / S) / S;
-  return {L * (0.5 - w * T), L * (0.5 * w * w - w * T)};
-}
-
-std::array<double, 2> coeffsAreaSeries(const double w) {
-  std::array<double, 2> K;
-  K.fill(0.0);
-  double x = 1.0;
-  int i = 0;
-  while (i <= 40) {
-    for (int j = 0; j < 2; ++j) {
-      double add_to_coeff = ASeries[i][j] * x;
-      K[j] += add_to_coeff;
-    }
-    x *= w - 1.0;
-    i++;
-  }
-  return K;
-}
-#include "irl/splines/Spline.h"
+// std::array<double, 2> coeffsAreaSeries(const double w) {
+//   std::array<double, 2> K;
+//   K.fill(0.0);
+//   double x = 1.0;
+//   int i = 0;
+//   while (i <= 40) {
+//     for (int j = 0; j < 2; ++j) {
+//       double add_to_coeff = Spline<double>::ASeries[i][j] * x;
+//       K[j] += add_to_coeff;
+//     }
+//     x *= w - 1.0;
+//     i++;
+//   }
+//   return K;
+// }
 
 int main() {
   // std::vector<std::vector<double>> V1 =
@@ -119,15 +118,24 @@ int main() {
 
   // Pick Interpolating Points and Tangents (Vibes)
   std::vector<std::vector<double>> InterpolatingPoints = {
-      {-1.0, 0.0}, {0.5, -1.0}, {1.5, 0.5},
-      {0.75, 0.6}, {0.25, 0.5}, {-1.0, 0.0}};
+    {-1.0, 0.0}, {0.5, -1.0}, {1.5, 0.5},
+    {0.75, 0.6}, {0.25, 0.5}, {-1.0, 0.0}};
   std::vector<std::vector<double>> Tangents = {
-      {-0.555, -0.832}, {1.0, 0},        {-0.196, 0.981},
-      {-0.707, -0.707}, {-0.707, 0.707}, {-0.555, -0.832}};
+    {-0.555, -0.832}, {1.0, 0},        {-0.196, 0.981},
+    {-0.707, -0.707}, {-0.707, 0.707}, {-0.555, -0.832}};
+  // Circle
+  double R = 0.999999;
+  std::vector<std::vector<double>> Circle =
+  {{R,0.0},{0.0,R},{-R,0.0},{0.0,-R},{R,0.0}};
+  std::vector<std::vector<double>> CircleT =
+  {{0.0,1.0},{-1.0,0.0},{0.0,-1.0},{1.0,0.0},{0.0,1.0}};
 
+
+  // InterpolatingPoints = Circle;
+  // Tangents = CircleT;
   // Interpolate
-  Spline s = Spline::LocalRQuadInterp(InterpolatingPoints, Tangents);
-
+  Spline s = Spline<double>::LocalRQuadInterp(InterpolatingPoints, Tangents);
+  s.saveToVTK("FullSection");
   // Calculate Parameter Loops
   std::vector<std::vector<double>> ret = s.getParameterLoop(square);
   std::vector<double> parameter =
@@ -142,6 +150,7 @@ int main() {
   std::vector<std::vector<double>> tans;
   auto breakpoints = s.getBreakpoints();
   auto spans = s.getSpans();
+  double u1,u2;
   for (int i = 0; i < parameter.size() - 1; i++) {
     double ind1 = indicator[i];      // Indicator at start
     double ind2 = indicator[i + 1];  // Indicator at end
@@ -154,8 +163,8 @@ int main() {
       // the points and weights instead of the area contribution of this segment
 
       // Get Parameter Values
-      double u1 = parameter[i];
-      double u2 = parameter[i + 1];
+      u1 = parameter[i];
+      u2 = parameter[i + 1];
       Points = {s.makeRationalQuadCurve(
           {u1})[0]};              // Add Starting Point to Points (Exit Point)
       tans = {s.getTangent(u1)};  // Add starting point Tangent (Exit Point)
@@ -217,27 +226,27 @@ int main() {
 
           // Calculate Intersection
           std::vector<std::vector<double>> solution =
-              Spline::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
+              Spline<double>::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
           std::vector<double> inter = solution[0];
 
           // Now, add intersection and end point to array
           Points.insert(Points.end(), inter);
           Points.insert(Points.end(), Pend);
 
-          tans.insert(
-              tans.end(),
-              Tend);  // Put end tangent to back of this to move forward.
+          tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
         }
       }
     }
   }
   // Print Points - These are the control points for the bezier splines. They go
   // start point, intersection point, end point.
+  // std::cout << "\n======== Internal Points Result ======== \n";
+  std::vector<std::vector<double>> P2 = s.clippedBezier(u1,u2);
   std::cout << "\n======== Points Result ======== \n";
   for (int i = 0; i < Points.size(); i++) {
     std::cout << Points[i][0] << "," << Points[i][1] << "\n";
   }
-
+  
   // From here, we will use this information to calculate the  weights.
   std::vector<double> weights = {
       1};  // First weight is always one (every other one will be too);
@@ -270,8 +279,10 @@ int main() {
     // Add Weight
     weights.insert(weights.end(), w);
     weights.insert(weights.end(), 1);  // Always 1 at the start and end
+    // std::cout << "weight = " << w << "\n";
+    // std::cout << "weight should = " << s.makeWeight(P0,P1,P2) << "\n";
   }
-
+  
   // Printing Results
   std::cout << "\n======= Weight Result ========== \n";
   // Notice that, starting at the first, every other weight is 1. This is just a
@@ -283,57 +294,85 @@ int main() {
   }
   std::cout << "\n";
 
+  // std::cout << "\n======== Points 2 Result ======== \n";
+  // for (int i = 0; i < P2.size(); i++) {
+  //   std::cout << P2[i][0] << "," << P2[i][1] << "," << P2[i][2]<< "\n";
+  // }
+
+  double ClipArea = s.integrateSplineSquare(square);
   // Finally, we will print out some properties of the curve
   std::cout << "\n========== Curve Properties ========== \n";
   std::cout << "Total Curve Area: " << s.getArea() << "\n";
-  std::cout << "Clipped Area: " << s.integrateSplineSquare(square) << "\n";
+  std::cout << "Clipped Area: " << ClipArea << "\n";
   std::cout << "Arc Length: " << s.getArcLength() << "\n";
   std::cout << "Surface Energy: " << s.getSurfaceEnergy() << "\n";
 
+  // Here we will make the spline for a visualization Test
+  // We just need to make a knot vector
+  // Make Knot Vector
+  
   /////////////////////////////////////////// TEST BY FABIEN
   // First let's close boundary of area to compute.
   // We'll define straight lines are quadratic Bezier curves with 0 weight.
   // That's an overkill but quicker to handle for now.
-  const auto Ps = std::vector<double>({Points[0][0], Points[0][1]});
-  const auto Pe = std::vector<double>(
+  const auto Ps = std::vector<double>({Points[0][0], Points[0][1]}); // Start Point
+  const auto Pe = std::vector<double>( // End Point
       {Points[Points.size() - 1][0], Points[Points.size() - 1][1]});
-  const auto P00 = std::vector<double>({0.0, 0.0});
-  const auto P10 = std::vector<double>({1.0, 0.0});
+  const auto P00 = std::vector<double>({0.0, 0.0}); // Bottom Left
+  const auto P10 = std::vector<double>({1.0, 0.0}); // Bottom Right
 
   weights.push_back(0.0);
   Points.push_back(
       std::vector<double>({0.5 * (Pe[0] + P00[0]), 0.5 * (Pe[1] + P00[1])}));
+
   weights.push_back(1.0);
   Points.push_back(P00);
+
   weights.push_back(0.0);
   Points.push_back(
       std::vector<double>({0.5 * (P00[0] + P10[0]), 0.5 * (P00[1] + P10[1])}));
+
   weights.push_back(1.0);
   Points.push_back(P10);
+
   weights.push_back(0.0);
   Points.push_back(
       std::vector<double>({0.5 * (Ps[0] + P10[0]), 0.5 * (Ps[1] + P10[1])}));
+
 
   std::cout << "\n======== Closed contour result ======== \n";
   for (int i = 0; i < Points.size(); i += 2) {
     std::cout << std::scientific << std::setprecision(2) << "P0 = ("
               << Points[i][0] << "," << Points[i][1] << "); ";
-    std::cout << "P1 = (" << Points[i + 1][0] << "," << Points[i][1] << "); ";
+    std::cout << "P1 = (" << Points[i + 1][0] << "," << Points[i+1][1] << "); ";
     std::cout << "P2 = (" << Points[(i + 2) % Points.size()][0] << ","
               << Points[(i + 2) % Points.size()][1] << "); ";
     std::cout << " w = " << weights[i + 1] << ")\n";
   }
+  std::vector<double> U = {0,0,0};
+  std::cout << "Point Size = " << Points.size() << "\n";
+  int ubarSize = (Points.size())/2;
+  for(int i = 1;i < ubarSize;i++) {
+      U.insert(U.end(),{double(i+1)/ubarSize,double(i+1)/ubarSize});
+  }
+  U.insert(U.end(),1);
+  std::vector<std::vector<double>> PControl = Points;
+  PControl.insert(PControl.end(),Points[0]);
+  Spline clipped = Spline<double>(PControl,U,weights);
+  std::cout<< "Clipped Area 2 = " << clipped.getArea() << "\n"; 
+  clipped.saveToVTK("ClippedSection");
+  
 
   std::cout << "\n======== Computing area with exact formula ======== \n";
   double A1 = 0.0;
   for (int i = 0; i < Points.size(); i += 2) {
     const auto x0 = Points[i][0], y0 = Points[i][1];
-    const auto x1 = Points[i + 1][0], y1 = Points[i][1];
+    const auto x1 = Points[i + 1][0], y1 = Points[i+1][1];
     const auto x2 = Points[(i + 2) % Points.size()][0],
                y2 = Points[(i + 2) % Points.size()][1];
     const auto w = weights[i + 1];
 
-    auto K = coeffsAreaExact(w);
+    auto K = Spline<double>::coeffsAreaExact(w);
     A1 -= (x0 * y2 - x2 * y0) * K[0] +
           (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
   }
@@ -344,25 +383,39 @@ int main() {
   double A2 = 0.0;
   for (int i = 0; i < Points.size(); i += 2) {
     const auto x0 = Points[i][0], y0 = Points[i][1];
-    const auto x1 = Points[i + 1][0], y1 = Points[i][1];
+    const auto x1 = Points[i + 1][0], y1 = Points[i+1][1];
     const auto x2 = Points[(i + 2) % Points.size()][0],
                y2 = Points[(i + 2) % Points.size()][1];
     const auto w = weights[i + 1];
-
+    double dA;
+    
+    // std::cout << "P0 = " << x0 << "," << y0 << ", w = " << weights[i] << "\n";
+    //             std::cout << "P1 = " << x1 << "," << y1 << ", w = " << weights[i+1]<< "\n";
+    //             std::cout << "P2 = " << x2 << "," << y2 << ", w = " << weights[i+2]<< "\n";
     if (w < 0.35 || w > 1.7) {
-      auto K = coeffsAreaExact(w);
-      A2 -= (x0 * y2 - x2 * y0) * K[0] +
+      auto K = Spline<double>::coeffsAreaExact(w);
+      dA = (x0 * y2 - x2 * y0) * K[0] +
             (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
     } else {
-      auto K = coeffsAreaSeries(w);
-      A2 -= (x0 * y2 - x2 * y0) * K[0] +
+      auto K = Spline<double>::coeffsAreaSeries(w);
+      dA = (x0 * y2 - x2 * y0) * K[0] +
             (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
     }
+    dA = -dA;
+    A2 += dA;
+    // std::cout << "dA = " << dA <<"\n";
+    // std::cout << "weight = " << w << "\n";
   }
   std::cout << "A = " << A2 << std::endl;
 
+  double Exact = M_PI*R*R/4.0;
   std::cout << "\n======== Error ======== \n";
   std::cout << "Diff = " << (A1 - A2) / A2 << std::endl;
+  std::cout << "Original - A2= " << (ClipArea-A2) / A2 << std::endl;
+  std::cout << "Original - A1= " << (ClipArea-A1) / A1 << std::endl;
+  std::cout << "Original - Exact= " << (ClipArea-Exact) / Exact << std::endl;
+  std::cout << "A1 - Exact= " << (A1-Exact) / Exact << std::endl;
+  std::cout << "A2 - Exact= " << (A2-Exact) / Exact << std::endl;
 
   /////////////////////////////////////////// TEST BY FABIEN
   return 0;

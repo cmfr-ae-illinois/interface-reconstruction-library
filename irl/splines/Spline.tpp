@@ -24,6 +24,7 @@ Spline<ScalarType>::Spline(std::vector<std::vector<ScalarType>> CP,std::vector<S
     this->makeBreakpoints();
     this->makeSpans();
     this->CurveCoefficients();
+    std::cout << "ASERIES RETURn = " << Spline::ASeries[40][1] << "\n";
 }
 
 
@@ -441,6 +442,8 @@ Spline<ScalarType> Spline<ScalarType>::LocalRQuadInterp(std::vector<std::vector<
         ubar.insert(ubar.end(),ubar[i-1]+coeff*numer/denom);
     }
     ScalarType un = ubar[ubar.size()-1];
+    std::cout << "Ubar size = " << ubar.size() << "\n";
+    std::cout << "Cpoints size = " << CPoints.size() << "\n";
     // Make Knot Vector
     std::vector<ScalarType> U = {0,0,0};
     for(int i = 1;i < ubar.size();i++) {
@@ -456,6 +459,31 @@ Spline<ScalarType> Spline<ScalarType>::LocalRQuadInterp(std::vector<std::vector<
     return ret;
 }
 
+// Fabien Area Finding
+template <class ScalarType>
+std::array<ScalarType, 2> Spline<ScalarType>::coeffsAreaExact(const ScalarType w) {
+    const auto L = 1.0 / (w * w - 1.0);
+    const auto S = (w < 1.0) ? sqrt(1.0 - w * w) : sqrt(w * w - 1.0);
+    const auto T = (w < 1.0) ? atan((1.0 - w) / S) / S : atanh((w - 1.0) / S) / S;
+    return {L * (0.5 - w * T), L * (0.5 * w * w - w * T)};
+  }
+
+template <class ScalarType> // Coefficients might only be doubles though
+std::array<ScalarType, 2> Spline<ScalarType>::coeffsAreaSeries(const ScalarType w) {
+    std::array<ScalarType, 2> K;
+    K.fill(ScalarType(0.0));
+    ScalarType x = ScalarType(1.0);
+    int i = 0;
+    while (i <= 40) {
+      for (int j = 0; j < 2; ++j) {
+        ScalarType add_to_coeff = Spline<ScalarType>::ASeries[i][j] * x;
+        K[j] += add_to_coeff;
+      }
+      x *= w - 1.0;
+      i++;
+    }
+    return K;
+  }
 // Dynamic Methods **************************
 // Assuming 2D
 template <class ScalarType>
@@ -1014,6 +1042,7 @@ ScalarType Spline<ScalarType>::integratedSpline(ScalarType u) {
 
         D3B = pow(-determinant,2.5);
     } else { // Near Zero
+        std::cout << "D3 Near 0\n";
         N3B = 0;
         D3B = 1;
     }
@@ -1041,26 +1070,23 @@ ScalarType Spline<ScalarType>::getArea() {
     // std::cout << "GETTING AREA\n";
     ScalarType Area = 0;
     ScalarType nudge = 1e-8;
-    // Loop over each breakpoint, find area of that section, then add them together.
-    ScalarType uL;
-    ScalarType uR;
-    for(int i =0; i <breakpoints.size()-1; i++) {
-        // std:: cout << "====================== i = " << i << " ========================\n";
-        uL = breakpoints[i]; // Left Breakpoint
-        uR = breakpoints[i+1]; // Right Breakpoint
-
-        uL += nudge;
-        uR -= nudge;
-
-        // std :: cout << "uL = " << uL << "\n";
-        // std :: cout << "uLVal = " << integratedSpline(uL) << "\n";
-        // std :: cout << "uR = " << uR << "\n";
-        // std :: cout << "uRVal = " << integratedSpline(uR) << "\n";
-        
-
-        Area += integratedSpline(uR) - integratedSpline(uL);
-        // std:: cout << "Area = " << Area << "\n";
-    }
+    Area = 0;
+    for (int i = 0; i < ControlPoints.size()-2; i += 2) {
+        const auto x0 = ControlPoints[i][0], y0 = ControlPoints[i][1];
+        const auto x1 = ControlPoints[i + 1][0], y1 = ControlPoints[i+1][1];
+        const auto x2 = ControlPoints[(i + 2) % ControlPoints.size()][0],
+                   y2 = ControlPoints[(i + 2) % ControlPoints.size()][1];
+        const auto w = Weights[i + 1];
+        if (w < 0.35 || w > 1.7) {
+          auto K = Spline<ScalarType>::coeffsAreaExact(w);
+          Area -= (x0 * y2 - x2 * y0) * K[0] +
+                (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
+        } else {
+          auto K = Spline<ScalarType>::coeffsAreaSeries(w);
+          Area -= (x0 * y2 - x2 * y0) * K[0] +
+                (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
+        }
+      }
     return Area;
 }
 
@@ -1263,6 +1289,122 @@ std::vector<std::vector<ScalarType>> Spline<ScalarType>::getParameterLoop(std::v
 
     return {tempParameters,tempIndicators};
 }
+template <class ScalarType>
+std::vector<std::vector<ScalarType>> Spline<ScalarType>::clippedBezier(ScalarType u1, ScalarType u2) {
+    std::vector<std::vector<ScalarType>> Points;
+    std::vector<std::vector<ScalarType>> tans;
+    
+    Points = {this->makeRationalQuadCurve(
+        {u1})[0]};              // Add Starting Point to Points (Exit Point)
+    tans = {this->getTangent(u1)};  // Add starting point Tangent (Exit Point)
+    
+    // Find Spans, in order
+    int spanIndex1 = this->findSpan(u1);
+    int spanIndex2 = this->findSpan(u2);
+    // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
+    // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
+    // if u1,u2 in the same span, we can go direct.
+    // If u1,u2 are in different spans, we have to segment through each span
+    if (spanIndex1 == spanIndex2) {  // Same Span
+      // I know this won't happen so I didn't code it for now
+    } else {  // Different Spans
+
+      int numSpans = spans.size();
+
+      int tempSpanIndex2 = spanIndex2;
+      if (spanIndex2 < spanIndex1) {
+        tempSpanIndex2 = spanIndex2 + numSpans;
+      }
+
+      // Get Set of Breakpoint Indices
+      std::vector<int> breakIndexSet = {spanIndex1 + 1};
+      for (int j = spanIndex1 + 2; j <= tempSpanIndex2; j++) {
+        breakIndexSet.insert(breakIndexSet.end(), j);
+      }
+
+      // Mod them into range
+      for (int j = 0; j < breakIndexSet.size(); j++) {
+        breakIndexSet[j] = breakIndexSet[j] % numSpans;
+      }
+      // Calculate Break Values
+      std::vector<ScalarType> breaks = {u1};
+      for (int j = 0; j < breakIndexSet.size(); j++) {
+        breaks.insert(breaks.end(), breakpoints[breakIndexSet[j]]);
+      }
+
+      breaks.insert(breaks.end(),
+                    u2);  // This contains the parameter value of the start,
+                          // all the breakpoints between
+      // segments, then the end.
+
+      for (int j = 0; j < breaks.size() - 1; j++) {
+        // For each of these points, add the intersection and end point, along
+        // with the previous tangent
+        std::vector<ScalarType> Pend =
+        this->makeRationalQuadCurve({breaks[j + 1]})[0];
+        std::vector<ScalarType> Tend = this->getTangent(breaks[j + 1]);
+
+        std::vector<ScalarType> Pstart = this->makeRationalQuadCurve({breaks[j]})[0];
+        std::vector<ScalarType> Tstart = this->getTangent(breaks[j]);
+        // std::cout << "j = " << j << "==================\n";
+        // std::cout << "Pstart = " << Pstart[0] << "," << Pstart[1] << "\n";
+        // std::cout << "Pend = " << Pend[0] << "," << Pend[1] << "\n";
+        // std::cout << "Tstart = " << Tstart[0] << "," << Tstart[1] << "\n";
+        // std::cout << "Tend = " << Tend[0] << "," << Tend[1] << "\n";
+
+        // Calculate Intersection
+        std::vector<std::vector<ScalarType>> solution =
+            Spline<ScalarType>::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
+        std::vector<ScalarType> inter = solution[0];
+
+        // Now, add intersection and end point to array
+        Points.insert(Points.end(), inter);
+        Points.insert(Points.end(), Pend);
+
+        tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
+      }
+    }
+     // From here, we will use this information to calculate the  weights.
+    std::vector<ScalarType> weights = {1};  // First weight is always one (every other one will be too);
+    for (int i = 0; i < Points.size() - 1;
+        i += 2) {  // We go every 2 since the points go in triples (0,1,2 then
+                    // 2,3,4 then 4,5,6 etc.)
+
+    // Here is an example of how to use the Points array, and what the ordering
+    // of it is
+    std::vector<ScalarType> P0 = Points[i];      // Start
+    std::vector<ScalarType> P1 = Points[i + 1];  // Intersection
+    std::vector<ScalarType> P2 = Points[i + 2];  // End
+
+    // Since I don't fully understand the curvature method in paper yet, I am
+    // just quickly doing this to get weights Since I know they are well
+    // behaved. I will understand the method in the paper soon and then that can
+    // be used In general case.
+
+    // First, calculate midpoint of P0,P2
+    std::vector<ScalarType> mid = {(P0[0] + P2[0]) / 2, (P0[1] + P2[1]) / 2};
+    // Next, calculate intersection with spline (Shoulder Point)
+    ScalarType uHit = this->lineCurveIntersection(mid, P1)[0];
+    std::vector<ScalarType> S = this->makeRationalQuadCurve({uHit})[0];
+    // Calculate Midpoint to Shoulder Point Distance
+    ScalarType MS = sqrt(pow(S[0] - mid[0], 2) + pow(S[1] - mid[1], 2));
+    // Calculate Shoulder Point to intersection distance
+    ScalarType SP1 = sqrt(pow(S[0] - P1[0], 2) + pow(S[1] - P1[1], 2));
+    // Calculate Weight (eq 7.32)
+    ScalarType w = MS / SP1;
+    // Add Weight
+    weights.insert(weights.end(), w);
+    weights.insert(weights.end(), 1);  // Always 1 at the start and end
+    // std::cout << "weight = " << w << "\n";
+    // std::cout << "weight should = " << s.makeWeight(P0,P1,P2) << "\n";
+    }
+    // Get into form of [Px,Py,w] array
+    std::vector<std::vector<ScalarType>> ret = {{Points[0][0],Points[0][1],weights[0]}};
+    for(int i = 1; i < weights.size();i++) {
+        ret.insert(ret.end(),{Points[i][0],Points[i][1],weights[i]});
+    }
+    return ret;
+}
 
 template <class ScalarType>
 ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<ScalarType>> square) { // Should be working (Tested)
@@ -1275,11 +1417,11 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
     // }
     // std::cout << "\nEnd Parameter \n";
 
-    // std::cout << "Begin Indicator \n";
-    // for(int i = 0; i < indicator.size(); i++) {
-    //     std::cout << indicator[i] << ",";
-    // }
-    // std::cout << "\nEnd Indicator \n";
+    std::cout << "Begin Indicator \n";
+    for(int i = 0; i < indicator.size(); i++) {
+        std::cout << indicator[i] << ",";
+    }
+    std::cout << "\nEnd Indicator \n";
     ScalarType Area = 0;
 
     for(int i = 0;i<indicator.size()-1;i++) { // Loop over pairs of indicators/parameters
@@ -1291,179 +1433,63 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
             std::vector<ScalarType> P1 = square[parameter[i]];
             std::vector<ScalarType> P2 = square[parameter[i+1]];
 
-            // Get Normal
-            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
+            ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
 
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            ScalarType integrand = normal[0];
-            ScalarType Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            ScalarType x1 = P1[0];
-            ScalarType x2 = P2[0];
-            ScalarType m = x2-x1;
-            ScalarType b = x1;
-
-            ScalarType velocity = Pp;
-            
-            Area += integrand*(m/2 + b) * velocity;
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
             
             std::vector<ScalarType> P1 = square[parameter[i]];
             std::vector<ScalarType> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
-            // Get Normal
-            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            ScalarType integrand = normal[0];
-            ScalarType Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            ScalarType x1 = P1[0];
-            ScalarType x2 = P2[0];
-            ScalarType m = x2-x1;
-            ScalarType b = x1;
-
-            ScalarType velocity = Pp;
-            // std::cout << "Case 2 \n";
-            // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
-            Area += integrand*(m/2 + b) * velocity;
+            ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
             std::vector<ScalarType> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<ScalarType> P2 = square[parameter[i+1]];
 
-            // Get Normal
-            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            ScalarType integrand = normal[0];
-            ScalarType Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            ScalarType x1 = P1[0];
-            ScalarType x2 = P2[0];
-            ScalarType m = x2-x1;
-            ScalarType b = x1;
-
-            ScalarType velocity = Pp;
-            // std::cout << "Case 3 \n";
-            // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
-            Area += integrand*(m/2 + b) * velocity;
+            ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
             std::vector<ScalarType> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<ScalarType> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
-            // Get Normal
-            std::vector<ScalarType> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<ScalarType> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            ScalarType normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            ScalarType integrand = normal[0];
-            ScalarType Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            ScalarType x1 = P1[0];
-            ScalarType x2 = P2[0];
-            ScalarType m = x2-x1;
-            ScalarType b = x1;
-
-            ScalarType velocity = Pp;
-            Area += integrand*(m/2 + b) * velocity;
+            ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
  
             // Get Parameter Values
             ScalarType u1 = parameter[i];
             ScalarType u2 = parameter[i+1];
 
-            // Find Spans, in order
-            int spanIndex1 = findSpan(u1);
-            int spanIndex2 = findSpan(u2);
-            // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
-            // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
+            std::vector<std::vector<ScalarType>> clippedSection = this->clippedBezier(u1,u2);
+            ScalarType integral = 0.0;
+            // std::cout << "\n ========= INTEGRAL CALCULATION ========\n";
+            for(int i = 0; i < clippedSection.size()-2; i += 2) {
+                const auto x0 = clippedSection[i][0], y0 = clippedSection[i][1];
+                const auto x1 = clippedSection[i+1][0], y1 = clippedSection[i+1][1];
+                const auto x2 = clippedSection[i + 2][0],
+                        y2 = clippedSection[i + 2][1];
+                const auto w = clippedSection[i + 1][2];
 
-            ScalarType integral = 0;;
-            // if u1,u2 in the same span, we can go direct.
-            // If u1,u2 are in different spans, we have to segment through each span
-            if(spanIndex1 == spanIndex2) { // Same Span
-                ScalarType V1 = integratedSpline(u1);
-                ScalarType V2 = integratedSpline(u2);
-                
-                integral = V2-V1;
-            } else { // Different Spans
-                int numSpans = spans.size();
-                int tempSpanIndex2 = spanIndex2;
-                if(spanIndex2 < spanIndex1) {
-                    tempSpanIndex2 = spanIndex2 + numSpans;
+                // std::cout << "P0 = " << x0 << "," << y0 << ", w = " << clippedSection[i][2] << "\n";
+                // std::cout << "P1 = " << x1 << "," << y1 << ", w = " << clippedSection[i+1][2]<< "\n";
+                // std::cout << "P2 = " << x2 << "," << y2 << ", w = " << clippedSection[i+2][2]<< "\n";
+                ScalarType dA;
+                if (w < 0.35 || w > 1.7) {
+                    auto K = Spline<ScalarType>::coeffsAreaExact(w);
+                    dA = (x0 * y2 - x2 * y0) * K[0] +
+                        (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
+                } else {
+                    auto K = Spline<ScalarType>::coeffsAreaSeries(w);
+                    dA = (x0 * y2 - x2 * y0) * K[0] +
+                        (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
                 }
-
-                // Get Set of Breakpoint Indices
-                std::vector<int> breakIndexSet = {spanIndex1+1};
-                for(int j = spanIndex1+2;j<=tempSpanIndex2; j++) {
-                    breakIndexSet.insert(breakIndexSet.end(),j);
-                }
-                
-
-                // Mod them into range
-                for(int j = 0; j < breakIndexSet.size();j++ ) {
-                    breakIndexSet[i] = breakIndexSet[i]%numSpans;
-                }
-                // Calculate Break Values
-                std::vector<ScalarType> breaks = {u1};
-                for(int j = 0; j < breakIndexSet.size();j++) {
-                    breaks.insert(breaks.end(),breakpoints[breakIndexSet[j]]);
-                }
-                
-                breaks.insert(breaks.end(),u2);
-                // std::cout << "Breaks\n";
-                // for(int j=0; j < breaks.size(); j++) {
-                //     std::cout << breaks[j] <<",";
-                // }
-                // std::cout <<"\n" ;
-                // Integral
-                ScalarType nudge = 1e-8;
-                ScalarType V1;
-                ScalarType V2;
-                for(int j = 0; j < breaks.size()-1; j++) {
-                    u1 = breaks[j]+nudge;
-                    u2 = breaks[j+1]-nudge;
-                    // std::cout << breaks[j]-breaks[j+1] <<"\n";
-                    V1 = integratedSpline(u1);
-                    V2 = integratedSpline(u2);
-                    if(fabs(breaks[j]-breaks[j+1]) <= 1e-12) {
-                        V2=V1;
-                    }
-                    // std::cout << "V1 = " << V1 << "\n";
-                    // std::cout << "V2 = " << V2 << "\n";
-                    // std::cout << "Contrib X = " <<V2-V1<< "\n";
-                    integral += V2-V1;
-                }
+                integral -= dA;
+                // std::cout << "dA = " << -dA << "\n";
             }
             // std::cout << "Case 5 \n";
             // std::cout << "Component Integral = " << integral << "\n";
+            // std::cout << "\n4-3 Area Contribution: " << integral << "\n";
             Area += integral;
         }   
     }

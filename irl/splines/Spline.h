@@ -26,7 +26,55 @@ class Spline { // : public Expr<Spline<ScalarType>>
         std::vector<std::vector<ScalarType>> denomCoeffs;
         std::vector<std::vector<ScalarType>> spans;
         std::vector<ScalarType> breakpoints;
-    public: 
+
+        
+    public:
+        // Variables
+        
+        // For Taylor Series
+        static constexpr double ASeries[41][2] = {
+            {-1.666666666666667e-1, 3.333333333333333e-1},
+            {1.333333333333333e-1, 1.333333333333333e-1},
+            {-8.57142857142857e-2, -8.57142857142857e-2},
+            {5.079365079365079e-2, 5.079365079365079e-2},
+            {-2.886002886002886e-2, -2.886002886002886e-2},
+            {1.598401598401598e-2, 1.598401598401598e-2},
+            {-8.7024087024087e-3, -8.7024087024087e-3},
+            {4.680287033228209e-3, 4.680287033228209e-3},
+            {-2.494100326917664e-3, -2.494100326917664e-3},
+            {1.319629802601939e-3, 1.319629802601939e-3},
+            {-6.942400265862374e-4, -6.942400265862374e-4},
+            {3.635293230124298e-4, 3.635293230124298e-4},
+            {-1.896186900898167e-4, -1.896186900898167e-4},
+            {9.8581600152796e-5, 9.8581600152796e-5},
+            {-5.110797242944491e-5, -5.110797242944491e-5},
+            {2.643159786250081e-5, 2.643159786250081e-5},
+            {-1.364059246832631e-5, -1.364059246832631e-5},
+            {7.026314721363631e-6, 7.026314721363631e-6},
+            {-3.613247313977594e-6, -3.613247313977594e-6},
+            {1.855325963531499e-6, 1.855325963531499e-6},
+            {-9.5139389525278e-7, -9.5139389525278e-7},
+            {4.872747569336991e-7, 4.872747569336991e-7},
+            {-2.492924046595037e-7, -2.492924046595037e-7},
+            {1.274112023814322e-7, 1.274112023814322e-7},
+            {-6.505882474542089e-8, -6.505882474542089e-8},
+            {3.319227587011661e-8, 3.319227587011661e-8},
+            {-1.692109727924127e-8, -1.692109727924127e-8},
+            {8.61997418253746e-9, 8.61997418253746e-9},
+            {-4.388255621981843e-9, -4.388255621981843e-9},
+            {2.232577761324849e-9, 2.232577761324849e-9},
+            {-1.135189009858826e-9, -1.135189009858826e-9},
+            {5.768900973178349e-10, 5.768900973178349e-10},
+            {-2.930192705126503e-10, -2.930192705126503e-10},
+            {1.48761649851833e-10, 1.48761649851833e-10},
+            {-7.549006672265758e-11, -7.549006672265758e-11},
+            {3.82916346272267e-11, 3.82916346272267e-11},
+            {-1.941527696469384e-11, -1.941527696469384e-11},
+            {9.84052647841976e-12, 9.84052647841976e-12},
+            {-4.985823042530466e-12, -4.985823042530466e-12},
+            {2.525266498274373e-12, 2.525266498274373e-12},
+            {-1.278606320361211e-12, -1.278606320361211e-12}};
+        
         // Methods
         // Constructors
         Spline(std::vector<std::vector<ScalarType>> CP,std::vector<ScalarType> KV,std::vector<ScalarType> W);
@@ -60,7 +108,9 @@ class Spline { // : public Expr<Spline<ScalarType>>
         // A helper function in the rational quadratic interpolation method for generating weights.
         static ScalarType makeWeight(std::vector<ScalarType> Qkm, std::vector<ScalarType> Rk, std::vector<ScalarType> Qk);
 
+        static std::array<ScalarType, 2> coeffsAreaExact(const ScalarType w);
 
+        static std::array<ScalarType, 2> coeffsAreaSeries(const ScalarType w);
 
         // Dynamic Methods ********************************
         // Returns the value of a B-Spline Basis Method (N_{i,p}(u)) for a given knot vector U
@@ -111,6 +161,9 @@ class Spline { // : public Expr<Spline<ScalarType>>
         // Helper Method to return integral of xy' for area finding, evaluated at parameter value u 
         ScalarType integratedSpline(ScalarType u);
 
+        // Helper for calculating curve integral
+        std::vector<std::vector<ScalarType>> clippedBezier(ScalarType u1, ScalarType u2);
+
         // Method to find the area of intersection between the spline and square
         ScalarType integrateSplineSquare(std::vector<std::vector<ScalarType>> square);
 
@@ -124,7 +177,8 @@ class Spline { // : public Expr<Spline<ScalarType>>
         std::vector<std::vector<ScalarType>> makeRationalQuadCurve(std::vector<ScalarType> uset);
 
         void saveToVTK(const std::string& filename, const int nsamples = 100);
-
+        
+        
         // Getters ****************************
         std::vector<std::vector<ScalarType>> getControlPoints();
         std::vector<ScalarType> getKnotVector();
