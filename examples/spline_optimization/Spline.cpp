@@ -1070,7 +1070,10 @@ double Spline::getArea() {
                    y2 = ControlPoints[(i + 2) % ControlPoints.size()][1];
         const auto w = Weights[i + 1];
         if (w < 0.35 || w > 1.7) {
-          auto K = Spline::coeffsAreaExact(w);
+          auto K = std::array<double,2>({0.0, 0.5});
+          if (w < 1.0e-9) {
+            K = Spline::coeffsAreaExact(w);
+          }
           Area -= (x0 * y2 - x2 * y0) * K[0] +
                 (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
         } else {
@@ -1604,7 +1607,10 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                 double dA;
                 // Uses weights to calculate area here. ==========================================================================
                 if (w < 0.35 || w > 1.7) {
-                    auto K = Spline::coeffsAreaExact(w);
+                    auto K = std::array<double,2>({0.0, 0.5});
+                    if (w < 1.0e-9) {
+                        K = Spline::coeffsAreaExact(w);
+                    }
                     dA = (x0 * y2 - x2 * y0) * K[0] +
                         (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
                 } else {
