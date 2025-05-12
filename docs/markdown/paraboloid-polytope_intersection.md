@@ -1,12 +1,12 @@
 # Reproducing published results on paraboloid-polytope intersection
 
-This document explains how to reproduce the results presented in our journal paper on paraboloid-polytope intersection, published in the SIAM Journal on Scientific Computing [[link](https://www.siam.org/publications/journals/siam-journal-on-scientific-computing-sisc)]. 
+This document explains how to reproduce the results presented in our journal paper on paraboloid-polytope intersection, published in the SIAM Journal on Scientific Computing [[link](https://doi.org/10.1137/22M1524308)]. 
 
 A preprint of this article is available in [arXiv](https://arxiv.org/pdf/2210.07772.pdf) as well as in the [current repository](manuscript_paraboloid_intersection.pdf).
 
 ## Unit cube translation (Section 7.1)
 
-In order to reproduce Figures 5 and 6 of the [paper](), it is necessary to build the unit tests of IRL (for which the option `-D BUILD_TESTING=ON` must be provided when configuring IRL via CMake). This requires executing the additional command:
+In order to reproduce Figures 5 and 6 of the [paper](https://doi.org/10.1137/22M1524308), it is necessary to build the unit tests of IRL (for which the option `-D BUILD_TESTING=ON` must be provided when configuring IRL via CMake). This requires executing the additional command:
 
 ```
 make irl_test
