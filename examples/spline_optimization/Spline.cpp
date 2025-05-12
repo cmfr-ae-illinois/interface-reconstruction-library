@@ -1,9 +1,11 @@
-#include "Spline.h"
+#include "./Spline.h"
 #include <cmath>
 #include <vector>
 #include <numeric>      // std::iota
 #include <algorithm>    // std::sort, std::stable_sort
 #include <complex>
+#include <math.h>
+#include <array>
 // Will Delete, for testing
 float Spline::add(float x, float y) {
     float add;
@@ -25,6 +27,56 @@ Spline::Spline(std::vector<std::vector<double>> CP,std::vector<double> KV,std::v
 
 // Static Methods ***********************
 // TEST ALL STATIC METHODS ***************************************************************************************
+// Packing for Optimization 
+std::vector<double> Spline::pack(std::vector<std::vector<double>> Q,std::vector<std::vector<double>> T) {
+    int Nq = Q.size();
+    int Nt = T.size();
+
+    if(Nq == Nt) {// Needed
+        std::vector<double> ret(2*(Nq-1)+(Nt-1));
+        for(int i = 0;i < Nq-1; i++) {
+            ret[3*i] = Q[i][0];
+            ret[3*i+1] = Q[i][1];
+            ret[3*i+2] = double(std::atan2(T[i][1],T[i][0])); // Convert into angle, from -pi to pi.
+        }
+        // std::cout << "Size ret = " << ret.size() << "\n [";
+        // for(int i = 0; i < ret.size(); i++) {
+        //     std::cout << ret[i] << ",";
+        // }
+        // std::cout << "]\n";
+        return ret;
+    } else {
+        return {-1};
+    }
+    return {0};
+}
+// Unpacking from Optimization to Interpolation
+std::vector<std::vector<std::vector<double>>> Spline::unpack(std::vector<double> V) {
+    int N = V.size();
+    int Nq = int(N/3)+1;
+    // std::cout << "Nq = " << Nq << "\n";
+    if(N%4 == 0) { // Required
+        std::vector<std::vector<double>> Q(Nq,std::vector<double> (2));
+        std::vector<std::vector<double>> T(Nq,std::vector<double> (2));
+        for(int i = 0; i < Q.size(); i++) {
+            Q[i][0] = V[3*i];
+            Q[i][1] = V[3*i+1];
+            T[i][0] = std::cos(V[3*i+2]);
+            T[i][1] = std::sin(V[3*i+2]);
+        }
+        // Make sure we are periodic
+        Q[Nq-1][0] = Q[0][0];
+        Q[Nq-1][1] = Q[0][1];
+        T[Nq-1][0] = T[0][0];
+        T[Nq-1][1] = T[0][1];
+        return {Q,T};
+    } else {
+        return {{{-1}}};
+    }
+    return {{{0}}};
+    
+}
+
 std::vector<double> Spline::BesselTangentUVec(std::vector<std::vector<double>> Q) {// Testing Needed
     int n = Q.size()-1;
     double d = 0;
@@ -448,10 +500,35 @@ Spline Spline::LocalRQuadInterp(std::vector<std::vector<double>> Q,std::vector<s
     return ret;
 }
 
+// Fabien Area Finding
+std::array<double, 2> Spline::coeffsAreaExact(const double w) {
+    const auto L = 1.0 / (w * w - 1.0);
+    const auto S = (w < 1.0) ? sqrt(1.0 - w * w) : sqrt(w * w - 1.0);
+    const auto T = (w < 1.0) ? atan((1.0 - w) / S) / S : atanh((w - 1.0) / S) / S;
+    return {L * (0.5 - w * T), L * (0.5 * w * w - w * T)};
+}
+
+std::array<double, 2> Spline::coeffsAreaSeries(const double w) {
+    std::array<double, 2> K;
+    K.fill(double(0.0));
+    double x = double(1.0);
+    int i = 0;
+    while (i <= 40) {
+        for (int j = 0; j < 2; ++j) {
+        double add_to_coeff = Spline::ASeries[i][j] * x;
+        K[j] += add_to_coeff;
+        }
+        x *= w - 1.0;
+        i++;
+    }
+    return K;
+}
+
 // Dynamic Methods **************************
 // Assuming 2D
 int Spline::findSpan(double u) {
     int spanIndex = -1;
+    // std::cout << fabs(u-1) << "\n";
     if(u > 1) {// Too Large Error
         spanIndex = -1; 
     }else if(u < 0) {// Negative Error
@@ -794,7 +871,7 @@ double Spline::getSurfaceEnergy() {
             
             // Curvature
             double k = this->getCurvature(ueff);
-            Ek += m*GaussWeights[j]*n*fabs(k); // Unsigned Surface Energy is the real one
+            Ek += m*GaussWeights[j]*n*std::abs(k); // Unsigned Surface Energy is the real one
         }
     }
     return Ek;
@@ -851,39 +928,6 @@ double Spline::getCurvature(double u) {
     return k;
 }
 
-std::vector<double> Spline::getTangent(double u) {
-    // Find Span we are in
-    int spanIndex = findSpan(u);
-
-    // 0th Derivative Coefficients
-    double a = numerCoeffsX[spanIndex][0];
-    double b = numerCoeffsX[spanIndex][1];
-    double c = numerCoeffsX[spanIndex][2];
-    
-    double d = numerCoeffsY[spanIndex][0];
-    double e = numerCoeffsY[spanIndex][1];
-    double f = numerCoeffsY[spanIndex][2];
-
-    double alpha = denomCoeffs[spanIndex][0];
-    double beta = denomCoeffs[spanIndex][1];
-    double gamma = denomCoeffs[spanIndex][2];
-
-    // 1st Derivative Coefficients
-    double ax = a*beta-b*alpha;
-    double bx = 2*(a*gamma-alpha*c);
-    double cx = b*gamma-beta*c;
-
-    double ay = d*beta-e*alpha;
-    double by = 2*(d*gamma-alpha*f);
-    double cy = e*gamma-beta*f;
-
-    // First Derivatives 
-    double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
-    double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
-
-    return {xp,yp};
-}
-
 std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<double> uset) {
     std::vector<std::vector<double>> curve = {{0,0}};
     for(int i = 0; i < uset.size();i++) { // Loop over all u values
@@ -915,7 +959,7 @@ std::vector<std::vector<double>> Spline::makeRationalQuadCurve(std::vector<doubl
 double Spline::integratedSpline(double u) {
     // Find Span we are in
     int spanIndex = findSpan(u);
-    // std::cout << "Found Span\n";
+    // std::cout << "Found Span\n" << spanIndex << "\n";
     // Get Appropriate Coefficients
     // 0th Derivative Coefficients
     double a = numerCoeffsX[spanIndex][0];
@@ -1008,7 +1052,7 @@ double Spline::integratedSpline(double u) {
         // N1B = 0;
         std::cout << "D1 Near 0\n";
     }
-
+    // std::cout << "End \n";
 
     double value = 0.5*(N1B/D1B + N2B/D2B + N3B/D3B);
 
@@ -1019,26 +1063,49 @@ double Spline::getArea() {
     // std::cout << "GETTING AREA\n";
     double Area = 0;
     double nudge = 1e-8;
-    // Loop over each breakpoint, find area of that section, then add them together.
-    double uL;
-    double uR;
-    for(int i =0; i <breakpoints.size()-1; i++) {
-        // std:: cout << "====================== i = " << i << " ========================\n";
-        uL = breakpoints[i]; // Left Breakpoint
-        uR = breakpoints[i+1]; // Right Breakpoint
-
-        uL += nudge;
-        uR -= nudge;
-
-        // std :: cout << "uL = " << uL << "\n";
-        // std :: cout << "uLVal = " << integratedSpline(uL) << "\n";
-        // std :: cout << "uR = " << uR << "\n";
-        // std :: cout << "uRVal = " << integratedSpline(uR) << "\n";
-        
-
-        Area += integratedSpline(uR) - integratedSpline(uL);
-        // std:: cout << "Area = " << Area << "\n";
+    for (int i = 0; i < ControlPoints.size()-2; i += 2) {
+        const auto x0 = ControlPoints[i][0], y0 = ControlPoints[i][1];
+        const auto x1 = ControlPoints[i + 1][0], y1 = ControlPoints[i+1][1];
+        const auto x2 = ControlPoints[(i + 2) % ControlPoints.size()][0],
+                   y2 = ControlPoints[(i + 2) % ControlPoints.size()][1];
+        const auto w = Weights[i + 1];
+        if (w < 0.35 || w > 1.7) {
+          auto K = Spline::coeffsAreaExact(w);
+          Area -= (x0 * y2 - x2 * y0) * K[0] +
+                (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
+        } else {
+          auto K = Spline::coeffsAreaSeries(w);
+          Area -= (x0 * y2 - x2 * y0) * K[0] +
+                (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
+        }
     }
+    // double Acheck = Area;
+    // Area = 0;
+    // nudge = 1e-8;
+    // // Loop over each breakpoint, find area of that section, then add them together.
+    // double uL;
+    // double uR;
+    // // std::cout << breakpoints.size() << "\n";
+    // for(int i =0; i <breakpoints.size()-1; i++) {
+    //     // std:: cout << "====================== i = " << i << " ========================\n";
+    //     uL = breakpoints[i]; // Left Breakpoint
+    //     uR = breakpoints[i+1]; // Right Breakpoint
+
+    //     uL += nudge;
+    //     uR -= nudge;
+
+    //     // std :: cout << "uL = " << uL << "\n";
+    //     // std :: cout << "uLVal = " << integratedSpline(uL) << "\n";
+    //     // std :: cout << "uR = " << uR << "\n";
+    //     // std :: cout << "uRVal = " << integratedSpline(uR) << "\n";
+
+    //     Area += integratedSpline(uR) - integratedSpline(uL);
+    //     // std::cout <<"Added to Area\n";
+    //     // std:: cout << "Area = " << Area << "\n";
+    // }
+    // std:: cout << "Area = " << Area << "\n";
+    // std:: cout << "ACheck = " << Acheck << "\n";
+    // std::cout << "Difference = " << (Area-Acheck) <<"\n";
     return Area;
 }
 
@@ -1151,17 +1218,14 @@ std::vector<double> Spline::lineCurveIntersection(std::vector<double> P1, std::v
 }
 
 std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vector<double>> square) { // Should be working (Tested)
-    std::cout << "Finding Furthest Right\n";
     std::vector<double> P1 = square[0];
     std::vector<double> P2;
     int I = 0;
-    std::cout << "Finding Furthest Right\n";
     for(int i = 0; i < ControlPoints.size();i++) { // Loop over control points
         if(ControlPoints[i][0] > ControlPoints[I][0]) { // Find Furthest Right Point
             I = i;
         }
     }
-    std::cout << "Found Furthest Right\n";
     P2 = ControlPoints[I];
     P2[0] += 1; // Move a little to the right
     std::vector<double> intersections = lineCurveIntersection(P1,P2);
@@ -1243,9 +1307,223 @@ std::vector<std::vector<double>> Spline::getParameterLoop(std::vector<std::vecto
     return {tempParameters,tempIndicators};
 }
 
+std::vector<double> Spline::getTangent(double u) {
+    // Find Span we are in
+    int spanIndex = findSpan(u);
+
+    // 0th Derivative Coefficients
+    double a = numerCoeffsX[spanIndex][0];
+    double b = numerCoeffsX[spanIndex][1];
+    double c = numerCoeffsX[spanIndex][2];
+    
+    double d = numerCoeffsY[spanIndex][0];
+    double e = numerCoeffsY[spanIndex][1];
+    double f = numerCoeffsY[spanIndex][2];
+
+    double alpha = denomCoeffs[spanIndex][0];
+    double beta = denomCoeffs[spanIndex][1];
+    double gamma = denomCoeffs[spanIndex][2];
+
+    // 1st Derivative Coefficients
+    double ax = a*beta-b*alpha;
+    double bx = 2*(a*gamma-alpha*c);
+    double cx = b*gamma-beta*c;
+
+    double ay = d*beta-e*alpha;
+    double by = 2*(d*gamma-alpha*f);
+    double cy = e*gamma-beta*f;
+
+    // First Derivatives 
+    double xp = (ax*pow(u,2)+bx*u+cx)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+    double yp = (ay*pow(u,2)+by*u+cy)/pow(alpha*pow(u,2)+beta*u+gamma,2);
+
+    return {xp,yp};
+}
+
+std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
+    std::vector<std::vector<double>> Points;
+    std::vector<std::vector<double>> tans;
+    std::vector<double> curves; // Stores Curvatures
+
+    Points = {this->makeRationalQuadCurve(
+        {u1})[0]};              // Add Starting Point to Points (Exit Point)
+    tans = {this->getTangent(u1)};  // Add starting point Tangent (Exit Point)
+    curves = {this->getCurvature(u1)};
+    // Find Spans, in order
+    int spanIndex1 = this->findSpan(u1);
+    int spanIndex2 = this->findSpan(u2);
+    std::cout << "spanIndex1 = " << spanIndex1 << "\n";
+    std::cout << "spanIndex2 = " << spanIndex2 << "\n";
+    // if u1,u2 in the same span, we can go direct.
+    // If u1,u2 are in different spans, we have to segment through each span
+    if (spanIndex1 == spanIndex2) {  // Same Span 
+        std::vector<double> Pend =
+        this->makeRationalQuadCurve({u2})[0];
+        std::vector<double> Tend = this->getTangent(u2);
+
+        std::vector<double> Pstart = this->makeRationalQuadCurve({u1})[0];
+        std::vector<double> Tstart = this->getTangent(u1);
+
+        // Calculate Intersection
+        std::vector<std::vector<double>> solution =
+            Spline::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
+        std::vector<double> inter = solution[0];
+
+        // Now, add intersection and end point to array
+        Points.insert(Points.end(), inter);
+        Points.insert(Points.end(), Pend);
+
+        tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
+        curves.insert(curves.end(),0);
+        curves.insert(curves.end(),this->getCurvature(u2));
+    } else {  // Different Spans
+
+      int numSpans = spans.size();
+      int tempSpanIndex2 = spanIndex2;
+      if (spanIndex2 < spanIndex1) {
+        tempSpanIndex2 = spanIndex2 + numSpans;
+      }
+
+      // Get Set of Breakpoint Indices
+      std::vector<int> breakIndexSet = {spanIndex1 + 1};
+      for (int j = spanIndex1 + 2; j <= tempSpanIndex2; j++) {
+        breakIndexSet.insert(breakIndexSet.end(), j);
+      }
+
+      // Mod them into range
+      for (int j = 0; j < breakIndexSet.size(); j++) {
+        breakIndexSet[j] = breakIndexSet[j] % numSpans;
+      }
+      // Calculate Break Values
+      std::vector<double> breaks = {u1};
+      for (int j = 0; j < breakIndexSet.size(); j++) {
+        breaks.insert(breaks.end(), breakpoints[breakIndexSet[j]]);
+      }
+
+      breaks.insert(breaks.end(),
+                    u2);  // This contains the parameter value of the start,
+                          // all the breakpoints between
+      // segments, then the end.
+      std::cout << "breaks size = " << breaks.size()  << "\n";
+      for (int j = 0; j < breaks.size() - 1; j++) {
+        // For each of these points, add the intersection and end point, along
+        // with the previous tangent
+        std::vector<double> Pend =
+        this->makeRationalQuadCurve({breaks[j + 1]})[0];
+        std::vector<double> Tend = this->getTangent(breaks[j + 1]);
+
+        std::vector<double> Pstart = this->makeRationalQuadCurve({breaks[j]})[0];
+        std::vector<double> Tstart = this->getTangent(breaks[j]);
+        std::cout << "j = " << j << "==================\n";
+        std::cout << "Pstart = " << Pstart[0] << "," << Pstart[1] << "\n";
+        std::cout << "Pend = " << Pend[0] << "," << Pend[1] << "\n";
+        std::cout << "Tstart = " << Tstart[0] << "," << Tstart[1] << "\n";
+        std::cout << "Tend = " << Tend[0] << "," << Tend[1] << "\n";
+
+        // Calculate Intersection
+        std::cout << "Find Intersection\n";
+        std::vector<std::vector<double>> solution =
+            Spline::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
+        std::cout << "End Intersection\n";
+        std::vector<double> inter = solution[0];
+        std::cout << "End inter\n";
+        // Now, add intersection and end point to array
+        Points.insert(Points.end(), inter);
+        Points.insert(Points.end(), Pend);
+        curves.insert(curves.end(),0); // Intersection Curvature (unknown, unused)
+        curves.insert(curves.end(),this->getCurvature(breaks[j + 1])); // End Point Curvature (Will be used)
+        tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
+
+        }
+        std::cout << "End loop\n";
+    }
+    // From here, we will use this information to calculate the  weights.
+    std::cout <<"======== POINTS RESULT ========\n";
+    for(int i= 0; i < Points.size();i++) {
+        std::cout << "(" << Points[i][0] << "," << Points[i][1] << ")\n";
+    }
+    std::cout <<"Start Weights\n";
+    std::vector<double> weights = {1};  // First weight is always one (every other one will be too);
+    for (int i = 0; i < Points.size() - 1;i += 2) {  
+        // We go every 2 since the points go in triples (0,1,2 then
+        // 2,3,4 then 4,5,6 etc.
+        // Here is an example of how to use the Points array, and what the ordering
+        // of it is
+        std::cout <<"P0 Start\n";
+        std::vector<double> P0 = Points[i];      // Start
+        std::cout <<"P1 Start\n";
+        std::vector<double> P1 = Points[i + 1];  // Intersection
+        std::cout <<"P2 Start\n";
+        std::vector<double> P2 = Points[i + 2];  // End
+        std::cout <<"P2 End\n";
+        // Since I don't fully understand the curvature method in paper yet, I am
+        // just quickly doing this to get weights Since I know they are well
+        // behaved. I will understand the method in the paper soon and then that can
+        // be used In general case.
+
+        // First, calculate midpoint of P0,P2
+        // std::cout << "Get Mid \n";
+        // std::vector<double> mid = {(P0[0] + P2[0]) / 2, (P0[1] + P2[1]) / 2};
+        // std::cout << "Got Mid \n";
+        // // Next, calculate intersection with spline (Shoulder Point)
+        // std::cout << "uHit Getting\n";
+        // double uHit = this->lineCurveIntersection(mid, P1)[0];
+        // std::cout << "uHit = " << uHit << "\n";
+        // std::vector<double> S = this->makeRationalQuadCurve({uHit})[0];
+        // // Calculate Midpoint to Shoulder Point Distance
+        // double MS = sqrt(pow(S[0] - mid[0], 2) + pow(S[1] - mid[1], 2));
+        // // Calculate Shoulder Point to intersection distance
+        // double SP1 = sqrt(pow(S[0] - P1[0], 2) + pow(S[1] - P1[1], 2));
+        // // Calculate Weight (eq 7.32)
+        // double w = MS / SP1;
+        
+        // std::cout << "weight = " << w << "\n";
+
+        // ==========Calculate Weight Using Curvature
+        // Calculate Triangle Area
+        double a = sqrt(pow(P0[0] - P1[0], 2) + pow(P0[1] - P1[1], 2)); // P0 -> P1
+        double b = sqrt(pow(P2[0] - P1[0], 2) + pow(P2[1] - P1[1], 2)); // P1 -> P2
+        double c = sqrt(pow(P0[0] - P2[0], 2) + pow(P0[1] - P2[1], 2)); // P2 -> P0
+        double s = (a+b+c)/2;
+        double Atri = sqrt(s*(s-a)*(s-b)*(s-c));
+        // l is the same as a in my case.
+        double w2;
+        double k0 = curves[i];
+        std::cout << "k0 = " << k0 << "\n";
+        std::cout << "Atri = " << Atri << "\n";
+        // Catch Straight Line Case
+
+        // ================================ WEIGHT PROBLEMS HERE ===============================
+        if(fabs(k0) >= 1e-6){
+            w2 = sqrt(Atri/(fabs(k0)*a*a*a)); // can go to NaN if k0 or a is 0.
+        } else {
+            w2 = 0;
+        }
+        std::cout << "weight = " << w2 << "\n";
+        // Add Weight
+        weights.insert(weights.end(), w2);
+        weights.insert(weights.end(), 1);  // Always 1 at the start and end
+        //
+        // std::cout << "weight should = " << s.makeWeight(P0,P1,P2) << "\n";
+    }
+    std::cout <<"end Weights\n";
+    
+    // Get into form of [Px,Py,w] array
+    std::vector<std::vector<double>> ret = {{Points[0][0],Points[0][1],weights[0]}};
+    for(int i = 1; i < weights.size();i++) {
+        ret.insert(ret.end(),{Points[i][0],Points[i][1],weights[i]});
+    }
+    std::cout << "============ CLIPPED SECTION INSIDE========== \n";
+    // for(int i = 0; i < ret.size(); i++) {
+    //     std::cout << "(" << ret[i][0] <<"," << ret[i][1] << ")" << "," << ret[i][2] << "\n";
+    // }
+    return ret;
+}
+
 double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Should be working (Tested)
-    std::cout << "Start IntegrateSplineSquare\n";
+    std::cout << "Begin Parameter Getting \n";
     std::vector<std::vector<double>> loop = this->getParameterLoop(square);
+    std::cout << "End Parameter Getting \n";
     std::vector<double> parameter = loop[0];
     std::vector<double> indicator = loop[1];
     // std::cout << "Begin Parameter \n";
@@ -1260,189 +1538,86 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
     // }
     // std::cout << "\nEnd Indicator \n";
     double Area = 0;
-
+    // std::cout << "Indictator/Parameter size = " << indicator.size() << "\n";
     for(int i = 0;i<indicator.size()-1;i++) { // Loop over pairs of indicators/parameters
+        // std::cout << "i = " << i << "\n";
         double ind1 = indicator[i];
         double ind2 = indicator[i+1];
         // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
-        
+        // std::cout << "Start Branches - ind1 = " << ind1 << " ind2 = " << ind2 << "\n";
         if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
+            std::cout << "Case 22\n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = square[parameter[i+1]];
 
-            // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
-
-            double velocity = Pp;
-            
-            Area += integrand*(m/2 + b) * velocity;
+            double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
-            
+            std::cout << "Case 24\n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
-            // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
-
-            double velocity = Pp;
-            // std::cout << "Case 2 \n";
-            // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
-            Area += integrand*(m/2 + b) * velocity;
+            double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
+            std::cout << "Case 32\n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = square[parameter[i+1]];
 
-            // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
-
-            double velocity = Pp;
-            // std::cout << "Case 3 \n";
-            // std::cout << "Component Integral = " << integrand*(m/2 + b) * velocity << "\n";
-            Area += integrand*(m/2 + b) * velocity;
+            double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
+            std::cout << "Case 34\n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
-            // Get Normal
-            std::vector<double> tangent = {P2[0]-P1[0],P2[1]-P1[1]};
-            std::vector<double> normal = {tangent[1],-tangent[0]};
-            // Normalize normal
-            double normalNorm = sqrt(pow(normal[0],2) + pow(normal[1],2));
-            normal[0] /= normalNorm;
-            normal[1] /= normalNorm;
-
-            // Take dot product with the [1,0] vector to get hte coefficient next to x in integral
-            double integrand = normal[0];
-            double Pp = normalNorm;
-            // integrand *= Pp;
-
-            // Integrand is coefficient next to x, now get actual x function
-            double x1 = P1[0];
-            double x2 = P2[0];
-            double m = x2-x1;
-            double b = x1;
-
-            double velocity = Pp;
-            Area += integrand*(m/2 + b) * velocity;
+            double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
+            Area -= integral;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
- 
+            std::cout << "Case 43\n";
             // Get Parameter Values
             double u1 = parameter[i];
             double u2 = parameter[i+1];
-
-            // Find Spans, in order
-            int spanIndex1 = findSpan(u1);
-            int spanIndex2 = findSpan(u2);
-            // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
-            // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
-
-            double integral = 0;;
-            // if u1,u2 in the same span, we can go direct.
-            // If u1,u2 are in different spans, we have to segment through each span
-            if(spanIndex1 == spanIndex2) { // Same Span
-                double V1 = integratedSpline(u1);
-                double V2 = integratedSpline(u2);
-                
-                integral = V2-V1;
-            } else { // Different Spans
-                int numSpans = spans.size();
-                int tempSpanIndex2 = spanIndex2;
-                if(spanIndex2 < spanIndex1) {
-                    tempSpanIndex2 = spanIndex2 + numSpans;
-                }
-
-                // Get Set of Breakpoint Indices
-                std::vector<int> breakIndexSet = {spanIndex1+1};
-                for(int j = spanIndex1+2;j<=tempSpanIndex2; j++) {
-                    breakIndexSet.insert(breakIndexSet.end(),j);
-                }
+            std::cout << "Start Clipping\n";
+            std::vector<std::vector<double>> clippedSection = this->clippedBezier(u1,u2);
+            double integral = 0.0;
+            std::cout << "============ CLIPPED SECTION ========== \n";
+            for(int i = 0; i < clippedSection.size(); i++) {
+                std::cout << "(" << clippedSection[i][0] <<"," << clippedSection[i][1] << ")" << "," << clippedSection[i][2] << "\n";
+            }
+            // std::cout << "\n ========= INTEGRAL CALCULATION ========\n";
+            for(int i = 0; i < clippedSection.size()-2; i += 2) {
+                // std::cout << "Get Points \n";
+                // std::cout << "Get Point 1\n";
+                const auto x0 = clippedSection[i][0], y0 = clippedSection[i][1];
+                // std::cout << "Get Point 2\n";
+                const auto x1 = clippedSection[i+1][0], y1 = clippedSection[i+1][1];
+                const auto w = clippedSection[i + 1][2];
+                // std::cout << "Get Point 3\n";
+                const auto x2 = clippedSection[i + 2][0],
+                        y2 = clippedSection[i + 2][1];
                 
 
-                // Mod them into range
-                for(int j = 0; j < breakIndexSet.size();j++ ) {
-                    breakIndexSet[i] = breakIndexSet[i]%numSpans;
+                std::cout << "P0 = " << x0 << "," << y0 << ", w = " << clippedSection[i][2] << "\n";
+                std::cout << "P1 = " << x1 << "," << y1 << ", w = " << clippedSection[i+1][2]<< "\n";
+                std::cout << "P2 = " << x2 << "," << y2 << ", w = " << clippedSection[i+2][2]<< "\n";
+                double dA;
+                // Uses weights to calculate area here. ==========================================================================
+                if (w < 0.35 || w > 1.7) {
+                    auto K = Spline::coeffsAreaExact(w);
+                    dA = (x0 * y2 - x2 * y0) * K[0] +
+                        (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
+                } else {
+                    auto K = Spline::coeffsAreaSeries(w);
+                    dA = (x0 * y2 - x2 * y0) * K[0] +
+                        (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
                 }
-                // Calculate Break Values
-                std::vector<double> breaks = {u1};
-                for(int j = 0; j < breakIndexSet.size();j++) {
-                    breaks.insert(breaks.end(),breakpoints[breakIndexSet[j]]);
-                }
-                
-                breaks.insert(breaks.end(),u2);
-                // std::cout << "Breaks\n";
-                // for(int j=0; j < breaks.size(); j++) {
-                //     std::cout << breaks[j] <<",";
-                // }
-                // std::cout <<"\n" ;
-                // Integral
-                double nudge = 1e-8;
-                double V1;
-                double V2;
-                for(int j = 0; j < breaks.size()-1; j++) {
-                    u1 = breaks[j]+nudge;
-                    u2 = breaks[j+1]-nudge;
-                    // std::cout << breaks[j]-breaks[j+1] <<"\n";
-                    V1 = integratedSpline(u1);
-                    V2 = integratedSpline(u2);
-                    if(fabs(breaks[j]-breaks[j+1]) <= 1e-12) {
-                        V2=V1;
-                    }
-                    // std::cout << "V1 = " << V1 << "\n";
-                    // std::cout << "V2 = " << V2 << "\n";
-                    // std::cout << "Contrib X = " <<V2-V1<< "\n";
-                    integral += V2-V1;
-                }
+                integral -= dA;
+                // std::cout << "dA = " << -dA << "\n";
             }
             // std::cout << "Case 5 \n";
             // std::cout << "Component Integral = " << integral << "\n";
+            // std::cout << "\n4-3 Area Contribution: " << integral << "\n";
             Area += integral;
         }   
     }

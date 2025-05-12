@@ -495,8 +495,8 @@ Spline<ScalarType> Spline<ScalarType>::LocalRQuadInterp(std::vector<std::vector<
         ubar.insert(ubar.end(),ubar[i-1]+coeff*numer/denom);
     }
     ScalarType un = ubar[ubar.size()-1];
-    std::cout << "Ubar size = " << ubar.size() << "\n";
-    std::cout << "Cpoints size = " << CPoints.size() << "\n";
+    // std::cout << "Ubar size = " << ubar.size() << "\n";
+    // std::cout << "Cpoints size = " << CPoints.size() << "\n";
     // Make Knot Vector
     std::vector<ScalarType> U = {0,0,0};
     for(int i = 1;i < ubar.size();i++) {
@@ -1359,7 +1359,23 @@ std::vector<std::vector<ScalarType>> Spline<ScalarType>::clippedBezier(ScalarTyp
     // if u1,u2 in the same span, we can go direct.
     // If u1,u2 are in different spans, we have to segment through each span
     if (spanIndex1 == spanIndex2) {  // Same Span
-      // I know this won't happen so I didn't code it for now
+        std::vector<ScalarType> Pend =
+        this->makeRationalQuadCurve({u2})[0];
+        std::vector<ScalarType> Tend = this->getTangent(u2);
+
+        std::vector<ScalarType> Pstart = this->makeRationalQuadCurve({u1})[0];
+        std::vector<ScalarType> Tstart = this->getTangent(u1);
+
+        // Calculate Intersection
+        std::vector<std::vector<ScalarType>> solution =
+            Spline::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
+        std::vector<ScalarType> inter = solution[0];
+
+        // Now, add intersection and end point to array
+        Points.insert(Points.end(), inter);
+        Points.insert(Points.end(), Pend);
+
+        tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
     } else {  // Different Spans
 
       int numSpans = spans.size();
@@ -1470,11 +1486,11 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
     // }
     // std::cout << "\nEnd Parameter \n";
 
-    std::cout << "Begin Indicator \n";
-    for(int i = 0; i < indicator.size(); i++) {
-        std::cout << indicator[i] << ",";
-    }
-    std::cout << "\nEnd Indicator \n";
+    // std::cout << "Begin Indicator \n";
+    // for(int i = 0; i < indicator.size(); i++) {
+    //     std::cout << indicator[i] << ",";
+    // }
+    // std::cout << "\nEnd Indicator \n";
     ScalarType Area = 0;
 
     for(int i = 0;i<indicator.size()-1;i++) { // Loop over pairs of indicators/parameters

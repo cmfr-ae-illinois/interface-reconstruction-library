@@ -2,8 +2,15 @@ IRLAddExample_cpp(
   TARGET_NAME
     spline_optimization
   HDRS
+    "Spline.h"
+    "irl2d.h"
+    "basic_mesh.h"
+    "data.h"
   SRCS
     "main.cpp"
+    "Spline.cpp"
+    "irl2d.cpp"
+    "basic_mesh.cpp"
   OUTPUT_DIR
     "${IRL_EXAMPLES_OUTPUT_DIR}/spline_optim"
   COLLECTION
