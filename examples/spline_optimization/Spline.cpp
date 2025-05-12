@@ -1494,7 +1494,7 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
         // Catch Straight Line Case
 
         // ================================ WEIGHT PROBLEMS HERE ===============================
-        if(fabs(k0) >= 1e-6){
+        if(fabs(k0) >= 1e-6 && fabs(a) >= 1e-6){
             w2 = sqrt(Atri/(fabs(k0)*a*a*a)); // can go to NaN if k0 or a is 0.
         } else {
             w2 = 0;
