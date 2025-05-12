@@ -5,8 +5,9 @@ The Interface Reconstruction Library (IRL) is a library of computational algorit
 Additional documentation and examples are currently being added. If you would like to become involved in its development or inquire about potentially using it for your application, please contact the developers.
 
 ## Developers
-- [Robert Chiodi] (principal developer, maintainer)
-- [Fabien Evrard](mailto:fabien.evrard@cornell.edu)
+- [Robert Chiodi](https://github.com/robert-chiodi)
+- [Fabien Evrard](https://github.com/fabienevrard)
+- [Valentin Wasquel](https://github.com/zerustu)
 
 ## License and scope
 IRL is open-sourced under the Mozilla Public License 2 (MPL2). It has already been used in incompressible and compressible CFD codes on structured, unstructured, and AMReX based flow solvers, with some images of simulations performed using IRL shown below.
@@ -25,15 +26,16 @@ IRL is written in C++17 with a Fortran 2008 interface. Below are links to additi
 ## How to cite us
 If you use IRL for your scientific work, please consider citing the [paper](https://doi.org/10.1016/j.jcp.2021.110787) introducing the half-edge structure and its implementation
 
-    R. Chiodi and O. Desjardins, General, robust, and efficient polyhedron intersection in the interface reconstruction library, Journal of Computational Physics 449 (2022), 110787. 
+    R. Chiodi and O. Desjardins, General, robust, and efficient polyhedron intersection in the interface reconstruction library, Journal of Computational Physics 449 (2022), 110787.
 
-If you use IRL for paraboloid-polytope intersection, please consider citing the [paper]() introducing the closed-form expressions of the moments and their implementation
+If you use IRL for paraboloid-polytope or cylinder-polytope intersection, please consider citing the [paper](https://doi.org/10.1137/22M1524308) introducing the closed-form expressions of the moments and their implementation
 
-    F. Evrard, R. Chiodi, A. Han, B. van Wachem and O. Desjardins, First moments of a polyhedron clipped by a paraboloid, SIAM Journal on Scientific Computing, Under Review (2023).
+    F. Evrard, R. Chiodi, A. Han, B. van Wachem and O. Desjardins, First moments of a polyhedron clipped by a paraboloid, SIAM Journal on Scientific Computing, 45 (5), A2250-A2274 (2023).
 
-If you are interested in reproducing the test results presented in this publication, please follow this guide:
+If you are interested in reproducing the test results presented in our publication, please follow this guide:
 
 - [Testing the paraboloid-polytope intersection](docs/markdown/paraboloid-polytope_intersection.md)
+- [Testing the cylinder-polytope intersection](docs/markdown/cylinder-polytope_intersection.md)
 
 ## Acknowledgements
 The development of paraboloid-polytope intersection in IRL has directly benefitted from research funding provided by the European Union's Horizon 2020 research and innovation programme under the Marie Skłodowska-Curie grant agreement No 101026017.
