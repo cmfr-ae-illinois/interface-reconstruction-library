@@ -2393,7 +2393,7 @@ std::vector<Vec> InitializeParticlePositions(const std::pair<Vec,Vec>& target_en
 double ComputeParticleForceProjection(const int& N, const double& phi, const double& theta, const double& hp,
                                       const bool& iswrtPhi, const std::vector<Vec> particle_forces){
 
-  // iswrtPhi: true will compute derivative wrt phi else wrt theta
+  // iswrtPhi: "true" will compute derivative wrt phi else wrt theta
 
   int c = (N - 1) / 2; // central particle index
 
@@ -2454,6 +2454,7 @@ double getCurvature(const Parabola& target_interface, const BezierList& target_c
   BezierList clipped_interface;
   for (int i = 0; i < interfaces.size(); i++){
     clipped_interface = ParabolaClip(cells[i], interfaces[i], true);
+    // IRL2D::Print(clipped_interface);
     line_seg_endpoints[i] = {clipped_interface[0].first, clipped_interface[1].first};
   }
 
@@ -2539,44 +2540,137 @@ double getCurvature(const Parabola& target_interface, const BezierList& target_c
 
   }
 
-  // std::cout << "phi: " << phi * 180.0/M_PI << " theta: " << theta* 180.0/M_PI << " iter: " << iter << std::endl;
-  // std::cout << "residual: " << residual << std::endl;
+  // std::cout << "phi: " << phi * 180.0/M_PI << " theta: " << theta* 180.0/M_PI  << std::endl;
+  // std::cout << "residual: " << residual << " iter: " << iter << std::endl;
 
   return (2 * std::sin(theta/2.0) / hp); // curvature
 }
 
 // 2D Jibben -------------------------------------------------------------------------
 
+// Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
+//                            const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells){
+
+//   Parabola parabolaJibben;
+
+//   using segment = std::pair<Vec, Vec>;
+
+//   // interface end points
+//   // std::vector<segment> line_seg_endpoints(interfaces.size());
+//   // BezierList clipped_interface;
+//   // for (int i = 0; i < interfaces.size(); i++){
+//   //   clipped_interface = ParabolaClip(cells[i], interfaces[i], true);
+//   //   line_seg_endpoints[i] = {clipped_interface[0].first, clipped_interface[1].first};
+//   // }
+
+//   std::vector<segment> line_seg_endpoints;
+//   for (int i = 0; i < interfaces.size(); i++){
+//     BezierList clipped_interface = ParabolaClip(cells[i], interfaces[i], true);
+//     if (clipped_interface.size() < 2){
+//       IRL2D::Print(clipped_interface);
+//       continue;
+//     }
+//     line_seg_endpoints.push_back( {clipped_interface[0].first, clipped_interface[1].first} );
+//   }
+
+//   if (line_seg_endpoints.empty()){
+//     std::cout << "Empty line seg endpoints" << std::endl;
+//   }
+
+//   // local reference frame and origin
+//   Vec datum = target_interface.datum();
+//   Vec t = target_interface.frame()[0]; Vec n = target_interface.frame()[1];
+
+//   // least squares problem
+//   Eigen::Matrix3d A = Eigen::Matrix3d::Zero();
+//   Eigen::Vector3d b = Eigen::Vector3d::Zero();
+
+//   for (const auto& [p1, p2]: line_seg_endpoints){
+//     // translation
+//     Vec r1 = p1 - datum; Vec r2 = p2 - datum;
+
+//     // projection,  (xi,eta): local frame coordinates
+//     double xi1 = r1 * t; double eta1 = r1 * n;
+//     double xi2 = r2 * t; double eta2 = r2 * n;
+    
+//     // Linear form: eta = a * xi + b
+//     double a_i = (eta2 - eta1) / (xi2 - xi1);
+//     double b_i = eta1 - a_i * xi1; 
+
+//     // terms from integral equation
+//     double s0 = xi2 - xi1;
+//     double s1 = 0.5 * (std::pow(xi2, 2.0) - std::pow(xi1, 2.0));
+//     double s2 = (1.0 / 3.0) * (std::pow(xi2, 3.0) - std::pow(xi1, 3.0));
+//     Eigen::Vector3d S(s0, s1, s2);
+//     double d_i = b_i * s0 + a_i * s1;
+
+//     A += S * S.transpose();
+//     b += d_i * S;
+//   }
+
+//   // solving Ac=b
+//   Eigen::Vector3d coeffs = A.ldlt().solve(b);
+  
+//   // parabola vertex in local frame
+//   double xi_v = - coeffs(1) / (2.0 * coeffs(2));
+//   double eta_v = coeffs(0) + coeffs(1) * xi_v + coeffs(2) * std::pow(xi_v, 2.0);
+
+//   // fitted parabola parameters
+//   parabolaJibben.coeff() = - coeffs(2);
+//   parabolaJibben.frame() = target_interface.frame();
+//   parabolaJibben.datum() = datum + xi_v * t + eta_v * n;
+
+//   return parabolaJibben;
+// }
+
 Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
-                           const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells){
+                           const std::vector<NeighborInfo>& neighbors,
+                           const int i_target, const int j_target){
 
   Parabola parabolaJibben;
 
   using segment = std::pair<Vec, Vec>;
+  std::vector<segment> line_seg_endpoints;
 
-  // interface end points
-  std::vector<segment> line_seg_endpoints(interfaces.size());
-  BezierList clipped_interface;
-  for (int i = 0; i < interfaces.size(); i++){
-    clipped_interface = ParabolaClip(cells[i], interfaces[i], true);
-    line_seg_endpoints[i] = {clipped_interface[0].first, clipped_interface[1].first};
+  for (const auto& neighbor : neighbors) {
+    const IRL2D::Parabola interface = neighbor.interface;
+    const IRL2D::BezierList cell = neighbor.cell;
+
+    BezierList clipped_interface = ParabolaClip(cell, interface, true);
+    BezierList clipped_cell = ParabolaClip(cell, interface, false);
+
+    if (clipped_interface.size() < 2) {
+      std::cout << "Warning: Clipped interface has size < 2\n";
+      std::cout << "Target cell global ID: (" << i_target << ", " << j_target << ")\n";
+      std::cout << "Neighbor global ID: (" << neighbor.ii_global << ", " << neighbor.jj_global << ")\n";
+      IRL2D::Print(clipped_interface);
+      std::cout << "coefficient = " << interface.coeff() << std::endl;
+      std::cout << "datum = " << interface.datum() << std::endl;
+      std::cout << "frame = " << interface.frame() << std::endl;
+      std::cout << "cell liquid volume fraction = " << neighbor.lvf << std::endl;
+      std::cout << "volume fraction of clipped cell = " << IRL2D::ComputeArea(clipped_cell) / IRL2D::ComputeArea(cell) << std::endl;
+      IRL2D::Print(clipped_cell);
+      continue;
+    }
+
+    line_seg_endpoints.push_back({clipped_interface[0].first, clipped_interface[1].first});
   }
 
-  // printing line segment end points
-  // for(int i = 0; i < line_seg_endpoints.size(); i++){
-  //   std::cout << "line segment end points: " << line_seg_endpoints[i].first << " " << line_seg_endpoints[i].second << std::endl;
-  // }
+  if (line_seg_endpoints.empty()) {
+    std::cout << "Warning: No valid line segments found for Jibben fitting.\n";
+    return target_interface; // Return PLIC
+  }
 
   // local reference frame and origin
   Vec datum = target_interface.datum();
-  Vec t = target_interface.frame()[0]; Vec n = target_interface.frame()[1];
+  Vec t = target_interface.frame()[0]; 
+  Vec n = target_interface.frame()[1];
 
-  // least squares matrix and vector
+  // least squares problem
   Eigen::Matrix3d A = Eigen::Matrix3d::Zero();
   Eigen::Vector3d b = Eigen::Vector3d::Zero();
 
   for (const auto& [p1, p2]: line_seg_endpoints){
-    
     // translation
     Vec r1 = p1 - datum; Vec r2 = p2 - datum;
 
@@ -2599,20 +2693,35 @@ Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& t
     b += d_i * S;
   }
 
-  // parabgola coefficients in local frame of reference
-  Eigen::Vector3d coeffs = A.ldlt().solve(b);  // c0, c1, c2
+  // solving Ac=b
+  Eigen::Vector3d coeffs = A.ldlt().solve(b);
   
-  // vertex in local coordinates
+  // parabola vertex in local frame
   double xi_v = - coeffs(1) / (2.0 * coeffs(2));
   double eta_v = coeffs(0) + coeffs(1) * xi_v + coeffs(2) * std::pow(xi_v, 2.0);
 
-  // parabola parameters
-  parabolaJibben.coeff() = coeffs(2);
+  // fitted parabola parameters
+  parabolaJibben.coeff() = - coeffs(2);
   parabolaJibben.frame() = target_interface.frame();
   parabolaJibben.datum() = datum + xi_v * t + eta_v * n;
+
+  // curvature check
+  const double maxkdx = 4.0;
+  const double length_scale = std::sqrt(ComputeArea(target_cell));
+  const double kdx = 2.0 * parabolaJibben.coeff() * length_scale;
+
+  if (std::abs(kdx) > maxkdx) {
+    // std::cout << "Warning: Curvature too large, reverting to planar interface.\n";
+    parabolaJibben.coeff() = 0.0;
+  }
 
   return parabolaJibben;
 }
 
+// interface connectivity class functions
+// void IRL2D::InterfaceConnectivity::add_node(int idx, int idy){
+//   c_matrix[idx][idy] = 1;
+//   c_matrix[idy][idx] = 1;
+// }
 
 }  // namespace IRL2D

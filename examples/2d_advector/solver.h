@@ -14,6 +14,7 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <nlopt.hpp>
 
 #include "examples/2d_advector/basic_mesh.h"
 #include "examples/2d_advector/data.h"
@@ -106,32 +107,42 @@ int runSimulation(const std::string& a_simulation_type,
   const auto starting_liquid_moments = liquid_moments;
 
   // cell coordinates
-  std::cout << "CELL COORDINATES -----------------------" << std::endl;
-  std::cout << "x0 = " << IRL2D::Vec(cc_mesh.x(23), cc_mesh.y(51)) << std::endl;
-  std::cout << "x1 = " << IRL2D::Vec(cc_mesh.x(24), cc_mesh.y(52)) << std::endl;
+  // std::cout << "CELL COORDINATES -----------------------" << std::endl;
+  // std::cout << "x0 = " << IRL2D::Vec(cc_mesh.x(23), cc_mesh.y(51)) << std::endl;
+  // std::cout << "x1 = " << IRL2D::Vec(cc_mesh.x(24), cc_mesh.y(52)) << std::endl;
 
-  // exact interface parameters
-  std::cout << "INTERFACE PARAMETERS -----------------------" << std::endl;
-  std::cout << "Exact coefficient = " << interface(23,51).coeff() << std::endl;
-  std::cout << "Exact datum = " << interface(23,51).datum() << std::endl;
-  std::cout << "Exact reference frame = " << interface(23,51).frame() << std::endl;
+  // // exact interface parameters
+  // std::cout << "INTERFACE PARAMETERS -----------------------" << std::endl;
+  // std::cout << "Exact coefficient = " << interface(23,51).coeff() << std::endl;
+  // std::cout << "Exact datum = " << interface(23,51).datum() << std::endl;
+  // std::cout << "Exact reference frame = " << interface(23,51).frame() << std::endl;
 
   // exact moments of a cell
-  std::cout << "LIQUID MOMENTS -----------------------" << std::endl;
-  std::cout << "m0 = " << liquid_moments(23,51).m0() << std::endl;
-  std::cout << "m1 = " << liquid_moments(23,51).m1() << std::endl;
-  std::cout << "m2 = " << liquid_moments(23,51).m2() << std::endl;
-  std::cout << "GAS MOMENTS -----------------------" << std::endl;
-  std::cout << "m0 = " << gas_moments(23,51).m0() << std::endl;
-  std::cout << "m1 = " << gas_moments(23,51).m1() << std::endl;
-  std::cout << "m2 = " << gas_moments(23,51).m2() << std::endl;
+  // IRL2D::Moments lm = liquid_moments(23,51);
+  // IRL2D::Moments gm = gas_moments(23,51);
+  // IRL2D::Vec lc = lm.m1() / lm.m0();
+  // IRL2D::Vec gc = gm.m1() / gm.m0();
+  // RecenterMoments(&lm, lc);
+  // RecenterMoments(&gm, gc);
+  // std::cout << "LIQUID MOMENTS -----------------------" << std::endl;
+  // std::cout << "m0 = " << liquid_moments(23,51).m0() << std::endl;
+  // std::cout << "m1 = " << liquid_moments(23,51).m1() << std::endl;
+  // std::cout << "m2 = " << liquid_moments(23,51).m2() << std::endl;
+  // std::cout << "centroid = " << lc << std::endl;
+  // std::cout << "m2 = " << lm.m2() << std::endl;
+  // std::cout << "GAS MOMENTS -----------------------" << std::endl;
+  // std::cout << "m0 = " << gas_moments(23,51).m0() << std::endl;
+  // std::cout << "m1 = " << gas_moments(23,51).m1() << std::endl;
+  // std::cout << "m2 = " << gas_moments(23,51).m2() << std::endl;
+  // std::cout << "centroid = " << gc << std::endl;
+  // std::cout << "m2 = " << gm.m2() << std::endl;
   
   // exact volume fraction and centroid
-  std::cout << "VOLFRAC & CENTROID -----------------------" << std::endl;
-  std::cout << "liquid vol frac = " << liquid_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
-  std::cout << "gas vol frac = " << gas_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
-  std::cout << "liquid centroid = " << liquid_moments(23,51).m1()/liquid_moments(23,51).m0() << std::endl;
-  std::cout << "gas centroid = " << gas_moments(23,51).m1()/gas_moments(23,51).m0() << std::endl;
+  // std::cout << "VOLFRAC & CENTROID -----------------------" << std::endl;
+  // std::cout << "liquid vol frac = " << liquid_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
+  // std::cout << "gas vol frac = " << gas_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
+  // std::cout << "liquid centroid = " << liquid_moments(23,51).m1()/liquid_moments(23,51).m0() << std::endl;
+  // std::cout << "gas centroid = " << gas_moments(23,51).m1()/gas_moments(23,51).m0() << std::endl;
 
   // std::cout << "------------------------------------------------------------------------------" << std::endl;
 
@@ -145,78 +156,112 @@ int runSimulation(const std::string& a_simulation_type,
   vtk_io.writeVTKFile(simulation_time);
   getReconstruction(a_reconstruction_method, liquid_moments, gas_moments, 0.0,
                     velU, velV, &interface);
+  setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
+
+  // printing end points for each interface
+  // std::vector<std::pair<int, int>> indices = { {22, 50}, {22, 51}, {23, 51}, {23, 52}, {23, 53}};
+  // std::vector<std::pair<int, int>> indices = { {30, 57}, {31, 57}, {32, 57}, {33, 57}, {34, 57}};
   
-  // for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i){
-  //   for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j){
-  //     if (i != 25 && j != 51){
-  //       interface(i,j) = IRL2D::Parabola();
+  // // finding mixed cells
+  // Data<int> band(&cc_mesh);
+  // for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+  //   for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+  //     band(i, j) = 0;
+  //     const double liquid_volume_fraction =
+  //         (liquid_moments)(i, j).m0() / cc_mesh.cell_volume();
+  //     if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+  //         liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+  //       band(i, j) = 1;
   //     }
   //   }
   // }
 
-    // // checking how many planes are there and where
-  // int plane_count = 0;
-  // for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i){
-  //   for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j){
-  //     double liq_vol_frac = liquid_moments(i,j).m0() / cc_mesh.cell_volume();
-  //     if (liq_vol_frac >= IRL::global_constants::VF_LOW &&
-  //         liq_vol_frac <= IRL::global_constants::VF_HIGH){
-  //           double alpha = interface(i,j).coeff();
-  //           //if (std::abs(alpha) < 1.0e-1){
-  //             plane_count++;
-  //             std::cout << "(i,j) = (" << i << "," << j << "), alpha = " << alpha << std::endl;
-  //           //}
+  // // estimating curvature at each interface using Jibben and particle with a 3x3 stencil
+  // int N = 7;
+  // double Hp = 4.0;
+  // double h = cc_mesh.dx();
+  // double eta = 0.5;
+  // Data<double> curvature(&cc_mesh);
+  // Data<double> curvature_particle(&cc_mesh);
+  // for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+  //   for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+  //     if (band(i, j) == 1) {
+  //       IRL2D::Parabola target_interface = interface(i,j);
+  //       IRL2D::BezierList target_cell = IRL2D::RectangleFromBounds(
+  //         IRL2D::Vec(cc_mesh.x(i), cc_mesh.y(j)), 
+  //         IRL2D::Vec(cc_mesh.x(i+1), cc_mesh.y(j+1))
+  //       );
+  //       std::vector<IRL2D::Parabola> all_interfaces;
+  //       std::vector<IRL2D::BezierList> all_cells;
+  //       for (int jj = -2; jj <= 2; jj++){
+  //         for (int ii = -2; ii <= 2; ii++){
+  //           if (band(ii + i, jj + j) == 1){
+  //             all_interfaces.push_back(interface(ii + i, jj + j));
+  //             all_cells.push_back(IRL2D::RectangleFromBounds(
+  //               IRL2D::Vec(cc_mesh.x(ii + i), cc_mesh.y(jj + j)), 
+  //               IRL2D::Vec(cc_mesh.x(ii + i + 1), cc_mesh.y(jj + j + 1))
+  //             ));
+  //           }
   //         }
+  //       }
+  //       IRL2D::Parabola parabolaJibben = IRL2D::getParabolaJibben(
+  //         target_interface, target_cell, all_interfaces, all_cells
+  //       );
+  //       curvature(i,j) = 2.0 * parabolaJibben.coeff();
+  //       curvature_particle(i,j) = IRL2D::getCurvature(
+  //         target_interface, target_cell, all_interfaces, all_cells, N, Hp, h, eta
+  //       ); 
+  //       std::cout << "curvature at (" << i << "," << j << ") = " << 
+  //       curvature(i,j) << " (Jibben) and " << curvature_particle(i,j) << " (particle)" << std::endl;
+  //     }
   //   }
   // }
-  // std::cout << "Cells with plane = " << plane_count << std::endl;
 
-  setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
+  // std::cout << "---------------------------------------------------------------" << std::endl;
+  // // moments after reconstruction
+
+  // std::cout << "INTERFACE PARAMETERS -----------------------" << std::endl;
+  // std::cout << "coefficient = " << interface(23,51).coeff() << std::endl;
+  // std::cout << "datum = " << interface(23,51).datum() << std::endl;
+  // std::cout << "reference frame = " << interface(23,51).frame() << std::endl;
+
+  // // exact moments of a cell
+  // std::cout << "LIQUID MOMENTS -----------------------" << std::endl;
+  // std::cout << "m0 = " << liquid_moments(23,51).m0() << std::endl;
+  // std::cout << "m1 = " << liquid_moments(23,51).m1() << std::endl;
+  // std::cout << "m2 = " << liquid_moments(23,51).m2() << std::endl;
+  // std::cout << "GAS MOMENTS -----------------------" << std::endl;
+  // std::cout << "m0 = " << gas_moments(23,51).m0() << std::endl;
+  // std::cout << "m1 = " << gas_moments(23,51).m1() << std::endl;
+  // std::cout << "m2 = " << gas_moments(23,51).m2() << std::endl;
   
-  std::cout << "---------------------------------------------------------------" << std::endl;
-  // moments after reconstruction
-  // exact moments of a cell
-  // std::cout << "new liquid m0 = " << liquid_moments(23,51).m0() << std::endl;
-  // std::cout << "new liquid m1 = " << liquid_moments(23,51).m1() << std::endl;
-  // std::cout << "new liquid m2 = " << liquid_moments(23,51).m2() << std::endl;
-  // std::cout << "new gas m0 = " << gas_moments(23,51).m0() << std::endl;
-  // std::cout << "new gas m1 = " << gas_moments(23,51).m1() << std::endl;
-  // std::cout << "new gas m2 = " << gas_moments(23,51).m2() << std::endl;
+  // // exact volume fraction and centroid
+  // std::cout << "VOLFRAC & CENTROID -----------------------" << std::endl;
+  // std::cout << "liquid vol frac = " << liquid_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
+  // std::cout << "gas vol frac = " << gas_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
+  // std::cout << "liquid centroid = " << liquid_moments(23,51).m1()/liquid_moments(23,51).m0() << std::endl;
+  // std::cout << "gas centroid = " << gas_moments(23,51).m1()/gas_moments(23,51).m0() << std::endl;
 
-  // // new volume fraction and centroid
-  // std::cout << "new liquid vol frac = " << liquid_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
-  // std::cout << "new gas vol frac = " << gas_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
-  // std::cout << "new liquid centroid = " << liquid_moments(23,51).m1()/liquid_moments(23,51).m0() << std::endl;
-  // std::cout << "new gas centroid = " << gas_moments(23,51).m1()/gas_moments(23,51).m0() << std::endl;
+  // std::cout << "--------------------------------------------------------------------------" << std::endl;   
 
-  // // interface parameters after reconstruction of circle
-  // std::cout << "new coefficient = " << interface(23,51).coeff() << std::endl;
-  // std::cout << "new datum = " << interface(23,51).datum() << std::endl;
-  // std::cout << "new reference frame = " << interface(23,51).frame() << std::endl;
+  // testing nlopt
+  // nlopt::opt opt(nlopt::LD_SLSQP, 2);
+  // opt.set_min_objective(objective_func, nullptr);
+  // opt.add_equality_constraint(constraint_func, nullptr, 1e-8);
 
-  std::cout << "INTERFACE PARAMETERS -----------------------" << std::endl;
-  std::cout << "coefficient = " << interface(23,51).coeff() << std::endl;
-  std::cout << "datum = " << interface(23,51).datum() << std::endl;
-  std::cout << "reference frame = " << interface(23,51).frame() << std::endl;
+  // // Optional bounds
+  // opt.set_lower_bounds(std::vector<double>{-10.0, -10.0});
+  // opt.set_upper_bounds(std::vector<double>{10.0, 10.0});
+  // opt.set_xtol_rel(1e-6);
 
-  // exact moments of a cell
-  std::cout << "LIQUID MOMENTS -----------------------" << std::endl;
-  std::cout << "m0 = " << liquid_moments(23,51).m0() << std::endl;
-  std::cout << "m1 = " << liquid_moments(23,51).m1() << std::endl;
-  std::cout << "m2 = " << liquid_moments(23,51).m2() << std::endl;
-  std::cout << "GAS MOMENTS -----------------------" << std::endl;
-  std::cout << "m0 = " << gas_moments(23,51).m0() << std::endl;
-  std::cout << "m1 = " << gas_moments(23,51).m1() << std::endl;
-  std::cout << "m2 = " << gas_moments(23,51).m2() << std::endl;
-  
-  // exact volume fraction and centroid
-  std::cout << "VOLFRAC & CENTROID -----------------------" << std::endl;
-  std::cout << "liquid vol frac = " << liquid_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
-  std::cout << "gas vol frac = " << gas_moments(23,51).m0()/cc_mesh.cell_volume() << std::endl;
-  std::cout << "liquid centroid = " << liquid_moments(23,51).m1()/liquid_moments(23,51).m0() << std::endl;
-  std::cout << "gas centroid = " << gas_moments(23,51).m1()/gas_moments(23,51).m0() << std::endl;
+  // std::vector<double> x = {1.0, 3.0};  // Initial guess
+  // double minf;
 
-  std::cout << "--------------------------------------------------------------------------" << std::endl;
+  // nlopt::result result = opt.optimize(x, minf);
+
+  // std::cout << "Minimum at f(x) = " << minf << std::endl;
+  // std::cout << "x = [" << x[0] << ", " << x[1] << "]" << std::endl;
+
 
   vtk_io.writeVTKInterface(simulation_time, interface);
   std::string output_folder = "viz";

@@ -504,8 +504,38 @@ double getCurvature(const Parabola& target_interface, const BezierList& target_c
                     const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells,
                     const int& N, const double& Hp, const double& h, const double& eta);
 
+// Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
+//                            const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells);
+            
+// for Jibben debugging
+struct NeighborInfo {
+  Parabola interface;
+  BezierList cell;
+  int ii_global;
+  int jj_global;
+  double lvf;
+};
+
 Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
-                           const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells);
+                           const std::vector<NeighborInfo>& neighbors,
+                           const int i_target, const int j_target);
+
+
+// connectivity of interfaces
+// class InterfaceConnectivity{
+
+//  public:
+//   // connectivity matrix for interfaces
+//   std::vector<std::vector<int>> c_matrix;
+
+//   // constructor for initializing connectivity matrix
+//   InterfaceConnectivity(int n_mixed) {
+//     c_matrix = std::vector<std::vector<int>>(n_mixed, std::vector<int>(n_mixed,0));
+//   }
+
+//   // adding more nodes
+
+// };
 
 }  // namespace IRL2D
 

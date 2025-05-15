@@ -37,7 +37,39 @@ struct LVIRA {
                                 Data<IRL2D::Parabola>* a_interface);
 };
 
+struct Jibben {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct Particle {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct JPHybrid {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
 struct LVIRAQ {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct LMIRAQ {
   static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                                 const Data<IRL2D::Moments>& a_gas_moments,
                                 const double a_dt, const Data<double>& a_U,
@@ -62,6 +94,22 @@ struct MOF2 {
 };
 
 struct MOF2AL {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct MOF2ALUnit {
+  static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                                const Data<IRL2D::Moments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                Data<IRL2D::Parabola>* a_interface);
+};
+
+struct NLOPT {
   static void getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                                 const Data<IRL2D::Moments>& a_gas_moments,
                                 const double a_dt, const Data<double>& a_U,
