@@ -1355,8 +1355,8 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
     // Find Spans, in order
     int spanIndex1 = this->findSpan(u1);
     int spanIndex2 = this->findSpan(u2);
-    std::cout << "spanIndex1 = " << spanIndex1 << "\n";
-    std::cout << "spanIndex2 = " << spanIndex2 << "\n";
+    // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
+    // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
     // if u1,u2 in the same span, we can go direct.
     // If u1,u2 are in different spans, we have to segment through each span
     if (spanIndex1 == spanIndex2) {  // Same Span 
@@ -1407,7 +1407,7 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
                     u2);  // This contains the parameter value of the start,
                           // all the breakpoints between
       // segments, then the end.
-      std::cout << "breaks size = " << breaks.size()  << "\n";
+    //   std::cout << "breaks size = " << breaks.size()  << "\n";
       for (int j = 0; j < breaks.size() - 1; j++) {
         // For each of these points, add the intersection and end point, along
         // with the previous tangent
@@ -1417,19 +1417,19 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
 
         std::vector<double> Pstart = this->makeRationalQuadCurve({breaks[j]})[0];
         std::vector<double> Tstart = this->getTangent(breaks[j]);
-        std::cout << "j = " << j << "==================\n";
-        std::cout << "Pstart = " << Pstart[0] << "," << Pstart[1] << "\n";
-        std::cout << "Pend = " << Pend[0] << "," << Pend[1] << "\n";
-        std::cout << "Tstart = " << Tstart[0] << "," << Tstart[1] << "\n";
-        std::cout << "Tend = " << Tend[0] << "," << Tend[1] << "\n";
+        // std::cout << "j = " << j << "==================\n";
+        // std::cout << "Pstart = " << Pstart[0] << "," << Pstart[1] << "\n";
+        // std::cout << "Pend = " << Pend[0] << "," << Pend[1] << "\n";
+        // std::cout << "Tstart = " << Tstart[0] << "," << Tstart[1] << "\n";
+        // std::cout << "Tend = " << Tend[0] << "," << Tend[1] << "\n";
 
         // Calculate Intersection
-        std::cout << "Find Intersection\n";
+        // std::cout << "Find Intersection\n";
         std::vector<std::vector<double>> solution =
             Spline::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
-        std::cout << "End Intersection\n";
+        // std::cout << "End Intersection\n";
         std::vector<double> inter = solution[0];
-        std::cout << "End inter\n";
+        // std::cout << "End inter\n";
         // Now, add intersection and end point to array
         Points.insert(Points.end(), inter);
         Points.insert(Points.end(), Pend);
@@ -1438,27 +1438,27 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
         tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
 
         }
-        std::cout << "End loop\n";
+        // std::cout << "End loop\n";
     }
     // From here, we will use this information to calculate the  weights.
-    std::cout <<"======== POINTS RESULT ========\n";
-    for(int i= 0; i < Points.size();i++) {
-        std::cout << "(" << Points[i][0] << "," << Points[i][1] << ")\n";
-    }
-    std::cout <<"Start Weights\n";
+    // std::cout <<"======== POINTS RESULT ========\n";
+    // for(int i= 0; i < Points.size();i++) {
+    //     std::cout << "(" << Points[i][0] << "," << Points[i][1] << ")\n";
+    // }
+    // std::cout <<"Start Weights\n";
     std::vector<double> weights = {1};  // First weight is always one (every other one will be too);
     for (int i = 0; i < Points.size() - 1;i += 2) {  
         // We go every 2 since the points go in triples (0,1,2 then
         // 2,3,4 then 4,5,6 etc.
         // Here is an example of how to use the Points array, and what the ordering
         // of it is
-        std::cout <<"P0 Start\n";
+        // std::cout <<"P0 Start\n";
         std::vector<double> P0 = Points[i];      // Start
-        std::cout <<"P1 Start\n";
+        // std::cout <<"P1 Start\n";
         std::vector<double> P1 = Points[i + 1];  // Intersection
-        std::cout <<"P2 Start\n";
+        // std::cout <<"P2 Start\n";
         std::vector<double> P2 = Points[i + 2];  // End
-        std::cout <<"P2 End\n";
+        // std::cout <<"P2 End\n";
         // Since I don't fully understand the curvature method in paper yet, I am
         // just quickly doing this to get weights Since I know they are well
         // behaved. I will understand the method in the paper soon and then that can
@@ -1492,8 +1492,8 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
         // l is the same as a in my case.
         double w2;
         double k0 = curves[i];
-        std::cout << "k0 = " << k0 << "\n";
-        std::cout << "Atri = " << Atri << "\n";
+        // std::cout << "k0 = " << k0 << "\n";
+        // std::cout << "Atri = " << Atri << "\n";
         // Catch Straight Line Case
 
         // ================================ WEIGHT PROBLEMS HERE ===============================
@@ -1502,21 +1502,21 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
         } else {
             w2 = 0;
         }
-        std::cout << "weight = " << w2 << "\n";
+        // std::cout << "weight = " << w2 << "\n";
         // Add Weight
         weights.insert(weights.end(), w2);
         weights.insert(weights.end(), 1);  // Always 1 at the start and end
         //
         // std::cout << "weight should = " << s.makeWeight(P0,P1,P2) << "\n";
     }
-    std::cout <<"end Weights\n";
+    // std::cout <<"end Weights\n";
     
     // Get into form of [Px,Py,w] array
     std::vector<std::vector<double>> ret = {{Points[0][0],Points[0][1],weights[0]}};
     for(int i = 1; i < weights.size();i++) {
         ret.insert(ret.end(),{Points[i][0],Points[i][1],weights[i]});
     }
-    std::cout << "============ CLIPPED SECTION INSIDE========== \n";
+    // std::cout << "============ CLIPPED SECTION INSIDE========== \n";
     // for(int i = 0; i < ret.size(); i++) {
     //     std::cout << "(" << ret[i][0] <<"," << ret[i][1] << ")" << "," << ret[i][2] << "\n";
     // }
@@ -1524,9 +1524,9 @@ std::vector<std::vector<double>> Spline::clippedBezier(double u1, double u2) {
 }
 
 double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { // Should be working (Tested)
-    std::cout << "Begin Parameter Getting \n";
+    // std::cout << "Begin Parameter Getting \n";
     std::vector<std::vector<double>> loop = this->getParameterLoop(square);
-    std::cout << "End Parameter Getting \n";
+    // std::cout << "End Parameter Getting \n";
     std::vector<double> parameter = loop[0];
     std::vector<double> indicator = loop[1];
     // std::cout << "Begin Parameter \n";
@@ -1549,45 +1549,45 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
         // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
         // std::cout << "Start Branches - ind1 = " << ind1 << " ind2 = " << ind2 << "\n";
         if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
-            std::cout << "Case 22\n";
+            // std::cout << "Case 22\n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = square[parameter[i+1]];
 
             double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
-            std::cout << "Case 24\n";
+            // std::cout << "Case 24\n";
             std::vector<double> P1 = square[parameter[i]];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
-            std::cout << "Case 32\n";
+            // std::cout << "Case 32\n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = square[parameter[i+1]];
 
             double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
-            std::cout << "Case 34\n";
+            // std::cout << "Case 34\n";
             std::vector<double> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<double> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             double integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
-            std::cout << "Case 43\n";
+            // std::cout << "Case 43\n";
             // Get Parameter Values
             double u1 = parameter[i];
             double u2 = parameter[i+1];
-            std::cout << "Start Clipping\n";
+            // std::cout << "Start Clipping\n";
             std::vector<std::vector<double>> clippedSection = this->clippedBezier(u1,u2);
             double integral = 0.0;
-            std::cout << "============ CLIPPED SECTION ========== \n";
-            for(int i = 0; i < clippedSection.size(); i++) {
-                std::cout << "(" << clippedSection[i][0] <<"," << clippedSection[i][1] << ")" << "," << clippedSection[i][2] << "\n";
-            }
+            // std::cout << "============ CLIPPED SECTION ========== \n";
+            // for(int i = 0; i < clippedSection.size(); i++) {
+            //     std::cout << "(" << clippedSection[i][0] <<"," << clippedSection[i][1] << ")" << "," << clippedSection[i][2] << "\n";
+            // }
             // std::cout << "\n ========= INTEGRAL CALCULATION ========\n";
             for(int i = 0; i < clippedSection.size()-2; i += 2) {
                 // std::cout << "Get Points \n";
@@ -1601,9 +1601,9 @@ double Spline::integrateSplineSquare(std::vector<std::vector<double>> square) { 
                         y2 = clippedSection[i + 2][1];
                 
 
-                std::cout << "P0 = " << x0 << "," << y0 << ", w = " << clippedSection[i][2] << "\n";
-                std::cout << "P1 = " << x1 << "," << y1 << ", w = " << clippedSection[i+1][2]<< "\n";
-                std::cout << "P2 = " << x2 << "," << y2 << ", w = " << clippedSection[i+2][2]<< "\n";
+                // std::cout << "P0 = " << x0 << "," << y0 << ", w = " << clippedSection[i][2] << "\n";
+                // std::cout << "P1 = " << x1 << "," << y1 << ", w = " << clippedSection[i+1][2]<< "\n";
+                // std::cout << "P2 = " << x2 << "," << y2 << ", w = " << clippedSection[i+2][2]<< "\n";
                 double dA;
                 // Uses weights to calculate area here. ==========================================================================
                 if (w < 0.35 || w > 1.7) {
