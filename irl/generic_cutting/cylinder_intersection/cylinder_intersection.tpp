@@ -2256,7 +2256,7 @@ formCylinderIntersectionBases(
       }
 
       // set rotated_cylinder for reconstruction
-      UnitQuaternionBase<ScalarType> x_rotation(PI, Normal(ONE, ZERO, ZERO));
+      UnitQuaternionBase<ScalarType> x_rotation(PI, a_frame[0]);
       x_rotation.normalize();
       auto rotated_quad_ref = x_rotation * a_frame;
       auto db_rotated_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
@@ -2379,7 +2379,9 @@ formCylinderIntersectionBases(
     #endif
     if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
         auto db_datum = a_datum.toDoublePt();
-        auto rotated_quad_ref = x_rotation * a_frame;
+        UnitQuaternionBase<ScalarType> x_rotation_surface(-rotation_list[i], a_frame[0]);
+        x_rotation_surface.normalize();
+        auto rotated_quad_ref = x_rotation_surface * a_frame;
         auto db_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
                   rotated_quad_ref[1].toDoubleNormal(), rotated_quad_ref[2].toDoubleNormal());
         Cylinder rotated_cylinder = Cylinder(db_datum, db_fram, 
