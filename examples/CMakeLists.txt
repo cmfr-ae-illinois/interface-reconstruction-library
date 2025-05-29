@@ -7,6 +7,7 @@ add_custom_target(examples_paraboloid_advector)
 add_custom_target(examples_2d_advector)
 add_custom_target(examples_spline)
 add_custom_target(examples_spline_optimization)
+add_custom_target(examples_marching_squares)
 
 include(${PROJECT_SOURCE_DIR}/cmake/Utils/IRLAddExample.cmake)
 
@@ -19,3 +20,4 @@ add_subdirectory("./paraboloid_advector")
 add_subdirectory("./2d_advector")
 add_subdirectory("./splines")
 add_subdirectory("./spline_optimization")
+add_subdirectory("./marching_squares")

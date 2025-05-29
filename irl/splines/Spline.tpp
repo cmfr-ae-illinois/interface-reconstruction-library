@@ -40,7 +40,7 @@ std::vector<ScalarType> Spline<ScalarType>::pack(std::vector<std::vector<ScalarT
         for(int i = 0;i < Nq-1; i++) {
             ret[3*i] = Q[i][0];
             ret[3*i+1] = Q[i][1];
-            ret[3*i+2] = atan2(T[i][1],T[i][0]); // Convert into angle, from -pi to pi.
+            ret[3*i+2] = ScalarType(atan2(T[i][1],T[i][0])); // Convert into angle, from -pi to pi.
             // Higher Accuracy atan2 may be needed?
         }
         // std::cout << "Size ret = " << ret.size() << "\n [";
@@ -59,16 +59,16 @@ std::vector<ScalarType> Spline<ScalarType>::pack(std::vector<std::vector<ScalarT
 template <class ScalarType>
 std::vector<std::vector<std::vector<ScalarType>>> Spline<ScalarType>::unpack(std::vector<ScalarType> V) {
     int N = V.size();
-    int Nq = (int) (N/4)+1;
+    int Nq = (int) (N/3)+1;
     // std::cout << "Nq = " << Nq << "\n";
-    if(N%4 == 0) { // Required
+    if(N%3 == 0) { // Required
         std::vector<std::vector<ScalarType>> Q(Nq,std::vector<ScalarType> (2));
         std::vector<std::vector<ScalarType>> T(Nq,std::vector<ScalarType> (2));
         for(int i = 0; i < Q.size(); i++) {
             Q[i][0] = V[3*i];
             Q[i][1] = V[3*i+1];
-            T[i][0] = cos(V[3*i+2]); // These operations seem questionable in higher precisions
-            T[i][1] = sin(V[3*i+2]);
+            T[i][0] = std::cos(V[3*i+2]); // These operations seem questionable in higher precisions
+            T[i][1] = std::sin(V[3*i+2]);
         }
         // Make sure we are periodic
         Q[Nq-1][0] = Q[0][0];
@@ -811,10 +811,14 @@ ScalarType Spline<ScalarType>::getArcLength() {
             // Normal Vector Magnitude
             ScalarType nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
             ScalarType ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
-
+            // std::cout << "nx = " << nx << "\n";
+            // std::cout << "ny = " << ny << "\n";
             ScalarType n = sqrt(pow(nx,2)+pow(ny,2));
+            // std::cout << "n = " << n << "\n";
 
+            // std::cout << "m = " << m << "\n";
             AL += m*GaussWeights[j]*n;
+            // std::cout << "==================== ALcurr = " << AL << "\n";
             // std::cout << "Gauss: " << GaussPoints[j] <<"\n";
         }
         
@@ -1132,6 +1136,10 @@ ScalarType Spline<ScalarType>::getArea() {
         const auto w = Weights[i + 1];
         if (w < 0.35 || w > 1.7) {
           auto K = Spline<ScalarType>::coeffsAreaExact(w);
+          K = std::array<double,2>({0.0, 0.5});
+          if (w < 1.0e-9) {
+            K = Spline::coeffsAreaExact(w);
+          }
           Area -= (x0 * y2 - x2 * y0) * K[0] +
                 (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
         } else {
@@ -1140,7 +1148,7 @@ ScalarType Spline<ScalarType>::getArea() {
                 (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
         }
       }
-    return Area;
+    return fabs(Area);
 }
 
 template <class ScalarType>
@@ -1163,7 +1171,7 @@ std::vector<ScalarType> Spline<ScalarType>::lineCurveIntersection(std::vector<Sc
         // Solve Quadratic
         ScalarType discrim = pow(bPoly,2)-4*aPoly*cPoly;
         
-        std::cout << "Discrim = " << discrim << "\n";
+        // std::cout << "Discrim = " << discrim << "\n";
         // std::cout << "aPoly = " << aPoly << "\n";
         // std::cout << "bPoly = " << bPoly << "\n";
         // std::cout << "cPoly = " << cPoly << "\n";
@@ -1229,8 +1237,8 @@ std::vector<ScalarType> Spline<ScalarType>::lineCurveIntersection(std::vector<Sc
     for(int i = 0; i< idx.size(); i++) {
         ret[i] = uIntersections[idx[i]];
     }   
-    std::cout << "Ret Size = " << ret.size() << "\n";
-    std::cout << "Ret = [" <<  ret[0] << "]\n";
+    // std::cout << "Ret Size = " << ret.size() << "\n";
+    // std::cout << "Ret = [" <<  ret[0] << "]\n";
     // Finally, we will loop over u and only take unique values, since a line can only intersect a curve once at the same location
     std::vector<ScalarType> ret2 = {ret[0]};
     for(int i = 1; i < ret.size();i++) {
@@ -1245,7 +1253,7 @@ std::vector<ScalarType> Spline<ScalarType>::lineCurveIntersection(std::vector<Sc
             ret2.insert(ret2.end(),ret[i]);
         }
     }
-    std::cout << "Return Intersection\n";
+    // std::cout << "Return Intersection\n";
     if(numInt > 0){
         return ret2;
     } else {
@@ -1348,16 +1356,17 @@ template <class ScalarType>
 std::vector<std::vector<ScalarType>> Spline<ScalarType>::clippedBezier(ScalarType u1, ScalarType u2) {
     std::vector<std::vector<ScalarType>> Points;
     std::vector<std::vector<ScalarType>> tans;
+    std::vector<ScalarType> curves;
     
     Points = {this->makeRationalQuadCurve(
         {u1})[0]};              // Add Starting Point to Points (Exit Point)
     tans = {this->getTangent(u1)};  // Add starting point Tangent (Exit Point)
-    
+    curves = {this->getCurvature(u1)};
     // Find Spans, in order
     int spanIndex1 = this->findSpan(u1);
     int spanIndex2 = this->findSpan(u2);
-    std::cout << "spanIndex1 = " << spanIndex1 << "\n";
-    std::cout << "spanIndex2 = " << spanIndex2 << "\n";
+    // std::cout << "spanIndex1 = " << spanIndex1 << "\n";
+    // std::cout << "spanIndex2 = " << spanIndex2 << "\n";
     // if u1,u2 in the same span, we can go direct.
     // If u1,u2 are in different spans, we have to segment through each span
     if (spanIndex1 == spanIndex2) {  // Same Span
@@ -1406,84 +1415,104 @@ std::vector<std::vector<ScalarType>> Spline<ScalarType>::clippedBezier(ScalarTyp
         breaks.insert(breaks.end(),u2);  // This contains the parameter value of the start,
         //all the breakpoints between
         // segments, then the end.
-        std::cout << "Break Length: " << breaks.size() << "\n";
+        // std::cout << "Break Length: " << breaks.size() << "\n";
         for (int j = 0; j < breaks.size() - 1; j++) {
             // For each of these points, add the intersection and end point, along
             // with the previous tangent
-            std::cout << "Access Break\n";
+            // std::cout << "Access Break\n";
             std::vector<ScalarType> Pend =
             this->makeRationalQuadCurve({breaks[j + 1]})[0];
-            std::cout << "End Break\n";
+            // std::cout << "End Break\n";
             std::vector<ScalarType> Tend = this->getTangent(breaks[j + 1]);
 
             std::vector<ScalarType> Pstart = this->makeRationalQuadCurve({breaks[j]})[0];
             std::vector<ScalarType> Tstart = this->getTangent(breaks[j]);
-            std::cout << "j = " << j << "==================\n";
+            // std::cout << "j = " << j << "==================\n";
             // std::cout << "Pstart = " << Pstart[0] << "," << Pstart[1] << "\n";
             // std::cout << "Pend = " << Pend[0] << "," << Pend[1] << "\n";
             // std::cout << "Tstart = " << Tstart[0] << "," << Tstart[1] << "\n";
             // std::cout << "Tend = " << Tend[0] << "," << Tend[1] << "\n";
 
             // Calculate Intersection
-            std::cout << "Calculate Solution\n";
+            // std::cout << "Calculate Solution\n";
             std::vector<std::vector<ScalarType>> solution =
                 Spline<ScalarType>::solvePointTangentIntersection(Pstart, Pend, Tstart, Tend);
-            std::cout << "Found Solution\n";
+            // std::cout << "Found Solution\n";
             std::vector<ScalarType> inter = solution[0];
-            std::cout << "Access Solution\n";  
+            // std::cout << "Access Solution\n";  
             // Now, add intersection and end point to array
-            std::cout << "Insert Solution\n";  
+            // std::cout << "Insert Solution\n";  
             Points.insert(Points.end(), inter);
             Points.insert(Points.end(), Pend);
-            std::cout << "Insert Tangent\n";  
+            curves.insert(curves.end(),0); // Intersection Curvature (unknown, unused)
+            curves.insert(curves.end(),this->getCurvature(breaks[j + 1])); // End Point Curvature (Will be used)
+            // std::cout << "Insert Tangent\n";  
             tans.insert(tans.end(),Tend);  // Put end tangent to back of this to move forward.
         }
     } 
-    std::cout << "Here\n";  
-    std::cout << Points.size() << "\n";
+    // std::cout << "Here\n";  
+    // std::cout << Points.size() << "\n";
      // From here, we will use this information to calculate the  weights.
     std::vector<ScalarType> weights = {1};  // First weight is always one (every other one will be too);
     for (int i = 0; i < Points.size() - 1;i += 2) { 
-        std::cout << "IN\n";
+        // std::cout << "IN\n";
         // We go every 2 since the points go in triples (0,1,2 then
         // 2,3,4 then 4,5,6 etc.)
 
         // Here is an example of how to use the Points array, and what the ordering
         // of it is
-        std::cout << "Access Point 0\n";
+        // std::cout << "Access Point 0\n";
         std::vector<ScalarType> P0 = Points[i];      // Start
-        std::cout << "Access Point 1\n";
+        // std::cout << "Access Point 1\n";
         std::vector<ScalarType> P1 = Points[i + 1];  // Intersection
-        std::cout << "Access Point 2\n";
+        // std::cout << "Access Point 2\n";
         std::vector<ScalarType> P2 = Points[i + 2];  // End
-        std::cout << "End Access\n";
+        // std::cout << "End Access\n";
         // Since I don't fully understand the curvature method in paper yet, I am
         // just quickly doing this to get weights Since I know they are well
         // behaved. I will understand the method in the paper soon and then that can
         // be used In general case.
 
         // First, calculate midpoint of P0,P2
-        std::cout << "midpoint\n";
-        std::vector<ScalarType> mid = {(P0[0] + P2[0]) / 2, (P0[1] + P2[1]) / 2};
-        // Next, calculate intersection with spline (Shoulder Point)
-        std::cout << "Midpoint = (" << mid[0] << "," << mid[1] << ")\n";
-        std::cout << "P1 = (" << P1[0] << "," << P1[1] << ")\n";
-        std::cout << "uHit\n";
-        ScalarType uHit = this->lineCurveIntersection(mid, P1)[0];
-        std::cout << "Intersection End\n";
-        std::vector<ScalarType> S = this->makeRationalQuadCurve({uHit})[0];
-        std::cout << "makeRational End\n";
-        // Calculate Midpoint to Shoulder Point Distance
-        ScalarType MS = sqrt(pow(S[0] - mid[0], 2) + pow(S[1] - mid[1], 2));
-        // Calculate Shoulder Point to intersection distance
-        ScalarType SP1 = sqrt(pow(S[0] - P1[0], 2) + pow(S[1] - P1[1], 2));
-        // Calculate Weight (eq 7.32)
-        ScalarType w = MS / SP1;
+        // std::cout << "midpoint\n";
+        // std::vector<ScalarType> mid = {(P0[0] + P2[0]) / 2, (P0[1] + P2[1]) / 2};
+        // // Next, calculate intersection with spline (Shoulder Point)
+        // std::cout << "Midpoint = (" << mid[0] << "," << mid[1] << ")\n";
+        // std::cout << "P1 = (" << P1[0] << "," << P1[1] << ")\n";
+        // std::cout << "uHit\n";
+        // ScalarType uHit = this->lineCurveIntersection(mid, P1)[0];
+        // std::cout << "Intersection End\n";
+        // std::vector<ScalarType> S = this->makeRationalQuadCurve({uHit})[0];
+        // std::cout << "makeRational End\n";
+        // // Calculate Midpoint to Shoulder Point Distance
+        // ScalarType MS = sqrt(pow(S[0] - mid[0], 2) + pow(S[1] - mid[1], 2));
+        // // Calculate Shoulder Point to intersection distance
+        // ScalarType SP1 = sqrt(pow(S[0] - P1[0], 2) + pow(S[1] - P1[1], 2));
+        // // Calculate Weight (eq 7.32)
+        // ScalarType w = MS / SP1;
 
+        // ==========Calculate Weight Using Curvature
+        // Calculate Triangle Area
+        ScalarType a = sqrt(pow(P0[0] - P1[0], 2) + pow(P0[1] - P1[1], 2)); // P0 -> P1
+        ScalarType b = sqrt(pow(P2[0] - P1[0], 2) + pow(P2[1] - P1[1], 2)); // P1 -> P2
+        ScalarType c = sqrt(pow(P0[0] - P2[0], 2) + pow(P0[1] - P2[1], 2)); // P2 -> P0
+        ScalarType s = (a+b+c)/2;
+        ScalarType Atri = sqrt(s*(s-a)*(s-b)*(s-c));
+        // std::cout << "Atri = " << Atri << "\n";
+        // l is the same as a in my case.
+        ScalarType w2;
+        ScalarType k0 = curves[i];
+        // std::cout << "k0 = " << k0 << "\n";
+        // Catch Straight Line Case
 
-
+        // ================================ WEIGHT PROBLEMS HERE ===============================
+        if(fabs(k0) >= 1e-6 && fabs(a) >= 1e-6){
+            w2 = sqrt(Atri/(fabs(k0)*a*a*a)); // can go to NaN if k0 or a is 0.
+        } else {
+            w2 = 0;
+        }
         // Add Weight
-        weights.insert(weights.end(), w);
+        weights.insert(weights.end(), w2);
         weights.insert(weights.end(), 1);  // Always 1 at the start and end
         // std::cout << "weight = " << w << "\n";
         // std::cout << "weight should = " << s.makeWeight(P0,P1,P2) << "\n";
@@ -1520,7 +1549,7 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
         // Most indicator pairs are either 0 or impossible. As such, we only look at relevant cases.
         
         if(ind1 == 2 && ind2 == 2) { // 2 To 2 - Two Inside Corners - Integrate Square *********************************************
-            std::cout << "Case 22\n";
+            // std::cout << "Case 22\n";
             std::vector<ScalarType> P1 = square[parameter[i]];
             std::vector<ScalarType> P2 = square[parameter[i+1]];
 
@@ -1528,28 +1557,28 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
             Area -= integral;
 
         } else if(ind1 == 2 && ind2 == 4) {// 2 To 4 - Inside Corner to Exit - Integrate Square ************************************
-            std::cout << "Case 24\n";
+            // std::cout << "Case 24\n";
             std::vector<ScalarType> P1 = square[parameter[i]];
             std::vector<ScalarType> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 3 && ind2 == 2) {// 3 to 2 - Entry to Inside Corner - Integrate Square ***********************************
-            std::cout << "Case 32\n";
+            // std::cout << "Case 32\n";
             std::vector<ScalarType> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<ScalarType> P2 = square[parameter[i+1]];
 
             ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 3 && ind2 == 4) {// 3 to 4 - Entry to Exit - Integrate Square ********************************************
-            std::cout << "Case 34\n";
+            // std::cout << "Case 34\n";
             std::vector<ScalarType> P1 = makeRationalQuadCurve({parameter[i]})[0];
             std::vector<ScalarType> P2 = makeRationalQuadCurve({parameter[i+1]})[0];
 
             ScalarType integral = 0.5*(P2[0]*P1[1]-P1[0]*P2[1]);
             Area -= integral;
         } else if(ind1 == 4 && ind2 == 3) {// 4 to 3 - Exit to Entry - Integrate Curve
-            std::cout << "Case 43\n";
+            // std::cout << "Case 43\n";
             // Get Parameter Values
             ScalarType u1 = parameter[i];
             ScalarType u2 = parameter[i+1];
@@ -1570,6 +1599,10 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
                 ScalarType dA;
                 if (w < 0.35 || w > 1.7) {
                     auto K = Spline<ScalarType>::coeffsAreaExact(w);
+                    K = std::array<double,2>({0.0, 0.5});
+                    if (w < 1.0e-9) {
+                        K = Spline::coeffsAreaExact(w);
+                    }
                     dA = (x0 * y2 - x2 * y0) * K[0] +
                         (x1 * y0 + x2 * y1 - x0 * y1 - x1 * y2) * K[1];
                 } else {

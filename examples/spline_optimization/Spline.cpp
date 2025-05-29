@@ -791,7 +791,8 @@ double Spline::getArcLength() {
             // Normal Vector Magnitude
             double nx = (ax*pow(ueff,2)+bx*ueff+cx)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
             double ny = (ay*pow(ueff,2)+by*ueff+cy)/pow(alpha*pow(ueff,2)+beta*ueff+gamma,2);
-
+            // std::cout << "nx = " << nx << "\n";
+            // std::cout << "ny = " << ny << "\n";
             double n = sqrt(pow(nx,2)+pow(ny,2));
 
             AL += m*GaussWeights[j]*n;
