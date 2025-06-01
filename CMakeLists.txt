@@ -8,7 +8,7 @@ endif()
 # Listing the version is nice here since it sets lots of useful variables
 project(IRL VERSION 0.1.0
   DESCRIPTION "Interface Reconstruction Library"
-  LANGUAGES CXX Fortran)
+  LANGUAGES C CXX Fortran)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

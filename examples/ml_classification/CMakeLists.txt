@@ -9,6 +9,10 @@ IRLAddExample_cpp(
   COLLECTION
     "examples_ml_classification"
 )
+
+find_package(VTK REQUIRED)
+# include(${VTK_USE_FILE})
+target_link_libraries(ml_classification PRIVATE "${VTK_LIBRARIES}")
 set (Torch_DIR "/home/mlcfd/Repositories/libtorch/share/cmake/Torch")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
