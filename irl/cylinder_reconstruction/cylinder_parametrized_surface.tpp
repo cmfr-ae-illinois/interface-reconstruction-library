@@ -26,9 +26,9 @@
 
 namespace IRL {
 
-/// @brief project a list of vertices vertically up on the surface of the cylinder,
-/// the projection will put the vertices on the top half of the cylinder.
-/// the vertex is projected at z=0 if |y| > sqrt(r/b)
+/// @brief project a list of vertices vertically up on the surface of the
+/// cylinder, the projection will put the vertices on the top half of the
+/// cylinder. the vertex is projected at z=0 if |y| > sqrt(r/b)
 /// @param vertices list of vertices to project
 /// @param cylinder the cylinder to project on
 /// @param fixed_vertices number of vertex to skip first in the list
@@ -185,7 +185,7 @@ void reMeshPolygon(VertexList& vertices, EdgeList& edges, TriList& triangles,
 
 inline CylinderParametrizedSurfaceOutput::CylinderParametrizedSurfaceOutput()
     : ParametrizedSurfaceOutput{},
-      indexes_of_flip{},
+      indexes_of_flip_m{},
       cylinder_m{},
       scale_m{} {}
 
@@ -193,19 +193,21 @@ inline CylinderParametrizedSurfaceOutput::CylinderParametrizedSurfaceOutput(
     const Cylinder& a_cylinder)
     : cylinder_m{{a_cylinder}},
       ParametrizedSurfaceOutput{},
-      indexes_of_flip{},
+      indexes_of_flip_m{},
       scale_m{} {}
 
 inline CylinderParametrizedSurfaceOutput::CylinderParametrizedSurfaceOutput(
     CylinderParametrizedSurfaceOutput&& a_rhs)
-    : ParametrizedSurfaceOutput(a_rhs), cylinder_m(a_rhs.cylinder_m),
-      indexes_of_flip(a_rhs.indexes_of_flip),
+    : ParametrizedSurfaceOutput(a_rhs),
+      cylinder_m(a_rhs.cylinder_m),
+      indexes_of_flip_m(a_rhs.indexes_of_flip_m),
       scale_m(a_rhs.scale_m) {}
 
 inline CylinderParametrizedSurfaceOutput::CylinderParametrizedSurfaceOutput(
     const CylinderParametrizedSurfaceOutput& a_rhs)
-    : ParametrizedSurfaceOutput(a_rhs), cylinder_m(a_rhs.cylinder_m),
-      indexes_of_flip(a_rhs.indexes_of_flip),
+    : ParametrizedSurfaceOutput(a_rhs),
+      cylinder_m(a_rhs.cylinder_m),
+      indexes_of_flip_m(a_rhs.indexes_of_flip_m),
       scale_m(a_rhs.scale_m) {}
 
 inline CylinderParametrizedSurfaceOutput&
@@ -213,7 +215,7 @@ CylinderParametrizedSurfaceOutput::operator=(
     CylinderParametrizedSurfaceOutput&& a_rhs) {
   if (this != &a_rhs) {
     cylinder_m = a_rhs.cylinder_m;
-    indexes_of_flip = a_rhs.indexes_of_flip;
+    indexes_of_flip_m = a_rhs.indexes_of_flip_m;
     scale_m = a_rhs.scale_m;
     arc_list_m = std::move(a_rhs.arc_list_m);
     knows_surface_area_m = a_rhs.knows_surface_area_m;
@@ -235,7 +237,7 @@ CylinderParametrizedSurfaceOutput::operator=(
     const CylinderParametrizedSurfaceOutput& a_rhs) {
   if (this != &a_rhs) {
     cylinder_m = a_rhs.cylinder_m;
-    indexes_of_flip = a_rhs.indexes_of_flip;
+    indexes_of_flip_m = a_rhs.indexes_of_flip_m;
     scale_m = a_rhs.scale_m;
     arc_list_m = a_rhs.arc_list_m;
     knows_surface_area_m = a_rhs.knows_surface_area_m;
@@ -253,17 +255,16 @@ CylinderParametrizedSurfaceOutput::operator=(
 
 inline void CylinderParametrizedSurfaceOutput::setCylinder(
     const Cylinder& a_cylinder) {
-  indexes_of_flip.push_back(arc_list_m.size());
+  indexes_of_flip_m.push_back(arc_list_m.size());
   cylinder_m.push_back(a_cylinder);
 }
 
-inline void CylinderParametrizedSurfaceOutput::setScale(
-    double a_scale) {
+inline void CylinderParametrizedSurfaceOutput::setScale(double a_scale) {
   scale_m = a_scale;
 }
 
 inline void CylinderParametrizedSurfaceOutput::resetCylinder(void) {
-  indexes_of_flip.resize(0);
+  indexes_of_flip_m.resize(0);
   cylinder_m.resize(0);
 }
 
@@ -274,57 +275,402 @@ inline void CylinderParametrizedSurfaceOutput::resetCylinder(void) {
 //   }
 // }
 
-inline double CylinderParametrizedSurfaceOutput::getSurfaceArea(void) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getSurfaceArea() is not yet implemented");
-  // return 0.0;
+class ArcContributionToCylinderSurfaceArea_Functor {
+ public:
+  ArcContributionToCylinderSurfaceArea_Functor(
+      const RationalBezierArc& a_arc, const AlignedCylinder& a_cylinder)
+      : arc_m(a_arc), aligned_cylinder_m(a_cylinder) {}
+
+  double operator()(double a_t) const {
+    const auto weight = arc_m.weight();
+    if (weight > 1.0e15) {
+      const auto pt0 = arc_m.point(0.5 * a_t);
+      const auto pt1 = arc_m.point(0.5 + 0.5 * a_t);
+      const auto der0 = arc_m.derivative(0.5 * a_t);
+      const auto der1 = arc_m.derivative(0.5 + 0.5 * a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive0 =
+          pt0[0] * std::sqrt(1.0 + pt0[1] * pt0[1] * b * b /
+                                       safelyTiny(pt0[2] * pt0[2]));
+      const double primitive1 =
+          pt1[0] * std::sqrt(1.0 + pt1[1] * pt1[1] * b * b /
+                                       safelyTiny(pt1[2] * pt1[2]));
+      return 0.5 * (primitive0 * der0[1] + primitive1 * der1[1]);
+    } else {
+      const auto pt = arc_m.point(a_t);
+      const auto der = arc_m.derivative(a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive =
+          pt[0] *
+          std::sqrt(1.0 + pt[1] * pt[1] * b * b / safelyTiny(pt[2] * pt[2]));
+      if (std::isnan(primitive)) {
+        std::cout << "Pr = " << pt << std::endl;
+        std::cout << "Der = " << der << std::endl;
+        std::cout << "b = " << b << std::endl;
+        // std::cout << "r = " << r << std::endl;
+        std::cout << "Arc: weight = " << arc_m.weight() << std::endl;
+        std::cout << "Arc: start = " << arc_m.start_point() << std::endl;
+        std::cout << "Arc: ctrl  = " << arc_m.control_point() << std::endl;
+        std::cout << "Arc: end   = " << arc_m.end_point() << std::endl;
+        std::cout << "Primitive is NaN" << std::endl;
+        exit(1);
+      }
+      if (std::isnan(der[1])) {
+        std::cout << "der[1] is NaN" << std::endl;
+        exit(1);
+      }
+
+      return primitive * der[1];
+    }
+  }
+
+ private:
+  const RationalBezierArc& arc_m;
+  const AlignedCylinder& aligned_cylinder_m;
 };
+
+class ArcContributionToCylinderNormalY_Functor {
+ public:
+  ArcContributionToCylinderNormalY_Functor(const RationalBezierArc& a_arc,
+                                           const AlignedCylinder& a_cylinder)
+      : arc_m(a_arc), aligned_cylinder_m(a_cylinder) {}
+
+  double operator()(double a_t) const {
+    const auto weight = arc_m.weight();
+    if (weight > 1.0e15) {
+      const auto pt0 = arc_m.point(0.5 * a_t);
+      const auto pt1 = arc_m.point(0.5 + 0.5 * a_t);
+      const auto der0 = arc_m.derivative(0.5 * a_t);
+      const auto der1 = arc_m.derivative(0.5 + 0.5 * a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive0 = 2.0 * pt0[0] * pt0[1] * b;
+      const double primitive1 = 2.0 * pt1[0] * pt1[1] * b;
+      return 0.5 * (primitive0 * der0[1] + primitive1 * der1[1]);
+    } else {
+      const auto pt = arc_m.point(a_t);
+      const auto der = arc_m.derivative(a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive = 2.0 * pt[0] * pt[1] * b;
+      if (std::isnan(primitive)) {
+        std::cout << "Pr = " << pt << std::endl;
+        std::cout << "Der = " << der << std::endl;
+        std::cout << "b = " << b << std::endl;
+        // std::cout << "r = " << r << std::endl;
+        std::cout << "Arc: weight = " << arc_m.weight() << std::endl;
+        std::cout << "Arc: start = " << arc_m.start_point() << std::endl;
+        std::cout << "Arc: ctrl  = " << arc_m.control_point() << std::endl;
+        std::cout << "Arc: end   = " << arc_m.end_point() << std::endl;
+        std::cout << "Primitive is NaN" << std::endl;
+        exit(1);
+      }
+      if (std::isnan(der[1])) {
+        std::cout << "der[1] is NaN" << std::endl;
+        exit(1);
+      }
+
+      return primitive * der[1];
+    }
+  }
+
+ private:
+  const RationalBezierArc& arc_m;
+  const AlignedCylinder& aligned_cylinder_m;
+};
+
+class ArcContributionToCylinderNormalZ_Functor {
+ public:
+  ArcContributionToCylinderNormalZ_Functor(const RationalBezierArc& a_arc,
+                                           const AlignedCylinder& a_cylinder)
+      : arc_m(a_arc), aligned_cylinder_m(a_cylinder) {}
+
+  double operator()(double a_t) const {
+    const auto weight = arc_m.weight();
+    if (weight > 1.0e15) {
+      const auto pt0 = arc_m.point(0.5 * a_t);
+      const auto pt1 = arc_m.point(0.5 + 0.5 * a_t);
+      const auto der0 = arc_m.derivative(0.5 * a_t);
+      const auto der1 = arc_m.derivative(0.5 + 0.5 * a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive0 = 2.0 * pt0[0] * pt0[2];
+      const double primitive1 = 2.0 * pt1[0] * pt1[2];
+      return 0.5 * (primitive0 * der0[1] + primitive1 * der1[1]);
+    } else {
+      const auto pt = arc_m.point(a_t);
+      const auto der = arc_m.derivative(a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive = 2.0 * pt[0] * pt[2];
+      if (std::isnan(primitive)) {
+        std::cout << "Pr = " << pt << std::endl;
+        std::cout << "Der = " << der << std::endl;
+        std::cout << "b = " << b << std::endl;
+        // std::cout << "r = " << r << std::endl;
+        std::cout << "Arc: weight = " << arc_m.weight() << std::endl;
+        std::cout << "Arc: start = " << arc_m.start_point() << std::endl;
+        std::cout << "Arc: ctrl  = " << arc_m.control_point() << std::endl;
+        std::cout << "Arc: end   = " << arc_m.end_point() << std::endl;
+        std::cout << "Primitive is NaN" << std::endl;
+        exit(1);
+      }
+      if (std::isnan(der[1])) {
+        std::cout << "der[1] is NaN" << std::endl;
+        exit(1);
+      }
+
+      return primitive * der[1];
+    }
+  }
+
+ private:
+  const RationalBezierArc& arc_m;
+  const AlignedCylinder& aligned_cylinder_m;
+};
+
+class ArcContributionToCylinderMeanCurvature_Functor {
+ public:
+  ArcContributionToCylinderMeanCurvature_Functor(
+      const RationalBezierArc& a_arc, const AlignedCylinder& a_cylinder)
+      : arc_m(a_arc), aligned_cylinder_m(a_cylinder) {}
+
+  double operator()(double a_t) const {
+    const auto weight = arc_m.weight();
+    if (weight > 1.0e15) {
+      const auto pt0 = arc_m.point(0.5 * a_t);
+      const auto pt1 = arc_m.point(0.5 + 0.5 * a_t);
+      const auto x0 = pt0[0], y0 = pt0[1], z0 = pt0[2];
+      const auto x1 = pt1[0], y1 = pt1[1], z1 = pt1[2];
+      const auto der0 = arc_m.derivative(0.5 * a_t);
+      const auto der1 = arc_m.derivative(0.5 + 0.5 * a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive0 =
+          b * x0 * (z0 * z0 + b * y0 * y0) *
+          std::sqrt(1.0 + y0 * y0 * b * b / safelyTiny(z0 * z0)) /
+          std::pow(z0 * z0 + b * b * y0 * y0, 1.5);
+      const double primitive1 =
+          b * x1 * (z1 * z1 + b * y1 * y1) *
+          std::sqrt(1.0 + y1 * y1 * b * b / safelyTiny(z1 * z1)) /
+          std::pow(z1 * z1 + b * b * y1 * y1, 1.5);
+      return 0.5 * (primitive0 * der0[1] + primitive1 * der1[1]);
+    } else {
+      const auto pt = arc_m.point(a_t);
+      const auto x = pt[0], y = pt[1], z = pt[2];
+      const auto der = arc_m.derivative(a_t);
+      const double b = aligned_cylinder_m.b();
+      const double primitive =
+          b * x * (z * z + b * y * y) *
+          std::sqrt(1.0 + y * y * b * b / safelyTiny(z * z)) /
+          std::pow(z * z + b * b * y * y, 1.5);
+      if (std::isnan(primitive)) {
+        std::cout << "Pr = " << pt << std::endl;
+        std::cout << "Der = " << der << std::endl;
+        std::cout << "b = " << b << std::endl;
+        // std::cout << "r = " << r << std::endl;
+        std::cout << "Arc: weight = " << arc_m.weight() << std::endl;
+        std::cout << "Arc: start = " << arc_m.start_point() << std::endl;
+        std::cout << "Arc: ctrl  = " << arc_m.control_point() << std::endl;
+        std::cout << "Arc: end   = " << arc_m.end_point() << std::endl;
+        std::cout << "Primitive is NaN" << std::endl;
+        exit(1);
+      }
+      if (std::isnan(der[1])) {
+        std::cout << "der[1] is NaN" << std::endl;
+        exit(1);
+      }
+
+      return primitive * der[1];
+    }
+  }
+
+ private:
+  const RationalBezierArc& arc_m;
+  const AlignedCylinder& aligned_cylinder_m;
+};
+
+inline double CylinderParametrizedSurfaceOutput::getSurfaceArea(void) {
+  if (!knows_surface_area_m) {
+    const UnsignedIndex_t nArcs = this->size();
+    // Store starting indices of successive rotations
+    auto complete_indexes_of_flip = indexes_of_flip_m;
+    const int nb_rotation = indexes_of_flip_m.size();
+    complete_indexes_of_flip.push_back(nArcs);
+
+    // Initialize adaptive quadrature parameters
+    surface_area_m = 0.0;
+    size_t limit = 128;
+    const double epsabs = 10.0 * DBL_EPSILON;
+    const double epsrel = 0.0;
+
+    // Loop over possible rotation combinations
+    for (int i = 0; i < nb_rotation; i++) {
+      for (int t = complete_indexes_of_flip[i];
+           t < complete_indexes_of_flip[i + 1]; t++) {
+        // Define the functor
+        ArcContributionToCylinderSurfaceArea_Functor functor(
+            arc_list_m[t], cylinder_m[i].getAlignedCylinder());
+
+        // Define the integrator.
+        Eigen::Integrator<double> integrator(limit);
+
+        // Define a quadrature rule.
+        Eigen::Integrator<double>::QuadratureRule quadrature_rule =
+            Eigen::Integrator<double>::GaussKronrod61;
+
+        // Integrate
+        surface_area_m += integrator.quadratureAdaptive(
+            functor, 0.0, 1.0, epsabs, epsrel, quadrature_rule);
+      }
+    }
+    knows_surface_area_m = true;
+  }
+  return surface_area_m;
+};
+
 inline double CylinderParametrizedSurfaceOutput::getMeanCurvatureIntegral(
     void) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getMeanCurvatureIntegral() is not yet implemented");
-  // return 0.0;
+  if (!knows_int_mean_curv_m) {
+    const UnsignedIndex_t nArcs = this->size();
+    // Store starting indices of successive rotations
+    auto complete_indexes_of_flip = indexes_of_flip_m;
+    const int nb_rotation = indexes_of_flip_m.size();
+    complete_indexes_of_flip.push_back(nArcs);
+
+    // Initialize adaptive quadrature parameters
+    int_mean_curv_m = 0.0;
+    size_t limit = 128;
+    const double epsabs = 10.0 * DBL_EPSILON;
+    const double epsrel = 0.0;
+
+    // Loop over possible rotation combinations
+    for (int i = 0; i < nb_rotation; i++) {
+      for (int t = complete_indexes_of_flip[i];
+           t < complete_indexes_of_flip[i + 1]; t++) {
+        // Define the functor
+        ArcContributionToCylinderMeanCurvature_Functor functor(
+            arc_list_m[t], cylinder_m[i].getAlignedCylinder());
+
+        // Define the integrator.
+        Eigen::Integrator<double> integrator(limit);
+
+        // Define a quadrature rule.
+        Eigen::Integrator<double>::QuadratureRule quadrature_rule =
+            Eigen::Integrator<double>::GaussKronrod61;
+
+        // Integrate
+        int_mean_curv_m += integrator.quadratureAdaptive(
+            functor, 0.0, 1.0, epsabs, epsrel, quadrature_rule);
+      }
+    }
+    knows_int_mean_curv_m = true;
+  }
+  return int_mean_curv_m;
 };
 inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureIntegral(
     void) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getGaussianCurvatureIntegral() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getGaussianCurvatureIntegral() is "
+      "not yet implemented");
   // return 0.0;
 };
 inline Normal CylinderParametrizedSurfaceOutput::getAverageNormal(void) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getAverageNormal() is not yet implemented");
-  // return Normal(0.0, 0.0, 0.0);
-};
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getAverageNormal() does not make "
+      "sense since multiple aligned normals exist");
+  // return 0.0;
+}
 inline Normal CylinderParametrizedSurfaceOutput::getAverageNormalNonAligned(
     void) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getAverageNormalNonAligned() is not yet implemented");
-  // return Normal(0.0, 0.0, 0.0);
+  if (!knows_avg_normal_m) {
+    const UnsignedIndex_t nArcs = this->size();
+    // Store starting indices of successive rotations
+    auto complete_indexes_of_flip = indexes_of_flip_m;
+    const int nb_rotation = indexes_of_flip_m.size();
+    complete_indexes_of_flip.push_back(nArcs);
+
+    // Initialize adaptive quadrature parameters
+    avg_normal_m = Normal(0, 0, 0);
+    size_t limit = 128;
+    const double epsabs = 10.0 * DBL_EPSILON;
+    const double epsrel = 0.0;
+
+    // Loop over possible rotation combinations
+    for (int i = 0; i < nb_rotation; i++) {
+      auto avg_normal_local = Normal(0, 0, 0);
+      for (int t = complete_indexes_of_flip[i];
+           t < complete_indexes_of_flip[i + 1]; t++) {
+        // Define the functor
+        ArcContributionToCylinderNormalY_Functor functory(
+            arc_list_m[t], cylinder_m[i].getAlignedCylinder());
+        ArcContributionToCylinderNormalZ_Functor functorz(
+            arc_list_m[t], cylinder_m[i].getAlignedCylinder());
+
+        // Define the integrator.
+        Eigen::Integrator<double> integrator(limit);
+
+        // Define a quadrature rule.
+        Eigen::Integrator<double>::QuadratureRule quadrature_rule =
+            Eigen::Integrator<double>::GaussKronrod61;
+
+        // Integrate
+        avg_normal_local[1] += integrator.quadratureAdaptive(
+            functory, 0.0, 1.0, epsabs, epsrel, quadrature_rule);
+        avg_normal_local[2] += integrator.quadratureAdaptive(
+            functorz, 0.0, 1.0, epsabs, epsrel, quadrature_rule);
+      }
+      const auto& ref_frame = cylinder_m[i].getReferenceFrame();
+      for (std::size_t d = 0; d < 3; ++d) {
+        for (std::size_t n = 0; n < 3; ++n) {
+          avg_normal_m[n] += ref_frame[d][n] * avg_normal_local[d];
+        }
+      }
+    }
+    avg_normal_m.normalize();
+    knows_avg_normal_m = true;
+  }
+  return avg_normal_m;
 };
 inline Normal CylinderParametrizedSurfaceOutput::getNormalAligned(
     const Pt a_pt) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getNormalAligned() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getNormalAligned() does not make "
+      "sense since multiple aligned normals exist");
   // return Normal(0.0, 0.0, 0.0);
 };
 inline Normal CylinderParametrizedSurfaceOutput::getNormalNonAligned(
     const Pt a_pt) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getNormalNonAligned() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getNormalNonAligned() is not yet "
+      "implemented");
   // return Normal(0.0, 0.0, 0.0);
 };
 inline double CylinderParametrizedSurfaceOutput::getMeanCurvatureAligned(
     const Pt a_pt) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getMeanCurvatureAligned() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getMeanCurvatureAligned() is not "
+      "yet "
+      "implemented");
   // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getMeanCurvatureNonAligned(
     const Pt a_pt) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getMeanCurvatureNonAligned() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getMeanCurvatureNonAligned() is "
+      "not "
+      "yet implemented");
   // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureAligned(
     const Pt a_pt) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getGaussianCurvatureAligned() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getGaussianCurvatureAligned() is "
+      "not "
+      "yet implemented");
   // return 0.0;
 };
 inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
     const Pt a_pt) {
-  throw std::runtime_error("CylinderParametrizedSurfaceOutput::getGaussianCurvatureNonAligned() is not yet implemented");
+  throw std::runtime_error(
+      "CylinderParametrizedSurfaceOutput::getGaussianCurvatureNonAligned() "
+      "is "
+      "not yet implemented");
   // return 0.0;
 };
 
@@ -343,7 +689,7 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
 
   double inv_scale_sqr = double(1) / (scale_m * scale_m);
 
-  auto an_indexes_of_flip = indexes_of_flip;
+  auto an_indexes_of_flip = indexes_of_flip_m;
   int nb_rotation = an_indexes_of_flip.size();
   an_indexes_of_flip.push_back(nArcs);
 
@@ -356,15 +702,15 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
     length_scale_ref = std::min(0.1 / curv, avg_length);
   }
 
-  #ifdef SURFACE_DEBUG
-    std::cout << "triangulating a cylinder surface\nThere is " << nArcs
-              << " arcs\nLet's find the close curves\n";
-    std::cout << "indexes of flip are : ";
-    for (int indice : an_indexes_of_flip) {
-      std::cout << indice << " ";
-    }
-    std::cout << std::endl;
-  #endif
+#ifdef SURFACE_DEBUG
+  std::cout << "triangulating a cylinder surface\nThere is " << nArcs
+            << " arcs\nLet's find the close curves\n";
+  std::cout << "indexes of flip are : ";
+  for (int indice : an_indexes_of_flip) {
+    std::cout << indice << " ";
+  }
+  std::cout << std::endl;
+#endif
 
   std::vector<std::vector<RationalBezierArc>> list_of_closed_curves;
   std::vector<bool> visited(nArcs, false);
@@ -373,58 +719,58 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
   // First, we need to order the arcs so as to form closed
   // curves
   bool valid_curves = true;
-  for (int i = 0; i < nb_rotation; i++)
-  {
+  for (int i = 0; i < nb_rotation; i++) {
     // if there is no arc for that cylinder/rotation skip
-    if (an_indexes_of_flip[i+1] == an_indexes_of_flip[i]) {
+    if (an_indexes_of_flip[i + 1] == an_indexes_of_flip[i]) {
       indexes_of_close.push_back(list_of_closed_curves.size());
       continue;
     }
 
-    // triangulated face can lead to the surface beeing compose of triangles cliping to each other
-    // let's remove dubplicated arcs by marking them as visited
+    // triangulated face can lead to the surface beeing compose of triangles
+    // cliping to each other let's remove dubplicated arcs by marking them as
+    // visited
 
-    for (std::size_t t = an_indexes_of_flip[i]; t < an_indexes_of_flip[i+1] - 1; ++t) {
-
+    for (std::size_t t = an_indexes_of_flip[i];
+         t < an_indexes_of_flip[i + 1] - 1; ++t) {
       const std::uintptr_t start_id = arc_list_m[t].start_point_id();
       const std::uintptr_t end_id = arc_list_m[t].end_point_id();
-      for (std::size_t e = t+1; e < an_indexes_of_flip[i+1]; ++e) {
-        if (arc_list_m[e].start_point_id() == end_id && 
-              arc_list_m[e].end_point_id() == start_id) {
-                visited[t] = true;
-                visited[e] = true;
-                break;
+      for (std::size_t e = t + 1; e < an_indexes_of_flip[i + 1]; ++e) {
+        if (arc_list_m[e].start_point_id() == end_id &&
+            arc_list_m[e].end_point_id() == start_id) {
+          visited[t] = true;
+          visited[e] = true;
+          break;
         }
       }
     }
 
-    for (std::size_t t = an_indexes_of_flip[i]; t < an_indexes_of_flip[i+1]; ++t) {
+    for (std::size_t t = an_indexes_of_flip[i]; t < an_indexes_of_flip[i + 1];
+         ++t) {
       if (visited[t]) {
         continue;
       }
       visited[t] = true;
 
       // Start with next available arc
-      
-      #ifdef SURFACE_DEBUG
-          std::cout << "starting a curve with an arc going from "
-                    << arc_list_m[t].start_point() << " to "
-                    << arc_list_m[t].end_point() << std::endl;
-      #endif
 
-      if (arc_list_m[t].arc_length() < DBL_EPSILON ) {
-        #ifdef SURFACE_DEBUG
-            std::cout << "the arc is too small, it is not added" << std::endl;
-        #endif
-        list_of_closed_curves.push_back(
-            std::vector<RationalBezierArc>());
+#ifdef SURFACE_DEBUG
+      std::cout << "starting a curve with an arc going from "
+                << arc_list_m[t].start_point() << " to "
+                << arc_list_m[t].end_point() << std::endl;
+#endif
+
+      if (arc_list_m[t].arc_length() < DBL_EPSILON) {
+#ifdef SURFACE_DEBUG
+        std::cout << "the arc is too small, it is not added" << std::endl;
+#endif
+        list_of_closed_curves.push_back(std::vector<RationalBezierArc>());
       } else if (arc_list_m[t].weight() > 1.0e15) {
         const Pt p0 = arc_list_m[t].start_point();
         const Pt p1 = arc_list_m[t].control_point();
         const Pt p2 = arc_list_m[t].end_point();
         list_of_closed_curves.push_back(std::vector<RationalBezierArc>(
             {RationalBezierArc(p0, 0.5 * (p0 + p1), p1, 0.0),
-            RationalBezierArc(p1, 0.5 * (p1 + p2), p2, 0.0)}));
+             RationalBezierArc(p1, 0.5 * (p1 + p2), p2, 0.0)}));
       } else {
         list_of_closed_curves.push_back(
             std::vector<RationalBezierArc>({arc_list_m[t]}));
@@ -435,20 +781,20 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       int counter = 0;
       while (end_id != start_id) {
         bool next_edge_found = false;
-        for (std::size_t e = t + 1; e < an_indexes_of_flip[i+1]; ++e) {
+        for (std::size_t e = t + 1; e < an_indexes_of_flip[i + 1]; ++e) {
           if (!visited[e]) {
             if (arc_list_m[e].start_point_id() == end_id) {
               visited[e] = true;
               next_edge_found = true;
-              #ifdef SURFACE_DEBUG
-                  std::cout << "next arc is going from "
-                            << arc_list_m[e].start_point() << " to "
-                            << arc_list_m[e].end_point() << std::endl;
-              #endif
-              if (arc_list_m[e].arc_length() < DBL_EPSILON ) {
-                #ifdef SURFACE_DEBUG
-                    std::cout << "the arc is too small, skipping" << std::endl;
-                #endif
+#ifdef SURFACE_DEBUG
+              std::cout << "next arc is going from "
+                        << arc_list_m[e].start_point() << " to "
+                        << arc_list_m[e].end_point() << std::endl;
+#endif
+              if (arc_list_m[e].arc_length() < DBL_EPSILON) {
+#ifdef SURFACE_DEBUG
+                std::cout << "the arc is too small, skipping" << std::endl;
+#endif
               } else if (arc_list_m[e].weight() > 1.0e15) {
                 const Pt p0 = arc_list_m[e].start_point();
                 const Pt p1 = arc_list_m[e].control_point();
@@ -467,18 +813,20 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
           }
         }
         if (!next_edge_found) {
-          #ifdef SURFACE_DEBUG
-            std::cout << "could not find the next arc by comparing id. "
-                          "trying to find by compaing distance" << std::endl;
-          #endif
+#ifdef SURFACE_DEBUG
+          std::cout << "could not find the next arc by comparing id. "
+                       "trying to find by compaing distance"
+                    << std::endl;
+#endif
           double min_dist = DBL_MAX;
           std::size_t min_index = -1;
-          for (std::size_t e = t + 1; e < an_indexes_of_flip[i+1]; ++e) {
+          for (std::size_t e = t + 1; e < an_indexes_of_flip[i + 1]; ++e) {
             if (!visited[e]) {
               double dist = squaredMagnitude(pe - arc_list_m[e].start_point());
-              #ifdef SURFACE_DEBUG
-                std::cout << "points : " << arc_list_m[e].start_point() << ", dist : " << dist << std::endl;
-              #endif
+#ifdef SURFACE_DEBUG
+              std::cout << "points : " << arc_list_m[e].start_point()
+                        << ", dist : " << dist << std::endl;
+#endif
               if (dist < min_dist) {
                 min_dist = dist;
                 min_index = e;
@@ -488,15 +836,15 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
           if (min_dist <= DBL_EPSILON) {
             next_edge_found = true;
             visited[min_index] = true;
-            #ifdef SURFACE_DEBUG
-                std::cout << "next arc is going from "
-                          << arc_list_m[min_index].start_point() << " to "
-                          << arc_list_m[min_index].end_point() << std::endl;
-            #endif
-            if (arc_list_m[min_index].arc_length() < DBL_EPSILON ) {
-              #ifdef SURFACE_DEBUG
-                  std::cout << "the arc is too small, skipping" << std::endl;
-              #endif
+#ifdef SURFACE_DEBUG
+            std::cout << "next arc is going from "
+                      << arc_list_m[min_index].start_point() << " to "
+                      << arc_list_m[min_index].end_point() << std::endl;
+#endif
+            if (arc_list_m[min_index].arc_length() < DBL_EPSILON) {
+#ifdef SURFACE_DEBUG
+              std::cout << "the arc is too small, skipping" << std::endl;
+#endif
             } else if (arc_list_m[min_index].weight() > 1.0e15) {
               const Pt p0 = arc_list_m[min_index].start_point();
               const Pt p1 = arc_list_m[min_index].control_point();
@@ -511,48 +859,59 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
             end_id = arc_list_m[min_index].end_point_id();
             pe = arc_list_m[min_index].end_point();
           } else {
-            #ifdef SURFACE_DEBUG
-            std::cout << "could not find the next arc by compaing distance" << std::endl;
-            #endif
+#ifdef SURFACE_DEBUG
+            std::cout << "could not find the next arc by compaing distance"
+                      << std::endl;
+#endif
           }
         }
         if (!next_edge_found) {
-          #ifdef SURFACE_DEBUG
-            std::cout << "could not find the next arc by any means\n" 
-                        "current ending point is " << pe << "\n"
-                        "start point to join is " << arc_list_m[t].start_point() << "\n"
-                        "dist : " << squaredMagnitude(pe - arc_list_m[t].start_point()) << std::endl;
-          #endif
-          // quick hack to end if the start and end point are at the same position but doenst have the same id
-          if (squaredMagnitude(pe - arc_list_m[t].start_point()) <= DBL_EPSILON) {
+#ifdef SURFACE_DEBUG
+          std::cout << "could not find the next arc by any means\n"
+                       "current ending point is "
+                    << pe
+                    << "\n"
+                       "start point to join is "
+                    << arc_list_m[t].start_point()
+                    << "\n"
+                       "dist : "
+                    << squaredMagnitude(pe - arc_list_m[t].start_point())
+                    << std::endl;
+#endif
+          // quick hack to end if the start and end point are at the same
+          // position but doenst have the same id
+          if (squaredMagnitude(pe - arc_list_m[t].start_point()) <=
+              DBL_EPSILON) {
             end_id = start_id;
-            #ifdef SURFACE_DEBUG
-              std::cout << "because the points it is closed but with defferent ids, force end" << std::endl;
-            #endif
+#ifdef SURFACE_DEBUG
+            std::cout << "because the points it is closed but with defferent "
+                         "ids, force end"
+                      << std::endl;
+#endif
           } else {
-            #ifdef SURFACE_DEBUG
-              std::cout << "invalid curve" << std::endl;
-            #endif
+#ifdef SURFACE_DEBUG
+            std::cout << "invalid curve" << std::endl;
+#endif
             valid_curves = false;
             break;
           }
         }
       }
-      #ifdef SURFACE_DEBUG
-          std::cout << "end of that close curve\n";
-      #endif
+#ifdef SURFACE_DEBUG
+      std::cout << "end of that close curve\n";
+#endif
     }
     indexes_of_close.push_back(list_of_closed_curves.size());
   }
-  #ifdef SURFACE_DEBUG
-    std::cout << "in the end, there is " << list_of_closed_curves.size()
-              << " close curves\n";
-  #endif
+#ifdef SURFACE_DEBUG
+  std::cout << "in the end, there is " << list_of_closed_curves.size()
+            << " close curves\n";
+#endif
 
   returned_surface->clearAll();
 
   if (valid_curves) {
-#ifdef IRL_USE_EARCUT // This is not updated, might be wrong
+#ifdef IRL_USE_EARCUT  // This is not updated, might be wrong
     // The number type to use for tessellation
     using Coord = double;
     auto aligned_cylinder = cylinder_m[0].getAlignedCylinder();
@@ -569,16 +928,16 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
     std::vector<std::vector<Point>> polygon;
     polygon.resize(nCurves);
 
-    #ifdef SURFACE_DEBUG
-        std::cout << "let's define out polygons, there are " << nCurves
-                  << " of them\n";
-    #endif
+#ifdef SURFACE_DEBUG
+    std::cout << "let's define out polygons, there are " << nCurves
+              << " of them\n";
+#endif
 
     for (UnsignedIndex_t i = 0; i < nCurves; ++i) {
       const UnsignedIndex_t nLocalArcs = list_of_closed_curves[i].size();
-      #ifdef SURFACE_DEBUG
-            std::cout << "polygon number " << i << " has " << nLocalArcs << " arcs\n";
-      #endif
+#ifdef SURFACE_DEBUG
+      std::cout << "polygon number " << i << " has " << nLocalArcs << " arcs\n";
+#endif
       // Loop over arcs of curve
       UnsignedIndex_t added_points = 0;
       double signed_area = 0.0;
@@ -599,9 +958,9 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         for (UnsignedIndex_t k = 1; k <= nSplit; ++k) {
           const double t = static_cast<double>(k) * step;
           const auto pt = arc.point(t);
-          #ifdef SURFACE_DEBUG
-                    std::cout << "adding point " << pt << "\n";
-          #endif
+#ifdef SURFACE_DEBUG
+          std::cout << "adding point " << pt << "\n";
+#endif
           polygon[i].push_back({pt[0], pt[1]});
           signed_area +=
               0.5 * (previous_pt[0] * pt[1] - pt[0] * previous_pt[1]);
@@ -609,10 +968,10 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         }
       }
 
-      #ifdef SURFACE_DEBUG
-            std::cout << "polygon number " << i << " has " << polygon[i].size()
-                      << " points\n";
-      #endif
+#ifdef SURFACE_DEBUG
+      std::cout << "polygon number " << i << " has " << polygon[i].size()
+                << " points\n";
+#endif
     }
 
     if (a_length_scale > 0.0) {
@@ -624,17 +983,17 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
     // 75} in this example. Three subsequent indices form a
     // triangle. Output triangles are clockwise.
     std::vector<int> indices = mapbox::earcut<int>(polygon);
-    #ifdef SURFACE_DEBUG
-        std::cout << "this is indices after earcut : \n";
-        for (int i = 0; i < indices.size(); i++) {
-          std::cout << indices[i];
-          if (i != indices.size() - 1) {
-            std::cout << ", ";
-          } else {
-            std::cout << "\n";
-          }
-        }
-    #endif
+#ifdef SURFACE_DEBUG
+    std::cout << "this is indices after earcut : \n";
+    for (int i = 0; i < indices.size(); i++) {
+      std::cout << indices[i];
+      if (i != indices.size() - 1) {
+        std::cout << ", ";
+      } else {
+        std::cout << "\n";
+      }
+    }
+#endif
 
     auto& vlist = returned_surface->getVertexList();
     auto& tlist = returned_surface->getTriangleList();
@@ -645,9 +1004,9 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       count += polygon[i].size();
     }
     vlist.resize(count);
-    #ifdef SURFACE_DEBUG
-        std::cout << "let's map all the points (" << count << ")\n";
-    #endif
+#ifdef SURFACE_DEBUG
+    std::cout << "let's map all the points (" << count << ")\n";
+#endif
 
     count = 0;
     for (UnsignedIndex_t i = 0; i < nCurves; ++i) {
@@ -655,10 +1014,11 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         double x = polygon[i][j][0];
         double y = polygon[i][j][1];
         double z = sqrt(maximum(
-            aligned_cylinder.r() * inv_scale_sqr - aligned_cylinder.b() * y * y, double(0)));
-        #ifdef SURFACE_DEBUG
-                std::cout << "point " << Pt(x, y, z) << " added to vlist\n";
-        #endif
+            aligned_cylinder.r() * inv_scale_sqr - aligned_cylinder.b() * y * y,
+            double(0)));
+#ifdef SURFACE_DEBUG
+        std::cout << "point " << Pt(x, y, z) << " added to vlist\n";
+#endif
         vlist[count++] = Pt(x, y, z);
       }
     }
@@ -672,10 +1032,10 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         count++;
       }
     }
-    #ifdef SURFACE_DEBUG
-        std::cout << "after remesh, vlist has " << vlist.size()
-                  << " elements, and count has a value of : " << count << "\n";
-    #endif
+#ifdef SURFACE_DEBUG
+    std::cout << "after remesh, vlist has " << vlist.size()
+              << " elements, and count has a value of : " << count << "\n";
+#endif
     // assert(count == indices.size() / 3);
     tlist.resize(count, TriangulatedSurfaceOutput::TriangleStorage::value_type::
                             fromNoExistencePlane(vlist, {0, 0, 0}));
@@ -736,17 +1096,17 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
     int vertix_offset = 0;
     int triangle_offset = 0;
 
-    for (int r = 0; r < nb_rotation; r++)
-    {
-      if (indexes_of_close[r] == indexes_of_close[r+1]) {
+    for (int r = 0; r < nb_rotation; r++) {
+      if (indexes_of_close[r] == indexes_of_close[r + 1]) {
         continue;
       }
       CDT cdt;
       const auto& aligned_cylinder = cylinder_m[r].getAlignedCylinder();
 
-      #ifdef SURFACE_DEBUG
-          std::cout << "CGAL triangulation for cylinder " << aligned_cylinder << std::endl;
-      #endif
+#ifdef SURFACE_DEBUG
+      std::cout << "CGAL triangulation for cylinder " << aligned_cylinder
+                << std::endl;
+#endif
 
       // std::ofstream myfile;
       // myfile.open("triangulation_log.txt");
@@ -757,17 +1117,18 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       // Create boundaries
       std::vector<Point> points;
       std::list<Point> list_of_seeds;
-      int nCurves = indexes_of_close[r+1]-indexes_of_close[r];
+      int nCurves = indexes_of_close[r + 1] - indexes_of_close[r];
       UnsignedIndex_t start_points = 0;
       double total_signed_area = 0.0;
       double xmin = DBL_MAX, xmax = -DBL_MAX;
       double ymin = DBL_MAX, ymax = -DBL_MAX;
       UnsignedIndex_t vertex_count = 0;
       bool previous_valid = false;
-      for (UnsignedIndex_t i = indexes_of_close[r]; i < indexes_of_close[r+1]; ++i) {
-        #ifdef SURFACE_DEBUG
-            std::cout << "triangulating close loop # " << i << std::endl;
-        #endif
+      for (UnsignedIndex_t i = indexes_of_close[r]; i < indexes_of_close[r + 1];
+           ++i) {
+#ifdef SURFACE_DEBUG
+        std::cout << "triangulating close loop # " << i << std::endl;
+#endif
         points.resize(0);
         const UnsignedIndex_t nLocalArcs = list_of_closed_curves[i].size();
         // Loop over arcs of curve
@@ -776,10 +1137,10 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
         for (UnsignedIndex_t j = 0; j < nLocalArcs; ++j) {
           // Compute approximate arc length
           const RationalBezierArc& arc = list_of_closed_curves[i][j];
-          #ifdef SURFACE_DEBUG
-              std::cout << "sub arc # " << j << std::endl;
-              std::cout << "arc : " << arc << std::endl;
-          #endif
+#ifdef SURFACE_DEBUG
+          std::cout << "sub arc # " << j << std::endl;
+          std::cout << "arc : " << arc << std::endl;
+#endif
           const double arc_length = arc.arc_length();
           // myfile << std::setprecision(16) << std::scientific << "Curve "
           // <<
@@ -788,7 +1149,8 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
           // Split arc
           UnsignedIndex_t nSplit = a_nsplit <= 0 ? 1 : a_nsplit;
           if (length_scale_ref > 0.0) {
-            nSplit = static_cast<UnsignedIndex_t>(arc_length / length_scale_ref);
+            nSplit =
+                static_cast<UnsignedIndex_t>(arc_length / length_scale_ref);
             nSplit = nSplit < a_nsplit ? a_nsplit : nSplit;
           }
           const double step = 1.0 / static_cast<double>(nSplit);
@@ -798,14 +1160,14 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
           for (UnsignedIndex_t k = 1; k <= nSplit; ++k) {
             const double t = static_cast<double>(k) * step;
             const auto pt = arc.point(t);
-            // myfile << std::setprecision(16) << std::scientific << "Adding
-            // vertex "
-            //        << vertex_count++ << " at " << pt[0] << ", " << pt[1]
-            //        <<
-            //        ".\n";
-            #ifdef SURFACE_DEBUG
-              std::cout << "ajout du point " << pt << std::endl;
-            #endif
+// myfile << std::setprecision(16) << std::scientific << "Adding
+// vertex "
+//        << vertex_count++ << " at " << pt[0] << ", " << pt[1]
+//        <<
+//        ".\n";
+#ifdef SURFACE_DEBUG
+            std::cout << "ajout du point " << pt << std::endl;
+#endif
             points.push_back(Point(pt[0], pt[1]));
             signed_area +=
                 0.5 * (previous_pt[0] * pt[1] - pt[0] * previous_pt[1]);
@@ -845,11 +1207,11 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
           segments.resize(points.size());
           segments[0] = SegmentExact(PointExact(points[points.size() - 1].x(),
                                                 points[points.size() - 1].y()),
-                                    PointExact(points[0].x(), points[0].y()));
+                                     PointExact(points[0].x(), points[0].y()));
           for (UnsignedIndex_t j = 0; j < points.size() - 1; ++j) {
             segments[j + 1] =
                 SegmentExact(PointExact(points[j].x(), points[j].y()),
-                            PointExact(points[j + 1].x(), points[j + 1].y()));
+                             PointExact(points[j + 1].x(), points[j + 1].y()));
           }
 
           if (!CGAL::do_curves_intersect(segments.begin(), segments.end())) {
@@ -871,9 +1233,9 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
               //        << hole_location[1] + (1.0e3 * DBL_EPSILON) *
               //        shift_dir[1]
               //        << ".\n";
-              list_of_seeds.push_back(
-                  Point(hole_location[0] + (1.0e3 * DBL_EPSILON) * shift_dir[0],
-                        hole_location[1] + (1.0e3 * DBL_EPSILON) * shift_dir[1]));
+              list_of_seeds.push_back(Point(
+                  hole_location[0] + (1.0e3 * DBL_EPSILON) * shift_dir[0],
+                  hole_location[1] + (1.0e3 * DBL_EPSILON) * shift_dir[1]));
             }
 
             // Create segments
@@ -898,8 +1260,8 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       // vertices.\n"; myfile << "Refining with length-scale " <<
       // length_scale << ".\n"; sleep(1.0e-4);
       CGAL::refine_Delaunay_mesh_2(cdt,
-                                  CGAL::parameters::seeds(list_of_seeds)
-                                      .criteria(Criteria(0.15, length_scale)));
+                                   CGAL::parameters::seeds(list_of_seeds)
+                                       .criteria(Criteria(0.15, length_scale)));
       // , CGAL::parameters::seeds_are_in_domain(false));
       // myfile << "Mesh has " << cdt.number_of_vertices() << "
       // vertices.\n"; myfile << "Mesh has " << cdt.number_of_faces() << "
@@ -910,33 +1272,37 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       CDT::Finite_faces_iterator face;
       // myfile << "Counting faces.\n";
       for (face = cdt.finite_faces_begin(); face != cdt.finite_faces_end();
-          face++) {
+           face++) {
         if (face->is_in_domain()) {
           count++;
         }
       }
 
-      #ifdef SURFACE_DEBUG
-          std::cout << "adding " << count << " triangles" << std::endl;
-      #endif
+#ifdef SURFACE_DEBUG
+      std::cout << "adding " << count << " triangles" << std::endl;
+#endif
 
       vlist.resize(vertix_offset + 3 * count);
-      tlist.resize(triangle_offset + count, TriangulatedSurfaceOutput::TriangleStorage::value_type::
-                              fromNoExistencePlane(vlist, {0, 0, 0}));
+      tlist.resize(triangle_offset + count,
+                   TriangulatedSurfaceOutput::TriangleStorage::value_type::
+                       fromNoExistencePlane(vlist, {0, 0, 0}));
       count = 0;
       // myfile << "Adding faces and vertices.\n";
       for (face = cdt.finite_faces_begin(); face != cdt.finite_faces_end();
-          face++) {
+           face++) {
         if (face->is_in_domain()) {
           // myfile << "Adding face " << count << ".\n";
-          tlist[triangle_offset + count] = TriangulatedSurfaceOutput::TriangleStorage::value_type::
-              fromNoExistencePlane(vlist,
-                                  {vertix_offset + 3 * count, vertix_offset + 3 * count + 1, vertix_offset + 3 * count + 2});
+          tlist[triangle_offset + count] =
+              TriangulatedSurfaceOutput::TriangleStorage::value_type::
+                  fromNoExistencePlane(vlist, {vertix_offset + 3 * count,
+                                               vertix_offset + 3 * count + 1,
+                                               vertix_offset + 3 * count + 2});
           for (UnsignedIndex_t d = 0; d < 3; d++) {
             const double x = CGAL::to_double(face->vertex(d)->point().x());
             const double y = CGAL::to_double(face->vertex(d)->point().y());
-            const double z = std::sqrt(std::max(
-                0.0, aligned_cylinder.r() * inv_scale_sqr - aligned_cylinder.b() * y * y));
+            const double z =
+                std::sqrt(std::max(0.0, aligned_cylinder.r() * inv_scale_sqr -
+                                            aligned_cylinder.b() * y * y));
             vlist[vertix_offset + 3 * count + d] = Pt(x, y, z);
             auto neigh = face->neighbor(d);
             if (!neigh->is_in_domain()) {

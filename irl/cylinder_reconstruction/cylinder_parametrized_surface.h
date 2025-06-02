@@ -47,17 +47,18 @@ template <class C>
 struct has_cylinder_surface<const C> : has_cylinder_surface<C> {};
 
 template <class MomentType>
-struct has_cylinder_surface<AddSurfaceOutput<MomentType, CylinderParametrizedSurfaceOutput>>
+struct has_cylinder_surface<
+    AddSurfaceOutput<MomentType, CylinderParametrizedSurfaceOutput>>
     : std::true_type {};
 
 /// \brief Parametrized surface defined by a list of arcs and a list of cylinder
 class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
  public:
-
-  // the cylinder intersection output the surface as 2 to 4 patch with different rotation
-  // we store each arc generated for the patches and the cylinder with the correct rotation
-  // when we change rotation, we set the cylinder with setCylinder
-  // all arcs defined after a setCylinder is consider to be in the rotation of that cylinder.
+  // the cylinder intersection output the surface as 2 to 4 patch with different
+  // rotation we store each arc generated for the patches and the cylinder with
+  // the correct rotation when we change rotation, we set the cylinder with
+  // setCylinder all arcs defined after a setCylinder is consider to be in the
+  // rotation of that cylinder.
 
   /// \brief Default constructor.
   CylinderParametrizedSurfaceOutput(void);
@@ -72,13 +73,15 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   CylinderParametrizedSurfaceOutput& operator=(
       CylinderParametrizedSurfaceOutput&& a_rhs);
 
-  /// @brief set the cylinder to use for the next arcs, for rotation and coefficient values
-  /// @param a_cylinder 
+  /// @brief set the cylinder to use for the next arcs, for rotation and
+  /// coefficient values
+  /// @param a_cylinder
   void setCylinder(const Cylinder& a_cylinder);
-  /// @brief clear the list of cylinders and rotation. to be used if CylinderParametrizedSurfaceOutput.clear() is called
+  /// @brief clear the list of cylinders and rotation. to be used if
+  /// CylinderParametrizedSurfaceOutput.clear() is called
   void resetCylinder(void);
   /// @brief set the scale that was used to compute the arcs
-  /// @param a_scale 
+  /// @param a_scale
   void setScale(double a_scale);
 
   inline double getSurfaceArea(void);
@@ -104,8 +107,9 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   // ~CylinderParametrizedSurfaceOutput(void);
 
  private:
-  // indexes_of_flip[i] stores the index of the first arc that use cylinder_m[i]
-  std::vector<int> indexes_of_flip;
+  // indexes_of_flip_m[i] stores the index of the first arc that use
+  // cylinder_m[i]
+  std::vector<int> indexes_of_flip_m;
   std::vector<Cylinder> cylinder_m;
   double scale_m;
 };
