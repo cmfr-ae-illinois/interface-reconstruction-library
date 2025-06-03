@@ -30,8 +30,6 @@
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/plane.h"
-#include "irl/geometry/half_edge_structures/half_edge_polyhedron_quadratic.h"
-#include "irl/geometry/half_edge_structures/segmented_half_edge_polyhedron_quadratic.h"
 #include "irl/geometry/polyhedrons/general_polyhedron.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
@@ -568,8 +566,8 @@ TEST(ParaboloidMOF, MOF) {
           const auto paraboloid = Paraboloid(
               datum, frame, aligned_paraboloid.a(), aligned_paraboloid.b());
           auto volume_and_surface = getVolumeMoments<
-              AddSurfaceOutput<Volume, ParaboloidParametrizedSurfaceOutput>>(cell,
-                                                                   paraboloid);
+              AddSurfaceOutput<Volume, ParaboloidParametrizedSurfaceOutput>>(
+              cell, paraboloid);
           auto& surface = volume_and_surface.getSurface();
           surface.setLengthScale(std::pow(cell.calculateVolume(), 1.0 / 3.0) /
                                  10.0);

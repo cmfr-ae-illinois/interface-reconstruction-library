@@ -32,8 +32,6 @@
 #include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/plane.h"
-#include "irl/geometry/half_edge_structures/half_edge_polyhedron_quadratic.h"
-#include "irl/geometry/half_edge_structures/segmented_half_edge_polyhedron_quadratic.h"
 #include "irl/geometry/polyhedrons/general_polyhedron.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 // #include
@@ -155,12 +153,9 @@ TEST(CylinderIntersection, SISCPaperFig1) {
 
   std::array<double, 3> offsets = {1., 2., 3.};
 
-  std::array<HalfEdgePolyhedronQuadratic<Pt>, 3> half_edges;
-  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<
-                 IRL::FaceQuadratic<
-                     IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>,
-                 IRL::VertexQuadratic<IRL::Pt>>,
-             3>
+  std::array<HalfEdgePolyhedron<Pt>, 3> half_edges;
+  std::array<
+      SegmentedHalfEdgePolyhedron<Face<HalfEdge<Vertex<Pt>>>, Vertex<Pt>>, 3>
       seg_half_edges;
   for (UnsignedIndex_t i = 0; i < 3; i++) {
     cubes[i].setHalfEdgeVersion(&(half_edges[i]));
@@ -253,10 +248,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
     auto our_centroid =
         Pt(our_moments.centroid()[0], our_moments.centroid()[1] / M1Y_MAX,
            our_moments.centroid()[2] / M1Z_MAX);
-    // std::cout << std::setprecision(20)
-    //           << "Surface EXACT  = " << exact_surface_area << std::endl;
-    // std::cout << std::setprecision(20)
-    //           << "Surface IRL    = " << our_surface_area << std::endl;
     std::cout << std::setprecision(20)
               << "Vfrac unclipped EX  = " << exact_volume << std::endl;
     std::cout << std::setprecision(20)
@@ -266,10 +257,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
               << "Centroid unclipped EX  = " << exact_centroid << std::endl;
     std::cout << std::setprecision(20)
               << "Centroid unclipped IRL = " << our_centroid << std::endl;
-    // std::cout << "Diff Surface EX/IRL = "
-    //           << std::fabs(our_surface_area - exact_surface_area) /
-    //                  std::pow(poly_vol, 2.0 / 3.0)
-    //           << std::endl;
     std::cout << "Diff Vfrac EX/IRL   = "
               << std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume)
               << std::endl;
@@ -280,8 +267,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
               << std::endl;
 
     myfile.open("fig_cylinder.csv", std::ios::app);
-    // myfile << "k,m0p,m0p_exact,m0p_error" << std::endl; //
-    // ,m1yp,m1yp_exact,m1yp_error
     myfile << std::scientific << std::setprecision(20)
            << (3.0 * static_cast<double>(i) / static_cast<double>(Ntests - 1))
            << "," << our_moments.volume() / VOLUME_MAX << "," << exact_volume
@@ -290,8 +275,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
            << std::fabs(our_centroid[1] - exact_m1y) << "," << our_centroid[2]
            << "," << exact_m1z << "," << std::fabs(our_centroid[2] - exact_m1z)
            << std::endl;  // " "
-    //  << our_surface_area << " " << exact_surface_area << " "
-    //  << std::fabs(our_surface_area - exact_surface_area) << "\n";
     myfile.close();
 
     max_volume_error =
@@ -299,25 +282,12 @@ TEST(CylinderIntersection, SISCPaperFig2) {
                 std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume)
             ? max_volume_error
             : std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume);
-    // max_surface_error =
-    //     max_surface_error > std::fabs(our_surface_area - exact_surface_area)
-    //     /
-    //                             std::pow(poly_vol, 2.0 / 3.0)
-    //         ? max_surface_error
-    //         : std::fabs(our_surface_area - exact_surface_area) /
-    //               std::pow(poly_vol, 2.0 / 3.0);
     rms_volume_error +=
         std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume) *
         std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume);
-    // rms_surface_error += std::fabs(our_surface_area - exact_surface_area) *
-    //                      std::fabs(our_surface_area - exact_surface_area) /
-    //                      std::pow(poly_vol, 4.0 / 3.0);
   }
   rms_volume_error = sqrt(rms_volume_error / static_cast<double>(Ntests));
-  // rms_surface_error = sqrt(rms_surface_error / static_cast<double>(Ntests));
 
-  // std::cout << "Max surface error = " << max_surface_error << std::endl;
-  // std::cout << "RMS surface error = " << rms_surface_error << std::endl;
   std::cout << "Max volume error  = " << max_volume_error << std::endl;
   std::cout << "RMS volume error  = " << rms_volume_error << std::endl;
   std::cout << "-------------------------------------------------------------"
@@ -473,12 +443,9 @@ TEST(CylinderIntersection, Debug1) {
                                            "M2xy", "M2xz", "M2yy", "M2yz",
                                            "M2zz"});
 
-  std::array<HalfEdgePolyhedronQuadratic<Pt>, 6> half_edges;
-  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<
-                 IRL::FaceQuadratic<
-                     IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>,
-                 IRL::VertexQuadratic<IRL::Pt>>,
-             6>
+  std::array<HalfEdgePolyhedron<Pt>, 6> half_edges;
+  std::array<
+      SegmentedHalfEdgePolyhedron<Face<HalfEdge<Vertex<Pt>>>, Vertex<Pt>>, 6>
       seg_half_edges;
   for (UnsignedIndex_t i = 0; i < 6; i++) {
     cubes[i].setHalfEdgeVersion(&(half_edges[i]));
@@ -570,7 +537,7 @@ TEST(CylinderIntersection, Debug2) {
   GeneralPolyhedron prism(vertex_list, &connectivity);
   std::string surface_filename = "surface_debug";
 
-  HalfEdgePolyhedronQuadratic<Pt> half_edge;
+  HalfEdgePolyhedron<Pt> half_edge;
   prism.setHalfEdgeVersion(&half_edge);
   auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
 
@@ -633,7 +600,7 @@ TEST(CylinderIntersection, DebugAMR) {
             << " -- error: " << std::abs(temp_moments.volume() - M_PI)
             << std::endl;
 
-  HalfEdgePolyhedronQuadratic<Pt> half_edge, dummy_half_edge;
+  HalfEdgePolyhedron<Pt> half_edge, dummy_half_edge;
   cube.setHalfEdgeVersion(&half_edge);
   cube.setHalfEdgeVersion(&dummy_half_edge);
   auto dummy_seg_half_edge = dummy_half_edge.generateSegmentedPolyhedron();
@@ -682,12 +649,9 @@ TEST(HyperCylinderIntersection, SISCPaperFig1) {
   std::array<std::string, 3> clipped_faces_filenames(
       {"_hyper_cube_a", "_hyper_cube_b", "_hyper_cube_c"});
 
-  std::array<HalfEdgePolyhedronQuadratic<Pt>, 3> half_edges;
-  std::array<IRL::SegmentedHalfEdgePolyhedronQuadratic<
-                 IRL::FaceQuadratic<
-                     IRL::HalfEdgeQuadratic<IRL::VertexQuadratic<IRL::Pt>>>,
-                 IRL::VertexQuadratic<IRL::Pt>>,
-             3>
+  std::array<HalfEdgePolyhedron<Pt>, 3> half_edges;
+  std::array<
+      SegmentedHalfEdgePolyhedron<Face<HalfEdge<Vertex<Pt>>>, Vertex<Pt>>, 3>
       seg_half_edges;
   for (UnsignedIndex_t i = 0; i < 3; i++) {
     cubes[i].setHalfEdgeVersion(&(half_edges[i]));
@@ -785,7 +749,7 @@ TEST(HyperCylinderIntersection, Debug) {
   auto temp_tri_surface = temp_param_surface.triangulate(0.005);
   temp_tri_surface.write(surface_filename);
 
-  HalfEdgePolyhedronQuadratic<Pt> half_edge;
+  HalfEdgePolyhedron<Pt> half_edge;
   prism_local_frame.setHalfEdgeVersion(&half_edge);
   auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
 
@@ -903,7 +867,7 @@ TEST(CylinderIntersection, VFracMatching) {
             << vfrac_after << std::endl;
 
   // Print out cell
-  IRL::HalfEdgePolyhedronQuadratic<IRL::Pt> half_edge;
+  HalfEdgePolyhedron<Pt> half_edge;
   cell.setHalfEdgeVersion(&half_edge);
   auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
   std::ofstream myfile;
@@ -947,7 +911,7 @@ TEST(CylinderIntersection, SurfaceIntegrals) {
       RectangularCuboid::fromBoundingPts(Pt(0, 0, 0), Pt(2, 2, 2));
 
   // Print out cell
-  IRL::HalfEdgePolyhedronQuadratic<IRL::Pt> half_edge;
+  HalfEdgePolyhedron<Pt> half_edge;
   cell.setHalfEdgeVersion(&half_edge);
   auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
   std::ofstream myfile;

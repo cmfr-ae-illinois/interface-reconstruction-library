@@ -46,7 +46,7 @@ void runTranslatingCube(const double a_side_length,
 
   std::cout << "Total cases to run: " << number_of_tests << std::endl;
 
-  IRL::HalfEdgePolyhedronQuadratic<IRL::Pt> half_edge;
+  IRL::HalfEdgePolyhedron<IRL::Pt> half_edge;
   for (std::size_t r = 0; r < a_range_vector.size(); ++r) {
     const double step = (a_range_vector[r][1] - a_range_vector[r][0]) /
                         static_cast<double>(a_step_vector[r] - 1);
@@ -357,7 +357,7 @@ void runRandomSweep(const std::string& a_geometry,
         a_coefficient[0][d], a_coefficient[1][d]);
   }
 
-  IRL::HalfEdgePolyhedronQuadratic<IRL::Pt> half_edge;
+  IRL::HalfEdgePolyhedron<IRL::Pt> half_edge;
   IRL::ReferenceFrame original_frame(IRL::Normal(1.0, 0.0, 0.0),
                                      IRL::Normal(0.0, 1.0, 0.0),
                                      IRL::Normal(0.0, 0.0, 1.0));
@@ -528,7 +528,7 @@ void runOrganizedSweep(const std::string& a_geometry,
                                static_cast<double>(a_coefficient_steps[d] - 1);
   }
 
-  IRL::HalfEdgePolyhedronQuadratic<IRL::Pt> half_edge;
+  IRL::HalfEdgePolyhedron<IRL::Pt> half_edge;
   IRL::ReferenceFrame original_frame(IRL::Normal(1.0, 0.0, 0.0),
                                      IRL::Normal(0.0, 1.0, 0.0),
                                      IRL::Normal(0.0, 0.0, 1.0));
