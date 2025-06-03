@@ -19,6 +19,7 @@
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_drivers.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_initializer.h"
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection.h"
+
 #include "irl/generic_cutting/cylinder_intersection/cylinder_intersection.h"
 #include "irl/generic_cutting/recursive_simplex_cutting/recursive_simplex_cutting_initializer.h"
 #include "irl/generic_cutting/simplex_cutting/simplex_cutting_initializer.h"
@@ -27,6 +28,7 @@
 #include "irl/planar_reconstruction/null_reconstruction.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 #include "irl/planar_reconstruction/planar_separator_path_group.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
 

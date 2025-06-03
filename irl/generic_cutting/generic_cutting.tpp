@@ -65,11 +65,31 @@ template <class ReturnType, class CuttingMethod, class EncompassingType,
 __attribute__((pure)) __attribute__((hot)) inline ReturnType getVolumeMoments(
     const EncompassingType& a_encompassing_polyhedron,
     const ReconstructionType& a_reconstruction) {
-  assert(generic_cutting_details::polytopeIsValid(a_encompassing_polyhedron));
-  return generic_cutting_details::getVolumeMoments<
-      ReturnType, CuttingMethod, EncompassingType, ReconstructionType>::
-      getVolumeMomentsImplementation(a_encompassing_polyhedron,
-                                     a_reconstruction);
+  // Separator variant requires to visit possible reconstruction types
+  if constexpr (std::is_same_v<ReconstructionType, SeparatorVariant>) {
+    if (const PlanarSeparator* rec_ptr =
+            std::get_if<PlanarSeparator>(&a_reconstruction)) {
+      return getVolumeMoments<ReturnType, CuttingMethod>(
+          a_encompassing_polyhedron, *rec_ptr);
+    } else if (const Paraboloid* rec_ptr =
+                   std::get_if<Paraboloid>(&a_reconstruction)) {
+      return getVolumeMoments<ReturnType, CuttingMethod>(
+          a_encompassing_polyhedron, *rec_ptr);
+    } else if (const Cylinder* rec_ptr =
+                   std::get_if<Cylinder>(&a_reconstruction)) {
+      return getVolumeMoments<ReturnType, CuttingMethod>(
+          a_encompassing_polyhedron, *rec_ptr);
+    } else {
+      throw std::runtime_error(
+          "Unrecognized reconstruction variant type in getVolumeMoments");
+    }
+  } else {
+    assert(generic_cutting_details::polytopeIsValid(a_encompassing_polyhedron));
+    return generic_cutting_details::getVolumeMoments<
+        ReturnType, CuttingMethod, EncompassingType, ReconstructionType>::
+        getVolumeMomentsImplementation(a_encompassing_polyhedron,
+                                       a_reconstruction);
+  }
 }
 
 template <class ReturnType, class CuttingMethod>
