@@ -10,8 +10,6 @@
 #ifndef IRL_GENERIC_CUTTING_HALF_EDGE_CUTTING_HALF_EDGE_CUTTING_INITIALIZER_TPP_
 #define IRL_GENERIC_CUTTING_HALF_EDGE_CUTTING_HALF_EDGE_CUTTING_INITIALIZER_TPP_
 
-#include "irl/geometry/half_edge_structures/half_edge_polyhedron_quadratic.h"
-
 namespace IRL {
 
 // Foward declare getVolumeMoments to avoid circular dependency.
@@ -140,26 +138,11 @@ enable_if_t<is_polygon<EncompassingGeometryType>::value &&
             void>
 updatePolytopeStorage(void);
 
-template <class EncompassingGeometryType>
-enable_if_t<is_polyhedron<EncompassingGeometryType>::value &&
-                !is_general_polyhedron<EncompassingGeometryType>::value,
-            void>
-updatePolytopeStorageQuadratic(void);
-
-template <class EncompassingGeometryType>
-enable_if_t<is_polyhedron<EncompassingGeometryType>::value &&
-                is_general_polyhedron<EncompassingGeometryType>::value,
-            void>
-updatePolytopeStorageQuadratic(void);
-
 template <class VertexType, class GeometryType>
 HalfEdgePolyhedron<VertexType>& getHalfEdgePolyhedron(void);
 
 template <class VertexType>
 HalfEdgePolygon<VertexType>& getHalfEdgePolygonStorage(void);
-
-template <class VertexType, class GeometryType>
-HalfEdgePolyhedronQuadratic<VertexType>& getHalfEdgePolyhedronQuadratic(void);
 
 template <class EncompassingGeometryType>
 enable_if_t<is_polyhedron<EncompassingGeometryType>::value &&
@@ -184,20 +167,6 @@ enable_if_t<is_polygon<EncompassingGeometryType>::value &&
             HalfEdgePolygon<typename EncompassingGeometryType::pt_type>&>
 setHalfEdgeStructure(const EncompassingGeometryType& a_geometry);
 
-template <class EncompassingGeometryType>
-enable_if_t<
-    is_polyhedron<EncompassingGeometryType>::value &&
-        !is_general_polyhedron<EncompassingGeometryType>::value,
-    HalfEdgePolyhedronQuadratic<typename EncompassingGeometryType::pt_type>&>
-setHalfEdgeStructureQuadratic(const EncompassingGeometryType& a_geometry);
-
-template <class EncompassingGeometryType>
-enable_if_t<
-    is_polyhedron<EncompassingGeometryType>::value &&
-        is_general_polyhedron<EncompassingGeometryType>::value,
-    HalfEdgePolyhedronQuadratic<typename EncompassingGeometryType::pt_type>&>
-setHalfEdgeStructureQuadratic(const EncompassingGeometryType& a_geometry);
-
 template <class EncompassingGeometryType, class PolytopeType>
 enable_if_t<is_polyhedron<EncompassingGeometryType>::value,
             SegmentedHalfEdgePolyhedron<typename PolytopeType::face_type,
@@ -210,13 +179,6 @@ enable_if_t<is_polygon<EncompassingGeometryType>::value,
                                      typename PolytopeType::vertex_type>>
 generateSegmentedVersion(PolytopeType* a_complete_polytope);
 
-template <class EncompassingGeometryType, class PolytopeType>
-enable_if_t<
-    is_polyhedron<EncompassingGeometryType>::value,
-    SegmentedHalfEdgePolyhedronQuadratic<typename PolytopeType::face_type,
-                                          typename PolytopeType::vertex_type>>
-generateSegmentedVersionParaboloid(PolytopeType* a_complete_polytope);
-
 //******************************************************************* //
 //     Function template definitions placed below this
 //******************************************************************* //
@@ -225,33 +187,34 @@ ReturnType cutThroughHalfEdgeStructures(
     const EncompassingType& a_polytope,
     const ReconstructionType& a_reconstruction) {
   ReturnType moments;
-  if constexpr (HasAParaboloidReconstruction<ReconstructionType>::value) {
-    auto& complete_polytope = setHalfEdgeStructureQuadratic(a_polytope);
-    auto half_edge_polytope =
-        generateSegmentedVersionParaboloid<EncompassingType>(
-            &complete_polytope);
-    assert(half_edge_polytope.checkValidHalfEdgeStructure());
-    moments = getVolumeMoments<ReturnType, HalfEdgeCutting>(
-        &half_edge_polytope, &complete_polytope, a_reconstruction);
-    updatePolytopeStorageQuadratic<EncompassingType>();
-  } else if constexpr (HasACylinderReconstruction<ReconstructionType>::value) {
-    auto& complete_polytope = setHalfEdgeStructureQuadratic(a_polytope);
-    auto half_edge_polytope =
-        generateSegmentedVersionParaboloid<EncompassingType>(
-            &complete_polytope);
-    assert(half_edge_polytope.checkValidHalfEdgeStructure());
-    moments = getVolumeMoments<ReturnType, HalfEdgeCutting>(
-        &half_edge_polytope, &complete_polytope, a_reconstruction);
-    updatePolytopeStorageQuadratic<EncompassingType>();
-  } else {
-    auto& complete_polytope = setHalfEdgeStructure(a_polytope);
-    auto half_edge_polytope =
-        generateSegmentedVersion<EncompassingType>(&complete_polytope);
-    assert(half_edge_polytope.checkValidHalfEdgeStructure());
-    moments = getVolumeMoments<ReturnType, HalfEdgeCutting>(
-        &half_edge_polytope, &complete_polytope, a_reconstruction);
-    updatePolytopeStorage<EncompassingType>();
-  }
+  // if constexpr (HasAParaboloidReconstruction<ReconstructionType>::value) {
+  //   auto& complete_polytope = setHalfEdgeStructureQuadratic(a_polytope);
+  //   auto half_edge_polytope =
+  //       generateSegmentedVersionParaboloid<EncompassingType>(
+  //           &complete_polytope);
+  //   assert(half_edge_polytope.checkValidHalfEdgeStructure());
+  //   moments = getVolumeMoments<ReturnType, HalfEdgeCutting>(
+  //       &half_edge_polytope, &complete_polytope, a_reconstruction);
+  //   updatePolytopeStorageQuadratic<EncompassingType>();
+  // } else if constexpr (HasACylinderReconstruction<ReconstructionType>::value)
+  // {
+  //   auto& complete_polytope = setHalfEdgeStructureQuadratic(a_polytope);
+  //   auto half_edge_polytope =
+  //       generateSegmentedVersionParaboloid<EncompassingType>(
+  //           &complete_polytope);
+  //   assert(half_edge_polytope.checkValidHalfEdgeStructure());
+  //   moments = getVolumeMoments<ReturnType, HalfEdgeCutting>(
+  //       &half_edge_polytope, &complete_polytope, a_reconstruction);
+  //   updatePolytopeStorageQuadratic<EncompassingType>();
+  // } else {
+  auto& complete_polytope = setHalfEdgeStructure(a_polytope);
+  auto half_edge_polytope =
+      generateSegmentedVersion<EncompassingType>(&complete_polytope);
+  assert(half_edge_polytope.checkValidHalfEdgeStructure());
+  moments = getVolumeMoments<ReturnType, HalfEdgeCutting>(
+      &half_edge_polytope, &complete_polytope, a_reconstruction);
+  updatePolytopeStorage<EncompassingType>();
+  // }
   return moments;
 }
 
@@ -259,14 +222,6 @@ template <class VertexType>
 HalfEdgeGeometryInitializer<HalfEdgePolyhedron<VertexType>>&
 getHalfEdgePolyhedronStorage(void) {
   static HalfEdgeGeometryInitializer<HalfEdgePolyhedron<VertexType>> storage;
-  return storage;
-}
-
-template <class VertexType>
-HalfEdgeGeometryInitializer<HalfEdgePolyhedronQuadratic<VertexType>>&
-getHalfEdgePolyhedronStorageQuadratic(void) {
-  static HalfEdgeGeometryInitializer<HalfEdgePolyhedronQuadratic<VertexType>>
-      storage;
   return storage;
 }
 
@@ -296,33 +251,10 @@ enable_if_t<is_polygon<EncompassingGeometryType>::value &&
             void>
 updatePolytopeStorage(void) {}
 
-template <class EncompassingGeometryType>
-enable_if_t<is_polyhedron<EncompassingGeometryType>::value &&
-                !is_general_polyhedron<EncompassingGeometryType>::value,
-            void>
-updatePolytopeStorageQuadratic(void) {
-  auto& storage = getHalfEdgePolyhedronStorageQuadratic<
-      typename EncompassingGeometryType::pt_type>();
-  storage.resetCentralStorageToCurrentSize();
-}
-
-template <class EncompassingGeometryType>
-enable_if_t<is_polyhedron<EncompassingGeometryType>::value &&
-                is_general_polyhedron<EncompassingGeometryType>::value,
-            void>
-updatePolytopeStorageQuadratic(void) {}
-
 template <class VertexType, class GeometryType>
 HalfEdgePolyhedron<VertexType>& getHalfEdgePolyhedron(
     const GeometryType& a_geometry) {
   auto& storage = getHalfEdgePolyhedronStorage<VertexType>();
-  return storage.getHalfEdgePolytopeBase(a_geometry);
-}
-
-template <class VertexType, class GeometryType>
-HalfEdgePolyhedronQuadratic<VertexType>& getHalfEdgePolyhedronQuadratic(
-    const GeometryType& a_geometry) {
-  auto& storage = getHalfEdgePolyhedronStorageQuadratic<VertexType>();
   return storage.getHalfEdgePolytopeBase(a_geometry);
 }
 
@@ -398,35 +330,6 @@ setHalfEdgeStructure(const EncompassingGeometryType& a_geometry) {
   return complete_polygon_buffer;
 }
 
-template <class EncompassingGeometryType>
-enable_if_t<
-    is_polyhedron<EncompassingGeometryType>::value &&
-        !is_general_polyhedron<EncompassingGeometryType>::value,
-    HalfEdgePolyhedronQuadratic<typename EncompassingGeometryType::pt_type>&>
-setHalfEdgeStructureQuadratic(const EncompassingGeometryType& a_geometry) {
-  auto& complete_polyhedron_buffer = getHalfEdgePolyhedronQuadratic<
-      typename EncompassingGeometryType::pt_type>(a_geometry);
-  complete_polyhedron_buffer.setVertexLocations(a_geometry);
-  return complete_polyhedron_buffer;
-}
-
-template <class EncompassingGeometryType>
-enable_if_t<
-    is_polyhedron<EncompassingGeometryType>::value &&
-        is_general_polyhedron<EncompassingGeometryType>::value,
-    HalfEdgePolyhedronQuadratic<typename EncompassingGeometryType::pt_type>&>
-setHalfEdgeStructureQuadratic(const EncompassingGeometryType& a_geometry) {
-  // Can't lazy evaluate GeneralPolyhedron's because they change, i.e.
-  // since a GeneralPolyhedron doesn't have a fixed number of vertices or
-  // connectivity like other polyhedrons in IRL, the connectivity cannot
-  // simply be stored and copied over.
-  static HalfEdgePolyhedronQuadratic<
-      typename EncompassingGeometryType::pt_type>
-      complete_polyhedron_buffer;
-  a_geometry.setHalfEdgeVersion(&complete_polyhedron_buffer);
-  return complete_polyhedron_buffer;
-}
-
 template <class EncompassingGeometryType, class PolytopeType>
 enable_if_t<is_polyhedron<EncompassingGeometryType>::value,
             SegmentedHalfEdgePolyhedron<typename PolytopeType::face_type,
@@ -445,15 +348,6 @@ generateSegmentedVersion(PolytopeType* a_complete_polytope) {
   segmented_half_edge_geometry_template.setPlaneOfExistence(
       &a_complete_polytope->getPlaneOfExistence());
   return segmented_half_edge_geometry_template;
-}
-
-template <class EncompassingGeometryType, class PolytopeType>
-enable_if_t<
-    is_polyhedron<EncompassingGeometryType>::value,
-    SegmentedHalfEdgePolyhedronQuadratic<typename PolytopeType::face_type,
-                                          typename PolytopeType::vertex_type>>
-generateSegmentedVersionParaboloid(PolytopeType* a_complete_polytope) {
-  return a_complete_polytope->generateSegmentedPolyhedron();
 }
 
 }  // namespace IRL

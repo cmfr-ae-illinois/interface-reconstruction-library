@@ -17,6 +17,11 @@
 
 namespace IRL {
 using SeparatorVariant = std::variant<PlanarSeparator, Paraboloid, Cylinder>;
+using LocalizedSeparatorVariant =
+    JoinedReconstructions<PlanarLocalizer, SeparatorVariant>;
+using LocalizedSeparatorVariantLink =
+    ReconstructionLink<LocalizedSeparatorVariant, UnDirectedGraphNode>;
+
 }  // namespace IRL
 
 #endif  // IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_

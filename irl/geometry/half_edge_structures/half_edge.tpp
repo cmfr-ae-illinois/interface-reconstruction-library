@@ -26,6 +26,13 @@ inline void doubleLinkHalfEdges(HalfEdge<VertexType>* a_starting_half_edge,
 }
 
 template <class VertexType>
+inline void setMutualOpposites(HalfEdge<VertexType>* a_half_edge_0,
+                               HalfEdge<VertexType>* a_half_edge_1) {
+  a_half_edge_0->setOppositeHalfEdge(a_half_edge_1);
+  a_half_edge_1->setOppositeHalfEdge(a_half_edge_0);
+}
+
+template <class VertexType>
 inline HalfEdge<VertexType>::HalfEdge(void)
     : previous_m(nullptr),
       next_m(nullptr),
@@ -139,19 +146,18 @@ inline Vertex<PtType>::Vertex(const PtType& a_location)
       is_clipped_m(false),
       needs_to_seek_m(false) {}
 
+// template <class PtType>
+// Vertex<PtType>& Vertex<PtType>::operator=(const Vertex<PtType>& a_other) {
+//   if (this != &a_other) {
+//     vertex_location_m = a_other.getLocation();
+//     half_edge_m = a_other.half_edge_m;
+//     distance_m = a_other.distance_m;
+//     is_clipped_m = a_other.is_clipped_m;
+//     needs_to_seek_m = a_other.needs_to_seek_m;
+//   }
+//   return *this;
+// }
 
-template <class PtType>
-Vertex<PtType>& Vertex<PtType>::operator=(const Vertex<PtType>& a_other) {
-  if (this != &a_other) {
-    vertex_location_m = a_other.getLocation();
-    half_edge_m = a_other.half_edge_m;
-    distance_m = a_other.distance_m;
-    is_clipped_m = a_other.is_clipped_m;
-    needs_to_seek_m = a_other.needs_to_seek_m;
-  }
-  return *this;
-}
-      
 template <class PtType>
 inline void Vertex<PtType>::setHalfEdge(HalfEdge<Vertex>* a_half_edge) {
   half_edge_m = a_half_edge;
@@ -166,6 +172,11 @@ inline const HalfEdge<Vertex<PtType>>* Vertex<PtType>::getHalfEdge(void) const {
 }
 
 template <class PtType>
+inline PtType& Vertex<PtType>::getLocation(void) {
+  return vertex_location_m;
+}
+
+template <class PtType>
 inline const PtType& Vertex<PtType>::getLocation(void) const {
   return vertex_location_m;
 }
@@ -176,15 +187,18 @@ inline void Vertex<PtType>::setLocation(const PtType& a_location) {
 }
 
 template <class PtType>
-inline void Vertex<PtType>::calculateDistanceToPlane(const Plane& a_plane) {
+inline void Vertex<PtType>::calculateDistanceToPlane(
+    const PlaneBase<typename PtType::value_type>& a_plane) {
   distance_m = a_plane.signedDistanceToPoint(this->getLocation());
 }
+
 template <class PtType>
-inline double Vertex<PtType>::getDistance(void) const {
+inline typename PtType::value_type Vertex<PtType>::getDistance(void) const {
   return distance_m;
 }
 template <class PtType>
-inline void Vertex<PtType>::setDistance(double a_distance) {
+inline void Vertex<PtType>::setDistance(
+    typename PtType::value_type a_distance) {
   distance_m = a_distance;
 }
 
@@ -249,11 +263,21 @@ bool Vertex<PtType>::checkValidHalfEdgeCycle(void) const {
 
 template <class HalfEdgeType>
 inline Face<HalfEdgeType>::Face(void)
-    : starting_half_edge_m(nullptr), has_been_visited_m(false) {}
+    : starting_half_edge_m(nullptr),
+      has_been_visited_m(false),
+      face_plane_m(),
+      intersections_m(0),
+      edge_parallel_intersections_m(0),
+      is_triangle_m(false) {}
 
 template <class HalfEdgeType>
 inline Face<HalfEdgeType>::Face(HalfEdgeType* a_starting_half_edge)
-    : starting_half_edge_m(a_starting_half_edge), has_been_visited_m(false) {}
+    : starting_half_edge_m(a_starting_half_edge),
+      has_been_visited_m(false),
+      face_plane_m(),
+      intersections_m(0),
+      edge_parallel_intersections_m(0),
+      is_triangle_m(false) {}
 
 template <class HalfEdgeType>
 inline void Face<HalfEdgeType>::setStartingHalfEdge(
@@ -425,6 +449,111 @@ bool Face<HalfEdgeType>::checkAllHalfEdgesPointBackToFace(
     current_half_edge = current_half_edge->getNextHalfEdge();
   } while (current_half_edge != a_starting_half_edge);
   return true;
+}
+
+template <class HalfEdgeType>
+inline void Face<HalfEdgeType>::setPlane(
+    const PlaneBase<typename HalfEdgeType::value_type>& a_plane) {
+  face_plane_m = a_plane;
+}
+template <class HalfEdgeType>
+inline const PlaneBase<typename HalfEdgeType::value_type>&
+Face<HalfEdgeType>::getPlane(void) const {
+  return face_plane_m;
+}
+
+template <class HalfEdgeType>
+void Face<HalfEdgeType>::clearIntersections(void) {
+  intersections_m = 0;
+  edge_parallel_intersections_m = 0;
+}
+
+template <class HalfEdgeType>
+void Face<HalfEdgeType>::addIntersection(void) {
+  ++intersections_m;
+}
+
+template <class HalfEdgeType>
+void Face<HalfEdgeType>::addDoubleIntersection(void) {
+  intersections_m += 2;
+}
+
+template <class HalfEdgeType>
+UnsignedIndex_t Face<HalfEdgeType>::getNumberOfIntersections(void) const {
+  return intersections_m;
+}
+
+template <class HalfEdgeType>
+void Face<HalfEdgeType>::addEdgeParallelIntersection(void) {
+  ++edge_parallel_intersections_m;
+}
+
+template <class HalfEdgeType>
+void Face<HalfEdgeType>::addEdgeParallelIntersections(
+    const UnsignedIndex_t a_intersections) {
+  edge_parallel_intersections_m += a_intersections;
+}
+
+template <class HalfEdgeType>
+UnsignedIndex_t Face<HalfEdgeType>::getNumberOfEdgeParallelIntersections(
+    void) const {
+  return edge_parallel_intersections_m;
+}
+
+template <class HalfEdgeType>
+inline void Face<HalfEdgeType>::setAsTriangle(void) {
+  is_triangle_m = true;
+}
+
+template <class HalfEdgeType>
+inline void Face<HalfEdgeType>::setAsNotTriangle(void) {
+  is_triangle_m = false;
+}
+
+template <class HalfEdgeType>
+inline bool Face<HalfEdgeType>::isTriangle(void) const {
+  return is_triangle_m;
+}
+
+template <class PtType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const Vertex<PtType>& a_vertex) {
+  const auto& st_point = a_vertex.getLocation();
+
+  out << "position " << st_point << '\n';
+  out << "distance : " << static_cast<double>(a_vertex.getDistance()) << '\n';
+  out << "is_clipped ? " << a_vertex.isClipped() << '\n';
+  out << "needs_to_seek_m ? " << a_vertex.needsToSeek() << '\n';
+  return out;
+}
+
+template <class HalfEdgeType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const Face<HalfEdgeType>& a_face) {
+  const auto& a_plane = a_face.getPlane();
+  const auto& a_normal = a_plane.normal();
+
+  out << std::setprecision(15);
+
+  out << "face of equation : " << static_cast<double>(a_normal[0]) << " * x + "
+      << static_cast<double>(a_normal[1]) << " * y + "
+      << static_cast<double>(a_normal[2]) << " * z - "
+      << static_cast<double>(a_plane.distance()) << " = 0\n";
+  out << "nb intersection " << a_face.getNumberOfIntersections() << '\n';
+  out << "nb parra intersection "
+      << a_face.getNumberOfEdgeParallelIntersections() << '\n';
+  out << "triangle ? " << a_face.isTriangle() << '\n';
+  return out;
+}
+
+template <class VertexType>
+inline std::ostream& operator<<(std::ostream& out,
+                                const HalfEdge<VertexType>& a_halfedge) {
+  const auto& start_pos = a_halfedge.getPreviousVertex()->getLocation();
+  const auto& end_pos = a_halfedge.getVertex()->getLocation();
+
+  out << "edge going from : " << start_pos << ", to " << end_pos << std::endl;
+  return out;
 }
 
 }  // namespace IRL

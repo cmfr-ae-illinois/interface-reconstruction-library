@@ -19,8 +19,9 @@
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_initializer.tpp"
-#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_moment_contributions.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
+#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/general/reference_frame.h"
@@ -31,7 +32,6 @@
 #include "irl/moments/general_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
-#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection.h"
 
 #define NUMERICAL_INTEGRATION
 
@@ -671,7 +671,7 @@ bool ellipseContainedInFace(
     const PtBase<ScalarType>& location_1 =
         current_half_edge->getVertex()->getLocation().getPt();
     if (isPtBeforeIntersectionWithEdgeXY<ScalarType>(conic_center, location_0,
-                                                   location_1)) {
+                                                     location_1)) {
       pt_internal_to_polygon = !pt_internal_to_polygon;
     }
     current_half_edge = current_half_edge->getNextHalfEdge();
@@ -919,15 +919,16 @@ ReturnType reformParaboloidIntersectionBases(
     // This is needed to convert from DP to QP
     using QP_scalar_type = convert_to_quad<ScalarType>;
     using QP_pt_type = PtBase<QP_scalar_type>;
-    using QP_vertex_type = VertexQuadratic<QP_pt_type>;
-    using QP_halfedge_type = HalfEdgeQuadratic<QP_vertex_type>;
-    using QP_face_type = FaceQuadratic<QP_halfedge_type>;
+    using QP_vertex_type = Vertex<QP_pt_type>;
+    using QP_halfedge_type = HalfEdge<QP_vertex_type>;
+    using QP_face_type = Face<QP_halfedge_type>;
     const UnsignedIndex_t QP_kMaxHalfEdges = HalfEdgePolytopeType::maxHalfEdges;
     const UnsignedIndex_t QP_kMaxVertices = HalfEdgePolytopeType::maxVertices;
     const UnsignedIndex_t QP_kMaxFaces = HalfEdgePolytopeType::maxFaces;
-    using QP_complete_polytope_type = HalfEdgePolyhedronQuadratic<
-        QP_pt_type, QP_vertex_type, QP_halfedge_type, QP_face_type,
-        QP_kMaxHalfEdges, QP_kMaxVertices, QP_kMaxFaces>;
+    using QP_complete_polytope_type =
+        HalfEdgePolyhedron<QP_pt_type, QP_vertex_type, QP_halfedge_type,
+                           QP_face_type, QP_kMaxHalfEdges, QP_kMaxVertices,
+                           QP_kMaxFaces>;
 
     // Convert aligned paraboloid to QP
     const auto QP_aligned_paraboloid =
@@ -1027,9 +1028,10 @@ formParaboloidIntersectionBases(
     if (a_nudge_iter >= 100) {
       if constexpr (std::is_same_v<ScalarType, Quad_t>) {
         std::cout << "ERROR: Nudged more than 100 times. Moments returned "
-                    "are wrong -> Context: a = "
+                     "are wrong -> Context: a = "
                   << static_cast<double>(a_aligned_paraboloid.a())
-                  << ", b = " << static_cast<double>(a_aligned_paraboloid.b()) << std::endl;
+                  << ", b = " << static_cast<double>(a_aligned_paraboloid.b())
+                  << std::endl;
       } else {
         std::cout << "ERROR: Nudged more than 100 times. Moments returned "
                      "are wrong -> Context: a = "
@@ -1626,8 +1628,8 @@ formParaboloidIntersectionBases(
       bool skip_first = true;  // This avoid calculating a type 1 equal to 0
       full_moments +=
           computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
-              ref_pt, starting_half_edge, exit_half_edge,
-              &skip_first, face_normal, max_component_index);
+              ref_pt, starting_half_edge, exit_half_edge, &skip_first,
+              face_normal, max_component_index);
       // We can now compute the type 2 and 3 moment contributions
       full_moments += computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
           a_aligned_paraboloid, ref_pt, starting_half_edge, exit_half_edge,
@@ -1667,8 +1669,8 @@ formParaboloidIntersectionBases(
             full_moments +=
                 computeUnclippedSegmentType1Contribution<ReturnType,
                                                          ScalarType>(
-                    ref_pt, current_edge, exit_half_edge,
-                    &skip_first, face_normal, max_component_index);
+                    ref_pt, current_edge, exit_half_edge, &skip_first,
+                    face_normal, max_component_index);
 
             // From the exit intersection, we move to the next entry and
             // compute type 2 and 3 moment contributions
@@ -1715,8 +1717,8 @@ formParaboloidIntersectionBases(
             full_moments +=
                 computeUnclippedSegmentType1Contribution<ReturnType,
                                                          ScalarType>(
-                    ref_pt, current_edge, exit_half_edge,
-                    &skip_first, face_normal, max_component_index);
+                    ref_pt, current_edge, exit_half_edge, &skip_first,
+                    face_normal, max_component_index);
             intersections.push_back(current_edge);
             intersections.push_back(exit_half_edge);
             current_edge = exit_half_edge->getNextHalfEdge();
@@ -1846,8 +1848,8 @@ formParaboloidIntersectionBases(
         do {
           full_moments +=
               computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
-                  ref_pt, current_edge, exit_half_edge,
-                  &skip_first, face_normal, max_component_index);
+                  ref_pt, current_edge, exit_half_edge, &skip_first,
+                  face_normal, max_component_index);
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {current_edge, ScalarType(0)}));
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(

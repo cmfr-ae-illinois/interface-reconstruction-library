@@ -15,12 +15,14 @@
 #include <cmath>
 #include <random>
 #include <type_traits>
+#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
+#include "irl/generic_cutting/cylinder_intersection/cylinder_moment_contributions.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_initializer.tpp"
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
-#include "irl/generic_cutting/cylinder_intersection/cylinder_moment_contributions.h"
+#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/general/reference_frame.h"
@@ -29,14 +31,12 @@
 #include "irl/geometry/half_edge_structures/brep_to_half_edge.h"
 #include "irl/helpers/mymath.h"
 #include "irl/moments/general_moments.h"
-#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
-#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection.h"
 
 // #define NUMERICAL_INTEGRATION
 
 // this enable a lot of debug text when computing
-//#define DEBUG_CYL_IRL
+// #define DEBUG_CYL_IRL
 
 #ifdef DEBUG_CYL_IRL
 #ifndef NUDGE_REGION
@@ -125,20 +125,21 @@ ReturnType computeType3ContributionWithSplit(
   const ScalarType THREEQUARTERS = HALF + ONEQUARTER;
   const ScalarType ONE_HUNDRED = ScalarType(100);
 
-  #ifdef DEBUG_CYL_IRL
-  std::cout << "trying to compute Type 3 Contri, counter : " << *a_split_counter << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "trying to compute Type 3 Contri, counter : " << *a_split_counter
+            << std::endl;
+#endif
 
   // Store reference point, start point and end point of arc
   const Pt& pt_ref = a_pt_ref.getPt();
   const Pt& pt_0 = a_pt_0.getPt();
   const Pt& pt_1 = a_pt_1.getPt();
-  #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
   std::cout << "going from " << pt_0 << std::endl;
   std::cout << "to " << pt_1 << std::endl;
   std::cout << "with tangents " << a_tangent_0 << std::endl;
   std::cout << "and " << a_tangent_1 << std::endl;
-  #endif
+#endif
 
   // Calculate edge vector and its normalized version
   const Normal edge_vector = pt_1 - pt_0;
@@ -148,9 +149,10 @@ ReturnType computeType3ContributionWithSplit(
   // this is to catch Normal.normalize returning NAN
   // using the fact that any comparaison with nan is false
   if (isnan(edge_vector_normalized)) {
-    #ifdef NUDGE_REGION
-    std::cout << "nudging because edge vector normalization failed" << std::endl;
-    #endif
+#ifdef NUDGE_REGION
+    std::cout << "nudging because edge vector normalization failed"
+              << std::endl;
+#endif
     *a_requires_nudge = true;
     return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
   }
@@ -158,14 +160,19 @@ ReturnType computeType3ContributionWithSplit(
   // Compute dot product between normalized edge and end-point tangents
   const ScalarType tgt0_dot_edge = a_tangent_0 * edge_vector_normalized;
   const ScalarType tgt1_dot_edge = a_tangent_1 * edge_vector_normalized;
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "edve vector : " << edge_vector << std::endl;
-    std::cout << "edge_vector_normalized" << edge_vector_normalized << std::endl;
-    std::cout << "square norm of edve vector : " << static_cast<double>(squaredMagnitude(edge_vector)) << std::endl;
-    std::cout << "lenght limit : " << static_cast<double>(DISTANCE_EPSILON * DISTANCE_EPSILON) << std::endl;
-    std::cout << "tgt0_dot_edge " << static_cast<double>(tgt0_dot_edge) << std::endl;
-    std::cout << "tgt1_dot_edge " << static_cast<double>(tgt1_dot_edge) << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "edve vector : " << edge_vector << std::endl;
+  std::cout << "edge_vector_normalized" << edge_vector_normalized << std::endl;
+  std::cout << "square norm of edve vector : "
+            << static_cast<double>(squaredMagnitude(edge_vector)) << std::endl;
+  std::cout << "lenght limit : "
+            << static_cast<double>(DISTANCE_EPSILON * DISTANCE_EPSILON)
+            << std::endl;
+  std::cout << "tgt0_dot_edge " << static_cast<double>(tgt0_dot_edge)
+            << std::endl;
+  std::cout << "tgt1_dot_edge " << static_cast<double>(tgt1_dot_edge)
+            << std::endl;
+#endif
 
   // If start and end point are very close and tangents point toward each
   // other: the arc has no contribution to the moments
@@ -175,9 +182,9 @@ ReturnType computeType3ContributionWithSplit(
     // For completeness, we update the parametric surface boundary with a
     // straight Bezier arc
 
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "the arc is too small, return 0" << std::endl;
-    #endif
+#endif
     if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
       auto surface_arc = RationalBezierArc(
           pt_0.toDoublePt(), 0.5 * (pt_0.toDoublePt() + pt_1.toDoublePt()),
@@ -202,34 +209,38 @@ ReturnType computeType3ContributionWithSplit(
 
   // Slip the arc and compute the contribution of the children arcs
   if (split) {
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "we are splitting" << std::endl;
-    #endif
+#endif
     (*a_split_counter)++;
 
     // for the first split, let's try to split at the maximum of the ellipse
-    const bool has_a_maximum = abs(a_plane_normal[1] * a_plane_normal[1] 
-                                    + a_cylinder.b() * a_plane_normal[2] * a_plane_normal[2])
-                                > MACHINE_EPSILON;
+    const bool has_a_maximum = abs(a_plane_normal[1] * a_plane_normal[1] +
+                                   a_cylinder.b() * a_plane_normal[2] *
+                                       a_plane_normal[2]) > MACHINE_EPSILON;
     if (*a_split_counter == 1 && has_a_maximum) {
-      #ifdef DEBUG_CYL_IRL
-      std::cout << "first split, let's try to catch the maximum of the ellipse" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "first split, let's try to catch the maximum of the ellipse"
+                << std::endl;
+#endif
       const ScalarType r = a_cylinder.r();
       const ScalarType b = a_cylinder.b();
       const ScalarType nx = a_plane_normal[0];
       const ScalarType ny = a_plane_normal[1];
       const ScalarType nz = a_plane_normal[2];
 
-      const ScalarType alpha = copysign(ONE, b) * copysign(ONE, ny) * copysign(ONE, nz);
+      const ScalarType alpha =
+          copysign(ONE, b) * copysign(ONE, ny) * copysign(ONE, nz);
 
-      const ScalarType y = sqrt(r / (b * ny * ny + b * b * nz * nz)) * copysign(ny, alpha);
+      const ScalarType y =
+          sqrt(r / (b * ny * ny + b * b * nz * nz)) * copysign(ny, alpha);
       const ScalarType z = sqrt(r - b * y * y);
-      const ScalarType x = pt_0[0] + ((pt_0[1] - y) * ny + (pt_0[2] - z) * nz) / nx;
+      const ScalarType x =
+          pt_0[0] + ((pt_0[1] - y) * ny + (pt_0[2] - z) * nz) / nx;
 
       const ScalarType f = (y - pt_0[1]) / (pt_1[1] - pt_0[1]);
       const ScalarType g = (x - pt_0[0]) / (pt_1[0] - pt_0[0]);
-      #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
       std::cout << "value verification\n\n" << std::endl;
       std::cout << "b : " << static_cast<double>(b) << std::endl;
       std::cout << "r : " << static_cast<double>(r) << std::endl;
@@ -239,48 +250,52 @@ ReturnType computeType3ContributionWithSplit(
       std::cout << "x : " << static_cast<double>(x) << std::endl;
       std::cout << "y : " << static_cast<double>(y) << std::endl;
       std::cout << "z : " << static_cast<double>(z) << std::endl;
-      #endif
+#endif
 
-      // sanity check, the new point need to be is between the other two in terms of y, and a maximum in term of x :
-      // is the sanity check fail, let's fall back to cutting the arc in half
+      // sanity check, the new point need to be is between the other two in
+      // terms of y, and a maximum in term of x : is the sanity check fail,
+      // let's fall back to cutting the arc in half
       if (0 < f && f < 1 && (0 > g || g > 1) && z >= 0) {
-      
         const Pt projected_pt(x, y, z);
 
         Normal tangent_projected_pt =
             computeAndCorrectTangentVectorAtPt<ScalarType>(
                 a_cylinder, a_plane_normal, pt_0, pt_1, a_tangent_1,
                 projected_pt);
-        // If the projected tangent cannot be calculated, then the arc contribution is 0
-        if (tangent_projected_pt[0] != ZERO || tangent_projected_pt[1] != ZERO ||
+        // If the projected tangent cannot be calculated, then the arc
+        // contribution is 0
+        if (tangent_projected_pt[0] != ZERO ||
+            tangent_projected_pt[1] != ZERO ||
             tangent_projected_pt[2] != ZERO) {
           // If we want to output the surface:
-          if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
+          if constexpr (!std::is_same<SurfaceOutputType,
+                                      NoSurfaceOutput>::value) {
             // We need to store this vertex so that its address remains
             // unique over time (for surface output purposes)
             Pt* new_point = new Pt(projected_pt);
             PtBase<double>* new_point_double =
                 new PtBase<double>(static_cast<double>(projected_pt[0]),
-                                  static_cast<double>(projected_pt[1]),
-                                  static_cast<double>(projected_pt[2]));
+                                   static_cast<double>(projected_pt[1]),
+                                   static_cast<double>(projected_pt[2]));
             a_surface->addPt(new_point_double);
             return computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                      a_cylinder, a_plane_normal, a_pt_ref, a_pt_0, *new_point,
-                      a_tangent_0, tangent_projected_pt, a_requires_nudge,
-                      a_split_counter, a_surface) +
-                  computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                      a_cylinder, a_plane_normal, a_pt_ref, *new_point, a_pt_1,
-                      -tangent_projected_pt, a_tangent_1, a_requires_nudge,
-                      a_split_counter, a_surface);
+                       a_cylinder, a_plane_normal, a_pt_ref, a_pt_0, *new_point,
+                       a_tangent_0, tangent_projected_pt, a_requires_nudge,
+                       a_split_counter, a_surface) +
+                   computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                       a_cylinder, a_plane_normal, a_pt_ref, *new_point, a_pt_1,
+                       -tangent_projected_pt, a_tangent_1, a_requires_nudge,
+                       a_split_counter, a_surface);
           } else {
             return computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                      a_cylinder, a_plane_normal, a_pt_ref, a_pt_0,
-                      PtType(projected_pt), a_tangent_0, tangent_projected_pt,
-                      a_requires_nudge, a_split_counter, a_surface) +
-                  computeType3ContributionWithSplit<ReturnType, ScalarType>(
-                      a_cylinder, a_plane_normal, a_pt_ref, PtType(projected_pt),
-                      a_pt_1, -tangent_projected_pt, a_tangent_1, a_requires_nudge,
-                      a_split_counter, a_surface);
+                       a_cylinder, a_plane_normal, a_pt_ref, a_pt_0,
+                       PtType(projected_pt), a_tangent_0, tangent_projected_pt,
+                       a_requires_nudge, a_split_counter, a_surface) +
+                   computeType3ContributionWithSplit<ReturnType, ScalarType>(
+                       a_cylinder, a_plane_normal, a_pt_ref,
+                       PtType(projected_pt), a_pt_1, -tangent_projected_pt,
+                       a_tangent_1, a_requires_nudge, a_split_counter,
+                       a_surface);
           }
         }
       }
@@ -304,16 +319,16 @@ ReturnType computeType3ContributionWithSplit(
     Pt projected_pt = projectPtAlongHalfLineOntoCylinder<ScalarType>(
         a_cylinder, average_tangent, average_pt);
 
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "average point is : " << average_pt << std::endl;
     std::cout << "its tangent is   : " << average_tangent << std::endl;
     std::cout << "projected point is   : " << projected_pt << std::endl;
-    #endif
+#endif
     // If this point could not be found, switch to QP and shake the polytope
     if (projected_pt[0] == ScalarType(DBL_MAX)) {
-      #ifdef NUDGE_REGION
+#ifdef NUDGE_REGION
       std::cout << "nudging because projection didn't work" << std::endl;
-      #endif
+#endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
@@ -321,17 +336,17 @@ ReturnType computeType3ContributionWithSplit(
     // to QP and shake the polytope
     if constexpr (std::is_same_v<FloatType, double>) {
       if (*a_split_counter > 5) {
-      #ifdef NUDGE_REGION
-      std::cout << "nudging splitting too much (double)" << std::endl;
-      #endif
+#ifdef NUDGE_REGION
+        std::cout << "nudging splitting too much (double)" << std::endl;
+#endif
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     } else {
       if (*a_split_counter > 10) {
-      #ifdef NUDGE_REGION
-      std::cout << "nudging splitting too much (quad)" << std::endl;
-      #endif
+#ifdef NUDGE_REGION
+        std::cout << "nudging splitting too much (quad)" << std::endl;
+#endif
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
@@ -339,15 +354,14 @@ ReturnType computeType3ContributionWithSplit(
     // Compute the tangent at the new projected point
     Normal tangent_projected_pt =
         computeAndCorrectTangentVectorAtPt<ScalarType>(
-            a_cylinder, a_plane_normal, pt_0, pt_1, a_tangent_1,
-            projected_pt);
+            a_cylinder, a_plane_normal, pt_0, pt_1, a_tangent_1, projected_pt);
 
     // If the projected tangent cannot be calculated, then nudge
     if (tangent_projected_pt[0] == ZERO && tangent_projected_pt[1] == ZERO &&
-         tangent_projected_pt[2] == ZERO) {
-      #ifdef NUDGE_REGION
+        tangent_projected_pt[2] == ZERO) {
+#ifdef NUDGE_REGION
       std::cout << "nudging because splitting tangent is wrong" << std::endl;
-      #endif
+#endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
@@ -398,33 +412,34 @@ ReturnType computeType3ContributionWithSplit(
     // If the rational Bezier weight is negative, we switch to QP and shake
     // the polytope
     if (arc.weight() < ZERO) {
-      #ifdef DEBUG_CYL_IRL
-      std::cout << "the arc is computed with negative weight, nudging" << std::endl;
-      #endif
-      #ifdef NUDGE_REGION
+#ifdef DEBUG_CYL_IRL
+      std::cout << "the arc is computed with negative weight, nudging"
+                << std::endl;
+#endif
+#ifdef NUDGE_REGION
       std::cout << "nudging because the arc has a negative weight" << std::endl;
-      #endif
+#endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "ok, let's continue" << std::endl;
-    #endif
+#endif
     // Calculate type 3 contribution of arc
     auto moments = computeType3Contribution<ReturnType, ScalarType>(
         a_cylinder, arc, a_plane_normal);
     // // If the arc was split, then we need to add the contribution of the
     // // space between the splitted arcs and the orignial arc
     if (!(&a_pt_ref == &a_pt_0 || &a_pt_ref == &a_pt_1)) {
-
-      #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
       std::cout << "there was a split, computing correction" << std::endl;
-      #endif
-      auto moment_correction = computeTriangleCorrection<ReturnType, ScalarType>(
-          a_cylinder, pt_0, pt_1, pt_ref);
-      #ifdef DEBUG_CYL_IRL
+#endif
+      auto moment_correction =
+          computeTriangleCorrection<ReturnType, ScalarType>(a_cylinder, pt_0,
+                                                            pt_1, pt_ref);
+#ifdef DEBUG_CYL_IRL
       std::cout << "correction is " << moment_correction << std::endl;
-      #endif
+#endif
       moments += moment_correction;
     }
     return moments;
@@ -464,8 +479,8 @@ template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class CylinderType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
 intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
-                                  HalfEdgePolytopeType* a_complete_polytope,
-                                  const CylinderType& a_cylinder) {
+                                HalfEdgePolytopeType* a_complete_polytope,
+                                const CylinderType& a_cylinder) {
   // Defining type aliases (needed to ensure precision is consistent)
   // Definining scalar container: This can be a double/__float128, or a
   // scalar with embedded derivatives
@@ -488,13 +503,14 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   // Shortcuts if we already now that the paraboloid is entirely above or
   // below the polytope
   ReturnType moments;
-  #ifdef DEBUG_CYL_IRL
-  std::cout << "going to compute the volume of this cylinder : " << a_cylinder << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "going to compute the volume of this cylinder : " << a_cylinder
+            << std::endl;
+#endif
   if (a_cylinder.isAlwaysAbove()) {
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "The cylinder is always above, premature ending" << std::endl;
-    #endif
+#endif
     if constexpr (has_cylinder_surface<ReturnType>::value) {
       moments.getMoments() =
           ReturnType::moment_type::calculateMoments(a_polytope);
@@ -504,9 +520,9 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
     }
     return moments;
   } else if (a_cylinder.isAlwaysBelow()) {
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "The cylinder is always below, premature ending" << std::endl;
-    #endif
+#endif
     if constexpr (has_cylinder_surface<ReturnType>::value) {
       moments.getMoments() = ReturnType::moment_type::fromScalarConstant(ZERO);
       moments.getSurface().setCylinder(a_cylinder);
@@ -528,9 +544,10 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
   const Pt start_pt = a_polytope->getVertex(0)->getLocation().getPt() - datum;
   ScalarType max_dist_sq = ZERO;
 
-  #ifdef DEBUG_CYL_IRL
-  std::cout << "The original number of vertices is : " << original_number_of_vertices << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "The original number of vertices is : "
+            << original_number_of_vertices << std::endl;
+#endif
   for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
     const Pt original_pt =
         a_polytope->getVertex(v)->getLocation().getPt() - datum;
@@ -548,14 +565,14 @@ intersectPolyhedronWithCylinder(SegmentedHalfEdgePolyhedronType* a_polytope,
 
   // Define scale so that the polyhedron's volume is O(1)
   const ScalarType inv_scale =
-       maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
+      maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
   // const ScalarType inv_scale = ScalarType(ONE);
   const ScalarType inv_volume_scale = inv_scale * inv_scale * inv_scale;
   const ScalarType scale = ScalarType(ONE) / inv_scale;
   const ScalarType volume_scale = scale * scale * scale;
-  #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
   std::cout << "the scale is : " << scale << std::endl;
-  #endif
+#endif
 
   // Normalized polyhedron
   for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
@@ -679,13 +696,14 @@ enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
 intersectPolyhedronWithAlignedCylinder(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
-    const AlignedCylinderType& a_cylinder,
-    const ScalarType a_inv_volume_scale, SurfaceOutputType* a_surface,
-    PtBase<ScalarType> a_datum, ReferenceFrameBase<ScalarType> a_frame) {
+    const AlignedCylinderType& a_cylinder, const ScalarType a_inv_volume_scale,
+    SurfaceOutputType* a_surface, PtBase<ScalarType> a_datum,
+    ReferenceFrameBase<ScalarType> a_frame) {
   // Below function computes the entire integration (nudge counter
   // initialized to 0)
   return formCylinderIntersectionBases<ReturnType>(
-      a_polytope, a_complete_polytope, a_cylinder, 0, a_surface, a_datum, a_frame);
+      a_polytope, a_complete_polytope, a_cylinder, 0, a_surface, a_datum,
+      a_frame);
 }
 
 /******************* Find intersections on segment **********************/
@@ -704,13 +722,12 @@ inline void checkAndFindIntercepts(
   const auto& pt_0 = a_pt_0.getPt();
   const auto& pt_1 = a_pt_1.getPt();
   const auto pt_diff = pt_1 - pt_0;
-  const ScalarType a = pt_diff[2] * pt_diff[2] +
-                       a_cylinder.b() * pt_diff[1] * pt_diff[1];
-  const ScalarType b =
-      ScalarType(2) * (pt_diff[2] * pt_0[2] +
-                       a_cylinder.b() * pt_diff[1] * pt_0[1]);  
-  const ScalarType c = pt_0[2] * pt_0[2] +
-                       a_cylinder.b() * pt_0[1] * pt_0[1] - a_cylinder.r();
+  const ScalarType a =
+      pt_diff[2] * pt_diff[2] + a_cylinder.b() * pt_diff[1] * pt_diff[1];
+  const ScalarType b = ScalarType(2) * (pt_diff[2] * pt_0[2] +
+                                        a_cylinder.b() * pt_diff[1] * pt_0[1]);
+  const ScalarType c =
+      pt_0[2] * pt_0[2] + a_cylinder.b() * pt_0[1] * pt_0[1] - a_cylinder.r();
   // Solve quadratic equation
   const StackVector<ScalarType, 2> solutions =
       solveQuadratic<ScalarType>(a, b, c);
@@ -726,12 +743,13 @@ inline void checkAndFindIntercepts(
 /**************** Flag: is vertex below aligned Cylinder?
  * *****************/
 template <class VertexType>
-bool vertexBelow(const VertexType& a_pt,
-                 const AlignedCylinderBase<typename VertexType::value_type>&
-                     a_cylinder) {
+bool vertexBelow(
+    const VertexType& a_pt,
+    const AlignedCylinderBase<typename VertexType::value_type>& a_cylinder) {
   using ScalarType = typename VertexType::value_type;
   const auto& pt = a_pt.getPt();
-  return a_cylinder.r() - pt[2] * pt[2] - a_cylinder.b() * pt[1] * pt[1] > ScalarType(0);
+  return a_cylinder.r() - pt[2] * pt[2] - a_cylinder.b() * pt[1] * pt[1] >
+         ScalarType(0);
 }
 
 // If centroid is outside of polygon, or any vertex on face
@@ -757,13 +775,12 @@ bool ellipseContainedInFace(
 
   const auto& face_distance = a_face_plane.distance();
   const std::array<ScalarType, 3> conic_center{
-      {face_distance / (face_normal[0]),
-       ZERO,
-       ZERO}};
+      {face_distance / (face_normal[0]), ZERO, ZERO}};
   // const ScalarType delta_face = face_distance / face_normal[2];
   // const ScalarType gamma_face =
   //     a_aligned_paraboloid.a() * conic_center[0] * conic_center[0] +
-  //     a_aligned_paraboloid.b() * conic_center[1] * conic_center[1] - delta_face;
+  //     a_aligned_paraboloid.b() * conic_center[1] * conic_center[1] -
+  //     delta_face;
   // if (fabs(gamma_face) < distance_epsilon<ScalarType>()) {
   //   *a_requires_nudge = true;
   //   return false;
@@ -781,7 +798,7 @@ bool ellipseContainedInFace(
   // // down to it as well (essentially neglecting the z component).
   auto current_half_edge = a_half_edge;
   std::array<ScalarType, 3> xyz_min{
-    {ScalarType(DBL_MAX), ScalarType(DBL_MAX), ScalarType(DBL_MAX)}};
+      {ScalarType(DBL_MAX), ScalarType(DBL_MAX), ScalarType(DBL_MAX)}};
   std::array<ScalarType, 3> xyz_max{
       {-ScalarType(DBL_MAX), -ScalarType(DBL_MAX), -ScalarType(DBL_MAX)}};
   do {
@@ -811,7 +828,7 @@ bool ellipseContainedInFace(
     const PtBase<ScalarType>& location_1 =
         current_half_edge->getVertex()->getLocation().getPt();
     if (isPtBeforeIntersectionWithEdgeYZ<ScalarType>(ZERO_ZERO, location_0,
-                                                   location_1)) {
+                                                     location_1)) {
       pt_internal_to_polygon = !pt_internal_to_polygon;
     }
     current_half_edge = current_half_edge->getNextHalfEdge();
@@ -822,9 +839,8 @@ bool ellipseContainedInFace(
 template <class ReturnType, class ScalarType, class HalfEdgeType,
           class SurfaceOutputType>
 ReturnType orientAndApplyType3Correction(
-    const AlignedCylinderBase<ScalarType>& a_cylinder,
-    HalfEdgeType* a_start, HalfEdgeType* a_end, bool* a_requires_nudge,
-    SurfaceOutputType* a_surface) {
+    const AlignedCylinderBase<ScalarType>& a_cylinder, HalfEdgeType* a_start,
+    HalfEdgeType* a_end, bool* a_requires_nudge, SurfaceOutputType* a_surface) {
   // Defining constants and types
   using ReturnScalarType = typename ReturnType::value_type;
   using FloatType = float_type<ScalarType>;
@@ -841,48 +857,50 @@ ReturnType orientAndApplyType3Correction(
   const ScalarType HALF = ONE / TWO;
   const ScalarType TEN = ScalarType(10);
   const ScalarType ONE_HUNDRED = ScalarType(100);
-  
-  #ifdef DEBUG_CYL_IRL
+
+#ifdef DEBUG_CYL_IRL
   std::cout << "Start computing M3" << std::endl;
-  #endif
+#endif
 
   // Store start and end points, end-start vector, and plane properties
   const auto& pt_0 = a_start->getVertex()->getLocation().getPt();
   const auto& pt_1 = a_end->getVertex()->getLocation().getPt();
   const auto edge_vector = Normal(pt_1 - pt_0);
-  const Normal normalized_edge_vector = Normal::normalized(edge_vector[0], edge_vector[1], edge_vector[2]) ;
+  const Normal normalized_edge_vector =
+      Normal::normalized(edge_vector[0], edge_vector[1], edge_vector[2]);
   const auto& face_plane = a_end->getFace()->getPlane();
   const auto& face_normal = face_plane.normal();
 
-  #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
   std::cout << "pt0 " << pt_0 << std::endl;
   std::cout << "pt1 " << pt_1 << std::endl;
   std::cout << "edge_vector " << edge_vector << std::endl;
   std::cout << "face_plane " << face_plane << std::endl;
   std::cout << "face_normal " << face_normal << std::endl;
-  #endif
+#endif
 
   // Compute tangents at start and end points. THEY ARE NOT YET NORMALIZED!
   Normal tgt_0 =
       computeTangentVectorAtPoint<ScalarType>(a_cylinder, face_normal, pt_0);
   Normal tgt_1 =
       computeTangentVectorAtPoint<ScalarType>(a_cylinder, face_normal, pt_1);
-  
-  #ifdef DEBUG_CYL_IRL
+
+#ifdef DEBUG_CYL_IRL
   std::cout << "tgt_0 " << tgt_0 << std::endl;
   std::cout << "tgt_1 " << tgt_1 << std::endl;
-  #endif
+#endif
 
   // Is the arc from an ellipse (hence could require splittin)?
-  const bool elliptic_face = !(fabs(ONE - fabs(normalized_edge_vector[0])) < ANGLE_EPSILON);
+  const bool elliptic_face =
+      !(fabs(ONE - fabs(normalized_edge_vector[0])) < ANGLE_EPSILON);
 
   // If the tangents could not be calculated, switch to QP and shake the
   // polytope
   if ((tgt_0[0] == ZERO && tgt_0[1] == ZERO && tgt_0[2] == ZERO) ||
       (tgt_1[0] == ZERO && tgt_1[1] == ZERO && tgt_1[2] == ZERO)) {
-      #ifdef NUDGE_REGION
-      std::cout << "nudging because tangente can't be compute" << std::endl;
-      #endif
+#ifdef NUDGE_REGION
+    std::cout << "nudging because tangente can't be compute" << std::endl;
+#endif
     *a_requires_nudge = true;
     return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
   }
@@ -890,9 +908,10 @@ ReturnType orientAndApplyType3Correction(
   // If the start and end points almost coincide, switch to QP
   if constexpr (std::is_same_v<ScalarType, double>) {
     if (squaredMagnitude(edge_vector) < DISTANCE_EPSILON * DISTANCE_EPSILON) {
-      #ifdef NUDGE_REGION
-      std::cout << "nudging because both point are at the same place" << std::endl;
-      #endif
+#ifdef NUDGE_REGION
+      std::cout << "nudging because both point are at the same place"
+                << std::endl;
+#endif
       *a_requires_nudge = true;
       return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
     }
@@ -900,18 +919,17 @@ ReturnType orientAndApplyType3Correction(
 
   // CASE: The arc is a straight line
   if (!elliptic_face) {
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "this is a stright line" << std::endl;
-    #endif
-    auto control_pt = Pt(HALF* pt_0 + HALF * pt_1);
-    const auto arc = RationalBezierArcBase<ScalarType>(
-        pt_1, control_pt, pt_0, HALF);
+#endif
+    auto control_pt = Pt(HALF * pt_0 + HALF * pt_1);
+    const auto arc =
+        RationalBezierArcBase<ScalarType>(pt_1, control_pt, pt_0, HALF);
     if constexpr (!std::is_same<SurfaceOutputType, NoSurfaceOutput>::value) {
       auto surface_arc =
           RationalBezierArc(pt_1.toDoublePt(), control_pt.toDoublePt(),
-                            pt_0.toDoublePt(), double(1)/double(2));
-      surface_arc.reset_start_point_id(
-          reinterpret_cast<std::uintptr_t>(&pt_1));
+                            pt_0.toDoublePt(), double(1) / double(2));
+      surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(&pt_1));
       surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(&pt_0));
       a_surface->addArc(surface_arc);
     }
@@ -920,9 +938,9 @@ ReturnType orientAndApplyType3Correction(
 
   }  // CASE: The arc is from an ellipse or hyperbola
   else {
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "this is an ellipse" << std::endl;
-    #endif
+#endif
     // We need to normalize the tangents because we will compute their
     // angular orientation
     tgt_0.normalize();
@@ -954,9 +972,11 @@ ReturnType orientAndApplyType3Correction(
     else {
       // If we are in DP, we directly switch to QP
       if constexpr (std::is_same_v<ScalarType, double>) {
-      #ifdef NUDGE_REGION
-      std::cout << "nudging because we are in double and can't orientate the tangents" << std::endl;
-      #endif
+#ifdef NUDGE_REGION
+        std::cout << "nudging because we are in double and can't orientate the "
+                     "tangents"
+                  << std::endl;
+#endif
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
@@ -1029,7 +1049,8 @@ ReturnType reformQuadraticIntersectionBases(
     HalfEdgePolytopeType* a_complete_polytope,
     const AligneCylinderType& a_aligned_cylinder,
     const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface,
-    PtBase<CylinderScalarType> a_datum, ReferenceFrameBase<CylinderScalarType> a_frame) {
+    PtBase<CylinderScalarType> a_datum,
+    ReferenceFrameBase<CylinderScalarType> a_frame) {
   // Find out scalar type of polytope (DP or QP)
   using vertex_type = typename SegmentedHalfEdgePolyhedronType::vertex_type;
   using pt_type = typename vertex_type::pt_type;
@@ -1040,15 +1061,16 @@ ReturnType reformQuadraticIntersectionBases(
     // This is needed to convert from DP to QP
     using QP_scalar_type = convert_to_quad<ScalarType>;
     using QP_pt_type = PtBase<QP_scalar_type>;
-    using QP_vertex_type = VertexQuadratic<QP_pt_type>;
-    using QP_halfedge_type = HalfEdgeQuadratic<QP_vertex_type>;
-    using QP_face_type = FaceQuadratic<QP_halfedge_type>;
+    using QP_vertex_type = Vertex<QP_pt_type>;
+    using QP_halfedge_type = HalfEdge<QP_vertex_type>;
+    using QP_face_type = Face<QP_halfedge_type>;
     const UnsignedIndex_t QP_kMaxHalfEdges = HalfEdgePolytopeType::maxHalfEdges;
     const UnsignedIndex_t QP_kMaxVertices = HalfEdgePolytopeType::maxVertices;
     const UnsignedIndex_t QP_kMaxFaces = HalfEdgePolytopeType::maxFaces;
-    using QP_complete_polytope_type = HalfEdgePolyhedronQuadratic<
-        QP_pt_type, QP_vertex_type, QP_halfedge_type, QP_face_type,
-        QP_kMaxHalfEdges, QP_kMaxVertices, QP_kMaxFaces>;
+    using QP_complete_polytope_type =
+        HalfEdgePolyhedron<QP_pt_type, QP_vertex_type, QP_halfedge_type,
+                           QP_face_type, QP_kMaxHalfEdges, QP_kMaxVertices,
+                           QP_kMaxFaces>;
 
     // Convert aligned cylinder to QP
     const auto QP_aligned_cylinder =
@@ -1073,8 +1095,8 @@ ReturnType reformQuadraticIntersectionBases(
     assert(QP_segmented_cylinder.checkValidHalfEdgeStructure());
 
     // Nudge polytope and reset surface
-    nudgePolyhedron(&QP_segmented_cylinder, &QP_polytope_cylinder,
-                    a_nudge_iter, a_surface);
+    nudgePolyhedron(&QP_segmented_cylinder, &QP_polytope_cylinder, a_nudge_iter,
+                    a_surface);
 
     auto normal1 = a_frame[0].toQuadNormal();
     auto normal2 = a_frame[1].toQuadNormal();
@@ -1084,8 +1106,8 @@ ReturnType reformQuadraticIntersectionBases(
 
     // Try again!
     return formCylinderIntersectionBases<ReturnType>(
-        &QP_segmented_cylinder, &QP_polytope_cylinder,
-        QP_aligned_cylinder, a_nudge_iter + 1, a_surface, a_datum.toQuadPt(), quad_fram);
+        &QP_segmented_cylinder, &QP_polytope_cylinder, QP_aligned_cylinder,
+        a_nudge_iter + 1, a_surface, a_datum.toQuadPt(), quad_fram);
   } else {
     // Nudge polytope (already QP) and reset surface
     nudgePolyhedron(a_polytope, a_complete_polytope, a_nudge_iter, a_surface);
@@ -1105,7 +1127,8 @@ formCylinderIntersectionBasesClipped(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
     const AligneCylinderType& a_aligned_cylinder,
-    const UnsignedIndex_t a_nudge_iter, bool* requires_nudge, SurfaceOutputType* a_surface) {
+    const UnsignedIndex_t a_nudge_iter, bool* requires_nudge,
+    SurfaceOutputType* a_surface) {
   using vertex_type = typename SegmentedHalfEdgePolyhedronType::vertex_type;
   using pt_type = typename vertex_type::pt_type;
   using face_type = typename SegmentedHalfEdgePolyhedronType::face_type;
@@ -1135,11 +1158,12 @@ formCylinderIntersectionBasesClipped(
   const ScalarType FIVE = ScalarType(5);
   const ScalarType TEN = ScalarType(10);
   const ScalarType ONE_HUNDRED = ScalarType(100);
-  
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "========= try to compute moment ==========" << std::endl;
-    std::cout << "========= nb iter : " << a_nudge_iter << " ==========" << std::endl;
-  #endif
+
+#ifdef DEBUG_CYL_IRL
+  std::cout << "========= try to compute moment ==========" << std::endl;
+  std::cout << "========= nb iter : " << a_nudge_iter
+            << " ==========" << std::endl;
+#endif
 
   // Initialize moments to 0
   ReturnType full_moments = ReturnType::fromScalarConstant(ReturnScalarType(0));
@@ -1159,10 +1183,11 @@ formCylinderIntersectionBasesClipped(
     // are not exactly on the Oxy plane
     // check the point are above the horizontal plane
     if (vertex.getLocation().getPt()[2] < -MACHINE_EPSILON) {
-      // when cutting/rotating, some point can land bellow Oxy plane. let's try again
-      #ifdef NUDGE_REGION
-        std::cout << "nudging because a point is below the Oxy plane" << std::endl;
-      #endif
+// when cutting/rotating, some point can land bellow Oxy plane. let's try again
+#ifdef NUDGE_REGION
+      std::cout << "nudging because a point is below the Oxy plane"
+                << std::endl;
+#endif
       *requires_nudge = true;
       return full_moments;
     }
@@ -1173,11 +1198,11 @@ formCylinderIntersectionBasesClipped(
     }
   }
 
-  // First, triangulate faces (if necessary) and compute normals
-  // The triangulation criterion is based on face planarity
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "triangulating" << std::endl;
-  #endif
+// First, triangulate faces (if necessary) and compute normals
+// The triangulation criterion is based on face planarity
+#ifdef DEBUG_CYL_IRL
+  std::cout << "triangulating" << std::endl;
+#endif
   triangulatePolytopeAndComputeNormals(a_polytope, a_complete_polytope,
                                        nudge_epsilon, requires_nudge);
 
@@ -1187,72 +1212,76 @@ formCylinderIntersectionBasesClipped(
   const auto starting_number_of_faces = a_polytope->getNumberOfFaces();
   UnsignedIndex_t number_of_vertices_above = 0;
 
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "checking wich vertices is clipped" << std::endl;
-    std::cout << "there is " << starting_number_of_vertices << " vertix to check" << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "checking wich vertices is clipped" << std::endl;
+  std::cout << "there is " << starting_number_of_vertices << " vertix to check"
+            << std::endl;
+#endif
   for (UnsignedIndex_t v = 0; v < starting_number_of_vertices; ++v) {
     auto& vertex = *(a_polytope->getVertex(v));
     vertex.setAsUnnecessaryToSeek();  // Reset all
     vertex.markToBeClipped();
 
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "point nb : " << v << ", vertex : " << vertex << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "point nb : " << v << ", vertex : " << vertex << std::endl;
+#endif
 
     const auto& pt = vertex.getLocation().getPt();
-    const auto& hdist = sqrt(r/b) - fabs(pt[1]);
+    const auto& hdist = sqrt(r / b) - fabs(pt[1]);
     const ScalarType dist_function = pt[2] * pt[2] + b * pt[1] * pt[1] - r;
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "computed distance is " << static_cast<double>(dist_function) << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "computed distance is " << static_cast<double>(dist_function)
+              << std::endl;
+#endif
 
     if (fabs(dist_function) < nudge_epsilon) {
-      // If a polytope vertex lies within nudge_eps of the paraboloid
-      // we directly require a nudge and switch to QP
-      #ifdef NUDGE_REGION
-        std::cout << "nudging because a point is too close to the cylinder" << std::endl;
-      #endif
+// If a polytope vertex lies within nudge_eps of the paraboloid
+// we directly require a nudge and switch to QP
+#ifdef NUDGE_REGION
+      std::cout << "nudging because a point is too close to the cylinder"
+                << std::endl;
+#endif
       *requires_nudge = true;
       break;
     } else if (dist_function < ZERO) {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "it's not clipped" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "it's not clipped" << std::endl;
+#endif
       vertex.markToBeNotClipped();
     } else {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "it's clipped" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "it's clipped" << std::endl;
+#endif
       vertex.markToBeClipped();
       ++number_of_vertices_above;
     }
   }
 
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "number_of_vertices above : " << number_of_vertices_above << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "number_of_vertices above : " << number_of_vertices_above
+            << std::endl;
+#endif
   if (!*requires_nudge) {
     // Early termination cases, only possible with elliptic thanks to
     // convexity
     if (elliptic && number_of_vertices_above == 0) {
-      // Whole volume below
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "quick end : no vertices above" << std::endl;
-      #endif
+// Whole volume below
+#ifdef DEBUG_CYL_IRL
+      std::cout << "quick end : no vertices above" << std::endl;
+#endif
       return ReturnType::calculateMoments(a_polytope);
     }
 
     if (!elliptic && number_of_vertices_above == starting_number_of_vertices) {
-      // Zero volume - will be current value of full_moments
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "quick end : no vertices below" << std::endl;
-      #endif
+// Zero volume - will be current value of full_moments
+#ifdef DEBUG_CYL_IRL
+      std::cout << "quick end : no vertices below" << std::endl;
+#endif
       return full_moments;
     }
   } else {
     // Nudge and try again!
-    
+
     return full_moments;
   }
 
@@ -1266,26 +1295,27 @@ formCylinderIntersectionBasesClipped(
   // If intercept exists, place into HalfEdgeStructure
   const bool check_from_clipped = true;
   const bool check_from_unclipped = true;
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "\n========computing intersections==========" << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "\n========computing intersections==========" << std::endl;
+#endif
 
   //////// Compute intersections between edges and cylinder
   // Temporary stack vector to store single/double interesects
   StackVector<pt_type, 2> edge_intercepts;
   for (UnsignedIndex_t v = 0; v < starting_number_of_vertices; ++v) {
     auto& vertex = *(a_polytope->getVertex(v));
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "starting from point : " << vertex << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "starting from point : " << vertex << std::endl;
+#endif
     vertex.setToSeek();
     if (check_from_clipped && vertex.isClipped()) {
       // CASE WHERE STARTING VERTEX IS CLIPPED
       auto current_edge = vertex.getHalfEdge();
       const auto starting_edge = current_edge;
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "it is clipped \nstarting edge : " << *starting_edge << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "it is clipped \nstarting edge : " << *starting_edge
+                << std::endl;
+#endif
       do {
         // If it has needsToSeek set, it means it is a new vertex
         // or already visited. Either way, do not need to check
@@ -1294,18 +1324,22 @@ formCylinderIntersectionBasesClipped(
         if (vertex_start->needsToSeek()) {
           current_edge =
               current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "starting vertex has need to seek flag. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "starting vertex has need to seek flag. grabing "
+                       "previous edge \ncurrent edge : "
+                    << *current_edge << std::endl;
+#endif
           continue;
         }
         const auto& vertex_end = current_edge->getVertex();
         if (vertex_start->isNotClipped() && vertex_end->isNotClipped()) {
           current_edge =
               current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "starting and end vertex are notClipped. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "starting and end vertex are notClipped. grabing "
+                       "previous edge \ncurrent edge : "
+                    << *current_edge << std::endl;
+#endif
           continue;
         }
 
@@ -1322,19 +1356,21 @@ formCylinderIntersectionBasesClipped(
         // Size of returned intercepts indicates single or double
         // intercept (or none)
         if (edge_intercepts.size() == 1) {
-
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "one intersection find at " << edge_intercepts[0] << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "one intersection find at " << edge_intercepts[0]
+                    << std::endl;
+#endif
           // Check for intersection near end points
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-            #ifdef NUDGE_REGION
-              std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
-            #endif
+#ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a "
+                         "point (single intersection variant)"
+                      << std::endl;
+#endif
             break;
           }
 
@@ -1354,9 +1390,10 @@ formCylinderIntersectionBasesClipped(
           opposite_face->setStartingHalfEdge(opposite_half_edge);
           opposite_face->addIntersection();
         } else if (edge_intercepts.size() == 2) {
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "two intersection find at " << edge_intercepts[0] << " and " << edge_intercepts[1] << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "two intersection find at " << edge_intercepts[0]
+                    << " and " << edge_intercepts[1] << std::endl;
+#endif
           // Check for intersection near end points
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
@@ -1365,9 +1402,11 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-            #ifdef NUDGE_REGION
-              std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
-            #endif
+#ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a "
+                         "point (two intersection variant)"
+                      << std::endl;
+#endif
             break;
           }
 
@@ -1390,24 +1429,25 @@ formCylinderIntersectionBasesClipped(
               current_edge->getOppositeHalfEdge());
           opposite_face->addDoubleIntersection();
         }
-        #ifdef DEBUG_CYL_IRL
-          if (edge_intercepts.size() == 0) {
-            std::cout << "no intersection on that edge" << std::endl;
-          }
-        #endif
+#ifdef DEBUG_CYL_IRL
+        if (edge_intercepts.size() == 0) {
+          std::cout << "no intersection on that edge" << std::endl;
+        }
+#endif
         current_edge =
             current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "next edge : " << *current_edge << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "next edge : " << *current_edge << std::endl;
+#endif
       } while (current_edge != starting_edge);
     } else if (check_from_unclipped && vertex.isNotClipped()) {
       // CASE WHERE STARTING VERTEX IS UNCLIPPED
       auto current_edge = vertex.getHalfEdge();
       const auto starting_edge = current_edge;
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "it is not clipped \nstarting edge : " << *starting_edge << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "it is not clipped \nstarting edge : " << *starting_edge
+                << std::endl;
+#endif
       do {
         // If it has needsToSeek set, it means it is a new vertex
         // or already visited. Either way, do not need to check
@@ -1416,9 +1456,11 @@ formCylinderIntersectionBasesClipped(
         if (vertex_start->needsToSeek()) {
           current_edge =
               current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "starting edge has need to seek flag. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "starting edge has need to seek flag. grabing previous "
+                       "edge \ncurrent edge : "
+                    << *current_edge << std::endl;
+#endif
           continue;
         }
         const auto& vertex_end = current_edge->getVertex();
@@ -1427,17 +1469,21 @@ formCylinderIntersectionBasesClipped(
             if (vertex_start->isNotClipped() && vertex_end->isNotClipped()) {
               current_edge =
                   current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-              #ifdef DEBUG_CYL_IRL
-                std::cout << "starting and end vertex are notClipped. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
-              #endif
+#ifdef DEBUG_CYL_IRL
+              std::cout << "starting and end vertex are notClipped. grabing "
+                           "previous edge \ncurrent edge : "
+                        << *current_edge << std::endl;
+#endif
               continue;
             }
           } else if (vertex_start->isClipped() && vertex_end->isClipped()) {
             current_edge =
                 current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-            #ifdef DEBUG_CYL_IRL
-              std::cout << "starting and end vertex are Clipped has need to seek flag. grabing previous edge \ncurrent edge : " << *current_edge << std::endl;
-            #endif
+#ifdef DEBUG_CYL_IRL
+            std::cout << "starting and end vertex are Clipped has need to seek "
+                         "flag. grabing previous edge \ncurrent edge : "
+                      << *current_edge << std::endl;
+#endif
             continue;
           }
         }
@@ -1456,18 +1502,21 @@ formCylinderIntersectionBasesClipped(
         // Size of returned intercepts indicates single or double
         // intercept (or none)
         if (edge_intercepts.size() == 1) {
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "one intersection find at " << edge_intercepts[0] << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "one intersection find at " << edge_intercepts[0]
+                    << std::endl;
+#endif
           // Check for intersection near end points
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
               squaredMagnitude(edge_intercepts[0] - edge_end) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-            #ifdef NUDGE_REGION
-              std::cout << "nudging because a intersection is too close to a point (single intersection variant)" << std::endl;
-            #endif
+#ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a "
+                         "point (single intersection variant)"
+                      << std::endl;
+#endif
             break;
           }
 
@@ -1488,9 +1537,10 @@ formCylinderIntersectionBasesClipped(
           opposite_face->markAsVisited();
           opposite_face->addIntersection();
         } else if (edge_intercepts.size() == 2) {
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "two intersection find at " << edge_intercepts[0] << " and " << edge_intercepts[1] << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "two intersection find at " << edge_intercepts[0]
+                    << " and " << edge_intercepts[1] << std::endl;
+#endif
           // Check for intersection near end point
           if (squaredMagnitude(edge_intercepts[0] - edge_start) <
                   nudge_epsilon_sq ||
@@ -1499,9 +1549,11 @@ formCylinderIntersectionBasesClipped(
               squaredMagnitude(edge_intercepts[0] - edge_intercepts[1]) <
                   nudge_epsilon_sq) {
             *requires_nudge = true;
-            #ifdef NUDGE_REGION
-              std::cout << "nudging because a intersection is too close to a point (two intersection variant)" << std::endl;
-            #endif
+#ifdef NUDGE_REGION
+            std::cout << "nudging because a intersection is too close to a "
+                         "point (two intersection variant)"
+                      << std::endl;
+#endif
             break;
           }
 
@@ -1524,16 +1576,16 @@ formCylinderIntersectionBasesClipped(
               opposite_half_edge->getNextHalfEdge());
           opposite_face->addDoubleIntersection();
         }
-        #ifdef DEBUG_CYL_IRL
-          if (edge_intercepts.size() == 0) {
-            std::cout << "no intersection on that edge" << std::endl;
-          }
-        #endif
+#ifdef DEBUG_CYL_IRL
+        if (edge_intercepts.size() == 0) {
+          std::cout << "no intersection on that edge" << std::endl;
+        }
+#endif
         current_edge =
             current_edge->getOppositeHalfEdge()->getPreviousHalfEdge();
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "next edge : " << *current_edge << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "next edge : " << *current_edge << std::endl;
+#endif
       } while (current_edge != starting_edge);
     }
     // If nudge is requested, we exit loop and mark unvisited vertices
@@ -1557,11 +1609,12 @@ formCylinderIntersectionBasesClipped(
   const auto new_intersection_vertices =
       vertices_after_intersection - starting_number_of_vertices;
 
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "\n========Done intersection=======" << std::endl;
-    std::cout << "vertices after intersection : " << vertices_after_intersection << std::endl;
-    std::cout << "nb new vertices : " << new_intersection_vertices << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "\n========Done intersection=======" << std::endl;
+  std::cout << "vertices after intersection : " << vertices_after_intersection
+            << std::endl;
+  std::cout << "nb new vertices : " << new_intersection_vertices << std::endl;
+#endif
   for (UnsignedIndex_t v = starting_number_of_vertices;
        v < vertices_after_intersection; ++v) {
     // Original vertices will be set as needsToSeek()
@@ -1588,17 +1641,16 @@ formCylinderIntersectionBasesClipped(
 
   // If no edges are intersected by the cylinder, our job is done
   if (new_intersection_vertices == 0) {
-
     if (number_of_vertices_above == starting_number_of_vertices) {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "All vertices above, fast end" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "All vertices above, fast end" << std::endl;
+#endif
       // All points above
       return full_moments;
     } else if (number_of_vertices_above == 0) {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "All vertices below, fast end" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "All vertices below, fast end" << std::endl;
+#endif
       // All points below
       return ReturnType::calculateMoments(a_polytope) + full_moments;
     }
@@ -1611,28 +1663,28 @@ formCylinderIntersectionBasesClipped(
     // faces. else {
   }
 
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "\n=======Starting computing the faces=========" << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "\n=======Starting computing the faces=========" << std::endl;
+#endif
   // There are edge-intersections. We then need to calculate the
   // contributions of all unclipped faces to the moments
   for (UnsignedIndex_t f = 0; f < a_polytope->getNumberOfFaces(); ++f) {
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "\ndoing face number : " << f << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "\ndoing face number : " << f << std::endl;
+#endif
     auto& face = *(*a_polytope)[f];
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "doing face : " << face << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "doing face : " << face << std::endl;
+#endif
     const auto& face_normal = face.getPlane().normal();
     // // If magnitude(normal) ~ 0, the face area is ~ 0 so we can skip
     // not true for cylinders : M2 is not proportional to the face area !!!
     bool small_face = (squaredMagnitude(face_normal) < MACHINE_EPSILON);
-    #ifdef DEBUG_CYL_IRL
-      if (small_face) {
-        std::cout << "face is small" << std::endl;
-      }
-    #endif
+#ifdef DEBUG_CYL_IRL
+    if (small_face) {
+      std::cout << "face is small" << std::endl;
+    }
+#endif
 
     // The starting half-edge is, by construction, an intersection which is
     // an entry (i.e. goes from outside to inside the cylinder, following the
@@ -1643,10 +1695,11 @@ formCylinderIntersectionBasesClipped(
     // disobeys the Jordan theorem
     const auto intersection_size = face.getNumberOfIntersections();
     if (intersection_size % 2 == 1) {
-      // Discrete topology is ambiguous, let's shake things up
-      #ifdef NUDGE_REGION
-        std::cout << "nudging because the number of intersection is wrong)" << std::endl;
-      #endif
+// Discrete topology is ambiguous, let's shake things up
+#ifdef NUDGE_REGION
+      std::cout << "nudging because the number of intersection is wrong)"
+                << std::endl;
+#endif
       *requires_nudge = true;
       break;
     }
@@ -1660,20 +1713,22 @@ formCylinderIntersectionBasesClipped(
         max_component = fabs(face_normal[d]);
       }
     }
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "the main component of normal is " << max_component_index << ", with value of " << static_cast<double>(max_component) << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "the main component of normal is " << max_component_index
+              << ", with value of " << static_cast<double>(max_component)
+              << std::endl;
+#endif
 
     // This face has not intersections so the moment contribution is only of
     // type 1
     if (intersection_size == 0) {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "the face has no intersection" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "the face has no intersection" << std::endl;
+#endif
       if (small_face) {
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "the face is small, skip" << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "the face is small, skip" << std::endl;
+#endif
         continue;
       }
       // The face is entirely below (= unclipped)
@@ -1683,87 +1738,94 @@ formCylinderIntersectionBasesClipped(
         auto current_half_edge = starting_half_edge;
         auto prev_pt = current_half_edge->getPreviousVertex()->getLocation();
         bool skip_first = true;  // This avoid calculating a type 1 equal to 0
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "it is inside the cylinder" << std::endl;
-          std::cout << "ref point : " << ref_pt << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "it is inside the cylinder" << std::endl;
+        std::cout << "ref point : " << ref_pt << std::endl;
+#endif
         do {
           const auto& curr_pt = current_half_edge->getVertex()->getLocation();
 
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "\ncomputing contribution of edge" << std::endl;
-            std::cout << "current point : " << curr_pt << std::endl;
-            std::cout << "previous point : " << prev_pt << std::endl;
-            std::cout << "face normal : " << face_normal << std::endl;
-          #endif
-          const auto& type1contribution = computeType1Contribution<ReturnType, ScalarType>(
-              ref_pt, prev_pt, curr_pt, &skip_first, false, face_normal,
-              max_component_index);
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "\ncomputing contribution of edge" << std::endl;
+          std::cout << "current point : " << curr_pt << std::endl;
+          std::cout << "previous point : " << prev_pt << std::endl;
+          std::cout << "face normal : " << face_normal << std::endl;
+#endif
+          const auto& type1contribution =
+              computeType1Contribution<ReturnType, ScalarType>(
+                  ref_pt, prev_pt, curr_pt, &skip_first, false, face_normal,
+                  max_component_index);
+#ifdef DEBUG_CYL_IRL
+          std::cout << "\nType 1 contribution of the face : "
+                    << type1contribution << std::endl;
+#endif
           full_moments += type1contribution;
           prev_pt = curr_pt;
           current_half_edge = current_half_edge->getNextHalfEdge();
         } while (current_half_edge != starting_half_edge);
-      }
-      else {
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "it is above the cylinder, skip" << std::endl;
-        #endif
+      } else {
+#ifdef DEBUG_CYL_IRL
+        std::cout << "it is above the cylinder, skip" << std::endl;
+#endif
       }
     }
     // The face has 2 intersections (i.e. 1 arc): we start from the entry
     else if (intersection_size == 2) {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "the face has 2 intersections" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "the face has 2 intersections" << std::endl;
+#endif
       // We need a reference point for the type 1 moment contribution
       const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "the ref point will be : " << ref_pt << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "the ref point will be : " << ref_pt << std::endl;
+#endif
       // We first traverse straight boundary arcs and return the second
       // intersection (i.e. the exit)
       half_edge_type* exit_half_edge;
       bool skip_first = true;  // This avoid calculating a type 1 equal to 0
-      const auto& type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
-          ref_pt, starting_half_edge, exit_half_edge,
-          &skip_first, face_normal, max_component_index);
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "\nType 1 contribution of the face : " << type1contribution << std::endl;
-      #endif
+      const auto& type1contribution =
+          computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
+              ref_pt, starting_half_edge, exit_half_edge, &skip_first,
+              face_normal, max_component_index);
+#ifdef DEBUG_CYL_IRL
+      std::cout << "\nType 1 contribution of the face : " << type1contribution
+                << std::endl;
+#endif
       full_moments += type1contribution;
       // We can now compute the type 2 and 3 moment contribution
-      const auto& type3contribution = computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
-          a_aligned_cylinder, ref_pt, starting_half_edge, exit_half_edge,
-          &skip_first, face_normal, max_component_index, false, small_face, requires_nudge,
-          a_surface);
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "\nType 3 contribution of the face : " << type3contribution << std::endl;
-      #endif
+      const auto& type3contribution =
+          computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
+              a_aligned_cylinder, ref_pt, starting_half_edge, exit_half_edge,
+              &skip_first, face_normal, max_component_index, false, small_face,
+              requires_nudge, a_surface);
+#ifdef DEBUG_CYL_IRL
+      std::cout << "\nType 3 contribution of the face : " << type3contribution
+                << std::endl;
+#endif
       full_moments += type3contribution;
     }
     // The face has more than 2 intersections (i.e. more than 1 arc). We
     // need to discriminate elliptic/hyperbolic/parabolic cases
     else {
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "the face has more than 2 intersections (i.e. more than 1 arc)" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout
+          << "the face has more than 2 intersections (i.e. more than 1 arc)"
+          << std::endl;
+#endif
       // These flags identify the type of the conic section arcs in the face
       const bool rectangle_face = fabs(face_normal[0]) < ANGLE_EPSILON;
 
-      #ifdef DEBUG_CYL_IRL
-        if (rectangle_face) {
-          std::cout << "it is a rectangular face" << std::endl;
-        }
-      #endif
+#ifdef DEBUG_CYL_IRL
+      if (rectangle_face) {
+        std::cout << "it is a rectangular face" << std::endl;
+      }
+#endif
 
       // If the face is convex and we do not want to output the parametrized
       // surface, we don't need to sort the intersections to avoid
       // overlapping conic section arcs
       if (face.isTriangle() &&
-        std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
+          std::is_same_v<SurfaceOutputType, NoSurfaceOutput>) {
         // The sign of coeff_a gives us the direction of traversal of the
         // intersection list
         const bool reverse = !elliptic;
@@ -1772,15 +1834,14 @@ formCylinderIntersectionBasesClipped(
         half_edge_type* exit_half_edge;
         auto current_edge = starting_half_edge;
         bool skip_first = true;  // This avoid calculating a type 1
-                                  // contrib that we know is equal to 0
+                                 // contrib that we know is equal to 0
         std::size_t found_intersections = 0;
         // We traverse the half-edge structure of the face
         do {
           full_moments +=
-              computeUnclippedSegmentType1Contribution<ReturnType,
-                                                        ScalarType>(
-                  ref_pt, current_edge, exit_half_edge,
-                  &skip_first, face_normal, max_component_index);
+              computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
+                  ref_pt, current_edge, exit_half_edge, &skip_first,
+                  face_normal, max_component_index);
 
           // From the exit intersection, we move to the next entry and
           // compute type 2 and 3 moment contributions
@@ -1788,9 +1849,9 @@ formCylinderIntersectionBasesClipped(
           if (reverse) {
             full_moments +=
                 computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
-                    a_aligned_cylinder, ref_pt, current_edge,
-                    exit_half_edge, &skip_first, face_normal,
-                    max_component_index, false, small_face, requires_nudge, a_surface);
+                    a_aligned_cylinder, ref_pt, current_edge, exit_half_edge,
+                    &skip_first, face_normal, max_component_index, false,
+                    small_face, requires_nudge, a_surface);
             current_edge = exit_half_edge->getNextHalfEdge();
             while (current_edge->getVertex()->needsToSeek()) {
               current_edge = current_edge->getNextHalfEdge();
@@ -1802,9 +1863,9 @@ formCylinderIntersectionBasesClipped(
             }
             full_moments +=
                 computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
-                    a_aligned_cylinder, ref_pt, current_edge,
-                    exit_half_edge, &skip_first, face_normal,
-                    max_component_index, false, small_face, requires_nudge, a_surface);
+                    a_aligned_cylinder, ref_pt, current_edge, exit_half_edge,
+                    &skip_first, face_normal, max_component_index, false,
+                    small_face, requires_nudge, a_surface);
           }
           found_intersections += 2;
         } while (found_intersections != intersection_size);
@@ -1812,9 +1873,9 @@ formCylinderIntersectionBasesClipped(
       // The face is not convex, or we want to output the clipped surface.
       // We then need to sort the intersections
       else {
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "we are going to sort the intersection" << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "we are going to sort the intersection" << std::endl;
+#endif
         // This flag is there to prevent degenerate configuration with
         // overlapping arcs
         bool ignore_type3_contributions = false;
@@ -1829,55 +1890,63 @@ formCylinderIntersectionBasesClipped(
         half_edge_type* exit_half_edge;
         std::size_t found_intersections = 0;
         const auto& ref_pt = starting_half_edge->getVertex()->getLocation();
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "we starting with the edge : " << *current_edge << std::endl;
-          std::cout << "the ref point is : " << ref_pt << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "we starting with the edge : " << *current_edge
+                  << std::endl;
+        std::cout << "the ref point is : " << ref_pt << std::endl;
+#endif
         bool skip_first = true;
         do {
-          auto type1contribution = computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
-                  ref_pt, current_edge, exit_half_edge,
-                  &skip_first, face_normal, max_component_index);
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "type 1 contribution : " << type1contribution << std::endl;
-          #endif
+          auto type1contribution =
+              computeUnclippedSegmentType1Contribution<ReturnType, ScalarType>(
+                  ref_pt, current_edge, exit_half_edge, &skip_first,
+                  face_normal, max_component_index);
+#ifdef DEBUG_CYL_IRL
+          std::cout << "type 1 contribution : " << type1contribution
+                    << std::endl;
+#endif
           full_moments += type1contribution;
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {current_edge, ScalarType(0)}));
           intersections.push_back(std::pair<half_edge_type*, ScalarType>(
               {exit_half_edge, ScalarType(0)}));
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "adding intersections : " << *current_edge << std::endl;
-            std::cout << "and exit : " << *exit_half_edge << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "adding intersections : " << *current_edge << std::endl;
+          std::cout << "and exit : " << *exit_half_edge << std::endl;
+#endif
           current_edge = exit_half_edge->getNextHalfEdge();
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "next edge is : " << *current_edge << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "next edge is : " << *current_edge << std::endl;
+#endif
           while (current_edge->getVertex()->needsToSeek()) {
-            #ifdef DEBUG_CYL_IRL
-              std::cout << "next edge is is skiped " << *current_edge << std::endl;
-            #endif
+#ifdef DEBUG_CYL_IRL
+            std::cout << "next edge is is skiped " << *current_edge
+                      << std::endl;
+#endif
             current_edge = current_edge->getNextHalfEdge();
-            #ifdef DEBUG_CYL_IRL
-              std::cout << "next edge is  : " << *current_edge << std::endl;
-            #endif
+#ifdef DEBUG_CYL_IRL
+            std::cout << "next edge is  : " << *current_edge << std::endl;
+#endif
           }
           found_intersections += 2;
           skip_first = false;
         } while (found_intersections != intersection_size);
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "ended with " << found_intersections << " intersections" << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "ended with " << found_intersections << " intersections"
+                  << std::endl;
+#endif
 
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "these are our intersections (befor sorting) : " << std::endl;
-        #endif
-        const ScalarType invert = rectangle_face 
-                                  ? copysign(ONE, face_normal[2]) 
-                                  : copysign(ONE, face_normal[0]);
+#ifdef DEBUG_CYL_IRL
+        std::cout << "these are our intersections (befor sorting) : "
+                  << std::endl;
+#endif
+        const ScalarType invert = rectangle_face
+                                      ? copysign(ONE, face_normal[2])
+                                      : copysign(ONE, face_normal[0]);
 
-        // we will sort the intersection base on the signed angle between an arbitrary direction and the ray going from the center to the intersection
+        // we will sort the intersection base on the signed angle between an
+        // arbitrary direction and the ray going from the center to the
+        // intersection
         if (rectangle_face) {
           Pt center(ZERO, ZERO, ZERO);
           for (auto& element : intersections) {
@@ -1885,32 +1954,30 @@ formCylinderIntersectionBasesClipped(
             center += pt;
           }
           center /= intersections.size();
-          const ScalarType rectify_invert = elliptic 
-                                            ? invert
-                                            : - invert;
+          const ScalarType rectify_invert = elliptic ? invert : -invert;
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = rectify_invert * atan2(pt[1] - center[1],
-                                                    pt[0] - center[0]);
-            #ifdef DEBUG_CYL_IRL
-              std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
-            #endif
+            element.second =
+                rectify_invert * atan2(pt[1] - center[1], pt[0] - center[0]);
+#ifdef DEBUG_CYL_IRL
+            std::cout << "point : " << pt << ", sorting value : "
+                      << static_cast<double>(element.second) << std::endl;
+#endif
           }
         } else {
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
-            element.second = invert * atan2(pt[2],
-                                            pt[1]);
-            #ifdef DEBUG_CYL_IRL
-              std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
-            #endif
+            element.second = invert * atan2(pt[2], pt[1]);
+#ifdef DEBUG_CYL_IRL
+            std::cout << "point : " << pt << ", sorting value : "
+                      << static_cast<double>(element.second) << std::endl;
+#endif
           }
         }
         // Sort intersections
-        std::sort(intersections.begin(), intersections.end(),
-                  [](const stype& a, const stype& b) {
-                    return a.second < b.second;
-                  });
+        std::sort(
+            intersections.begin(), intersections.end(),
+            [](const stype& a, const stype& b) { return a.second < b.second; });
 
         // Backdoor for case where two angles are equal (because
         // of floating-point errors)
@@ -1925,11 +1992,12 @@ formCylinderIntersectionBasesClipped(
         // restart_sort = true;
         // If this sorting failed, we now sort based on Y positions
         if (restart_sort) {
-          #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
           std::cout << "angle sorting failed, sorting by Y : " << std::endl;
-          #endif
-          const ScalarType resort_invert = elliptic ? copysign(ONE, face_normal[2])
-                                                    : - copysign(ONE, face_normal[2]);
+#endif
+          const ScalarType resort_invert = elliptic
+                                               ? copysign(ONE, face_normal[2])
+                                               : -copysign(ONE, face_normal[2]);
           Pt center(ZERO, ZERO, ZERO);
           for (auto& element : intersections) {
             const auto& pt = element.first->getVertex()->getLocation().getPt();
@@ -1946,8 +2014,7 @@ formCylinderIntersectionBasesClipped(
           // Each half of the ellipse (X positive and X negative) will be
           // sorted separately
           for (auto& element : intersections) {
-            const auto& pt =
-                element.first->getVertex()->getLocation().getPt();
+            const auto& pt = element.first->getVertex()->getLocation().getPt();
             if (pt[split_ind] > center[split_ind]) {
               const auto loc = pos_end++;
               intersection_copy[loc].first = element.first;
@@ -1974,8 +2041,7 @@ formCylinderIntersectionBasesClipped(
           bool re_restart_sort = false;
           if (pos_end > 0) {
             for (UnsignedIndex_t i = 0; i < pos_end - 1; ++i) {
-              if (fabs(intersections[i].second -
-                        intersections[i + 1].second) <
+              if (fabs(intersections[i].second - intersections[i + 1].second) <
                   ONE_HUNDRED * MACHINE_EPSILON) {
                 re_restart_sort = true;
                 break;
@@ -1992,9 +2058,9 @@ formCylinderIntersectionBasesClipped(
 
           // If this sorting failed, we now sort based on X positions
           if (re_restart_sort) {
-            #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
             std::cout << "Y sorting failed, sorting by X : " << std::endl;
-            #endif
+#endif
             // We split in Y direction
             split_ind = 1;
             store_ind = 0;
@@ -2032,17 +2098,15 @@ formCylinderIntersectionBasesClipped(
             if (pos_end > 0) {
               for (UnsignedIndex_t i = 0; i < pos_end - 1; ++i) {
                 if (fabs(intersections[i].second -
-                          intersections[i + 1].second) <
+                         intersections[i + 1].second) <
                     ONE_HUNDRED * MACHINE_EPSILON) {
                   re_re_restart_sort = true;
                   break;
                 }
               }
             }
-            for (UnsignedIndex_t i = pos_end; i < intersection_size - 1;
-                  ++i) {
-              if (fabs(intersections[i].second -
-                        intersections[i + 1].second) <
+            for (UnsignedIndex_t i = pos_end; i < intersection_size - 1; ++i) {
+              if (fabs(intersections[i].second - intersections[i + 1].second) <
                   ONE_HUNDRED * MACHINE_EPSILON) {
                 re_re_restart_sort = true;
                 break;
@@ -2050,9 +2114,9 @@ formCylinderIntersectionBasesClipped(
             }
             // If all sorts have failed, switch to QP and try again
             if (re_re_restart_sort) {
-              #ifdef NUDGE_REGION
+#ifdef NUDGE_REGION
               std::cout << "nudging because we can sort the edges" << std::endl;
-              #endif
+#endif
               *requires_nudge = true;
               break;
             }
@@ -2060,28 +2124,33 @@ formCylinderIntersectionBasesClipped(
         }
         // Traverse face from entry->exit until all intersections have been
         // traversed
-        
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "these are our intersections (after sorting) : " << std::endl;
-          for (auto& element : intersections) {
-            
-              const auto& pt = element.first->getVertex()->getLocation().getPt();
-              std::cout << "point : " << pt << ", sorting value : " << static_cast<double>(element.second) << std::endl;
-          }
-        #endif
+
+#ifdef DEBUG_CYL_IRL
+        std::cout << "these are our intersections (after sorting) : "
+                  << std::endl;
+        for (auto& element : intersections) {
+          const auto& pt = element.first->getVertex()->getLocation().getPt();
+          std::cout << "point : " << pt << ", sorting value : "
+                    << static_cast<double>(element.second) << std::endl;
+        }
+#endif
         auto prev_vertex = intersections[0].first->getPreviousVertex();
         auto entry_half_edge = intersections[0].first;
         bool entry_first =
             (prev_vertex->isClipped() ||
              (prev_vertex->doesNotNeedToSeek() &&
               entry_half_edge->getNextHalfEdge()->getVertex()->isNotClipped()));
-        #ifdef DEBUG_CYL_IRL
-          std::cout << "checking if first vertex is an entry : " << std::endl;
-          std::cout << "previous_vertex : " << *prev_vertex << std::endl;
-          std::cout << "next_vertex : " << *(entry_half_edge->getNextHalfEdge()->getVertex()) << std::endl;
-          std::cout << "last intersection vertex : " << *(intersections[intersection_size-1].first->getVertex()) << std::endl;
-          std::cout << "entry_first : " << entry_first << std::endl;
-        #endif
+#ifdef DEBUG_CYL_IRL
+        std::cout << "checking if first vertex is an entry : " << std::endl;
+        std::cout << "previous_vertex : " << *prev_vertex << std::endl;
+        std::cout << "next_vertex : "
+                  << *(entry_half_edge->getNextHalfEdge()->getVertex())
+                  << std::endl;
+        std::cout << "last intersection vertex : "
+                  << *(intersections[intersection_size - 1].first->getVertex())
+                  << std::endl;
+        std::cout << "entry_first : " << entry_first << std::endl;
+#endif
         std::size_t start_id = entry_first ? 0 : 1;
         entry_first = false;
         for (std::size_t i = start_id; i < intersection_size; i += 2) {
@@ -2095,11 +2164,13 @@ formCylinderIntersectionBasesClipped(
               computeNewEdgeSegmentContribution<ReturnType, ScalarType>(
                   a_aligned_cylinder, ref_pt, entry_half_edge, exit_half_edge,
                   &entry_first, face_normal, max_component_index,
-                  ignore_type3_contributions, small_face, requires_nudge, a_surface);
+                  ignore_type3_contributions, small_face, requires_nudge,
+                  a_surface);
 
-          #ifdef DEBUG_CYL_IRL
-            std::cout << "moment contribution (1, 2 and 3) : " << moment_contribution << std::endl;
-          #endif
+#ifdef DEBUG_CYL_IRL
+          std::cout << "moment contribution (1, 2 and 3) : "
+                    << moment_contribution << std::endl;
+#endif
           full_moments += moment_contribution;
         }
         // Clear list of intersections
@@ -2123,12 +2194,13 @@ template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneCylinderType,
           class SurfaceOutputType, class CylinderScalarType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
-formCylinderIntersectionBases(
-    SegmentedHalfEdgePolyhedronType* a_polytope,
-    HalfEdgePolytopeType* a_complete_polytope,
-    const AligneCylinderType& a_aligned_cylinder,
-    const UnsignedIndex_t a_nudge_iter, SurfaceOutputType* a_surface,
-    PtBase<CylinderScalarType> a_datum, ReferenceFrameBase<CylinderScalarType> a_frame) {
+formCylinderIntersectionBases(SegmentedHalfEdgePolyhedronType* a_polytope,
+                              HalfEdgePolytopeType* a_complete_polytope,
+                              const AligneCylinderType& a_aligned_cylinder,
+                              const UnsignedIndex_t a_nudge_iter,
+                              SurfaceOutputType* a_surface,
+                              PtBase<CylinderScalarType> a_datum,
+                              ReferenceFrameBase<CylinderScalarType> a_frame) {
   using vertex_type = typename SegmentedHalfEdgePolyhedronType::vertex_type;
   using pt_type = typename vertex_type::pt_type;
   using face_type = typename SegmentedHalfEdgePolyhedronType::face_type;
@@ -2162,7 +2234,8 @@ formCylinderIntersectionBases(
       std::cout << "ERROR: Nudged more than 100 times. Moments returned "
                    "are wrong -> Context: b = "
                 << static_cast<double>(a_aligned_cylinder.b())
-                << ", r = " << static_cast<double>(a_aligned_cylinder.r()) << std::endl;
+                << ", r = " << static_cast<double>(a_aligned_cylinder.r())
+                << std::endl;
       std::ofstream myfile("failed_nudge_comparison_cell.vtu");
       if (myfile.is_open()) {
         myfile << *a_polytope;
@@ -2172,65 +2245,64 @@ formCylinderIntersectionBases(
     }
   }
 
-  bool require_nudge = false; 
+  bool require_nudge = false;
 
-  #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
   std::cout << "computing the volume" << std::endl;
-  #endif
+#endif
 
   // if b = 0, then the cylinder is two plan located at +/- sqrt(r)
   if (abs(a_aligned_cylinder.b()) < DBL_EPSILON) {
-
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "b is 0, splitting by two plane instead" << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "b is 0, splitting by two plane instead" << std::endl;
+#endif
     const ScalarType ONE = ScalarType(1);
     const ScalarType ZERO = ScalarType(0);
     const ScalarType z = sqrt(a_aligned_cylinder.r());
     Normal top_normal = Normal(ZERO, ZERO, ONE);
     Plane top_plane = Plane(top_normal, z);
-    Plane bottom_plane = Plane(Normal(ZERO, ZERO, - ONE), z);
+    Plane bottom_plane = Plane(Normal(ZERO, ZERO, -ONE), z);
     SegmentedHalfEdgePolyhedronType p2;
-    splitHalfEdgePolytope(
-        a_polytope, &p2, a_complete_polytope,
-        top_plane);
+    splitHalfEdgePolytope(a_polytope, &p2, a_complete_polytope, top_plane);
     SegmentedHalfEdgePolyhedronType p3;
-    splitHalfEdgePolytope(
-        a_polytope, &p3, a_complete_polytope,
-        bottom_plane);
+    splitHalfEdgePolytope(a_polytope, &p3, a_complete_polytope, bottom_plane);
 
-    if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
-
+    if constexpr (std::is_same<SurfaceOutputType,
+                               CylinderParametrizedSurfaceOutput>::value) {
       const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
       triangulatePolytopeAndComputeNormals(a_polytope, a_complete_polytope,
-        DISTANCE_EPSILON, &require_nudge);
+                                           DISTANCE_EPSILON, &require_nudge);
 
       if (require_nudge) {
         return reformQuadraticIntersectionBases<ReturnType>(
-          a_polytope, a_complete_polytope, a_aligned_cylinder, a_nudge_iter,
-          a_surface, a_datum, a_frame);
+            a_polytope, a_complete_polytope, a_aligned_cylinder, a_nudge_iter,
+            a_surface, a_datum, a_frame);
       }
 
-      #ifdef DEBUG_CYL_IRL
-        std::cout << "there is surface output" << std::endl;
-      #endif
+#ifdef DEBUG_CYL_IRL
+      std::cout << "there is surface output" << std::endl;
+#endif
       // set cylinder for reconstruction
       auto db_datum = a_datum.toDoublePt();
       auto db_fram = ReferenceFrame(a_frame[0].toDoubleNormal(),
-                a_frame[1].toDoubleNormal(), a_frame[2].toDoubleNormal());
-      Cylinder cylinder = Cylinder(db_datum, db_fram, 
-              static_cast<long double>(a_aligned_cylinder.b()), 
-              static_cast<long double>(a_aligned_cylinder.r()));
+                                    a_frame[1].toDoubleNormal(),
+                                    a_frame[2].toDoubleNormal());
+      Cylinder cylinder = Cylinder(
+          db_datum, db_fram, static_cast<long double>(a_aligned_cylinder.b()),
+          static_cast<long double>(a_aligned_cylinder.r()));
       a_surface->setCylinder(cylinder);
 
-
       const auto nb_faces = a_polytope->getNumberOfFaces();
-      
+
       for (UnsignedIndex_t f = 0; f < nb_faces; f++) {
         auto& face = *(*a_polytope)[f];
         const auto& face_normal = face.getPlane().normal();
-        if ((abs(face_normal[2] + ONE) < ANGLE_EPSILON || abs(face_normal[2] - ONE) < ANGLE_EPSILON) &&
-        abs(face.getStartingHalfEdge()->getPreviousVertex()->getLocation()[2] - z) < DISTANCE_EPSILON) {
+        if ((abs(face_normal[2] + ONE) < ANGLE_EPSILON ||
+             abs(face_normal[2] - ONE) < ANGLE_EPSILON) &&
+            abs(face.getStartingHalfEdge()
+                    ->getPreviousVertex()
+                    ->getLocation()[2] -
+                z) < DISTANCE_EPSILON) {
           auto starting_edge = face.getStartingHalfEdge();
           auto current_edge = starting_edge;
           do {
@@ -2241,17 +2313,17 @@ formCylinderIntersectionBases(
             // unique over time (for surface output purposes)
             PtBase<double>* new_point =
                 new PtBase<double>(static_cast<double>(pt_center[0]),
-                                  static_cast<double>(pt_center[1]),
-                                  static_cast<double>(pt_center[2]));
+                                   static_cast<double>(pt_center[1]),
+                                   static_cast<double>(pt_center[2]));
             a_surface->addPt(new_point);
-            auto surface_arc = RationalBezierArc(
-                pt_0, *new_point, pt_1, 0.5);
-            surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getPreviousVertex()));
-            surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getVertex()));
+            auto surface_arc = RationalBezierArc(pt_0, *new_point, pt_1, 0.5);
+            surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(
+                current_edge->getPreviousVertex()));
+            surface_arc.reset_end_point_id(
+                reinterpret_cast<std::uintptr_t>(current_edge->getVertex()));
             a_surface->addArc(surface_arc);
             current_edge = current_edge->getNextHalfEdge();
           } while (current_edge != starting_edge);
-          
         }
       }
 
@@ -2259,18 +2331,25 @@ formCylinderIntersectionBases(
       UnitQuaternionBase<ScalarType> x_rotation(PI, a_frame[0]);
       x_rotation.normalize();
       auto rotated_quad_ref = x_rotation * a_frame;
-      auto db_rotated_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
-                rotated_quad_ref[1].toDoubleNormal(), rotated_quad_ref[2].toDoubleNormal());
-      Cylinder rotated_cylinder = Cylinder(db_datum, db_rotated_fram, 
-              static_cast<long double>(a_aligned_cylinder.b()), 
-              static_cast<long double>(a_aligned_cylinder.r()));
+      auto db_rotated_fram =
+          ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
+                         rotated_quad_ref[1].toDoubleNormal(),
+                         rotated_quad_ref[2].toDoubleNormal());
+      Cylinder rotated_cylinder =
+          Cylinder(db_datum, db_rotated_fram,
+                   static_cast<long double>(a_aligned_cylinder.b()),
+                   static_cast<long double>(a_aligned_cylinder.r()));
       a_surface->setCylinder(rotated_cylinder);
 
       for (UnsignedIndex_t f = 0; f < nb_faces; f++) {
         auto& face = *(*a_polytope)[f];
         const auto& face_normal = face.getPlane().normal();
-        if ((abs(face_normal[2] + ONE) < ANGLE_EPSILON || abs(face_normal[2] - ONE) < ANGLE_EPSILON) &&
-        abs(face.getStartingHalfEdge()->getPreviousVertex()->getLocation()[2] + z) < DISTANCE_EPSILON) {
+        if ((abs(face_normal[2] + ONE) < ANGLE_EPSILON ||
+             abs(face_normal[2] - ONE) < ANGLE_EPSILON) &&
+            abs(face.getStartingHalfEdge()
+                    ->getPreviousVertex()
+                    ->getLocation()[2] +
+                z) < DISTANCE_EPSILON) {
           auto starting_edge = face.getStartingHalfEdge();
           auto current_edge = starting_edge;
           do {
@@ -2281,18 +2360,19 @@ formCylinderIntersectionBases(
             // unique over time (for surface output purposes)
             PtBase<double>* new_point =
                 new PtBase<double>(static_cast<double>(pt_center[0]),
-                                  static_cast<double>(-pt_center[1]),
-                                  static_cast<double>(-pt_center[2]));
+                                   static_cast<double>(-pt_center[1]),
+                                   static_cast<double>(-pt_center[2]));
             a_surface->addPt(new_point);
-            auto surface_arc = RationalBezierArc(
-                Pt(pt_0[0], -pt_0[1], -pt_0[2]), *new_point,
-                Pt(pt_1[0], -pt_1[1], -pt_1[2]), 0.5);
-            surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getPreviousVertex()));
-            surface_arc.reset_end_point_id(reinterpret_cast<std::uintptr_t>(current_edge->getVertex()));
+            auto surface_arc =
+                RationalBezierArc(Pt(pt_0[0], -pt_0[1], -pt_0[2]), *new_point,
+                                  Pt(pt_1[0], -pt_1[1], -pt_1[2]), 0.5);
+            surface_arc.reset_start_point_id(reinterpret_cast<std::uintptr_t>(
+                current_edge->getPreviousVertex()));
+            surface_arc.reset_end_point_id(
+                reinterpret_cast<std::uintptr_t>(current_edge->getVertex()));
             a_surface->addArc(surface_arc);
             current_edge = current_edge->getNextHalfEdge();
           } while (current_edge != starting_edge);
-          
         }
       }
     }
@@ -2301,7 +2381,9 @@ formCylinderIntersectionBases(
   }
 
   // only cut in quarter if ouputing a elliptic cylinder surface
-  bool quad_cut = (a_aligned_cylinder.b() > 0) && std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value;
+  bool quad_cut =
+      (a_aligned_cylinder.b() > 0) &&
+      std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value;
 
   ReturnType total_moments = ReturnType::fromScalarConstant(0.0);
 
@@ -2309,64 +2391,67 @@ formCylinderIntersectionBases(
 
   UnsignedIndex_t nb_polytope = quad_cut ? 4 : 2;
 
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "going to do " << nb_polytope << " cuts" << std::endl;
-    std::cout << "splitting the polytope" << std::endl;
-  #endif
-
+#ifdef DEBUG_CYL_IRL
+  std::cout << "going to do " << nb_polytope << " cuts" << std::endl;
+  std::cout << "splitting the polytope" << std::endl;
+#endif
 
   std::vector<AlignedCylinder> cylinder_list;
   std::vector<ScalarType> rotation_list;
   std::vector<SegmentedHalfEdgePolyhedronType> polyhedron_list;
   HalfEdgePolytopeType a_complete_polytope_copy;
-  fullCopyOfCompletePolytope(a_polytope, a_complete_polytope, &a_complete_polytope_copy);
+  fullCopyOfCompletePolytope(a_polytope, a_complete_polytope,
+                             &a_complete_polytope_copy);
   auto a_polytope_copy = a_complete_polytope_copy.generateSegmentedPolyhedron();
 
   if (quad_cut) {
     ScalarType vector_norm = sqrt(1.0 + a_aligned_cylinder.b());
     const ScalarType b1 = sqrt(a_aligned_cylinder.b()) / vector_norm;
     SegmentedHalfEdgePolyhedronType p2;
-    splitHalfEdgePolytope(
-        &a_polytope_copy, &p2, &a_complete_polytope_copy,
-        Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(&a_polytope_copy, &p2, &a_complete_polytope_copy,
+                          Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
     SegmentedHalfEdgePolyhedronType p3;
-    splitHalfEdgePolytope(
-        &a_polytope_copy, &p3, &a_complete_polytope_copy,
-        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(&a_polytope_copy, &p3, &a_complete_polytope_copy,
+                          Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     SegmentedHalfEdgePolyhedronType p4;
-    splitHalfEdgePolytope(
-        &p2, &p4, &a_complete_polytope_copy,
-        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
-    AlignedCylinder rotatedCylinder({1.0 / a_aligned_cylinder.b(), a_aligned_cylinder.r() / a_aligned_cylinder.b()});
-    cylinder_list = {a_aligned_cylinder, rotatedCylinder, a_aligned_cylinder, rotatedCylinder};
+    splitHalfEdgePolytope(&p2, &p4, &a_complete_polytope_copy,
+                          Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    AlignedCylinder rotatedCylinder(
+        {1.0 / a_aligned_cylinder.b(),
+         a_aligned_cylinder.r() / a_aligned_cylinder.b()});
+    cylinder_list = {a_aligned_cylinder, rotatedCylinder, a_aligned_cylinder,
+                     rotatedCylinder};
     rotation_list = {0.0, PI * HALF, PI, PI * TREEHALF};
     polyhedron_list = {a_polytope_copy, p2, p4, p3};
   } else {
     SegmentedHalfEdgePolyhedronType p2;
-    splitHalfEdgePolytope(
-        &a_polytope_copy, &p2, &a_complete_polytope_copy,
-        Plane(Normal(0.0, 0.0, -1.0), 0.0));
+    splitHalfEdgePolytope(&a_polytope_copy, &p2, &a_complete_polytope_copy,
+                          Plane(Normal(0.0, 0.0, -1.0), 0.0));
     cylinder_list = {a_aligned_cylinder, a_aligned_cylinder};
     rotation_list = {0.0, PI};
     polyhedron_list = {a_polytope_copy, p2};
   }
 
   for (UnsignedIndex_t i = 0; i < nb_polytope; i++) {
-    #ifdef DEBUG_CYL_IRL
+#ifdef DEBUG_CYL_IRL
     std::cout << "rotating polytope" << std::endl;
-    #endif
+#endif
     // rotating the polytop
     auto& cylinder = cylinder_list[i];
     SegmentedHalfEdgePolyhedronType* current_segmented = &(polyhedron_list[i]);
 
     // Rotate polytope
-    ReferenceFrameBase<ScalarType> frame(NormalBase<ScalarType>(1, 0, 0), NormalBase<ScalarType>(0, 1, 0), NormalBase<ScalarType>(0, 0, 1));
+    ReferenceFrameBase<ScalarType> frame(NormalBase<ScalarType>(1, 0, 0),
+                                         NormalBase<ScalarType>(0, 1, 0),
+                                         NormalBase<ScalarType>(0, 0, 1));
     UnitQuaternionBase<ScalarType> x_rotation(-rotation_list[i], frame[0]);
     x_rotation.normalize();
 
     frame = x_rotation * frame;
-    for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices(); ++v) {
-      const Pt original_pt = current_segmented->getVertex(v)->getLocation().getPt();
+    for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices();
+         ++v) {
+      const Pt original_pt =
+          current_segmented->getVertex(v)->getLocation().getPt();
       Pt pt(0, 0, 0);
       for (UnsignedIndex_t n = 0; n < 3; ++n) {
         pt[n] = frame[n] * original_pt;
@@ -2374,47 +2459,51 @@ formCylinderIntersectionBases(
       current_segmented->getVertex(v)->setLocation(pt);
     }
 
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "computing the contribution" << std::endl;
-    #endif
-    if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
-        auto db_datum = a_datum.toDoublePt();
-        UnitQuaternionBase<ScalarType> x_rotation_surface(-rotation_list[i], a_frame[0]);
-        x_rotation_surface.normalize();
-        auto rotated_quad_ref = x_rotation_surface * a_frame;
-        auto db_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
-                  rotated_quad_ref[1].toDoubleNormal(), rotated_quad_ref[2].toDoubleNormal());
-        Cylinder rotated_cylinder = Cylinder(db_datum, db_fram, 
-                static_cast<long double>(cylinder.b()), 
-                static_cast<long double>(cylinder.r()));
-        a_surface->setCylinder(rotated_cylinder);
+#ifdef DEBUG_CYL_IRL
+    std::cout << "computing the contribution" << std::endl;
+#endif
+    if constexpr (std::is_same<SurfaceOutputType,
+                               CylinderParametrizedSurfaceOutput>::value) {
+      auto db_datum = a_datum.toDoublePt();
+      UnitQuaternionBase<ScalarType> x_rotation_surface(-rotation_list[i],
+                                                        a_frame[0]);
+      x_rotation_surface.normalize();
+      auto rotated_quad_ref = x_rotation_surface * a_frame;
+      auto db_fram = ReferenceFrame(rotated_quad_ref[0].toDoubleNormal(),
+                                    rotated_quad_ref[1].toDoubleNormal(),
+                                    rotated_quad_ref[2].toDoubleNormal());
+      Cylinder rotated_cylinder =
+          Cylinder(db_datum, db_fram, static_cast<long double>(cylinder.b()),
+                   static_cast<long double>(cylinder.r()));
+      a_surface->setCylinder(rotated_cylinder);
     }
 
     ReturnType moments = formCylinderIntersectionBasesClipped<ReturnType>(
-      current_segmented, &a_complete_polytope_copy, cylinder, a_nudge_iter, &require_nudge, a_surface);
+        current_segmented, &a_complete_polytope_copy, cylinder, a_nudge_iter,
+        &require_nudge, a_surface);
 
     if (require_nudge) {
       break;
     }
 
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "reverting the polytope" << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "reverting the polytope" << std::endl;
+#endif
     // // Revert rotate polytope
-    frame = ReferenceFrameBase<ScalarType>(NormalBase<ScalarType>(1, 0, 0), NormalBase<ScalarType>(0, 1, 0), NormalBase<ScalarType>(0, 0, 1));
+    frame = ReferenceFrameBase<ScalarType>(NormalBase<ScalarType>(1, 0, 0),
+                                           NormalBase<ScalarType>(0, 1, 0),
+                                           NormalBase<ScalarType>(0, 0, 1));
     x_rotation = UnitQuaternionBase<ScalarType>(rotation_list[i], frame[0]);
     x_rotation.normalize();
     frame = x_rotation * frame;
     if constexpr (std::is_same_v<ReturnType,
-                                    VolumeMomentsBase<ReturnScalarType>>) {
-      Pt centroid01(moments.centroid()[0], 
-        moments.centroid()[1], moments.centroid()[2]);
+                                 VolumeMomentsBase<ReturnScalarType>>) {
+      Pt centroid01(moments.centroid()[0], moments.centroid()[1],
+                    moments.centroid()[2]);
       for (UnsignedIndex_t n = 0; n < 3; ++n) {
         moments.centroid()[n] = frame[n] * centroid01;
       }
-    }
-    else if constexpr (std::is_same_v<ReturnType,
-                                        GeneralMoments3D<2>>) {
+    } else if constexpr (std::is_same_v<ReturnType, GeneralMoments3D<2>>) {
       const Eigen::Matrix<ScalarType, 3, 3> R{
           {frame[0][0], frame[1][0], frame[2][0]},
           {frame[0][1], frame[1][1], frame[2][1]},
@@ -2438,25 +2527,28 @@ formCylinderIntersectionBases(
       moments[8] = M2(1, 2);
       moments[9] = M2(2, 2);
     }
-    for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices(); ++v) {
-      const Pt original_pt = current_segmented->getVertex(v)->getLocation().getPt();
+    for (UnsignedIndex_t v = 0; v < current_segmented->getNumberOfVertices();
+         ++v) {
+      const Pt original_pt =
+          current_segmented->getVertex(v)->getLocation().getPt();
       Pt pt(0, 0, 0);
       for (UnsignedIndex_t n = 0; n < 3; ++n) {
         pt[n] = frame[n] * original_pt;
       }
       current_segmented->getVertex(v)->setLocation(pt);
     }
-    #ifdef DEBUG_CYL_IRL
-      std::cout << "the contribution for rotation " << static_cast<double>(rotation_list[i]) << " is " << moments << std::endl;
-    #endif
+#ifdef DEBUG_CYL_IRL
+    std::cout << "the contribution for rotation "
+              << static_cast<double>(rotation_list[i]) << " is " << moments
+              << std::endl;
+#endif
     total_moments += moments;
-    
   }
 
-
   if (require_nudge) {
-    if constexpr (std::is_same<SurfaceOutputType, CylinderParametrizedSurfaceOutput>::value) {
-        a_surface->resetCylinder();
+    if constexpr (std::is_same<SurfaceOutputType,
+                               CylinderParametrizedSurfaceOutput>::value) {
+      a_surface->resetCylinder();
     }
     // reset a_polytope and a_complete polytope to the saved value;
     assert(a_polytope->getNumberOfVertices() == starting_number_of_vertices);
@@ -2467,9 +2559,9 @@ formCylinderIntersectionBases(
         a_surface, a_datum, a_frame);
   }
 
-  #ifdef DEBUG_CYL_IRL
-    std::cout << "suceffully computed moment" << std::endl;
-  #endif
+#ifdef DEBUG_CYL_IRL
+  std::cout << "suceffully computed moment" << std::endl;
+#endif
   return total_moments;
 }
 
