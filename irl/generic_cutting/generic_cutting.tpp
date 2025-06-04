@@ -130,12 +130,46 @@ __attribute__((hot)) inline ReturnType getVolumeMoments(
     SegmentedPolytopeType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
     const ReconstructionType& a_reconstruction) {
-  assert(generic_cutting_details::polytopeIsValid(a_polytope));
-  return generic_cutting_details::getVolumeMomentsProvidedStorage<
-      ReturnType, CuttingMethod, SegmentedPolytopeType, HalfEdgePolytopeType,
-      ReconstructionType>::getVolumeMomentsImplementation(a_polytope,
-                                                          a_complete_polytope,
-                                                          a_reconstruction);
+  if constexpr (std::is_same_v<ReconstructionType, SeparatorVariant>) {
+    if (const PlanarSeparator* rec_ptr =
+            std::get_if<PlanarSeparator>(&a_reconstruction)) {
+      assert(generic_cutting_details::polytopeIsValid(a_polytope));
+      return generic_cutting_details::getVolumeMomentsProvidedStorage<
+          ReturnType, CuttingMethod, SegmentedPolytopeType,
+          HalfEdgePolytopeType,
+          PlanarSeparator>::getVolumeMomentsImplementation(a_polytope,
+                                                           a_complete_polytope,
+                                                           *rec_ptr);
+    } else if (const Paraboloid* rec_ptr =
+                   std::get_if<Paraboloid>(&a_reconstruction)) {
+      assert(generic_cutting_details::polytopeIsValid(a_polytope));
+      return generic_cutting_details::getVolumeMomentsProvidedStorage<
+          ReturnType, CuttingMethod, SegmentedPolytopeType,
+          HalfEdgePolytopeType,
+          Paraboloid>::getVolumeMomentsImplementation(a_polytope,
+                                                      a_complete_polytope,
+                                                      *rec_ptr);
+    } else if (const Cylinder* rec_ptr =
+                   std::get_if<Cylinder>(&a_reconstruction)) {
+      assert(generic_cutting_details::polytopeIsValid(a_polytope));
+      return generic_cutting_details::getVolumeMomentsProvidedStorage<
+          ReturnType, CuttingMethod, SegmentedPolytopeType,
+          HalfEdgePolytopeType,
+          Cylinder>::getVolumeMomentsImplementation(a_polytope,
+                                                    a_complete_polytope,
+                                                    *rec_ptr);
+    } else {
+      throw std::runtime_error(
+          "Unrecognized reconstruction variant type in getVolumeMoments");
+    }
+  } else {
+    assert(generic_cutting_details::polytopeIsValid(a_polytope));
+    return generic_cutting_details::getVolumeMomentsProvidedStorage<
+        ReturnType, CuttingMethod, SegmentedPolytopeType, HalfEdgePolytopeType,
+        ReconstructionType>::getVolumeMomentsImplementation(a_polytope,
+                                                            a_complete_polytope,
+                                                            a_reconstruction);
+  }
 }
 
 //******************************************************************* //

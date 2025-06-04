@@ -21,6 +21,9 @@ using LocalizedSeparatorVariant =
     JoinedReconstructions<PlanarLocalizer, SeparatorVariant>;
 using LocalizedSeparatorVariantLink =
     ReconstructionLink<LocalizedSeparatorVariant, UnDirectedGraphNode>;
+template <>
+struct is_reconstruction_link<LocalizedSeparatorVariantLink> : std::true_type {
+};
 
 }  // namespace IRL
 
