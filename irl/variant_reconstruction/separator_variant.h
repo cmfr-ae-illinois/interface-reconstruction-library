@@ -11,6 +11,9 @@
 #define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
 
 #include <variant>
+
+#include "irl/generic_cutting/general/class_classifications.h"
+
 #include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/planar_reconstruction/planar_separator.h"
