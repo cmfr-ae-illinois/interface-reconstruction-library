@@ -175,115 +175,20 @@ void VTKOutput::writeVTKInterface(
     std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_paraboloids,
     std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
     const bool a_print_info) {
-  const auto surface_file_name =
-      directory_m + "/" + file_name_base_m + "_interface_" +
-      std::to_string(interface_files_written_m) + ".vtu";
-  FILE* file;
-  file = fopen(surface_file_name.c_str(), "w");
-
-  //////////////////// WRITING TRIANGLES
-  std::vector<IRL::TriangulatedSurfaceOutput> tri_surfaces;
-  tri_surfaces.resize(a_paraboloids.size() + a_cylinders.size());
-  int count = 0;
+  const auto surface_file_name = directory_m + "/" + file_name_base_m +
+                                 "_interface_" +
+                                 std::to_string(interface_files_written_m);
+  IRL::MixedPolygonBezierSurface surface_output;
   for (int i = 0; i < a_paraboloids.size(); ++i) {
-    tri_surfaces[count++] = a_paraboloids[i].triangulate();
+    surface_output.addSurface(
+        a_paraboloids[i].getQuadraticBezierTriangleApprox());
   }
   for (int i = 0; i < a_cylinders.size(); ++i) {
-    tri_surfaces[count++] = a_cylinders[i].triangulate();
+    // surface_output.addSurface(
+    //   a_cylinders[i].getQuadraticBezierTriangleApprox());
   }
+  surface_output.addPolygons(a_polygons);
+  surface_output.write(surface_file_name);
 
-  int number_of_vertices = 0;
-  std::vector<int> offset(a_polygons.size() + tri_surfaces.size() + 1, 0);
-  count = 0;
-  for (int i = 0; i < a_polygons.size(); ++i) {
-    const auto nverts = a_polygons[i].getNumberOfVertices();
-    number_of_vertices += nverts;
-    offset[count + 1] = offset[count] + nverts;
-    count++;
-  }
-  for (int i = 0; i < tri_surfaces.size(); ++i) {
-    const auto& vlist = tri_surfaces[i].getVertexList();
-    number_of_vertices += vlist.size();
-    offset[count + 1] = offset[count] + vlist.size();
-    count++;
-  }
-
-  int number_of_polygons = a_polygons.size();
-  for (int i = 0; i < tri_surfaces.size(); ++i) {
-    const auto& tlist = tri_surfaces[i].getTriangleList();
-    number_of_polygons += tlist.size();
-  }
-
-  fprintf(file, "<VTKFile type=\"UnstructuredGrid\">\n");
-  fprintf(file, "<UnstructuredGrid>\n");
-  fprintf(file, "<Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\n",
-          static_cast<int>(number_of_vertices),
-          static_cast<int>(number_of_polygons));
-  fprintf(file, "<Points>\n");
-  fprintf(file, "<DataArray type=\"Float64\" NumberOfComponents=\"3\">\n");
-  for (int i = 0; i < a_polygons.size(); ++i) {
-    for (int j = 0; j < a_polygons[i].getNumberOfVertices(); j++) {
-      fprintf(file, "%15.8E %15.8E %15.8E ",
-              static_cast<double>(a_polygons[i][j][0]),
-              static_cast<double>(a_polygons[i][j][1]),
-              static_cast<double>(a_polygons[i][j][2]));
-    }
-  }
-  for (std::size_t i = 0; i < tri_surfaces.size(); ++i) {
-    const auto& vlist = tri_surfaces[i].getVertexList();
-    for (const auto& vertex : vlist) {
-      fprintf(file, "%15.8E %15.8E %15.8E ", static_cast<double>(vertex[0]),
-              static_cast<double>(vertex[1]), static_cast<double>(vertex[2]));
-    }
-  }
-  fprintf(file, "</DataArray>\n</Points>\n");
-
-  fprintf(file, "<Cells>\n");
-  fprintf(file,
-          "<DataArray type=\"Int32\" Name=\"connectivity\" "
-          "format=\"ascii\">\n");
-  count = 0;
-  for (int i = 0; i < a_polygons.size(); ++i) {
-    for (int j = 0; j < a_polygons[i].getNumberOfVertices(); j++) {
-      fprintf(file, "%d ", count++);
-    }
-  }
-  for (int i = 0; i < tri_surfaces.size(); ++i) {
-    const auto& tlist = tri_surfaces[i].getTriangleList();
-    const auto off = offset[a_polygons.size() + i];
-    for (const auto& triangle : tlist) {
-      const auto& index_mapping = triangle.getIndexMapping();
-      fprintf(file, "%d %d %d ", static_cast<int>(off + index_mapping[0]),
-              static_cast<int>(off + index_mapping[1]),
-              static_cast<int>(off + index_mapping[2]));
-    }
-  }
-  fprintf(file, "</DataArray>\n");
-
-  fprintf(file,
-          "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n");
-  count = 0;
-  for (int i = 0; i < a_polygons.size(); ++i) {
-    count += a_polygons[i].getNumberOfVertices();
-    fprintf(file, "%d ", count);
-  }
-  for (int i = 0; i < tri_surfaces.size(); ++i) {
-    const auto& tlist = tri_surfaces[i].getTriangleList();
-    for (const auto& triangle : tlist) {
-      count += 3;
-      fprintf(file, "%d ", count);
-    }
-  }
-  fprintf(file, "</DataArray>\n");
-
-  fprintf(file, "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n");
-  for (std::size_t i = 0; i < number_of_polygons; ++i) {
-    fprintf(file, "7 ");
-  }
-  fprintf(file, "</DataArray>\n");
-
-  fprintf(file, "</Cells>\n");
-  fprintf(file, "</Piece>\n</UnstructuredGrid>\n</VTKFile>\n");
-  fclose(file);
   ++interface_files_written_m;
 }
