@@ -185,9 +185,6 @@ TEST(CylinderIntersection, SISCPaperFig1) {
     EXPECT_NEAR(
         centroid[0] / temp_surface_and_moments.getMoments().volume().volume(),
         0.5, 1e-13);
-    // EXPECT_NEAR(centroid[1] /
-    // temp_surface_and_moments.getMoments().volume().volume(),
-    //           amr_centroid[1], 1e-13);
     EXPECT_NEAR(centroid[1], exact_My, 1e-13);
     EXPECT_NEAR(centroid[2], exact_Mz, 1e-13);
     auto temp_param_surface = temp_surface_and_moments.getSurface();
@@ -253,10 +250,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
     auto our_centroid =
         Pt(our_moments.centroid()[0], our_moments.centroid()[1] / M1Y_MAX,
            our_moments.centroid()[2] / M1Z_MAX);
-    // std::cout << std::setprecision(20)
-    //           << "Surface EXACT  = " << exact_surface_area << std::endl;
-    // std::cout << std::setprecision(20)
-    //           << "Surface IRL    = " << our_surface_area << std::endl;
     std::cout << std::setprecision(20)
               << "Vfrac unclipped EX  = " << exact_volume << std::endl;
     std::cout << std::setprecision(20)
@@ -266,10 +259,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
               << "Centroid unclipped EX  = " << exact_centroid << std::endl;
     std::cout << std::setprecision(20)
               << "Centroid unclipped IRL = " << our_centroid << std::endl;
-    // std::cout << "Diff Surface EX/IRL = "
-    //           << std::fabs(our_surface_area - exact_surface_area) /
-    //                  std::pow(poly_vol, 2.0 / 3.0)
-    //           << std::endl;
     std::cout << "Diff Vfrac EX/IRL   = "
               << std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume)
               << std::endl;
@@ -280,8 +269,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
               << std::endl;
 
     myfile.open("fig_cylinder.csv", std::ios::app);
-    // myfile << "k,m0p,m0p_exact,m0p_error" << std::endl; //
-    // ,m1yp,m1yp_exact,m1yp_error
     myfile << std::scientific << std::setprecision(20)
            << (3.0 * static_cast<double>(i) / static_cast<double>(Ntests - 1))
            << "," << our_moments.volume() / VOLUME_MAX << "," << exact_volume
@@ -290,8 +277,6 @@ TEST(CylinderIntersection, SISCPaperFig2) {
            << std::fabs(our_centroid[1] - exact_m1y) << "," << our_centroid[2]
            << "," << exact_m1z << "," << std::fabs(our_centroid[2] - exact_m1z)
            << std::endl;  // " "
-    //  << our_surface_area << " " << exact_surface_area << " "
-    //  << std::fabs(our_surface_area - exact_surface_area) << "\n";
     myfile.close();
 
     max_volume_error =
@@ -299,25 +284,12 @@ TEST(CylinderIntersection, SISCPaperFig2) {
                 std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume)
             ? max_volume_error
             : std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume);
-    // max_surface_error =
-    //     max_surface_error > std::fabs(our_surface_area - exact_surface_area)
-    //     /
-    //                             std::pow(poly_vol, 2.0 / 3.0)
-    //         ? max_surface_error
-    //         : std::fabs(our_surface_area - exact_surface_area) /
-    //               std::pow(poly_vol, 2.0 / 3.0);
     rms_volume_error +=
         std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume) *
         std::fabs(our_moments.volume() / VOLUME_MAX - exact_volume);
-    // rms_surface_error += std::fabs(our_surface_area - exact_surface_area) *
-    //                      std::fabs(our_surface_area - exact_surface_area) /
-    //                      std::pow(poly_vol, 4.0 / 3.0);
   }
   rms_volume_error = sqrt(rms_volume_error / static_cast<double>(Ntests));
-  // rms_surface_error = sqrt(rms_surface_error / static_cast<double>(Ntests));
 
-  // std::cout << "Max surface error = " << max_surface_error << std::endl;
-  // std::cout << "RMS surface error = " << rms_surface_error << std::endl;
   std::cout << "Max volume error  = " << max_volume_error << std::endl;
   std::cout << "RMS volume error  = " << rms_volume_error << std::endl;
   std::cout << "-------------------------------------------------------------"
@@ -333,16 +305,11 @@ TEST(CylinderIntersection, SISCPaperFig2_M2) {
   ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
   Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
 
-  // const double VOLUME_MAX = sqrt(3.0) / 4.0 + M_PI / 6.0;
-  // const double M1Z_MAX = 1.0 / 3.0;
-  // const double M1Y_MAX = 11.0 / 24.0;
-
   //////////////////////////////// YOU CAN CHANGE THESE PARAMETERS
   int Ntests = 3001;  // Number of tests
   ////////////////////////////////
 
-  double max_volume_error = 0.0, rms_volume_error = 0.0;
-  // double max_surface_error = 0.0, rms_surface_error = 0.0;
+  double max_total_error = 0.0;
 
   std::string file_name = "fig_cylinderM2.csv";
 
@@ -389,14 +356,12 @@ TEST(CylinderIntersection, SISCPaperFig2_M2) {
       errors[j] = exact_moment[j] - our_moments[j];
       max_error = maximum(max_error, errors[j]);
     }
-    std::cout << "max error = " << max_error << std::endl;
+    std::cout << "error = " << max_error << std::endl;
     std::cout << "-------------------------------------------------------------"
                  "---------------------------------------------------------"
               << std::endl;
 
     myfile.open(file_name, std::ios::app);
-    // myfile << "k,m0p,m0p_exact,m0p_error" << std::endl; //
-    // ,m1yp,m1yp_exact,m1yp_error
     myfile << std::scientific << std::setprecision(20)
            << (3.0 * static_cast<double>(i) / static_cast<double>(Ntests - 1))
            << ",";
@@ -413,33 +378,16 @@ TEST(CylinderIntersection, SISCPaperFig2_M2) {
     }
     myfile.close();
 
-    max_volume_error = max_volume_error > std::fabs(errors[0])
-                           ? max_volume_error
-                           : std::fabs(errors[0]);
-    // max_surface_error =
-    //     max_surface_error > std::fabs(our_surface_area - exact_surface_area)
-    //     /
-    //                             std::pow(poly_vol, 2.0 / 3.0)
-    //         ? max_surface_error
-    //         : std::fabs(our_surface_area - exact_surface_area) /
-    //               std::pow(poly_vol, 2.0 / 3.0);
-    rms_volume_error += std::fabs(errors[0]) * std::fabs(errors[0]);
-    // rms_surface_error += std::fabs(our_surface_area - exact_surface_area) *
-    //                      std::fabs(our_surface_area - exact_surface_area) /
-    //                      std::pow(poly_vol, 4.0 / 3.0);
+    max_total_error = max_total_error > max_error ? max_total_error : max_error;
   }
-  rms_volume_error = sqrt(rms_volume_error / static_cast<double>(Ntests));
-  // rms_surface_error = sqrt(rms_surface_error / static_cast<double>(Ntests));
-
-  // std::cout << "Max surface error = " << max_surface_error << std::endl;
-  // std::cout << "RMS surface error = " << rms_surface_error << std::endl;
-  std::cout << "Max volume error  = " << max_volume_error << std::endl;
-  std::cout << "RMS volume error  = " << rms_volume_error << std::endl;
+  std::cout << "Max moment error  = " << max_total_error << std::endl;
   std::cout << "-------------------------------------------------------------"
                "---------------------------------------------------------"
             << std::endl;
 
-  EXPECT_NEAR(max_volume_error, 0.0, 1.0e-12);
+  EXPECT_NEAR(max_total_error, 0.0,
+              1.0e-8);  // This is less strict because second moments use
+                        // numerical integration
 }
 
 TEST(CylinderIntersection, Debug1) {
@@ -740,65 +688,6 @@ TEST(HyperCylinderIntersection, SISCPaperFig1) {
     auto temp_tri_surface = temp_param_surface.triangulate(0.1);
     temp_tri_surface.write(surface_filenames[i]);
   }
-}
-
-TEST(HyperCylinderIntersection, Debug) {
-  using VolumeAndSuface =
-      AddSurfaceOutput<Volume, CylinderParametrizedSurfaceOutput>;
-
-  // Defining elliptic paraboloic
-  AlignedCylinder aligned_cylinder({-1.0, 0.0});
-  Pt datum(0, 0, 0);
-  ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
-  Cylinder cylinder(datum, frame, aligned_cylinder.b(), aligned_cylinder.r());
-
-  // Constructing cells for each subfigure
-  std::array<Pt, 8> vertex_list{{Pt(0.0, 0.0, 0.0), Pt(0.0, 2.0, 0.0),
-                                 Pt(0.0, 0.0, 2.0), Pt(0.0, 2.0, 2.0),
-                                 Pt(-2.0, 0.0, 0.0), Pt(-2.0, 2.0, 0.0),
-                                 Pt(-2.0, 0.0, 2.0), Pt(-2.0, 2.0, 2.0)}};
-
-  std::array<std::array<UnsignedIndex_t, 4>, 6> face_mapping{{{0, 1, 3, 2},
-                                                              {2, 3, 7, 6},
-                                                              {3, 1, 5, 7},
-                                                              {1, 0, 4, 5},
-                                                              {0, 2, 6, 4},
-                                                              {4, 6, 7, 5}}};
-
-  PolyhedronConnectivity connectivity(face_mapping);
-  GeneralPolyhedron prism(vertex_list, &connectivity);
-  GeneralPolyhedron prism_local_frame(vertex_list, &connectivity);
-  std::string surface_filename = "surface_debug";
-
-  // Compute moments and return parametrized surface
-  auto temp_surface_and_moments =
-      getVolumeMoments<VolumeAndSuface>(prism, cylinder);
-  std::cout << "expected volume          : " << std::setprecision(16)
-            << M_PI / 4.0 + 0.1 << std::endl;
-  std::cout << "irl volume               : " << std::setprecision(16)
-            << temp_surface_and_moments.getMoments().volume()
-            << std::setprecision(3) << " -- error: "
-            << std::abs(temp_surface_and_moments.getMoments().volume() -
-                        (M_PI / 4.0 + 0.1))
-            << std::endl;
-  auto temp_param_surface = temp_surface_and_moments.getSurface();
-  auto temp_tri_surface = temp_param_surface.triangulate(0.005);
-  temp_tri_surface.write(surface_filename);
-
-  HalfEdgePolyhedronQuadratic<Pt> half_edge;
-  prism_local_frame.setHalfEdgeVersion(&half_edge);
-  auto seg_half_edge = half_edge.generateSegmentedPolyhedron();
-
-  // Calculate volume of unclipped dodecahedron using AMR
-  const int nlevels = 8;
-  auto amr_volume = intersectPolyhedronWithCylinderAMR<Volume>(
-      &seg_half_edge, &half_edge, aligned_cylinder, nlevels, "test_cylinder");
-
-  std::cout << "amr volume (" << nlevels
-            << " levels)   : " << std::setprecision(16) << amr_volume
-            << std::setprecision(3)
-            << " -- error: " << std::abs(amr_volume - (M_PI / 4.0 + 0.1))
-            << std::endl;
 }
 
 TEST(HyperCylinderIntersection, Debug2) {
