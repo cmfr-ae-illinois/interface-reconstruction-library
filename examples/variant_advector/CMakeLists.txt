@@ -7,6 +7,7 @@ IRLAddExample_cpp(
   "basic_mesh.h"
   "data.h"
   "translation_3d.h"
+  "deformation_3d.h"
   "reconstruction_types.h"
   "solver.h"
   "vof_advection.h"
@@ -18,6 +19,7 @@ IRLAddExample_cpp(
   "solver.cpp"
   "reconstruction_types.cpp"
   "translation_3d.cpp"
+  "deformation_3d.cpp"
   "vtk.cpp"
   OUTPUT_DIR
   "${IRL_EXAMPLES_OUTPUT_DIR}/variant_advector"

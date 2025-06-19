@@ -97,8 +97,7 @@ int runSimulation(const std::string& a_case_name,
 
   // Set mesh
   BasicMesh cc_mesh = SimulationType::setMesh(a_nx);
-  const double timestep = 0.025;  // TODO
-                                  // SimulationType::getTimeStep(a_max_cfl);
+  const double timestep = SimulationType::getTimeStep(cc_mesh, a_max_cfl);
 
   // Allocate local data
   Data<double> velU(&cc_mesh), velV(&cc_mesh), velW(&cc_mesh);
@@ -143,9 +142,8 @@ int runSimulation(const std::string& a_case_name,
   if (rank == 0) {
     vtk_io.writeVTKFile(simulation_time);
   }
-  getReconstruction(a_reconstruction_method, liq_moments, gas_moments,
-                    &link_localized_interface, 0.0, velU, velV, velW,
-                    &interface);
+  getReconstruction(a_reconstruction_method, liq_moments, gas_moments, 0.0,
+                    velU, velV, velW, &interface);
   resetMoments(link_localized_interface, &liq_moments, &gas_moments);
 
   writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io, true);
@@ -193,8 +191,7 @@ int runSimulation(const std::string& a_case_name,
     auto advect_end = std::chrono::system_clock::now();
     advect_VOF_time = advect_end - start;
     getReconstruction(a_reconstruction_method, liq_moments, gas_moments,
-                      &link_localized_interface, time_step_to_use, velU, velV,
-                      velW, &interface);
+                      time_step_to_use, velU, velV, velW, &interface);
     auto recon_end = std::chrono::system_clock::now();
     recon_time = recon_end - advect_end;
 

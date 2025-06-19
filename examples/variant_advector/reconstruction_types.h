@@ -18,40 +18,72 @@
 
 #include "examples/variant_advector/data.h"
 
-void getReconstruction(
-    const std::string& a_reconstruction_method,
-    const Data<IRL::VolumeMoments>& a_liq_moments,
-    const Data<IRL::VolumeMoments>& a_gas_moments,
-    Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface,
-    const double a_dt, const Data<double>& a_U, const Data<double>& a_V,
-    const Data<double>& a_W, Data<IRL::SeparatorVariant>* a_interface);
+void getReconstruction(const std::string& a_reconstruction_method,
+                       const Data<IRL::VolumeMoments>& a_liq_moments,
+                       const Data<IRL::VolumeMoments>& a_gas_moments,
+                       const double a_dt, const Data<double>& a_U,
+                       const Data<double>& a_V, const Data<double>& a_W,
+                       Data<IRL::SeparatorVariant>* a_interface);
 
-struct PLIC {
-  static void getReconstruction(
-      const Data<IRL::VolumeMoments>& a_liq_moments,
-      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::SeparatorVariant>* a_interface,
-      Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface);
+struct ELVIRA {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface);
+};
+
+struct LVIRA {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+struct PU {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
 };
 
 struct Jibben {
-  static void getReconstruction(
-      const Data<IRL::VolumeMoments>& a_liq_moments,
-      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::SeparatorVariant>* a_interface,
-      Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface,
-      const bool a_plic_already_built = false);
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false,
+                                Data<IRL::Pt>* a_centroids = nullptr,
+                                Data<double>* a_areas = nullptr,
+                                Data<double>* a_errors = nullptr);
 };
 
 struct MixedPLICJibben {
-  static void getReconstruction(
-      const Data<IRL::VolumeMoments>& a_liq_moments,
-      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
-      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-      Data<IRL::SeparatorVariant>* a_interface,
-      Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface);
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface);
+};
+
+struct SlicesParabola {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
 };
 
 void recenterMoments(IRL::VolumeMoments* moments, const IRL::Pt& center);

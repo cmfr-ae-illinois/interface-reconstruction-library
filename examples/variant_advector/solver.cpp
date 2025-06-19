@@ -171,7 +171,7 @@ void writeInterfaceToFile(
             auto volume_and_surface =
                 IRL::getVolumeMoments<VolumeAndParaboloid>(cell, *ptr);
             auto surface = volume_and_surface.getSurface();
-            double length_scale = std::min(mesh.dx(), 1.0e-2);
+            double length_scale = std::min(0.25 * mesh.dx(), 1.0e-2);
             surface.setLengthScale(length_scale);
             if (surface.getSurfaceArea() >
                 1.0e-6 * length_scale * length_scale) {
@@ -182,7 +182,7 @@ void writeInterfaceToFile(
             auto volume_and_surface =
                 IRL::getVolumeMoments<VolumeAndCylinder>(cell, *ptr);
             auto surface = volume_and_surface.getSurface();
-            double length_scale = std::min(mesh.dx(), 1.0e-2);
+            double length_scale = std::min(0.25 * mesh.dx(), 1.0e-2);
             surface.setLengthScale(length_scale);
             if (surface.getSurfaceArea() >
                 1.0e-6 * length_scale * length_scale) {
