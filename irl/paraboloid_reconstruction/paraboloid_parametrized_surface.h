@@ -47,7 +47,8 @@ template <class C>
 struct has_paraboloid_surface<const C> : has_paraboloid_surface<C> {};
 
 template <class MomentType>
-struct has_paraboloid_surface<AddSurfaceOutput<MomentType, ParaboloidParametrizedSurfaceOutput>>
+struct has_paraboloid_surface<
+    AddSurfaceOutput<MomentType, ParaboloidParametrizedSurfaceOutput>>
     : std::true_type {};
 
 /// \brief Parametrized surface defined by coeffs A,B of paraboloid + list of
@@ -83,6 +84,9 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   inline double getGaussianCurvatureAligned(const Pt a_pt);
   inline double getGaussianCurvatureNonAligned(const Pt a_pt);
 
+  MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
+  MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);
+
   void triangulate_fromPtr(
       const double a_length_scale = -1.0, const UnsignedIndex_t a_nsplit = 5,
       TriangulatedSurfaceOutput* a_surface = nullptr) const;
@@ -91,9 +95,9 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const double a_length_scale = -1.0,
       const UnsignedIndex_t a_nsplit = 5) const;
 
-//  ~ParaboloidParametrizedSurfaceOutput(void);
-
  private:
+  MixedPolygonBezierSurface getBezierTriangleApprox(
+      const UnsignedIndex_t a_order);
   Paraboloid paraboloid_m;
 };
 

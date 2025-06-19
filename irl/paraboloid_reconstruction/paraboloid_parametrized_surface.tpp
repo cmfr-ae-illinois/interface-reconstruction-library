@@ -14,10 +14,67 @@
 #include <iomanip>
 
 #include "external/NumericalIntegration/NumericalIntegration.h"
+#include "irl/generic_cutting/generic_cutting.h"
+#include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection.h"
+#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection.h"
 #include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 #include "irl/quadratic_reconstruction/parametrized_surface.h"
 
 namespace IRL {
+
+inline Normal computeNormalizedTangentAtPoint(
+    const AlignedParaboloid& a_paraboloid, const Normal& a_plane_normal,
+    const Pt& a_pt) {
+  Normal surface_normal = getParaboloidSurfaceNormal(a_paraboloid, a_pt);
+  surface_normal.approximatelyNormalize();
+  Normal tangent_at_pt = crossProduct(a_plane_normal, surface_normal);
+  if (squaredMagnitude(tangent_at_pt) < DBL_EPSILON * DBL_EPSILON) {
+    return Normal(0.0, 0.0, 0.0);
+  }
+  const double normal_correction = tangent_at_pt * a_plane_normal;
+  tangent_at_pt = tangent_at_pt - normal_correction * a_plane_normal;
+  tangent_at_pt.normalize();
+  return tangent_at_pt;
+}
+
+inline RationalBezierArc computeVerticalRationalBezierArc(
+    const AlignedParaboloid& a_paraboloid, const Pt& pt_0, const Pt& pt_1) {
+  const double DISTANCE_EPSILON = 1.0e2 * DBL_EPSILON;
+  const double ANGLE_EPSILON = 1.0e6 * DBL_EPSILON;
+
+  // Calculate edge vector and its normalized version
+  const Normal edge_vector = pt_1 - pt_0;
+  Normal edge_vector_normalized = edge_vector;
+  edge_vector_normalized.normalize();
+
+  const Normal plane_normal =
+      crossProduct(edge_vector_normalized, Normal(0.0, 0.0, 1.0));
+  Normal tangent_0 =
+      computeNormalizedTangentAtPoint(a_paraboloid, plane_normal, pt_0);
+  Normal tangent_1 =
+      computeNormalizedTangentAtPoint(a_paraboloid, plane_normal, pt_1);
+
+  // Compute dot product between normalized edge and end-point tangents
+  double tgt0_dot_edge = tangent_0 * edge_vector_normalized;
+  double tgt1_dot_edge = tangent_1 * edge_vector_normalized;
+  if (tgt0_dot_edge < 0.0) {
+    tgt0_dot_edge = -tgt0_dot_edge;
+    tangent_0 = -tangent_0;
+  }
+  if (tgt1_dot_edge > 0.0) {
+    tgt1_dot_edge = -tgt1_dot_edge;
+    tangent_1 = -tangent_1;
+  }
+
+  if (magnitude(tangent_0) < 0.9 || magnitude(tangent_0) < 0.9 ||
+      (magnitude(edge_vector) < DISTANCE_EPSILON &&
+       fabs(1.0 - tgt0_dot_edge) < ANGLE_EPSILON &&
+       fabs(1.0 + tgt1_dot_edge) < ANGLE_EPSILON)) {
+    return RationalBezierArc(pt_0, 0.5 * (pt_0 + pt_1), pt_1, 0.0);
+  }
+  return RationalBezierArc(pt_0, tangent_0, pt_1, tangent_1, plane_normal,
+                           a_paraboloid);
+}
 
 template <class VertexList>
 void projectOnSurface(VertexList& vertices, const AlignedParaboloid paraboloid,
@@ -838,6 +895,223 @@ ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
     aligned_pt[n] = ref_frame[n] * original_pt;
   }
   return this->getGaussianCurvatureAligned(aligned_pt);
+}
+
+inline MixedPolygonBezierSurface
+ParaboloidParametrizedSurfaceOutput::getQuadraticBezierTriangleApprox(void) {
+  return std::move(this->getBezierTriangleApprox(2));
+}
+
+inline MixedPolygonBezierSurface
+ParaboloidParametrizedSurfaceOutput::getCubicBezierTriangleApprox(void) {
+  return std::move(this->getBezierTriangleApprox(3));
+}
+
+inline MixedPolygonBezierSurface
+ParaboloidParametrizedSurfaceOutput::getBezierTriangleApprox(
+    const UnsignedIndex_t a_order) {
+  // Initialize bezier surface
+  MixedPolygonBezierSurface bezier_surface;
+
+  // First, let's generate list of closed curves
+  const UnsignedIndex_t nArcs = arc_list_m.size();
+  std::vector<std::vector<UnsignedIndex_t>> list_of_closed_curves(0);
+  std::vector<bool> visited(nArcs, false);
+  bool valid_curves = true;
+  for (UnsignedIndex_t t = 0; t < nArcs; ++t) {
+    if (visited[t]) {
+      continue;
+    }
+    visited[t] = true;
+    // Start with next available arc
+    list_of_closed_curves.push_back(std::vector<UnsignedIndex_t>({t}));
+    const std::uintptr_t start_id = arc_list_m[t].start_point_id();
+    std::uintptr_t end_id = arc_list_m[t].end_point_id();
+    UnsignedIndex_t counter = 0;
+    while (end_id != start_id) {
+      for (UnsignedIndex_t e = t + 1; e < nArcs; ++e) {
+        if (arc_list_m[e].start_point_id() == end_id) {
+          visited[e] = true;
+          list_of_closed_curves.back().push_back(e);
+          end_id = arc_list_m[e].end_point_id();
+          break;
+        }
+      }
+      if (++counter > nArcs) {
+        valid_curves = false;
+        break;
+      }
+    }
+  }
+
+  // Only if we have found closed curves, then produce bezier triangle
+  // approximation
+  if (valid_curves) {
+    const UnsignedIndex_t nCurves = list_of_closed_curves.size();
+    std::vector<std::vector<std::array<double, 2>>> polygon(nCurves);
+
+    UnsignedIndex_t npoints = 0;
+    for (UnsignedIndex_t i = 0; i < nCurves; ++i) {
+      const int nLocalArcs = list_of_closed_curves[i].size();
+      for (UnsignedIndex_t j = 0; j < nLocalArcs; ++j) {
+        const UnsignedIndex_t arc_id = list_of_closed_curves[i][j];
+        const Pt& pt = arc_list_m[arc_id].start_point();
+        const UnsignedIndex_t next_id = npoints + (j + 1) % nLocalArcs;
+        polygon[i].push_back({pt[0], pt[1]});
+      }
+      npoints += nLocalArcs;
+    }
+
+    std::vector<Pt> points(npoints);
+    std::vector<double> weights(npoints);
+    std::vector<std::tuple<UnsignedIndex_t, UnsignedIndex_t, UnsignedIndex_t>>
+        info(npoints);
+    UnsignedIndex_t count = 0;
+    npoints = 0;
+    for (UnsignedIndex_t i = 0; i < nCurves; ++i) {
+      const int nLocalArcs = list_of_closed_curves[i].size();
+      for (UnsignedIndex_t j = 0; j < nLocalArcs; ++j) {
+        const UnsignedIndex_t arc_id = list_of_closed_curves[i][j];
+        points[count] = arc_list_m[arc_id].start_point();
+        weights[count] = 1.0;
+        info[count++] = std::make_tuple(npoints + (j + 1) % nLocalArcs, i, j);
+      }
+      npoints += nLocalArcs;
+    }
+
+    // Compute earcut triangulation of region constrained by closed curves
+    std::vector<UnsignedIndex_t> indices =
+        mapbox::earcut<UnsignedIndex_t>(polygon);
+
+    // Convert flat triangles into quadratic rational Bezier triangle
+    const UnsignedIndex_t ntriangles = indices.size() / 3;
+    if (a_order == 2) {
+      std::vector<std::array<UnsignedIndex_t, 6>> bezier_triangles(ntriangles);
+      std::vector<std::array<UnsignedIndex_t, 3>> boundaries(npoints);
+      const auto& aligned_p = paraboloid_m.getAlignedParaboloid();
+      for (UnsignedIndex_t i = 0; i < indices.size() / 3; ++i) {
+        for (int j = 0; j < 3; j++) {
+          bezier_triangles[i][j] = indices[3 * i + j];
+        }
+        for (int j = 0; j < 3; j++) {
+          const int v0 = indices[3 * i + j];
+          const int v1 = indices[3 * i + (j + 1) % 3];
+          if (v1 == std::get<0>(info[v0])) {
+            const int i_id = std::get<1>(info[v0]);
+            const int j_id = std::get<2>(info[v0]);
+            const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
+            bezier_triangles[i][3 + j] = points.size();
+            boundaries[v0][0] = v0;
+            boundaries[v0][1] = v1;
+            boundaries[v0][2] = points.size();
+            points.push_back(arc_list_m[arc_id].control_point());
+            weights.push_back(arc_list_m[arc_id].weight());
+          } else {
+            const Pt& pt_0 = points[v0];
+            const Pt& pt_1 = points[v1];
+            const auto arc =
+                computeVerticalRationalBezierArc(aligned_p, pt_0, pt_1);
+            bezier_triangles[i][3 + j] = points.size();
+            points.push_back(arc.control_point());
+            weights.push_back(arc.weight());
+          }
+        }
+      }
+
+      const auto& datum = paraboloid_m.getDatum();
+      const auto& frame = paraboloid_m.getReferenceFrame();
+      for (int i = 0; i < points.size(); i++) {
+        const Pt base_pt = points[i];
+        points[i] = Pt(0.0, 0.0, 0.0);
+        for (int d = 0; d < 3; ++d) {
+          for (int n = 0; n < 3; ++n) {
+            points[i][n] += frame[d][n] * base_pt[d];
+          }
+        }
+        points[i] += datum;
+      }
+
+      bezier_surface.addPoints(points, weights);
+      bezier_surface.addBezierTriangles(bezier_triangles);
+      bezier_surface.addBoundaries(boundaries);
+    } else if (a_order == 3) {
+      std::vector<std::array<UnsignedIndex_t, 10>> bezier_triangles(ntriangles);
+      const auto& aligned_p = paraboloid_m.getAlignedParaboloid();
+      for (UnsignedIndex_t i = 0; i < indices.size() / 3; ++i) {
+        auto V = Pt(0.0, 0.0, 0.0);
+        auto E = Pt(0.0, 0.0, 0.0);
+        for (int j = 0; j < 3; j++) {
+          bezier_triangles[i][j] = indices[3 * i + j];
+          const Pt& pt = points[indices[3 * i + j]];
+          V += pt;
+        }
+        V *= 1.0 / 3.0;
+        for (int j = 0; j < 3; j++) {
+          const int v0 = indices[3 * i + j];
+          const int v1 = indices[3 * i + (j + 1) % 3];
+          const Pt& pt_0 = points[v0];
+          const Pt& pt_2 = points[v1];
+          if (v1 == std::get<0>(info[v0])) {
+            const int i_id = std::get<1>(info[v0]);
+            const int j_id = std::get<2>(info[v0]);
+            const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
+            const Pt& pt_1 = arc_list_m[arc_id].control_point();
+            const double w = arc_list_m[arc_id].weight();
+            const double w1 = (1.0 + 2.0 * w) / 3.0;
+            const double w1_inv = 1.0 / (3.0 * w1);
+            const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
+            const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
+            bezier_triangles[i][3 + 2 * j] = points.size();
+            points.push_back(pt_1_n);
+            weights.push_back(w1);
+            bezier_triangles[i][3 + 2 * j + 1] = points.size();
+            points.push_back(pt_2_n);
+            weights.push_back(w1);
+            E += pt_1_n + pt_2_n;
+          } else {
+            const auto arc =
+                computeVerticalRationalBezierArc(aligned_p, pt_0, pt_2);
+            const Pt& pt_1 = arc.control_point();
+            const double w = arc.weight();
+            const double w1 = (1.0 + 2.0 * w) / 3.0;
+            const double w1_inv = 1.0 / (3.0 * w1);
+            const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
+            const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
+            bezier_triangles[i][3 + 2 * j] = points.size();
+            points.push_back(pt_1_n);
+            weights.push_back(w1);
+            bezier_triangles[i][3 + 2 * j + 1] = points.size();
+            points.push_back(pt_2_n);
+            weights.push_back(w1);
+            E += pt_1_n + pt_2_n;
+          }
+        }
+        E *= 1.0 / 6.0;
+        Pt pt_ctrl = E + 0.5 * (E - V);
+        bezier_triangles[i][9] = points.size();
+        points.push_back(pt_ctrl);
+        weights.push_back(1.0);
+      }
+
+      const auto& datum = paraboloid_m.getDatum();
+      const auto& frame = paraboloid_m.getReferenceFrame();
+      for (int i = 0; i < points.size(); i++) {
+        const Pt base_pt = points[i];
+        points[i] = Pt(0.0, 0.0, 0.0);
+        for (int d = 0; d < 3; ++d) {
+          for (int n = 0; n < 3; ++n) {
+            points[i][n] += frame[d][n] * base_pt[d];
+          }
+        }
+        points[i] += datum;
+      }
+
+      bezier_surface.addPoints(points, weights);
+      bezier_surface.addBezierTriangles(bezier_triangles);
+    }
+  }
+
+  return std::move(bezier_surface);
 }
 
 inline TriangulatedSurfaceOutput
