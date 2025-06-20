@@ -19,7 +19,18 @@
 #include "irl/planar_reconstruction/planar_separator.h"
 
 namespace IRL {
-using SeparatorVariant = std::variant<PlanarSeparator, Paraboloid, Cylinder>;
+
+class SeparatorVariant
+    : public std::variant<PlanarSeparator, Paraboloid, Cylinder> {
+ public:
+  using base = std::variant<PlanarSeparator, Paraboloid, Cylinder>;
+  using base::base;
+  using base::operator=;
+
+  void serialize(ByteBuffer* a_buffer) const;
+  void unpackSerialized(ByteBuffer* a_buffer);
+};
+
 using LocalizedSeparatorVariant =
     JoinedReconstructions<PlanarLocalizer, SeparatorVariant>;
 using LocalizedSeparatorVariantLink =
@@ -29,5 +40,7 @@ struct is_reconstruction_link<LocalizedSeparatorVariantLink> : std::true_type {
 };
 
 }  // namespace IRL
+
+#include "irl/variant_reconstruction/separator_variant.tpp"
 
 #endif  // IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_

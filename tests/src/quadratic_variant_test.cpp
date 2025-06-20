@@ -150,4 +150,83 @@ TEST(QuadraticVariant, Localizer) {
   EXPECT_NEAR(volumefrom2, (0.5 - 1.0 / 24.0) / 2.0 + 1.5 * M_PI / 16.0,
               1.0e-14);
 }
+
+TEST(QuadraticVariant, Serializer1) {
+  SeparatorVariant interface0;
+
+  // Pack interface
+  ByteBuffer interface_buffer;
+  interface_buffer.resize(sizeof(SeparatorVariant));
+  interface_buffer.resetBufferPointer();
+  serializeAndPack(interface0, &interface_buffer);
+
+  // Unpack interface
+  interface_buffer.resetBufferPointer();
+  SeparatorVariant interface1;
+  unpackAndStore(&interface1, &interface_buffer);
+
+  EXPECT_TRUE(std::holds_alternative<PlanarSeparator>(
+      interface1));  // Default constuctor is a planar separator
+  EXPECT_FALSE(std::holds_alternative<Paraboloid>(interface1));
+  EXPECT_FALSE(std::holds_alternative<Cylinder>(interface1));
+
+  interface0 = PlanarSeparator();
+  interface_buffer.resetBufferPointer();
+  serializeAndPack(interface0, &interface_buffer);
+  interface_buffer.resetBufferPointer();
+  unpackAndStore(&interface1, &interface_buffer);
+
+  EXPECT_TRUE(std::holds_alternative<PlanarSeparator>(interface1));
+  EXPECT_FALSE(std::holds_alternative<Paraboloid>(interface1));
+  EXPECT_FALSE(std::holds_alternative<Cylinder>(interface1));
+
+  interface0 = Paraboloid();
+  interface_buffer.resetBufferPointer();
+  serializeAndPack(interface0, &interface_buffer);
+  interface_buffer.resetBufferPointer();
+  unpackAndStore(&interface1, &interface_buffer);
+
+  EXPECT_FALSE(std::holds_alternative<PlanarSeparator>(interface1));
+  EXPECT_TRUE(std::holds_alternative<Paraboloid>(interface1));
+  EXPECT_FALSE(std::holds_alternative<Cylinder>(interface1));
+
+  interface0 = Cylinder();
+  interface_buffer.resetBufferPointer();
+  serializeAndPack(interface0, &interface_buffer);
+  interface_buffer.resetBufferPointer();
+  unpackAndStore(&interface1, &interface_buffer);
+
+  EXPECT_FALSE(std::holds_alternative<PlanarSeparator>(interface1));
+  EXPECT_FALSE(std::holds_alternative<Paraboloid>(interface1));
+  EXPECT_TRUE(std::holds_alternative<Cylinder>(interface1));
+}
+
+TEST(QuadraticVariant, Serializer2) {
+  const auto datum = Pt(0, 0, 0);
+  const auto frame =
+      ReferenceFrame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+  const auto cell =
+      RectangularCuboid::fromBoundingPts(Pt(-1, -1, -1), Pt(1, 1, 1));
+
+  // Create paraboloid and compute volume
+  const SeparatorVariant interface0 = Paraboloid(datum, frame, 0.5, 0.5);
+  const auto volume0 = getVolumeMoments<Volume>(cell, interface0);
+
+  // Pack interface
+  ByteBuffer interface_buffer;
+  interface_buffer.resize(sizeof(SeparatorVariant));
+  interface_buffer.resetBufferPointer();
+  serializeAndPack(interface0, &interface_buffer);
+
+  // Unpack interface
+  interface_buffer.resetBufferPointer();
+  SeparatorVariant interface1;
+  unpackAndStore(&interface1, &interface_buffer);
+
+  // Compute volume with unpacked paraboloid
+  const auto volume1 = getVolumeMoments<Volume>(cell, interface1);
+
+  EXPECT_NEAR(volume1, volume0, 1.0e-14);
+}
+
 }  // namespace
