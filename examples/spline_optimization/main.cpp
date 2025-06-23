@@ -8,7 +8,7 @@
 #include "examples/spline_optimization/basic_mesh.h"
 #include "examples/spline_optimization/irl2d.h"
 #include "examples/spline_optimization/data.h"
-
+#include "irl/splines/MarchingSquares.h"
 
 
 // This is data for our constraints
@@ -165,7 +165,7 @@ double myVOFconstraint(const std::vector<double> &x, std::vector<double> &grad, 
 
     // std::cout << "End VOF Constraint \n";
 
-    return obj; // Calculated VOF - Exact VOF
+    return std::abs(obj); // Calculated VOF - Exact VOF
 }
 
 double myEmptyconstraint(const std::vector<double> &x, std::vector<double> &grad, void *data) { // VOF Constraint
@@ -275,7 +275,7 @@ int main() {
 
 // Ignore this, WIP
     // Field Initialization
-    const int a_nx = 10;
+    const int a_nx = 25;
     std::vector<std::vector<double>> VOFarray(a_nx, std::vector<double>(a_nx,-1));
     const int GC = 3;
     // Set up Mesh
@@ -484,17 +484,42 @@ int main() {
     //     std::cout << interpPoints[i][0] << "," << interpPoints[i][1] << "\n";
     // }
     // Calculate Tangents
-    std::vector<std::vector<double>> tangs = {};
-    for(int i = 0; i < interpPoints.size()-1; i++) {
-        std::vector<double> Q1 = interpPoints[i];
-        std::vector<double> Q2 = interpPoints[i+1];
-        double norm = std::sqrt((Q2[0]-Q1[0])*(Q2[0]-Q1[0]) + (Q2[1]-Q1[1])*(Q2[1]-Q1[1]));
-        tangs.push_back({(Q2[0]-Q1[0])/norm,(Q2[1]-Q1[1])/norm});
+
+    double tresh = 0.5;
+    
+    MarchingSquares<double> testMS(&mesh,tresh,2);
+    std::vector<std::vector<double>> ret = testMS.vertexPoints(VOFarray); // Note this does not have the repeating start point
+    interpPoints = ret;
+
+    std::cout << "GOT MARCHING CUBES RESULT\n";
+    std::vector<std::vector<double>> tangents = {};
+    for(int i = 0; i < interpPoints.size(); i++) {
+        int iNext = (i+1);
+        int iPrev = (i-1);
+        while(iNext >= interpPoints.size()) {
+            iNext -= interpPoints.size();
+        }
+        while(iPrev < 0) {
+            iPrev += interpPoints.size();
+        }
+        // Tangent points from previous point to next point 
+        std::vector<double> Pprev = interpPoints[iPrev];
+        std::vector<double> Pcurr = interpPoints[i];
+        std::vector<double> Pnext = interpPoints[iNext];
+
+        std::vector<double> tCurr = {Pnext[0]-Pprev[0],Pnext[1]-Pprev[1]};
+        //Normalize
+        double tCurrMag = std::sqrt(tCurr[0]*tCurr[0]+tCurr[1]*tCurr[1]);
+        tCurr[0] = tCurr[0]/tCurrMag;
+        tCurr[1] = tCurr[1]/tCurrMag;
+        tangents.push_back(tCurr);
     }
-    // Initial Interpolation Result
-    tangs.push_back(tangs[0]);
-    Spline first = Spline<double>::LocalRQuadInterp(interpPoints,tangs);
-    first.saveToVTK("CellCenterInterp");
+
+    std::vector<std::vector<double>> ret2 = {ret[0]};
+    std::vector<std::vector<double>> tangents2 = {tangents[0]};
+    interpPoints = ret;
+    Spline first = Spline<double>::LocalRQuadInterp(interpPoints,tangents);
+    first.saveToVTK("MarchingCubesInitialGuess");
 
     // std::vector<std::vector<double>> Blob = {{1.5,-0.1},{1.0,1.2},{-1.5,-0.1},{1.0,-0.5},{1.5,-0.1}};
     // std::vector<std::vector<double>> BlobT = {{0.0,1.0},{-1.0,0.0},{0.0,-1},{1.0,0},{0.0,1.0}};
@@ -502,13 +527,13 @@ int main() {
 
     // tangs = BlobT;
     // Now we have an initial guess, we can go onto the optimization
-    std::vector<double> xInitial = Spline<double>::pack(interpPoints,tangs);
+    std::vector<double> xInitial = Spline<double>::pack(interpPoints,tangents);
     int variables = xInitial.size();
     std::cout << "\nVariables = " << variables <<"\n";
     std::cout << "Constraints = " << VOFconstraintSet.size() << "\n";
     // variables = 3*(interpPoints.size()-1);
     std::cout << "\nMake Optimizer\n";
-    nlopt::opt splineOptim(nlopt::LN_COBYLA,variables);
+    nlopt::opt splineOptim(nlopt::LD_MMA,variables);
     std::cout << "Made Optimizer\n";
     double initialArea = first.getArea();
     my_constraint_data InitialData = {initialArea};
@@ -518,17 +543,17 @@ int main() {
     const std::vector<double> xTemp = xInitial;
     splineOptim.get_initial_step(xInitial,stepSizes);
 
-    std::cout << "====== Default Step Sizes =======\n Step Sizes = [";
-    for(int i = 0; i < stepSizes.size(); i++) {
-        std::cout << stepSizes[i] << ",";
-    }
-    std::cout << "]\n";
+    // std::cout << "====== Default Step Sizes =======\n Step Sizes = [";
+    // for(int i = 0; i < stepSizes.size(); i++) {
+    //     std::cout << stepSizes[i] << ",";
+    // }
+    // std::cout << "]\n";
 
-    for(int i = 0; i < stepSizes.size(); i+=3) {
-        stepSizes[i] = mesh.dx()/4-(1e-6);
-        stepSizes[i+1] = mesh.dy()/4-(1e-6);
-        stepSizes[i+2] = M_PI/4;
-    }
+    // for(int i = 0; i < stepSizes.size(); i+=3) {
+    //     stepSizes[i] = mesh.dx()/4-(1e-6);
+    //     stepSizes[i+1] = mesh.dy()/4-(1e-6);
+    //     stepSizes[i+2] = M_PI/4;
+    // }
 
     // for(int i = 0; i < stepSizes.size(); i+=3) {
     //     stepSizes[i] = 0.5;
@@ -537,18 +562,18 @@ int main() {
     // }
     // std::cout << "stepSizes Size = " << stepSizes.size() << "\n";
     // splineOptim.add_equality_constraint(myconstraint,&InitialData,1e-12);
-    splineOptim.set_initial_step(stepSizes);
+    // splineOptim.set_initial_step(stepSizes);
     // Set xtol
     // opt.set_ftol_rel(1e-12);
-    splineOptim.set_ftol_abs(1e-6);
+    splineOptim.set_ftol_abs(1e-4);
     // opt.set_xtol_abs(1e-16);
-    splineOptim.set_xtol_rel(1e-6);
+    splineOptim.set_xtol_rel(1e-4);
     // opt.set_maxeval(100000);
-    splineOptim.set_maxtime(100);
+    splineOptim.set_maxtime(100); 
     // Constraint Data
     for(int i = 0; i < VOFconstraintSet.size();i++) {
         my_square_data tem = VOFconstraintSet[i];
-        splineOptim.add_equality_constraint(myVOFconstraint,&(VOFconstraintSet[i]),1e-6);
+        splineOptim.add_inequality_constraint(myVOFconstraint,&(VOFconstraintSet[i]),1e-3);
         // std::cout << "i = " << i+1 << "\n";
     }    
     // std::cout << "num Variables = " << variables << "\n";

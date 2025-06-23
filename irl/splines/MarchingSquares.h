@@ -59,6 +59,10 @@ class MarchingSquares {
         // Manson Interpolation Function
         static ScalarType MansonInterpolation(ScalarType VOF0,ScalarType VOF1); // Makes needed Assumptions
         
+
+        // Perpendicular Distance Calculator
+        static ScalarType PerpendicularDistance(std::vector<ScalarType> P1, std::vector<ScalarType> P2, std::vector<ScalarType> P);
+        
     public:
         // Methods
         // Constructors
@@ -66,6 +70,8 @@ class MarchingSquares {
         MarchingSquares(BasicMesh* m,ScalarType tre,int inTy);
 
         // Static Methods
+        // Decimation Algorithms
+        static std::vector<std::vector<ScalarType>> RDPDecimation(std::vector<std::vector<ScalarType>> polyline,double epsilon, bool closed);
         
         // Dynamic Methods
         
@@ -75,6 +81,8 @@ class MarchingSquares {
         // Function which Takes in result and returns the closed contour points
         // Currently assumes only one closed contour.
         std::vector<std::vector<ScalarType>>  vertexPoints(std::vector<std::vector<ScalarType>> VOF);
+
+        
         // Getters 
         BasicMesh getMesh(); // Done
         ScalarType getTresh();// Done

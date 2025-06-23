@@ -62,6 +62,17 @@ ScalarType MarchingSquares<ScalarType>::MansonInterpolation(ScalarType a1,Scalar
     }
     return mu;
 }
+template<class ScalarType>
+ScalarType MarchingSquares<ScalarType>::PerpendicularDistance(std::vector<ScalarType> P1, std::vector<ScalarType> P2, std::vector<ScalarType> P) { 
+    double dx = P2[0] - P1[0];
+    double dy = P2[1] - P1[1];
+
+    double denom = std::sqrt(dy*dy + dx*dx);
+    double numer = fabs(dy*P[0]-dx*P[1] + P2[0]*P1[1] - P2[1]*P1[0]);
+
+    return numer/denom;
+}
+
 
 // Dynamic Methods
 template<class ScalarType>
@@ -175,6 +186,110 @@ std::vector<std::vector<ScalarType>> MarchingSquares<ScalarType>::vertexPoints(s
     return ret;
 }
 
+// Decimation Algorithms
+template<class ScalarType>
+std::vector<std::vector<ScalarType>> MarchingSquares<ScalarType>::RDPDecimation(std::vector<std::vector<ScalarType>> polyline, double epsilon, bool closedChain) {
+    
+    // Callculate First, Last, Left, and Right Points
+    std::vector<ScalarType> first = polyline[0];
+    std::vector<ScalarType> last = polyline[polyline.size()-1];
+    std::vector<ScalarType> left = polyline[0];
+    std::vector<ScalarType> right = polyline[0];
+    int lIndex = 0;
+    int rIndex = 0;
+    for(int i = 1; i < polyline.size(); i++) {
+        if(polyline[i][0] < left[0]) { // To the Left
+            left = polyline[i];
+            lIndex = i;
+        } 
+
+        if(polyline[i][0] == left[0] && polyline[i][1] > left[1]) { // The same x, above
+            left = polyline[i];
+            lIndex = i;
+        } 
+
+        if(polyline[i][0] > right[0]) { // To the Right
+            right = polyline[i];
+            rIndex = i;
+        } 
+
+        if(polyline[i][0] == right[0] && polyline[i][1] < right[1]) { // The same x, below
+            right = polyline[i];
+            rIndex = i;
+        } 
+    }
+
+    // Create Initial Points
+    std::vector<std::vector<ScalarType>> open = {};
+    std::vector<std::vector<ScalarType>> closed = {};
+    std::vector<int> closedIndex = {};
+    std::vector<int> openIndex = {};
+    std::vector<int> used = {};
+    if(closedChain) {
+        open.push_back(right);
+        openIndex.push_back(rIndex);
+
+        closed.push_back(left);
+        closedIndex.push_back(lIndex);
+
+        used.push_back(lIndex);
+        used.push_back(rIndex);
+    } else {
+        open.push_back(last);
+        openIndex.push_back(polyline.size()-1);
+
+        closed.push_back(first);
+        closedIndex.push_back(0);
+
+        used.push_back(0);
+        used.push_back(polyline.size()-1);
+    }
+    std::vector<ScalarType> P1;
+    std::vector<ScalarType> P2;
+
+    double dtemp;
+    double dmax;
+    int index;
+    while(open.size() > 0) {
+        dmax = 0;
+        index = 0;
+        std::cout << "====== New Iter ======\n Open Size =";
+        std::cout << open.size() << "\n";
+        // Get Pair of Points for Line we are Considering
+        P1 = closed[closed.size()-1];
+        int P1Index = closedIndex[closedIndex.size()-1];
+        P2 = open[open.size()-1];
+        int P2Index = openIndex[openIndex.size()-1];
+        std::cout << "Considered Segment: "<< P1Index+1 << "," << P2Index+1 <<"\n";
+        // Calculate Maximum Distance and Find Index
+        for(int i = P1Index; i < P2Index; i++) {
+            if(std::find(used.begin(),used.end(),i) != used.end()) { // In Used
+                continue;
+            } else {
+                dtemp = PerpendicularDistance(P1,P2,polyline[i]);
+                if(dtemp > dmax) {
+                    dmax = dtemp;
+                    index = i;
+                }
+            }
+        }
+        // If maximum distance is greater then epsilon
+        if(dmax > epsilon) {
+            open.push_back(polyline[index]);
+            openIndex.push_back(index);
+            used.push_back(index);
+        } else {
+            std::cout << "Add One \n";
+            closed.push_back(open[open.size()-1]);
+            closedIndex.push_back(openIndex[openIndex.size()-1]);
+
+            open.erase(open.end());
+            openIndex.erase(openIndex.end());
+        }
+    }
+
+    return closed;
+}
 
 // Getters 
 template<class ScalarType>

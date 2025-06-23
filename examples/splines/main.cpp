@@ -3,6 +3,25 @@
 #include "irl/splines/Spline.h"
 #include <math.h>
 #include <nlopt.hpp>
+#include <random>
+
+double myvfunc(const std::vector<double> &x, std::vector<double> &grad, void *my_func_data)
+{
+    if (!grad.empty()) {
+        for(int i=0; i < x.size(); i++) {
+          grad[i] = 2*x[i];
+        }
+    }
+
+    double obj = 0;
+    for(int i=0; i<x.size(); i++) {
+      obj += x[i]*x[i];
+    }
+    std::cout << obj << "\n";
+    return obj;
+}
+
+
 
 int main() {
   
@@ -313,5 +332,29 @@ int main() {
   std::cout << "A2 - Exact= " << (A2-Exact) / Exact << std::endl;
 
   /////////////////////////////////////////// TEST BY FABIEN
+
+
+
+  // NLOPT TESTING
+  int N = 500000000;
+  nlopt::opt opt(nlopt::LD_MMA, N);
+  opt.set_min_objective(myvfunc, NULL);
+  opt.set_xtol_rel(1e-4);
+  opt.set_ftol_abs(1e-12);
+  std::vector<double> x(N);
+  for(int i = 0; i < N; i++) {
+    x[i] = 0.5 * pow(-1,i);
+  }
+double minf;
+std::cout <<"\n";
+try{
+    nlopt::result result = opt.optimize(x, minf);
+    std::cout << "found minimum at f(" << x[0] << "," << x[1] << ") = "
+        << std::setprecision(10) << minf << std::endl;
+    std::cout << "X Result: \n" << x.size();
+}
+catch(std::exception &e) {
+    std::cout << "nlopt failed: " << e.what() << std::endl;
+}
   return 0;
 }

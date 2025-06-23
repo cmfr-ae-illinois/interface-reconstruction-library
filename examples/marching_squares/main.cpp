@@ -164,5 +164,17 @@ int main() {
     Spline s = Spline<double>::LocalRQuadInterp(ret2,tangents2);
     // s.meshSurfaceTensionForce(&mesh,1);
     s.saveToVTK("marching_cubes_output/FilteredSplineFromMarchingCubes_N="+std::to_string(a_nx));
+
+    // std::vector<std::vector<double>> testPoints = {{0,0},{3,0},{2.5,1},{1.5,0.75},{3.25,0.7},{3.2,0.25}};
+    std::vector<std::vector<double>> testPoints = {{0,0},{1.5,0.75},{2.5,1},{3.25,0.7},{3.2,0.25},{3,0}};
+
+    ret2 = testMS.RDPDecimation(testPoints,0.00005,false);
+    std::cout << ret2.size() << "\n";
+    for(int i = 0; i < ret2.size(); i++) {
+        for(int j = 0; j < ret2[0].size(); j++) {
+            std::cout << ret2[i][j] << ",";
+        }
+        std::cout <<"\n";
+    }
     return 0;
 }
