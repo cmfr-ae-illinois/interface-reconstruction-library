@@ -1622,6 +1622,59 @@ ScalarType Spline<ScalarType>::integrateSplineSquare(std::vector<std::vector<Sca
     return Area;
 }
 
+template<class ScalarType>
+std::vector<ScalarType> Spline<ScalarType>::cellSurfaceTensionForce(std::vector<std::vector<ScalarType>> square,ScalarType STcoeff) {    
+    std::vector<ScalarType> force = {0,0};
+    for(int i = 0; i < square.size()-1; i++) { // Loop over square edges
+        std::vector<ScalarType> P1 = square[i];
+        std::vector<ScalarType> P2 = square[i+1];
+        std::vector<ScalarType> outwardsNormal = {(P2[1]-P1[1]),-(P2[0]-P1[0])};
+
+        std::vector<ScalarType> uHit = this->lineCurveIntersection(P1,P2);
+        for(int j = 0; j < uHit.size(); j++) { // Loop over hit points
+            // Calculate Tangent
+            std::vector<ScalarType> tang = this->getTangent(uHit[j]);
+            // Make Unit
+            ScalarType tangMag = std::sqrt(tang[0]*tang[0] + tang[1]*tang[1]);
+            tang[0] = tang[0]/tangMag;
+            tang[1] = tang[1]/tangMag;
+            // Calculate Dot Product
+            ScalarType dProd = tang[0]*outwardsNormal[0] + tang[1]*outwardsNormal[1];
+            // Calculate Sign
+            int prodSign = (ScalarType(0) < dProd) - (dProd < ScalarType(0)); // Idea from https://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c
+            
+            // Now, add force to force
+            force[0] += STcoeff*prodSign*tang[0];
+            force[1] += STcoeff*prodSign*tang[1];
+        }
+    }
+    return force;
+}
+
+template<class ScalarType>
+std::vector<std::vector<std::vector<ScalarType>>> Spline<ScalarType>::meshSurfaceTensionForce(BasicMesh* m,ScalarType STcoeff) {
+    std::cout << "\nmesh in, imax = " << m->imax() << "\n";
+    std::vector<std::vector<std::vector<ScalarType>>> forceArray(m->imax()+1, std::vector<std::vector<ScalarType>>(
+                                                                 m->jmax()+1, std::vector<ScalarType>(2,0)));
+    for(int i =0; i<forceArray.size(); i++) {
+        for(int j = 0; j<forceArray[0].size();j++) {
+            // Get Current Mesh Cell Corners
+            ScalarType xL = m->x(i);
+            ScalarType xR = m->x(i+1);
+            ScalarType yB = m->y(j);
+            ScalarType yT = m->y(j+1);
+            // Make cell
+            std::vector<std::vector<ScalarType>> cell = {{xL,yB},{xR,yB},{xR,yT},{xL,yT},{xL,yB}};
+            // Calculate Cell force
+            std::vector<ScalarType> temp = this->cellSurfaceTensionForce(cell,STcoeff);
+            // Store Cell force
+            forceArray[i][j][0] = temp[0];
+            forceArray[i][j][1] = temp[1];
+        }
+    }
+    return forceArray;
+}
+
 template <class ScalarType>
 void Spline<ScalarType>::saveToVTK(const std::string& filename, const int nsamples){
     std::vector<ScalarType> uset(nsamples, 0.);

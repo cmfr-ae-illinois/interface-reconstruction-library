@@ -11,6 +11,10 @@
 #include <iomanip>
 #include <array>
 
+#include "examples/spline_optimization/basic_mesh.h"
+#include "examples/spline_optimization/irl2d.h"
+#include "examples/spline_optimization/data.h"
+
 template <class ScalarType>
 class Spline;
 
@@ -171,6 +175,13 @@ class Spline { // : public Expr<Spline<ScalarType>>
 
         // Method to find the area of intersection between the spline and square
         ScalarType integrateSplineSquare(std::vector<std::vector<ScalarType>> square);
+        
+        // Get teh Surface Tension Force on a square
+        std::vector<ScalarType> cellSurfaceTensionForce(std::vector<std::vector<ScalarType>> square,ScalarType STCoeff);
+
+        // Gets the Surface Tension force on a full mesh. Takes in pointer to mesh and surface tension coefficient
+        // Returns a 2D array of surface tension forces
+        std::vector<std::vector<std::vector<ScalarType>>> meshSurfaceTensionForce(BasicMesh* m,ScalarType STcoeff);
 
         // Method to find the intersection points between a given line and the spline. Line goes from P1 to P2. Returns in order that goes from P1 to P2.
         std::vector<ScalarType> lineCurveIntersection(std::vector<ScalarType> P1, std::vector<ScalarType> P2);

@@ -58,6 +58,12 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *my_
     s.saveToVTK("LastStepResult");
     std::cout << "======" << E/(2*M_PI) + Al/AlFactor << "\n";
     double objective = E/(2*M_PI) + Al/AlFactor;
+    if(objective != objective) {
+        s.saveToVTK("nanObjective");
+        std::cout << "nanObjective\n";
+        s.printControlPoints();
+        objective = 1000;
+    }
     // Calculate Gradient with Finite Differences
 
     // std::cout <<"Grad Size" << grad.size() << "\n";
@@ -85,7 +91,9 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *my_
 
             // Objective
             double objective2 = E2/(2*M_PI) + Al2/AlFactor;
-
+            if(objective2 != objective2) {
+                objective2 = 1000;
+            }
             // Calculate Derivative
             // std::cout << "Grad " << j << " = " << (objective2-objective)/nudge << "\n";
             grad[j] = (objective2-objective)/nudge;
@@ -97,13 +105,14 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *my_
         std::cout << x[i] << ",";
     }
     std::cout << "]\n";
-    std::cout << "End my Func\n";
+    std::cout << "End my Func = " << objective << "\n";
+    
     return objective;
 }
 
 // This is the constraint function
 double myVOFconstraint(const std::vector<double> &x, std::vector<double> &grad, void *data) { // VOF Constraint
-    std::cout << "Call VOF Constraint \n";
+    // std::cout << "Call VOF Constraint \n";
     my_square_data *d = (my_square_data *) data;
     std::vector<std::vector<double>> square = d->square; // 5 Point Rectangle
     double VOF = d->VOF;
@@ -118,10 +127,10 @@ double myVOFconstraint(const std::vector<double> &x, std::vector<double> &grad, 
     std::vector<std::vector<double>> T = ret[1];
     
     Spline s = Spline<double>::LocalRQuadInterp(Q,T);
-    std::cout << "Finding Intersection\n";
+    // std::cout << "Finding Intersection\n";
     // s.saveToVTK("OptimizationSplineTest");
     double Acurr = s.integrateSplineSquare(square);
-    std::cout << "Found\n";
+    // std::cout << "Found\n";
     // std::cout << "Done\n";
     // std::cout <<"===========================" << (Acurr/(dx*dy) - VOF) << "\n";
     double obj = (Acurr/(dx*dy) - VOF);
@@ -154,7 +163,7 @@ double myVOFconstraint(const std::vector<double> &x, std::vector<double> &grad, 
         }
     }
 
-    std::cout << "End VOF Constraint \n";
+    // std::cout << "End VOF Constraint \n";
 
     return obj; // Calculated VOF - Exact VOF
 }
@@ -266,7 +275,7 @@ int main() {
 
 // Ignore this, WIP
     // Field Initialization
-    const int a_nx = 4;
+    const int a_nx = 10;
     std::vector<std::vector<double>> VOFarray(a_nx, std::vector<double>(a_nx,-1));
     const int GC = 3;
     // Set up Mesh
@@ -341,13 +350,13 @@ int main() {
     }
 
     // Print Result
-    std::cout << "========== VOF INITIAL =========\n";
-    for(int i = 0; i < a_nx; i++) { // Note that i corresponds to x, j corresponds to y
-        for(int j = 0; j < a_nx; j++) {
-            std::cout << VOFarray[i][j] << ",           ";
-        }
-        std::cout << "\n";
-    }
+    // std::cout << "========== VOF INITIAL =========\n";
+    // for(int i = 0; i < a_nx; i++) { // Note that i corresponds to x, j corresponds to y
+    //     for(int j = 0; j < a_nx; j++) {
+    //         std::cout << VOFarray[i][j] << ",           ";
+    //     }
+    //     std::cout << "\n";
+    // }
     // At this point, we have the volume fractions. Now we need to set up the array of square
     // While Doing this, we will also seed our initial conditions.
     // The initial conditions on this first pass will be the midpoints of the cells.
