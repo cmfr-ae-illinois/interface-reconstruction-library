@@ -504,6 +504,105 @@ double getCurvature(const Parabola& target_interface, const BezierList& target_c
                     const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells,
                     const int& N, const double& Hp, const double& h, const double& eta);
 
+struct InterfaceEndPoints {
+  int xIndex,yIndex;
+  double ax, ay, bx, by, tx, ty, nx, ny, vf;
+  bool mixed = false;
+};
+
+void printParticleData(const std::vector<Vec>& pp, const std::vector<Vec>& pf);
+
+Vec findCircleCenter(const std::vector<Vec>& points);
+
+// std::vector<int> findClosestSegmentIndex(const std::vector<Vec>& particle_positions,
+//                                          const std::vector<std::pair<Vec,Vec>>& line_seg_endpoints);
+
+// std::vector<Vec> findClosestSegmentNormal(const std::vector<int>& indices, 
+//                                           const std::vector<std::vector<InterfaceEndPoints>>& plic_data);
+                                        
+std::vector<Vec> findSegmentNormals(const std::vector<Vec>& particle_positions,
+                                    const std::vector<std::vector<InterfaceEndPoints>>& plic_data);
+  
+std::vector<double> computeEta(const std::vector<Vec>& particle_positions,
+                               const std::vector<Vec>& pointedPLIC_normals);
+
+void particle_pf(const std::vector<Vec>& pp0, const std::vector<Vec>& pf0,
+                   std::vector<Vec>& pp_final, std::vector<Vec>& pf_final,
+                   const std::pair<Vec, Vec>& target_endpoints, 
+                   const std::vector<std::pair<Vec, Vec>>& line_seg_endpoints,
+                   const int& N, const double& Hp, const double& h, const double& eta);
+
+void curvature_vareta(const std::vector<Vec>& pp0, const std::vector<Vec>& pf0,
+                      std::vector<Vec>& pp_final, std::vector<Vec>& pf_final,
+                      const std::pair<Vec, Vec>& target_endpoints, 
+                      const std::vector<std::pair<Vec, Vec>>& line_seg_endpoints,
+                      const std::vector<std::vector<InterfaceEndPoints>>& plicDataMat,
+                      const int& N, const double& Hp, const double& h);
+
+std::vector<Vec> generatePoints(const std::vector<std::pair<Vec, Vec>>& line_seg_endpoints);
+
+std::vector<Vec> getPoints(const std::pair<Vec, Vec>& endpoints,
+                           const int& num_points);
+                           
+std::vector<Vec> generateParabolaPoints(const std::vector<std::pair<Vec, Vec>>& end_points,
+                                        const std::vector<Parabola>& parabola);
+
+Vec getParabolaCenter(const std::pair<Vec, Vec>& end_points, const Parabola& parabola);
+
+double getVfracWeight(double vfrac);
+
+double getDistanceWeight(const Vec& pref, const Vec& ploc,
+                             const double& h);
+
+double DistanceWeight(const Vec& pref, const Vec& ploc,
+                      const double& h, const double& delta);
+                          
+double getNormalWeight(const Vec& nref, const Vec& nloc);
+
+// double getNormalGradWeight(const Vec& nref, const Vec& nloc,
+//                            const Vec& pref, const Vec& ploc);
+                    
+Mat estimateFrame(const Vec& circle_center, const Vec& plic_center, const double& r,
+                  const Vec& plic_normal, bool& flip_coeff);
+
+Parabola getPrattParabola(const std::vector<IRL2D::Vec>& points,
+                          const std::vector<double>& vfw, 
+                          const std::vector<double>& dw,
+                          const std::vector<double>& nw,
+                          const Mat& plic_frame,
+                          const Vec& plic_center);
+
+Parabola getPrattParabola_localframe(const std::vector<IRL2D::Vec>& points,
+                                     const std::vector<double>& vfw, 
+                                     const std::vector<double>& dw,
+                                     const std::vector<double>& nw,
+                                     const Mat& plic_frame,
+                                     const Vec& plic_center);
+
+Parabola getTaubinParabola(const std::vector<IRL2D::Vec>& points,
+                           const std::vector<double>& vfw, 
+                           const std::vector<double>& dw,
+                           const std::vector<double>& nw,
+                           const Vec& plic_normal,
+                           const Vec& plic_center);
+
+Parabola getTaubinParabola_localframe(const std::vector<IRL2D::Vec>& points,
+                                      const std::vector<double>& vfw, 
+                                      const std::vector<double>& dw,
+                                      const std::vector<double>& nw,
+                                      const Mat& plic_frame,
+                                      const Vec& plic_center);
+                        
+std::vector<double> getPrattParams(const std::vector<IRL2D::Vec>& points,
+                                   const std::vector<double>& vfw, 
+                                   const std::vector<double>& dw,
+                                   const std::vector<double>& nw);
+
+std::vector<double> getTaubinParams(const std::vector<IRL2D::Vec>& points,
+                                   const std::vector<double>& vfw, 
+                                   const std::vector<double>& dw,
+                                   const std::vector<double>& nw);
+                      
 // Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& target_cell,
 //                            const std::vector<Parabola>& interfaces, const std::vector<BezierList>& cells);
             
@@ -520,6 +619,9 @@ Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& t
                            const std::vector<NeighborInfo>& neighbors,
                            const int i_target, const int j_target);
 
+std::vector<double> getJibbenCoeffs(const Parabola& target_interface, const BezierList& target_cell,
+                                    const std::vector<NeighborInfo>& neighbors,
+                                    const std::vector<double>& weights);
 
 // connectivity of interfaces
 // class InterfaceConnectivity{
@@ -536,6 +638,16 @@ Parabola getParabolaJibben(const Parabola& target_interface, const BezierList& t
 //   // adding more nodes
 
 // };
+
+// partition of unity
+Vec projectToImplicitSurface(const Vec& x0, const std::vector<Vec>& centroids,
+                             const std::vector<Vec>& normals, const double& kernel_size,
+                             bool& usePlane);
+
+Parabola getPU_interface(const Vec& x0, const std::vector<Vec>& centroids,
+                         const std::vector<Vec>& normals, const double& kernel_size,
+                         bool& usePlane);
+
 
 }  // namespace IRL2D
 

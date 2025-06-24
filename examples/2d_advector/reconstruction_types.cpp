@@ -77,10 +77,31 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "NLOPT"){
     NLOPT::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
       a_interface);
+  } else if (a_reconstruction_method == "Pratt"){
+    Pratt::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
+  } else if (a_reconstruction_method == "Taubin"){
+    Taubin::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
+  } else if (a_reconstruction_method == "LMA"){
+    LMA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
+  } else if (a_reconstruction_method == "Pratt2"){
+    Pratt2::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
+  } else if (a_reconstruction_method == "Pratt3"){
+    Pratt3::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
+  } else if (a_reconstruction_method == "Cubic"){
+    Cubic::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
+  } else if (a_reconstruction_method == "PU"){
+    PU::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+      a_interface);
   } else {
     std::cout << "Unknown reconstruction method of : "
               << a_reconstruction_method << '\n';
-    std::cout << "Valid entries are: ELVIRA, LVIRA, Jibben, Particle, LMIRAQ, LVIRAQ, MOF1, MOF2, MOF2AL, NLOPT. \n";
+    std::cout << "Valid entries are: ELVIRA, LVIRA, Jibben, Particle, LMIRAQ, LVIRAQ, MOF1, MOF2, MOF2AL, NLOPT, Pratt, Taubin, LMA. \n";
     std::exit(-1);
   }
 }
@@ -277,6 +298,46 @@ void LVIRA::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
 //   correctInterfaceBorders(a_interface);
 // }
 
+double f_parabola(double x, double A, double B, double C){
+  return A*x*x + B*x + C;
+}
+
+double fp_parabola(double x, double A, double B){
+  return 2.0*A*x + B;
+}
+
+double fpp_parabola(double A){
+  return 2.0*A;
+}
+
+struct ClosestParabolaPointFunctor{
+  typedef double Scalar;
+  typedef Eigen::VectorXd InputType;
+  typedef Eigen::VectorXd ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+  enum{
+    InputsAtCompileTime = Eigen::Dynamic,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+
+  // variables
+  double A, B, C;
+
+  // constructor
+  ClosestParabolaPointFunctor(const double& A_, const double& B_, const double& C_)
+    : A(A_), B(B_), C(C_) {}
+  
+  int inputs() const {return 1;}
+  int values() const {return 1;}
+
+  int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    double xp = x(0);
+    double yp = A*xp*xp + B*xp + C;
+    fvec(0) = std::sqrt(xp*xp + yp*yp);
+    return 0;
+  }
+};
+
 void Jibben::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                                const Data<IRL2D::Moments>& a_gas_moments,
                                const double a_dt, const Data<double>& a_U,
@@ -290,10 +351,38 @@ void Jibben::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
   Data<IRL2D::Parabola> plic = *a_interface;
 
   const BasicMesh& mesh = a_U.getMesh();
+
+  // local <-> global
+  auto globalToLocal = [&](const IRL2D::Vec& p, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+    IRL2D::Vec t = interface.frame()[0], n = interface.frame()[1];
+    IRL2D::Vec ploc = { (p.x() - interface.datum().x()) * t.x() + (p.y() - interface.datum().y()) * t.y() ,
+                        (p.x() - interface.datum().x()) * n.x() + (p.y() - interface.datum().y()) * n.y()  };       
+    return ploc;
+  };
+  auto localToGlobal = [&](const IRL2D::Vec& ploc, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+    IRL2D::Vec t = interface.frame()[0], n = interface.frame()[1];
+    IRL2D::Vec p = { interface.datum().x() + t.x() * ploc.x() + n.x() * ploc.y() , 
+                     interface.datum().y() + t.y() * ploc.x() + n.y() * ploc.y() };
+    return p;
+  };
+  auto vectorGlobalToLocal = [&](const IRL2D::Vec& v, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+    IRL2D::Vec t = interface.frame()[0];  
+    IRL2D::Vec n = interface.frame()[1];  
+    IRL2D::Vec vloc = { v.x() * t.x() + v.y() * t.y(),
+                        v.x() * n.x() + v.y() * n.y() };
+    return vloc;
+  };
+  auto vectorLocalToGlobal = [&](const IRL2D::Vec& vloc, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+      IRL2D::Vec t = interface.frame()[0], n = interface.frame()[1];
+      IRL2D::Vec v = { t.x() * vloc.x() + n.x() * vloc.y(),
+                      t.y() * vloc.x() + n.y() * vloc.y() };
+      return v;
+  };
   
   // flag for mixed cells
   Data<int> band(&mesh);
   Data<double> vf(&mesh);
+  Data<IRL2D::Vec> plic_center(&mesh);
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       band(i, j) = 0;
@@ -303,11 +392,13 @@ void Jibben::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
           liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
         band(i, j) = 1;
         vf(i,j) = liquid_volume_fraction;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        plic_center(i,j) = 0.5 * (clipped_plic[0].first + clipped_plic[1].first);
       }
     }
   }
-
-  int counter_outside_domain = 0;
 
   // Jibben parabola estimation
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
@@ -318,9 +409,11 @@ void Jibben::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
           IRL2D::Vec(mesh.x(i), mesh.y(j)), 
           IRL2D::Vec(mesh.x(i+1), mesh.y(j+1))
         );
+        IRL2D::Vec pref_local = globalToLocal(plic_center(i,j), target_interface);
         IRL2D::Vec n_target = target_interface.frame()[1];
+        IRL2D::Vec nref_local = vectorGlobalToLocal(n_target, target_interface);
+        std::vector<double> weights;
         std::vector<IRL2D::NeighborInfo> neighbors;
-
         for (int jj = -2; jj <= 2; jj++){
           for (int ii = -2; ii <= 2; ii++){
             if (band(ii + i, jj + j) == 1){
@@ -328,6 +421,12 @@ void Jibben::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
               if (n_neighbor * n_target <= -0.5){
                 continue; 
               }
+              IRL2D::Vec n_local = vectorGlobalToLocal(n_neighbor, target_interface);
+              IRL2D::Vec ploc_local = globalToLocal(plic_center(i+ii,j+jj), target_interface);
+              double vf_weight = IRL2D::getVfracWeight(vf(ii + i, jj + j));
+              double d_weight = IRL2D::getDistanceWeight(pref_local, ploc_local, mesh.dx());
+              double n_weight = IRL2D::getNormalWeight(nref_local, n_local);
+              weights.push_back(vf_weight * d_weight * n_weight);
               neighbors.push_back({
                 plic(ii + i, jj + j),
                 IRL2D::RectangleFromBounds(
@@ -340,35 +439,60 @@ void Jibben::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
             }
           }
         }
-        IRL2D::Parabola parabolaJibben = IRL2D::getParabolaJibben(
-          target_interface, target_cell, neighbors, i, j);
-        
-        // Bounds of the cell
-        double xp = parabolaJibben.datum()[0], yp = parabolaJibben.datum()[1];
-        if (xp < -0.5 || xp > 0.5 || yp < -0.5 || yp > 0.5) {
-          // counter_outside_domain++;
-          // std::cout << "Datum outside domain at cell (" << i << ", " << j
-          //           << ") with coordinates (" << xp << ", " << yp << ")\n";
-          
-          // // if outside, set datum to cell center
-          // parabolaJibben.datum() = IRL2D::ComputeMoments(target_cell).m1() / IRL2D::ComputeMoments(target_cell).m0();
 
-          
+        // coefficients of parabola in local frame
+        IRL2D::Parabola parabolaJibben;
+        std::vector<double> jibbenCoeffs = IRL2D::getJibbenCoeffs(target_interface, target_cell, 
+                                                                  neighbors, weights);
+        double A = jibbenCoeffs[0], B = jibbenCoeffs[1], C = jibbenCoeffs[2];
+
+        // datum
+        ClosestParabolaPointFunctor functor(A, B, C);
+        Eigen::NumericalDiff<ClosestParabolaPointFunctor> numDiff(functor);
+        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<ClosestParabolaPointFunctor>, double> lm(numDiff);
+        Eigen::VectorXd x(1); 
+        x(0) = 0.0; 
+        lm.parameters.maxfev = 1000;
+        lm.parameters.xtol = 1e-12;
+        lm.minimize(x);
+        double x_star = x(0);
+        double y_star = f_parabola(x_star, A, B, C);
+        parabolaJibben.datum() = localToGlobal({x_star, y_star}, target_interface);
+
+        // curvature
+        double fp = fp_parabola(x_star, A, B);
+        double fpp = fpp_parabola(A);
+        double curvature = -fpp / std::pow(1.0 + fp * fp, 1.5);
+        parabolaJibben.coeff() = 0.5 * curvature;
+
+        // reference frame
+        IRL2D::Vec normal_local = {-fp, 1.0};
+        normal_local.normalize();
+        IRL2D::Vec normal = vectorLocalToGlobal(normal_local, target_interface);
+        if ((normal * target_interface.frame()[1]) < 0){
+          normal *= -1.0;
+          parabolaJibben.coeff() *= -1.0;
         }
+        IRL2D::Vec tangent = {normal.y(), -normal.x()};
+        parabolaJibben.frame() = {tangent, normal};
 
-        // set datum to cell center
-        parabolaJibben.datum() = IRL2D::ComputeMoments(target_cell).m1() / IRL2D::ComputeMoments(target_cell).m0();
+        // reverting black to plane is curvature is too large
+        const double maxkdx = 4.0;
+        const double length_scale = std::sqrt(ComputeArea(target_cell));
+        const double kdx = 2.0 * parabolaJibben.coeff() * length_scale;
+        if (std::abs(kdx) > maxkdx) {
+          parabolaJibben = plic(i,j);
+        }
+        
+        // IRL2D::Parabola parabolaJibben = IRL2D::getParabolaJibben(
+        // target_interface, target_cell, neighbors, i, j);
+        // parabolaJibben.datum() = IRL2D::ComputeMoments(target_cell).m1() / IRL2D::ComputeMoments(target_cell).m0();
 
-        double vfrac = (a_liquid_moments)(i,j).m0() / IRL2D::ComputeArea(target_cell);
-        (*a_interface)(i, j) = IRL2D::MatchToVolumeFraction(target_cell, parabolaJibben, vfrac);
+        // vf matching
+        (*a_interface)(i, j) = IRL2D::MatchToVolumeFraction(target_cell, parabolaJibben, vf(i,j));
       }
     }
   }
-
-  // if (counter_outside_domain > 0) {
-  //   std::cout << "Total parabolas with datum outside domain [-0.5, 0.5]^2: " 
-  //             << counter_outside_domain << std::endl;
-  // }
 
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);
@@ -2778,6 +2902,994 @@ void NLOPT::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
     }
   }
   csvfile.close();
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// least squares fitting of circles -----------------------------------------------------------------------
+
+struct InterfaceData{
+  bool mixed = false;
+  int xIndex, yIndex;
+  double vf;
+  IRL2D::Vec a, b, center; // start, end, and midpoint
+  IRL2D::BezierList rectangle;
+};
+
+// Pratt fit
+void Pratt::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                              const Data<IRL2D::Moments>& a_gas_moments,
+                              const double a_dt, const Data<double>& a_U,
+                              const Data<double>& a_V,
+                              Data<IRL2D::Parabola>* a_interface) {
+
+  // plic reconstruction
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
+  Data<IRL2D::Parabola> plic = *a_interface;
+
+  const BasicMesh& mesh = a_U.getMesh();
+  const double h = mesh.dx();
+  
+  // storing interface data
+  Data<InterfaceData> plicData(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        plicData(i,j).mixed = true;
+        plicData(i,j).vf = liquid_volume_fraction;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        plicData(i,j).rectangle = cell;
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        plicData(i,j).a = clipped_plic[0].first;
+        plicData(i,j).b = clipped_plic[1].first;
+        plicData(i,j).center = (plicData(i,j).a + plicData(i,j).b) / 2.0;
+        plicData(i,j).xIndex = i; plicData(i,j).yIndex = j;
+      }
+    }
+  }
+
+  // Pratt circle fit for curvature (parabola coefficient)
+  for (int i = mesh.imin(); i <= mesh.imax(); i++){
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+      if (plicData(i,j).mixed == true){
+        IRL2D::Vec pref = plicData(i,j).center;
+        IRL2D::Vec nref = plic(i,j).frame()[1];
+        std::vector<double> vfw, dw, vfracs, nw; 
+        std::vector<IRL2D::Vec> ploc, nloc; 
+        std::vector<std::pair<IRL2D::Vec, IRL2D::Vec>> line_seg_endpoints;
+        for (int ii = -2; ii <= 2; ii++){
+          for (int jj = -2; jj <= 2; jj++){
+            if (plicData(i + ii, j + jj).mixed == true){
+              line_seg_endpoints.push_back({ plicData(i + ii, j + jj).a , 
+                                             plicData(i + ii, j + jj).b });
+              vfracs.push_back(plicData(i + ii, j + jj).vf);
+              ploc.push_back(plicData(i + ii, j + jj).center);
+              nloc.push_back(plic(i + ii, j + jj).frame()[1]);
+            }
+          }
+        }
+        std::vector<IRL2D::Vec> pts = IRL2D::generatePoints(line_seg_endpoints);
+        // computing weights
+        for (int k = 0; k < line_seg_endpoints.size(); k++){
+          double vf_weight = IRL2D::getVfracWeight(vfracs[k]);
+          double d_weight = IRL2D::getDistanceWeight(pref, ploc[k], h);
+          double n_weight = IRL2D::getNormalWeight(nref, nloc[k]);
+          // n_weight = 1.0;
+          // double n_weight = IRL2D::getNormalGradWeight(nref, nloc[k], pref, ploc[k]);
+          for (int p = 0; p < (pts.size() / line_seg_endpoints.size()); p++){
+            vfw.push_back(vf_weight);
+            dw.push_back(d_weight);
+            nw.push_back(n_weight);
+          }
+        }   
+        // Pratt's parabola
+        IRL2D::Parabola Prattparabola = IRL2D::getPrattParabola_localframe(pts, vfw, dw, nw,
+                                                                plic(i,j).frame(),
+                                                                plicData(i,j).center);       
+        // vf matching 
+        (*a_interface)(i,j) = IRL2D::MatchToVolumeFraction(plicData(i,j).rectangle, Prattparabola, 
+                                                           plicData(i,j).vf);
+      }
+    }
+  }
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// Taubin fit
+void Taubin::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                              const Data<IRL2D::Moments>& a_gas_moments,
+                              const double a_dt, const Data<double>& a_U,
+                              const Data<double>& a_V,
+                              Data<IRL2D::Parabola>* a_interface) {
+
+  // plic reconstruction
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
+  Data<IRL2D::Parabola> plic = *a_interface;
+
+  const BasicMesh& mesh = a_U.getMesh();
+  const double h = mesh.dx();
+  
+  // storing interface data
+  Data<InterfaceData> plicData(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        plicData(i,j).mixed = true;
+        plicData(i,j).vf = liquid_volume_fraction;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        plicData(i,j).rectangle = cell;
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        plicData(i,j).a = clipped_plic[0].first;
+        plicData(i,j).b = clipped_plic[1].first;
+        plicData(i,j).center = (plicData(i,j).a + plicData(i,j).b) / 2.0;
+        plicData(i,j).xIndex = i; plicData(i,j).yIndex = j;
+      }
+    }
+  }
+
+  // Taubin circle fit for curvature (parabola coefficient)
+  for (int i = mesh.imin(); i <= mesh.imax(); i++){
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+      if (plicData(i,j).mixed == true){
+        IRL2D::Vec pref = plicData(i,j).center;
+        IRL2D::Vec nref = plic(i,j).frame()[1];
+        std::vector<double> vfw, dw, vfracs, nw; 
+        std::vector<IRL2D::Vec> ploc, nloc; 
+        std::vector<std::pair<IRL2D::Vec, IRL2D::Vec>> line_seg_endpoints;
+        for (int ii = -2; ii <= 2; ii++){
+          for (int jj = -2; jj <= 2; jj++){
+            if (plicData(i + ii, j + jj).mixed == true){
+              line_seg_endpoints.push_back({ plicData(i + ii, j + jj).a , 
+                                             plicData(i + ii, j + jj).b });
+              vfracs.push_back(plicData(i + ii, j + jj).vf);
+              ploc.push_back(plicData(i + ii, j + jj).center);
+              nloc.push_back(plic(i + ii, j + jj).frame()[1]);
+            }
+          }
+        }
+        std::vector<IRL2D::Vec> pts = IRL2D::generatePoints(line_seg_endpoints);
+        // computing weights
+        for (int k = 0; k < line_seg_endpoints.size(); k++){
+          double vf_weight = IRL2D::getVfracWeight(vfracs[k]);
+          double d_weight = IRL2D::getDistanceWeight(pref, ploc[k], h);
+          double n_weight = IRL2D::getNormalWeight(nref, nloc[k]);
+          for (int p = 0; p < (pts.size() / line_seg_endpoints.size()); p++){
+            vfw.push_back(vf_weight);
+            dw.push_back(d_weight);
+            nw.push_back(n_weight);
+          }
+        }   
+        // Pratt's parabola
+        IRL2D::Parabola Taubinparabola = IRL2D::getTaubinParabola_localframe(pts, vfw, dw, nw,
+                                                                             plic(i,j).frame(),
+                                                                             plicData(i,j).center);       
+        // vf matching 
+        (*a_interface)(i,j) = IRL2D::MatchToVolumeFraction(plicData(i,j).rectangle, Taubinparabola, 
+                                                           plicData(i,j).vf);
+      }
+    }
+  }
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// LMA fit
+struct LMAFunctor{
+  typedef double Scalar;
+  typedef Eigen::VectorXd InputType;
+  typedef Eigen::VectorXd ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+  enum{
+    InputsAtCompileTime = Eigen::Dynamic,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+
+  // variables
+  const std::vector<IRL2D::Vec>& points;
+  const std::vector<double>& vfw, dw, nw;
+
+  // constructor
+  LMAFunctor(const std::vector<IRL2D::Vec>& pts, const std::vector<double>& vf_w,
+             const std::vector<double>& d_w, const std::vector<double>& n_w) 
+    : points(pts), vfw(vf_w), dw(d_w), nw(n_w) {}
+
+  int inputs() const {return 3;} // A, D, theta
+  int values() const {return static_cast<int>(points.size()); }
+
+  int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    double A = x(0), D = x(1), theta = x(2);
+    double E = std::sqrt(1 + 4 * A * D);
+    double cos_theta = std::cos(theta);
+    double sin_theta = std::sin(theta);
+
+    for (int i = 0; i < values(); ++i) {
+        double xi = points[i].x(), yi = points[i].y();
+        double zi = xi * xi + yi * yi;
+        double ui = xi * cos_theta + yi * sin_theta;
+        double Pi = A * zi + E * ui + D;
+        double Qi = std::sqrt(1.0 + 4.0 * A * Pi);
+        fvec(i) = 2.0 * Pi / (1.0 + Qi) * std::sqrt(vfw[i] * dw[i] * nw[i]);
+    }
+    return 0;
+  }
+
+  // analytical Jacobian
+  int df(const InputType& x, JacobianType& fjac) const {
+    double A = x(0), D = x(1), theta = x(2);
+    double E = std::sqrt(1.0 + 4.0 * A * D);
+    double cos_theta = std::cos(theta);
+    double sin_theta = std::sin(theta);
+
+    for (int i = 0; i < values(); ++i) {
+        double xi = points[i].x(), yi = points[i].y();
+        double zi = xi * xi + yi * yi;
+        double ui = xi * cos_theta + yi * sin_theta;
+        double Pi = A * zi + E * ui + D;
+        double Qi = std::sqrt(1 + 4 * A * Pi);
+        double di = 2.0 * Pi / (1.0 + Qi);
+        double Ri = 2.0 * (1.0 - A * di / Qi) / (Qi + 1.0);
+
+        double wi = std::sqrt(vfw[i] * dw[i] * nw[i]); // weights
+
+        fjac(i, 0) = wi * ((zi + 2.0 * D * ui / E) * Ri - (di * di / Qi)); // ∂d/∂A
+        fjac(i, 1) = wi * ((2.0 * A * ui / E + 1.0) * Ri);                 // ∂d/∂D
+        fjac(i, 2) = wi * ((-xi * sin_theta + yi * cos_theta) * E * Ri);   // ∂d/∂θ
+    }
+    return 0;
+  }
+
+};
+
+void LMA::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                            const Data<IRL2D::Moments>& a_gas_moments,
+                            const double a_dt, const Data<double>& a_U,
+                            const Data<double>& a_V,
+                            Data<IRL2D::Parabola>* a_interface) {
+
+  // plic reconstruction
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
+  Data<IRL2D::Parabola> plic = *a_interface;
+
+  const BasicMesh& mesh = a_U.getMesh();
+  const double h = mesh.dx();
+  
+  // storing interface data
+  Data<InterfaceData> plicData(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        plicData(i,j).mixed = true;
+        plicData(i,j).vf = liquid_volume_fraction;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        plicData(i,j).rectangle = cell;
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        plicData(i,j).a = clipped_plic[0].first;
+        plicData(i,j).b = clipped_plic[1].first;
+        plicData(i,j).center = (plicData(i,j).a + plicData(i,j).b) / 2.0;
+        plicData(i,j).xIndex = i; plicData(i,j).yIndex = j;
+      }
+    }
+  }
+
+  // LMA fit
+  for (int i = mesh.imin(); i <= mesh.imax(); i++){
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+      if (plicData(i,j).mixed == true){
+        IRL2D::Vec pref = plicData(i,j).center;
+        IRL2D::Vec nref = plic(i,j).frame()[1];
+        std::vector<double> vfw, dw, vfracs, nw; 
+        std::vector<IRL2D::Vec> ploc, nloc; 
+        std::vector<std::pair<IRL2D::Vec, IRL2D::Vec>> line_seg_endpoints;
+        for (int ii = -2; ii <= 2; ii++){
+          for (int jj = -2; jj <= 2; jj++){
+            if (plicData(i + ii, j + jj).mixed == true){
+              line_seg_endpoints.push_back({ plicData(i + ii, j + jj).a , 
+                                             plicData(i + ii, j + jj).b });
+              vfracs.push_back(plicData(i + ii, j + jj).vf);
+              ploc.push_back(plicData(i + ii, j + jj).center);
+              nloc.push_back(plic(i + ii, j + jj).frame()[1]);
+            }
+          }
+        }
+        std::vector<IRL2D::Vec> pts = IRL2D::generatePoints(line_seg_endpoints);
+        // computing weights
+        for (int k = 0; k < line_seg_endpoints.size(); k++){
+          double vf_weight = IRL2D::getVfracWeight(vfracs[k]);
+          double d_weight = IRL2D::getDistanceWeight(pref, ploc[k], h);
+          double n_weight = IRL2D::getNormalWeight(nref, nloc[k]);
+          for (int p = 0; p < (pts.size() / line_seg_endpoints.size()); p++){
+            vfw.push_back(vf_weight);
+            dw.push_back(d_weight);
+            nw.push_back(n_weight);
+          }
+        }   
+        // initial guess for A, D and theta 
+        // std::vector<double> Pratt_params = IRL2D::getPrattParams(pts, vfw, dw, nw);
+        std::vector<double> Pratt_params = IRL2D::getTaubinParams(pts, vfw, dw, nw);
+        Eigen::VectorXd x(3);
+        x << Pratt_params[0], Pratt_params[1], Pratt_params[2];
+                                                            
+        // Levenberg-Marquardt
+        LMAFunctor functor(pts, vfw, dw, nw);
+        Eigen::LevenbergMarquardt<LMAFunctor> lm(functor);
+        lm.parameters.maxfev = 1000;
+        lm.parameters.xtol = 1e-12;
+        lm.minimize(x);
+
+        // extracting cell center and radius
+        double A = x(0), D = x(1), theta = x(2);
+        double E = std::sqrt(1.0 + 4.0 * A * D);
+        double B = E * std::cos(theta);
+        double C = E * std::sin(theta);
+        IRL2D::Vec circle_center = {-B / (2.0 * A), -C / (2.0 * A)};
+        double radius = std::fabs(1.0 / (2.0 * A));
+
+        // LMA parabola coefficient
+        IRL2D::Parabola LMA_parabola;
+        LMA_parabola.coeff() = 0.5 / radius;
+
+        // reference frame
+        bool flip_coeff = false;
+        LMA_parabola.frame() = IRL2D::estimateFrame(circle_center, plicData(i,j).center, radius,
+                                                    plic(i,j).frame()[1], flip_coeff);
+        if (flip_coeff == true){
+          LMA_parabola.coeff() = - LMA_parabola.coeff();
+        }
+
+        // datum 
+        IRL2D::Vec direction = plicData(i,j).center - circle_center;
+        direction.normalize();
+        LMA_parabola.datum() = circle_center + radius * direction;
+
+        // vf matching 
+        (*a_interface)(i,j) = IRL2D::MatchToVolumeFraction(plicData(i,j).rectangle, LMA_parabola, 
+                                                           plicData(i,j).vf);
+      }
+    }
+  }
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// variable support radius
+void Pratt2::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                              const Data<IRL2D::Moments>& a_gas_moments,
+                              const double a_dt, const Data<double>& a_U,
+                              const Data<double>& a_V,
+                              Data<IRL2D::Parabola>* a_interface) {
+
+  // plic reconstruction
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
+  Data<IRL2D::Parabola> plic = *a_interface;
+
+  const BasicMesh& mesh = a_U.getMesh();
+  const double h = mesh.dx();
+  
+  // storing interface data
+  Data<InterfaceData> plicData(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        plicData(i,j).mixed = true;
+        plicData(i,j).vf = liquid_volume_fraction;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        plicData(i,j).rectangle = cell;
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        plicData(i,j).a = clipped_plic[0].first;
+        plicData(i,j).b = clipped_plic[1].first;
+        plicData(i,j).center = (plicData(i,j).a + plicData(i,j).b) / 2.0;
+        plicData(i,j).xIndex = i; plicData(i,j).yIndex = j;
+      }
+    }
+  }
+
+  // Pratt circle fit for curvature (parabola coefficient)
+  for (int i = mesh.imin(); i <= mesh.imax(); i++){
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+      if (plicData(i,j).mixed == true){
+        IRL2D::Vec pref = plicData(i,j).center;
+        IRL2D::Vec nref = plic(i,j).frame()[1];
+        std::vector<double> vfw, dw, vfracs, nw; 
+        std::vector<IRL2D::Vec> ploc, nloc; 
+        std::vector<std::pair<IRL2D::Vec, IRL2D::Vec>> line_seg_endpoints;
+        for (int ii = -2; ii <= 2; ii++){
+          for (int jj = -2; jj <= 2; jj++){
+            if (plicData(i + ii, j + jj).mixed == true){
+              line_seg_endpoints.push_back({ plicData(i + ii, j + jj).a , 
+                                             plicData(i + ii, j + jj).b });
+              vfracs.push_back(plicData(i + ii, j + jj).vf);
+              ploc.push_back(plicData(i + ii, j + jj).center);
+              nloc.push_back(plic(i + ii, j + jj).frame()[1]);
+            }
+          }
+        }
+        std::vector<IRL2D::Vec> pts = IRL2D::generatePoints(line_seg_endpoints);
+    
+        // varying support radius
+        std::vector<double> delta = {1.5, 2.5, 3.5};
+        double min_centroid_error = std::numeric_limits<double>::max();
+        IRL2D::Parabola best_parabola;
+        for (int d = 0; d < delta.size(); d++){
+          // computing weights
+          for (int k = 0; k < line_seg_endpoints.size(); k++){
+            double vf_weight = IRL2D::getVfracWeight(vfracs[k]);
+            double d_weight = IRL2D::DistanceWeight(pref, ploc[k], h, delta[d]);
+            double n_weight = IRL2D::getNormalWeight(nref, nloc[k]);
+            // n_weight = 1.0;
+            for (int p = 0; p < (pts.size() / line_seg_endpoints.size()); p++){
+              vfw.push_back(vf_weight);
+              dw.push_back(d_weight);
+              nw.push_back(n_weight);
+            }
+          }
+          IRL2D::Parabola Prattparabola = IRL2D::getPrattParabola_localframe(pts, vfw, dw, nw,
+                                                                             plic(i,j).frame(),
+                                                                             plicData(i,j).center);
+          Prattparabola = IRL2D::MatchToVolumeFraction(plicData(i,j).rectangle, Prattparabola, 
+                                                       plicData(i,j).vf);
+
+          IRL2D::Vec trueCentroid = a_liquid_moments(i,j).m1() / a_liquid_moments(i,j).m0();
+          IRL2D::Moments PrattMoments = IRL2D::ComputeMoments(plicData(i,j).rectangle,
+                                                              Prattparabola);
+          IRL2D::Vec computedCentroid = PrattMoments.m1() / PrattMoments.m0();
+          double centroid_dist_error = (trueCentroid - computedCentroid).magnitude() / h;
+
+          if (centroid_dist_error < min_centroid_error){
+            min_centroid_error = centroid_dist_error;
+            best_parabola = Prattparabola;
+          }
+        }
+        (*a_interface)(i,j) = best_parabola;
+      }
+    }
+  }
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// iterative circle fit
+void Pratt3::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                               const Data<IRL2D::Moments>& a_gas_moments,
+                               const double a_dt, const Data<double>& a_U,
+                               const Data<double>& a_V,
+                               Data<IRL2D::Parabola>* a_interface) {
+
+  // plic reconstruction
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                           a_interface);
+  
+
+  const BasicMesh& mesh = a_U.getMesh();
+  const double h = mesh.dx();
+
+  // params for iterative fit
+  int fit_iter = 0;
+  const int max_fit_iter = 1;
+
+  while (fit_iter < max_fit_iter){
+    fit_iter++;
+    Data<IRL2D::Parabola> interface = *a_interface;
+
+    // interface data
+    Data<InterfaceData> interfaceData(&mesh);
+    for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+        const double liquid_volume_fraction = (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          interfaceData(i,j).mixed = true;
+          interfaceData(i,j).vf = liquid_volume_fraction;
+          IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                               IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+          interfaceData(i,j).rectangle = cell;
+          IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, interface(i,j), true);
+          interfaceData(i,j).a = clipped_plic[0].first;
+          interfaceData(i,j).b = clipped_plic[1].first;
+          if (fit_iter == 1){
+            interfaceData(i,j).center = (interfaceData(i,j).a + interfaceData(i,j).b) / 2.0;
+          } else {
+            interfaceData(i,j).center = IRL2D::getParabolaCenter({interfaceData(i,j).a , interfaceData(i,j).b},
+                                                                  interface(i,j));
+          }
+          interfaceData(i,j).xIndex = i; interfaceData(i,j).yIndex = j;
+        }
+      }
+    }
+
+    // least squares circle fit
+    for (int i = mesh.imin(); i <= mesh.imax(); i++){
+      for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+        if (interfaceData(i,j).mixed == true){
+          IRL2D::Vec pref = interfaceData(i,j).center;
+          IRL2D::Vec nref = interface(i,j).frame()[1];
+          std::vector<double> vfw, dw, vfracs, nw; 
+          std::vector<IRL2D::Vec> ploc, nloc; 
+          std::vector<std::pair<IRL2D::Vec, IRL2D::Vec>> line_seg_endpoints;
+          std::vector<IRL2D::Parabola> interfaces;
+          for (int ii = -2; ii <= 2; ii++){
+            for (int jj = -2; jj <= 2; jj++){
+              if (interfaceData(i + ii, j + jj).mixed == true){
+                line_seg_endpoints.push_back({ interfaceData(i + ii, j + jj).a , 
+                                               interfaceData(i + ii, j + jj).b });
+                vfracs.push_back(interfaceData(i + ii, j + jj).vf);
+                ploc.push_back(interfaceData(i + ii, j + jj).center);
+                nloc.push_back(interface(i + ii, j + jj).frame()[1]);
+                interfaces.push_back(interface(i + ii, j + jj));
+              }
+            }
+          }
+          std::vector<IRL2D::Vec> pts;
+          if (fit_iter == 1){
+            pts = IRL2D::generatePoints(line_seg_endpoints);
+          } else {
+            pts = IRL2D::generateParabolaPoints(line_seg_endpoints, interfaces);
+          }
+          
+          // computing weights
+          for (int k = 0; k < line_seg_endpoints.size(); k++){
+            double vf_weight = IRL2D::getVfracWeight(vfracs[k]);
+            double d_weight = IRL2D::getDistanceWeight(pref, ploc[k], h);
+            double n_weight = IRL2D::getNormalWeight(nref, nloc[k]);
+            n_weight = 1.0;
+            // double n_weight = IRL2D::getNormalGradWeight(nref, nloc[k], pref, ploc[k]);
+            for (int p = 0; p < (pts.size() / line_seg_endpoints.size()); p++){
+              vfw.push_back(vf_weight);
+              dw.push_back(d_weight);
+              nw.push_back(n_weight);
+            }
+          }   
+          // Pratt's parabola
+          IRL2D::Parabola Prattparabola = IRL2D::getPrattParabola_localframe(pts, vfw, dw, nw,
+                                                                  interface(i,j).frame(),
+                                                                  interfaceData(i,j).center);       
+          // vf matching 
+          (*a_interface)(i,j) = IRL2D::MatchToVolumeFraction(interfaceData(i,j).rectangle, Prattparabola, 
+                                                             interfaceData(i,j).vf);
+        }
+      }
+    }
+  }
+
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// cubic approximation
+
+struct interfaceInfo{
+  bool mixed = false;
+  double vf, nx, ny;
+  IRL2D::Vec a, b, center;\
+  IRL2D::BezierList rectangle;
+};
+
+Eigen::MatrixXd pseudoInverse(const Eigen::MatrixXd& A, double tol = 1e-9) {
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  const auto& S = svd.singularValues();
+  Eigen::MatrixXd S_inv = Eigen::MatrixXd::Zero(svd.matrixV().cols(), svd.matrixU().cols());
+  for (int i = 0; i < S.size(); ++i) {
+      if (S(i) > tol)
+          S_inv(i, i) = 1.0 / S(i);
+  }
+  return svd.matrixV() * S_inv * svd.matrixU().transpose();
+}
+
+double f(double x, double A, double B, double C, double D) {
+  return A*x*x*x + B*x*x + C*x + D;
+}
+double fprime(double x, double A, double B, double C) {
+  return 3.0*A*x*x + 2.0*B*x + C;
+}
+double fdoubleprime(double x, double A, double B) {
+  return 6.0*A*x + 2.0*B;
+}
+
+struct ClosestPointFunctor{
+  typedef double Scalar;
+  typedef Eigen::VectorXd InputType;
+  typedef Eigen::VectorXd ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+  enum{
+    InputsAtCompileTime = Eigen::Dynamic,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+
+  // variables
+  double A, B, C, D;
+
+  // constructor
+  ClosestPointFunctor(const double& A_, const double& B_, const double& C_, const double& D_)
+    : A(A_), B(B_), C(C_), D(D_) {}
+  
+  int inputs() const {return 1;}
+  int values() const {return 1;}
+
+  int operator()(const Eigen::VectorXd& x, Eigen::VectorXd& fvec) const {
+    double xp = x(0);
+    double yp = A*xp*xp*xp + B*xp*xp + C*xp + D;;
+    fvec(0) = std::sqrt(xp*xp + yp*yp);
+    return 0;
+  }
+};
+
+void Cubic::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                               const Data<IRL2D::Moments>& a_gas_moments,
+                               const double a_dt, const Data<double>& a_U,
+                               const Data<double>& a_V,
+                               Data<IRL2D::Parabola>* a_interface) {
+  
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                            a_interface);
+  Data<IRL2D::Parabola> plic = *a_interface;
+
+  const BasicMesh& mesh = a_U.getMesh();
+
+  // local <-> global
+  auto globalToLocal = [&](const IRL2D::Vec& p, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+    IRL2D::Vec t = interface.frame()[0], n = interface.frame()[1];
+    IRL2D::Vec ploc = { (p.x() - interface.datum().x()) * t.x() + (p.y() - interface.datum().y()) * t.y() ,
+                        (p.x() - interface.datum().x()) * n.x() + (p.y() - interface.datum().y()) * n.y()  };       
+    return ploc;
+  };
+  auto localToGlobal = [&](const IRL2D::Vec& ploc, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+    IRL2D::Vec t = interface.frame()[0], n = interface.frame()[1];
+    IRL2D::Vec p = { interface.datum().x() + t.x() * ploc.x() + n.x() * ploc.y() , 
+                     interface.datum().y() + t.y() * ploc.x() + n.y() * ploc.y() };
+    return p;
+  };
+  auto vectorGlobalToLocal = [&](const IRL2D::Vec& v, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+    IRL2D::Vec t = interface.frame()[0];  
+    IRL2D::Vec n = interface.frame()[1];  
+    IRL2D::Vec vloc = { v.x() * t.x() + v.y() * t.y(),
+                        v.x() * n.x() + v.y() * n.y() };
+    return vloc;
+  };
+  auto vectorLocalToGlobal = [&](const IRL2D::Vec& vloc, const IRL2D::Parabola& interface) -> IRL2D::Vec {
+      IRL2D::Vec t = interface.frame()[0], n = interface.frame()[1];
+      IRL2D::Vec v = { t.x() * vloc.x() + n.x() * vloc.y(),
+                      t.y() * vloc.x() + n.y() * vloc.y() };
+      return v;
+  };
+  
+  // interface information
+  Data<interfaceInfo> plicData(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      const double liquid_volume_fraction =
+          (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        plicData(i,j).mixed = true;
+        plicData(i,j).vf = liquid_volume_fraction;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        plicData(i,j).rectangle = cell;
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        plicData(i,j).a = clipped_plic[0].first;
+        plicData(i,j).b = clipped_plic[1].first;
+        plicData(i,j).center = (plicData(i,j).a + plicData(i,j).b) / 2.0;
+        plicData(i,j).nx = plic(i,j).frame()[1][0];
+        plicData(i,j).ny = plic(i,j).frame()[1][1];
+        plic(i,j).datum() = plicData(i,j).center; // for coordinate transformation
+      }
+    }
+  }
+
+  const int num_points = 10; // per plic
+  for (int i = mesh.imin(); i <= mesh.imax(); i++){
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+      if (plicData(i,j).mixed == true){
+        IRL2D::Vec pref = plicData(i,j).center;
+        IRL2D::Vec pref_local = globalToLocal(pref, plic(i,j));
+        IRL2D::Vec nref_local = vectorGlobalToLocal(plic(i,j).frame()[1], plic(i,j));
+        std::vector<double> nxs, nys, weights;
+        std::vector<IRL2D::Vec> points;
+        for (int ii = -2; ii <= 2; ii++){
+          for (int jj = -2; jj <= 2; jj++){
+            if (plicData(i + ii, j + jj).mixed == true){
+              IRL2D::Vec ploc_local = globalToLocal(plicData(i+ii,j+jj).center, plic(i,j));
+              IRL2D::Vec n_local = vectorGlobalToLocal(plic(i+ii,j+jj).frame()[1], plic(i,j));
+              // std::cout << n_local << std::endl;
+              IRL2D::Vec a_local = globalToLocal(plicData(i+ii,j+jj).a, plic(i,j));
+              IRL2D::Vec b_local = globalToLocal(plicData(i+ii,j+jj).b, plic(i,j));
+              std::vector<IRL2D::Vec> pts = IRL2D::getPoints({a_local,b_local}, num_points);
+              double vf_weight = IRL2D::getVfracWeight(plicData(i+ii,j+jj).vf);
+              double d_weight = IRL2D::getDistanceWeight(pref_local, ploc_local, mesh.dx());
+              double n_weight = IRL2D::getNormalWeight(nref_local, n_local);
+              // vf_weight = 1.0; d_weight =1.0;
+              for (int k = 0; k < pts.size(); k++){
+                points.push_back(pts[k]);
+                weights.push_back(vf_weight * d_weight * n_weight);
+                nxs.push_back(n_local[0]);
+                nys.push_back(n_local[1]);
+              }
+            }
+          }
+        }
+
+        // printing points
+        // IRL2D::Vec p_global;
+        // if (i == 23 && j == 51){
+          // std::cout << "x = [ ";
+          // for (const auto& p : points){
+          //   p_global = localToGlobal(p, plic(i,j));
+          //   std::cout << p_global.x() << " ";
+          // }
+          // std::cout << "];" << std::endl;
+          // std::cout << "y = [ ";
+          // for (const auto& p : points){
+          //   p_global = localToGlobal(p, plic(i,j));
+          //   std::cout << p_global.y() << " ";
+          // }
+          // std::cout << "];" << std::endl;
+          // std::cout << plic(i,j).datum() << std::endl;
+          // std::cout << plic(i,j).frame() << std::endl;
+          // std::cout << "x_loc = [ ";
+          // for (const auto& p : points){
+          //   std::cout << p.x() << " ";
+          // }
+          // std::cout << "];" << std::endl;
+          // std::cout << "y_loc = [ ";
+          // for (const auto& p : points){
+          //   std::cout << p.y() << " ";
+          // }
+          // std::cout << "];" << std::endl;
+        // }
+
+        // least squares fit to find coeffs
+        const int N = points.size();
+        Eigen::MatrixXd W(2*N, 2*N);  W.setZero();
+        Eigen::MatrixXd U(2*N, 4);
+        Eigen::MatrixXd z(2*N, 1);
+        Eigen::MatrixXd A(4, 4);
+        Eigen::MatrixXd b(4, 1);
+        for (int k = 0; k < N; k++){
+          W(2*k, 2*k) = std::sqrt(weights[k]);
+          W(2*k + 1, 2*k + 1) = std::sqrt(weights[k]);
+          double xi = points[k].x();
+          U.row(2*k) << xi * xi * xi, xi * xi, xi, 1.0;
+          // U.row(2*k + 1) << 3.0 * xi * xi, 2.0 * xi, 1.0, 0.0;
+          U.row(2*k + 1) << 3.0 * xi * xi * nys[k], 2.0 * xi * nys[k], 1.0 * nys[k], 0.0;
+          z(2*k, 0) = points[k].y();
+          // z(2*k + 1, 0) = -nxs[k]/nys[k];
+          z(2*k + 1, 0) = -nxs[k];
+        }
+        A = U.transpose() * W.transpose() * W * U;
+        b = U.transpose() * W.transpose() * W * z;
+        // Eigen::Vector4d coeffs = A.ldlt().solve(b); 
+        Eigen::Vector4d coeffs = A.colPivHouseholderQr().solve(b);
+
+        // fit without normals
+        // const int N = points.size();
+        // Eigen::MatrixXd W(N, N);  W.setZero();
+        // Eigen::MatrixXd U(N, 4);
+        // Eigen::MatrixXd z(N, 1);
+        // Eigen::MatrixXd A(4, 4);
+        // Eigen::MatrixXd b(4, 1);
+        // for (int k = 0; k < N; k++){
+        //   W(k, k) = std::sqrt(weights[k]);
+        //   double xi = points[k].x();
+        //   U.row(k) << xi * xi * xi, xi * xi, xi, 1.0;
+        //   z(k, 0) = points[k].y();
+        // }
+        // A = U.transpose() * W.transpose() * W * U;
+        // b = U.transpose() * W.transpose() * W * z;
+        // Eigen::Vector4d coeffs = A.colPivHouseholderQr().solve(b);
+
+        
+        // if (i == 23 && j == 51){
+        //   std::cout << "A = " << coeffs(0) << ";" << std::endl;
+        //   std::cout << "B = " << coeffs(1) << ";" << std::endl;
+        //   std::cout << "C = " << coeffs(2) << ";" << std::endl;
+        //   std::cout << "D = " << coeffs(3) << ";" << std::endl;
+        // }
+
+        // bool a_solution_exists = (A*coeffs).isApprox(b, 1e-6); 
+        // std::cout << a_solution_exists << std::endl;
+        // std::cout << "coefficients = " << coeffs << std::endl;
+
+        // pseduo inverse for finding coefficients
+        // auto coeffs = pseudoInverse(W*U) * W * z;
+
+        // finding point closest to curve in local frame
+        ClosestPointFunctor functor(coeffs(0), coeffs(1), coeffs(2), coeffs(3));
+        Eigen::NumericalDiff<ClosestPointFunctor> numDiff(functor);
+        Eigen::LevenbergMarquardt<Eigen::NumericalDiff<ClosestPointFunctor>, double> lm(numDiff);
+        Eigen::VectorXd x(1); 
+        x(0) = 0.0; 
+        lm.parameters.maxfev = 1000;
+        lm.parameters.xtol = 1e-12;
+        lm.minimize(x);
+        double x_star = x(0);
+        double y_star = f(x_star, coeffs(0), coeffs(1), coeffs(2), coeffs(3));
+        IRL2D::Parabola cubic_interface;
+        cubic_interface.datum() = localToGlobal({x_star,y_star}, plic(i,j));
+        // if (i == 23 && j == 51){
+        //   std::cout << "datum = [" << cubic_interface.datum()[0] << " " 
+        //             << cubic_interface.datum()[1] << "];" << std::endl;
+        // }
+
+        // curvature
+        double fp = fprime(x_star, coeffs(0), coeffs(1), coeffs(2));
+        double fpp = fdoubleprime(x_star, coeffs(0), coeffs(1));
+        // double curvature = std::abs(fpp) / std::pow(1.0 + fp * fp, 1.5);
+        double curvature = -fpp / std::pow(1.0 + fp * fp, 1.5);
+        cubic_interface.coeff() = 0.5 * curvature;
+        // std::cout << "curvature = " << curvature << std::endl;
+
+        // reference frame
+        IRL2D::Vec normal_local = {-fp, 1.0};
+        normal_local.normalize();
+        IRL2D::Vec normal = vectorLocalToGlobal(normal_local, plic(i,j));
+        if ((normal * plic(i,j).frame()[1]) < 0){
+          normal *= -1.0;
+          cubic_interface.coeff() *= -1.0;
+        }
+        IRL2D::Vec tangent = {normal.y(), -normal.x()};
+        cubic_interface.frame() = {tangent, normal};
+
+        // cubic_interface.frame() = plic(i,j).frame();
+
+        // vf matching
+        (*a_interface)(i,j) = IRL2D::MatchToVolumeFraction(plicData(i,j).rectangle, cubic_interface,
+                                                           plicData(i,j).vf);
+
+      }
+    }
+  }
+
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+// partition of unity ----------------------------------------------------------------------------------------
+
+void PU::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
+                           const Data<IRL2D::Moments>& a_gas_moments,
+                           const double a_dt, const Data<double>& a_U,
+                           const Data<double>& a_V,
+                           Data<IRL2D::Parabola>* a_interface) {
+  
+  LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+                            a_interface);
+  Data<IRL2D::Parabola> plic = *a_interface;
+  const BasicMesh& mesh = a_U.getMesh();
+  std::vector<IRL2D::Vec> centroids;
+  std::vector<IRL2D::Vec> normals;
+  Data<bool> mixed(&mesh);
+  Data<IRL2D::Vec> plic_center(&mesh);
+  Data<std::pair<IRL2D::Vec, IRL2D::Vec>> end_points(&mesh);
+
+  // writing plic interface to csv
+  // std::string dir = "/home/parinht2/Documents/testing code/partition_of_unity";
+  // std::string filepath = dir + "/interface.csv";
+  // std::string filepath = dir + "/implicit_frame.csv";
+  // std::ofstream csvfile(filepath);
+  // csvfile << "ax,ay,bx,by,tx,ty,nx,ny\n";
+  // csvfile << "x,y,tx,ty,nx,ny\n";
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      mixed(i,j) = false;
+      const double lvf = (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (lvf >= IRL::global_constants::VF_LOW && lvf <= IRL::global_constants::VF_HIGH) {
+        mixed(i,j) = true;
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, plic(i,j), true);
+        IRL2D::Vec center = (clipped_plic[0].first + clipped_plic[1].first) / 2.0;
+        centroids.push_back(center);
+        plic_center(i,j) = center;
+        end_points(i,j) = {clipped_plic[0].first, clipped_plic[1].first};
+        normals.push_back(plic(i,j).frame()[1]);
+        // csvfile << clipped_plic[0].first[0] << "," << clipped_plic[0].first[1] << ","
+        //         << clipped_plic[1].first[0] << "," << clipped_plic[1].first[1] << ","
+        //         << plic(i,j).frame()[0][0] << "," << plic(i,j).frame()[0][1] << ","
+        //         << plic(i,j).frame()[1][0] << "," << plic(i,j).frame()[1][1] << "\n";
+      }
+    }
+  }
+
+  // projecting all centroids on implicit surface
+  // std::vector<IRL2D::Vec> projected_points(centroids.size());
+  // for (int i = 0; i < projected_points.size(); i++){
+  //   IRL2D::Vec x = centroids[i];
+  //   projected_points[i] = IRL2D::projectToImplicitSurface(x, centroids, normals, mesh.dx());
+  //   // std::cout << projected_points[i] << std::endl;
+  // }
+  // for (int i = mesh.imin(); i <= mesh.imax(); i++){
+  //   for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+  //     if (mixed(i,j) == true){
+  //       IRL2D::Parabola PU_parabola = IRL2D::getPU_interface(plic_center(i,j), centroids, normals, mesh.dx());
+  //       // csvfile << PU_parabola.datum()[0] << "," << PU_parabola.datum()[1] << "," 
+  //       //         << PU_parabola.frame()[0][0] << "," << PU_parabola.frame()[0][1] << ","
+  //       //         << PU_parabola.frame()[1][0] << "," << PU_parabola.frame()[1][1] << "\n";
+  //       // std::cout << PU_parabola.frame() << std::endl;
+  //     }
+  //   }
+  // }
+
+  // std::cout << "x = [ ";
+  // for (int i = 0; i < projected_points.size(); i++){
+  //   std::cout << projected_points[i][0] << " ";
+  // }
+  // std::cout << "];" << std::endl;
+
+  // std::cout << "y = [ ";
+  // for (int i = 0; i < projected_points.size(); i++){
+  //   std::cout << projected_points[i][1] << " ";
+  // }
+  // std::cout << "];" << std::endl;
+
+  // parabolic interface using PU
+  const double kernel_size = 2.5 * mesh.dx();
+  for (int i = mesh.imin(); i <= mesh.imax(); i++){
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++){
+      if (mixed(i,j) == true){
+        bool usePlane = false;
+        IRL2D::Parabola PU_parabola = IRL2D::getPU_interface(plic_center(i,j), centroids, normals, kernel_size, usePlane);
+        
+        if (usePlane){
+          std::cout << "(i,j) = " << i << " , " << j << std::endl;
+          // outputting plic data
+          std::string dir = "/home/parinht2/Documents/testing code/partition_of_unity";
+          std::string filepath = dir + "/nan_data.csv";
+          std::ofstream csvfile(filepath);
+          csvfile << "ax,ay,bx,by,tx,ty,nx,ny\n";
+          for (int ii = mesh.imin(); ii <= mesh.imax(); ii++){
+            for (int jj = mesh.jmin(); jj <= mesh.jmax(); jj++){
+              if (mixed(ii,jj) == true){
+                csvfile << end_points(ii,jj).first[0] << "," << end_points(ii,jj).first[1] << ","
+                        << end_points(ii,jj).second[0] << "," << end_points(ii,jj).second[1] << ","
+                        << plic(ii,jj).frame()[0][0] << "," << plic(ii,jj).frame()[0][1] << ","
+                        << plic(ii,jj).frame()[1][0] << "," << plic(ii,jj).frame()[1][1] << "\n";
+              }
+            }
+          }
+          continue; // use LVIRA
+        }
+
+        // return LVIRA with PU
+        // std::vector<IRL2D::Vec> cen = {plic_center(i,j)};
+        // std::vector<IRL2D::Vec> nor = {plic(i,j).frame()[1]};
+        // IRL2D::Parabola PU_parabola = IRL2D::getPU_interface(plic_center(i,j), cen, nor, kernel_size);
+
+        
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds( IRL2D::Vec( mesh.x(i), mesh.y(j) ),
+                                                             IRL2D::Vec( mesh.x(i+1), mesh.y(j+1) ) );
+        double vfrac = (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+        (*a_interface)(i,j) = IRL2D::MatchToVolumeFraction(cell, PU_parabola, vfrac);
+      }
+    }
+  }
+
 
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);
