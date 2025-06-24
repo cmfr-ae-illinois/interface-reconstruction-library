@@ -1,0 +1,19 @@
+IRLAddExample_cpp(
+  TARGET_NAME
+  initialize_vf
+  HDRS
+  "functions.h"
+  "surfaces.h"
+  SRCS
+  "main.cpp"
+  "functions.cpp"
+  "circle.cpp"
+  "ellipse.cpp"
+  "output.cpp"
+  "../2d_advector/basic_mesh.cpp"
+  "../2d_advector/irl2d.cpp"
+  OUTPUT_DIR
+  "${IRL_EXAMPLES_OUTPUT_DIR}/initialize_vf"
+  COLLECTION
+  "examples_initialize_vf"
+)
