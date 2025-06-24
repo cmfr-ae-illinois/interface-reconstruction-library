@@ -343,6 +343,23 @@ void c_getMoments_Poly24_LocSepLink_SepVM(
           IRL::C_CUTTING_METHOD);
 }
 
+void c_getMoments_Poly24_LocSepLink_TagAccVM_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_polyhedron_24 != nullptr);
+  assert(a_polyhedron_24->obj_ptr != nullptr);
+  assert(a_localized_separator_link != nullptr);
+  assert(a_localized_separator_link->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_polyhedron_24->obj_ptr, *a_localized_separator_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
 void c_getNormMoments_Tet_LocSepLink_SepVM(
     const c_Tet* a_tet, const c_LocSepLink* a_localized_separator_link,
     c_SepVM* a_moments_to_return) {
@@ -481,6 +498,23 @@ void c_getNormMoments_CapDod_LocSepLink_TagAccVM_SepVM(
   assert(a_moments_to_return->obj_ptr != nullptr);
   *a_moments_to_return->obj_ptr =
       IRL::c_RuntimegetNormMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_capped_dodecahedron->obj_ptr, *a_localized_separator_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getMoments_CapDod_LocSepLink_TagAccVM_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_separator_link != nullptr);
+  assert(a_localized_separator_link->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::TaggedAccumulatedVolumeMoments<
           IRL::SeparatedMoments<IRL::VolumeMoments>>>(
           *a_capped_dodecahedron->obj_ptr, *a_localized_separator_link->obj_ptr,
           IRL::C_CUTTING_METHOD);

@@ -289,8 +289,12 @@ module f_getMoments
     module procedure getMoments_Octa_LocSepLink_TagAccVM_SepVM
     ! Cut Octa by LocSepLink to get TagAccVM<SeparatedMoments<VM>>
     module procedure getNormMoments_Octa_LocSepLink_TagAccVM_SepVol
-    ! Cut CapDod by LocSepLink to get SeparatedMoments<VM>
+    ! Cut Poly24 by LocSepLink to get SeparatedMoments<VM>
     module procedure getMoments_Poly24_LocSepLink_SepVM
+    ! Cut Poly24 by LocSepLink to get TagAccVM<SeparatedMoments<VM>>
+    module procedure getMoments_Poly24_LocSepLink_TagAccVM_SepVM
+    ! Cut CapDod by LocSepLink to get TagAccVM<SeparatedMoments<VM>>
+    module procedure getMoments_CapDod_LocSepLink_TagAccVM_SepVM
     ! Cut Tri by LocLink to get TagAccListVM<VMAN>
     module procedure getMoments_Tri_LocLink_TagAccListVM_VMAN
     ! Cut RectCub by PlanarSep to get Volume
@@ -611,6 +615,18 @@ module f_getMoments
   end interface
 
   interface
+    subroutine F_getMoments_Poly24_LocSepLink_TagAccVM_SepVM(a_polyhedron_24, a_localized_separator_link, a_moments_to_return) &
+    bind(C, name="c_getMoments_Poly24_LocSepLink_TagAccVM_SepVM")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_Poly24) :: a_polyhedron_24 ! Pointer to Poly24 object
+      type(c_LocSepLink) :: a_localized_separator_link ! Pointer to LocSepLink object
+      type(c_TagAccVM_SepVM) :: a_moments_to_return ! Where TagAccVM<SeparatedMoments<VM>> is stored
+    end subroutine F_getMoments_Poly24_LocSepLink_TagAccVM_SepVM
+  end interface
+
+  interface
     subroutine F_getNormMoments_Tet_LocSepLink_SepVM(a_tet, a_localized_separator_link, a_moments_to_return) &
     bind(C, name="c_getNormMoments_Tet_LocSepLink_SepVM")
       use, intrinsic :: iso_c_binding
@@ -728,6 +744,18 @@ end interface
       type(c_LocSepLink) :: a_localized_separator_link ! Pointer to LocSepLink object
       type(c_TagAccVM_SepVM) :: a_moments_to_return ! Where TagAccVM<SeparatedMoments<VM>> is stored
     end subroutine F_getNormMoments_CapDod_LocSepLink_TagAccVM_SepVM
+  end interface
+
+  interface
+    subroutine F_getMoments_CapDod_LocSepLink_TagAccVM_SepVM(a_capped_dod, a_localized_separator_link, a_moments_to_return) &
+    bind(C, name="c_getMoments_CapDod_LocSepLink_TagAccVM_SepVM")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_CapDod) :: a_capped_dod ! Pointer to CapDod object
+      type(c_LocSepLink) :: a_localized_separator_link ! Pointer to LocSepLink object
+      type(c_TagAccVM_SepVM) :: a_moments_to_return ! Where TagAccVM<SeparatedMoments<VM>> is stored
+    end subroutine F_getMoments_CapDod_LocSepLink_TagAccVM_SepVM
   end interface
 
   interface
@@ -2025,6 +2053,18 @@ contains
 
   end subroutine getMoments_Poly24_LocSepLink_SepVM
 
+  subroutine getMoments_Poly24_LocSepLink_TagAccVM_SepVM(a_polyhedron_24, a_localized_separator_link, a_moments_to_return)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(Poly24_type), intent(in) :: a_polyhedron_24
+      type(LocSepLink_type), intent(in) :: a_localized_separator_link
+      type(TagAccVM_SepVM_type), intent(inout) :: a_moments_to_return
+
+      call F_getMoments_Poly24_LocSepLink_TagAccVM_SepVM &
+          (a_polyhedron_24%c_object, a_localized_separator_link%c_object, a_moments_to_return%c_object)
+
+  end subroutine getMoments_Poly24_LocSepLink_TagAccVM_SepVM
+
   subroutine getNormMoments_Tet_LocSepLink_SepVM(a_tet, a_localized_separator_link, a_moments_to_return)
     use, intrinsic :: iso_c_binding
     implicit none
@@ -2144,6 +2184,18 @@ contains
           (a_capped_dod%c_object, a_localized_separator_link%c_object, a_moments_to_return%c_object)
 
   end subroutine getNormMoments_CapDod_LocSepLink_TagAccVM_SepVM
+
+  subroutine getMoments_CapDod_LocSepLink_TagAccVM_SepVM(a_capped_dod, a_localized_separator_link, a_moments_to_return)
+   use, intrinsic :: iso_c_binding
+   implicit none
+     type(CapDod_type), intent(in) :: a_capped_dod
+     type(LocSepLink_type), intent(in) :: a_localized_separator_link
+     type(TagAccVM_SepVM_type), intent(inout) :: a_moments_to_return
+
+     call F_getMoments_CapDod_LocSepLink_TagAccVM_SepVM &
+         (a_capped_dod%c_object, a_localized_separator_link%c_object, a_moments_to_return%c_object)
+
+ end subroutine getMoments_CapDod_LocSepLink_TagAccVM_SepVM
 
   subroutine getNormMoments_Dod_LocSepLink_TagAccVM_SepVM(a_Dod, a_localized_separator_link, a_moments_to_return)
     use, intrinsic :: iso_c_binding
