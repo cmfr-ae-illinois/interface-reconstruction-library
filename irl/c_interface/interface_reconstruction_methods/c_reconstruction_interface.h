@@ -15,6 +15,7 @@
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
 #include "irl/c_interface/geometry/polyhedrons/c_tet.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_elvira_neighborhood.h"
+#include "irl/c_interface/interface_reconstruction_methods/c_jibben_neighborhood.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_lvira_neighborhood_hexahedron.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_lvira_neighborhood_rectangular_cuboid.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_lvira_neighborhood_tet.h"
@@ -23,6 +24,7 @@
 #include "irl/c_interface/interface_reconstruction_methods/c_r2p_weighting.h"
 #include "irl/c_interface/moments/c_listedvm_vman.h"
 #include "irl/c_interface/moments/c_separated_volume_moments.h"
+#include "irl/c_interface/paraboloid_reconstruction/c_paraboloid.h"
 #include "irl/c_interface/planar_reconstruction/c_separators.h"
 #include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/geometry/polygons/tri.h"
@@ -41,6 +43,12 @@ extern "C" {
 /// in geometries. These methods differ in what they require. For
 /// the individual needs of each reconstruction method,
 /// it is best to constult its specific documentation.
+
+void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
+                                 c_Paraboloid* a_separator);
+
+void c_reconstructJibben3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                                   c_SeparatorVariant* a_separator);
 
 void c_reconstructELVIRA2D(const c_ELVIRANeigh* a_elvira_neighborhood,
                            c_PlanarSep* a_separator);

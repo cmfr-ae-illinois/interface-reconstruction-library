@@ -23,12 +23,12 @@
 #include "irl/geometry/general/pt_with_data.h"
 #include "irl/geometry/general/reference_frame.h"
 #include "irl/graphs/un_directed_graph_node.h"
-#include "irl/quadratic_reconstruction/quadratic_helper.h"
 #include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
 #include "irl/paraboloid_reconstruction/gradient_paraboloid.h"
 #include "irl/planar_reconstruction/joined_reconstructions.h"
 #include "irl/planar_reconstruction/planar_localizer.h"
 #include "irl/planar_reconstruction/reconstruction_link.h"
+#include "irl/quadratic_reconstruction/quadratic_helper.h"
 
 namespace IRL {
 
@@ -78,6 +78,9 @@ class ParaboloidBase {
 
   /// Whether the paraboloid has been set to be below any polyhedron.
   bool isAlwaysBelow(void) const;
+
+  // Recenter paraboloida at new location
+  void regenerateAtLocation(const PtBase<ScalarType>& a_pt);
 
   /// Paraboloid cannot be a flipped reconstruction. Add this for ease of use
   /// with other routines that usually take planar reconstructions.
