@@ -27,9 +27,16 @@ class SeparatorVariant
   using base::base;
   using base::operator=;
 
+  void setToPlanarSeparator(void);
+  void setToParaboloid(void);
+  void setToCylinder(void);
+
   void serialize(ByteBuffer* a_buffer) const;
   void unpackSerialized(ByteBuffer* a_buffer);
 };
+
+inline std::ostream& operator<<(std::ostream& out,
+                                const SeparatorVariant& a_reconstruction);
 
 using LocalizedSeparatorVariant =
     JoinedReconstructions<PlanarLocalizer, SeparatorVariant>;

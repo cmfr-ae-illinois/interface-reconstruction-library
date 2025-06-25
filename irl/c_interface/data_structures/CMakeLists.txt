@@ -15,3 +15,7 @@ target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_obj
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_localized_paraboloid_link.cpp)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_triangulated_paraboloid.h)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_triangulated_paraboloid.cpp)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_separator_variant.h)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_separator_variant.cpp)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_localized_variant_link.h)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_localized_variant_link.cpp)

@@ -20,8 +20,10 @@
 module irl_fortran_interface
   use f_definedtypes
   use f_ObjServer_PlanarSep_class
+  use f_ObjServer_SeparatorVariant_class
   use f_ObjServer_PlanarLoc_class
   use f_ObjServer_LocSepLink_class
+  use f_ObjServer_LocVariantLink_class
   use f_ObjServer_LocSep_class  
   use f_ObjServer_LocLink_class
   use f_SepVM_class
@@ -30,11 +32,13 @@ module irl_fortran_interface
   use f_VMAN_class
   use f_PlanarLoc_class
   use f_PlanarSep_class
+  use f_SeparatorVariant_class
   use f_LocLink_class
   use f_PlanarSepPath_class
   use f_PlanarSepPathGroup_class
   use f_LocSep_class  
   use f_LocSepLink_class
+  use f_LocVariantLink_class
   use f_LocSepGroupLink_class
   use f_Dod_class
   use f_CapDod_class

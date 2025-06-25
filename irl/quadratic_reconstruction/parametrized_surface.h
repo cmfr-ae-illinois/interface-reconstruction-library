@@ -15,9 +15,9 @@
 #if !defined(IRL_USE_EARCUT) && !defined(IRL_USE_TRIANGLE) && \
     !defined(IRL_USE_CGAL) && !defined(IRL_USE_GEOGRAM)
 
-// #define IRL_USE_EARCUT
+#define IRL_USE_EARCUT
 // #define IRL_USE_TRIANGLE
-#define IRL_USE_CGAL
+// #define IRL_USE_CGAL
 // #define IRL_USE_GEOGRAM
 
 #endif

@@ -23,6 +23,34 @@ void c_matchVolumeFraction_RectCub_PlanarSep_Default(
                                         a_reconstruction->obj_ptr);
 }
 
+void c_matchVolumeFraction_RectCub_Variant_Default(
+    const c_RectCub* a_cell, const double* a_volume_fraction,
+    c_SeparatorVariant* a_reconstruction) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  if (IRL::PlanarSeparator* separator =
+          std::get_if<IRL::PlanarSeparator>(a_reconstruction->obj_ptr)) {
+    IRL::setDistanceToMatchVolumeFraction(*a_cell->obj_ptr, *a_volume_fraction,
+                                          separator);
+  } else if (IRL::Paraboloid* paraboloid =
+                 std::get_if<IRL::Paraboloid>(a_reconstruction->obj_ptr)) {
+    const IRL::Pt& datum = paraboloid->getDatum();
+    const IRL::ReferenceFrame& frame = paraboloid->getReferenceFrame();
+    IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid> solver(
+        *a_cell->obj_ptr, *a_volume_fraction, 1.0e-14, *paraboloid);
+    paraboloid->setDatum(IRL::Pt(datum + solver.getDistance() * frame[2]));
+  } else if (IRL::Cylinder* cylinder =
+                 std::get_if<IRL::Cylinder>(a_reconstruction->obj_ptr)) {
+    const IRL::Pt& datum = cylinder->getDatum();
+    const IRL::ReferenceFrame& frame = paraboloid->getReferenceFrame();
+    IRL::ProgressiveRadiusSolverCylinder<IRL::RectangularCuboid> solver(
+        *a_cell->obj_ptr, *a_volume_fraction, 1.0e-14, *cylinder);
+    *a_reconstruction->obj_ptr = solver.getCylinder();
+  }
+}
+
 void c_matchVolumeFraction_RectCub_PlanarSep(
     const c_RectCub* a_cell, const double* a_volume_fraction,
     c_PlanarSep* a_reconstruction, const double* a_volume_fraction_tolerance) {
@@ -139,109 +167,130 @@ void c_matchVolumeFraction_Pyrmd_PlanarSep(
 
 void c_matchGroupVolumeFraction_Tet_PlanarSepPathGroup_Default(
     const c_Tet* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr,  wrapped_vf, a_reconstruction->obj_ptr);
+    c_PlanarSepPathGroup* a_reconstruction) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr);
 }
 
 void c_matchGroupVolumeFraction_Tet_PlanarSepPathGroup(
     const c_Tet* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	assert(*a_volume_fraction_tolerance > 0.0);
-	assert(*a_volume_fraction_tolerance < 1.0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf, a_reconstruction->obj_ptr, *a_volume_fraction_tolerance);
+    c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  assert(*a_volume_fraction_tolerance > 0.0);
+  assert(*a_volume_fraction_tolerance < 1.0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr,
+                                             *a_volume_fraction_tolerance);
 }
 
 void c_matchGroupVolumeFraction_Pyrmd_PlanarSepPathGroup_Default(
     const c_Pyrmd* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr,  wrapped_vf, a_reconstruction->obj_ptr);
+    c_PlanarSepPathGroup* a_reconstruction) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr);
 }
 
 void c_matchGroupVolumeFraction_Pyrmd_PlanarSepPathGroup(
     const c_Pyrmd* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	assert(*a_volume_fraction_tolerance > 0.0);
-	assert(*a_volume_fraction_tolerance < 1.0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf, a_reconstruction->obj_ptr, *a_volume_fraction_tolerance);
+    c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  assert(*a_volume_fraction_tolerance > 0.0);
+  assert(*a_volume_fraction_tolerance < 1.0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr,
+                                             *a_volume_fraction_tolerance);
 }
 
 void c_matchGroupVolumeFraction_TriPrism_PlanarSepPathGroup_Default(
-    const c_TriPrism* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr,  wrapped_vf, a_reconstruction->obj_ptr);
+    const c_TriPrism* a_cell, const int* a_size,
+    const double* a_volume_fraction, c_PlanarSepPathGroup* a_reconstruction) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr);
 }
 
 void c_matchGroupVolumeFraction_TriPrism_PlanarSepPathGroup(
-    const c_TriPrism* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	assert(*a_volume_fraction_tolerance > 0.0);
-	assert(*a_volume_fraction_tolerance < 1.0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf, a_reconstruction->obj_ptr, *a_volume_fraction_tolerance);
+    const c_TriPrism* a_cell, const int* a_size,
+    const double* a_volume_fraction, c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  assert(*a_volume_fraction_tolerance > 0.0);
+  assert(*a_volume_fraction_tolerance < 1.0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr,
+                                             *a_volume_fraction_tolerance);
 }
 
 void c_matchGroupVolumeFraction_Hex_PlanarSepPathGroup_Default(
     const c_Hex* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr,  wrapped_vf, a_reconstruction->obj_ptr);
+    c_PlanarSepPathGroup* a_reconstruction) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr);
 }
 
 void c_matchGroupVolumeFraction_Hex_PlanarSepPathGroup(
     const c_Hex* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance){
-	assert(a_cell != nullptr);
-	assert(a_cell->obj_ptr != nullptr);
-	assert(a_reconstruction != nullptr);
-	assert(a_reconstruction->obj_ptr != nullptr);
-	assert(*a_size >= 0);
-	assert(*a_volume_fraction_tolerance > 0.0);
-	assert(*a_volume_fraction_tolerance < 1.0);
-	auto wrapped_vf = IRL::wrapRawPointer(a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
-	IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf, a_reconstruction->obj_ptr, *a_volume_fraction_tolerance);
+    c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_reconstruction != nullptr);
+  assert(a_reconstruction->obj_ptr != nullptr);
+  assert(*a_size >= 0);
+  assert(*a_volume_fraction_tolerance > 0.0);
+  assert(*a_volume_fraction_tolerance < 1.0);
+  auto wrapped_vf = IRL::wrapRawPointer(
+      a_volume_fraction, static_cast<IRL::UnsignedIndex_t>(*a_size));
+  IRL::setGroupDistanceToMatchVolumeFraction(*a_cell->obj_ptr, wrapped_vf,
+                                             a_reconstruction->obj_ptr,
+                                             *a_volume_fraction_tolerance);
 }
-
-
-
 
 }  // end extern C

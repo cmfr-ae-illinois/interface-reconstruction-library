@@ -44,7 +44,7 @@ target_include_directories(paraboloid_amr_generate_result SYSTEM PUBLIC "${PROJE
 target_include_directories(paraboloid_amr_generate_result SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/triangle/")
 target_include_directories(paraboloid_amr_generate_result SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/json/include")
 target_link_libraries(paraboloid_amr_generate_result INTERFACE PUBLIC Eigen3::Eigen)
-target_link_libraries(paraboloid_amr_generate_result INTERFACE PUBLIC CGAL)
+# target_link_libraries(paraboloid_amr_generate_result INTERFACE PUBLIC CGAL)
 target_include_directories(paraboloid_amr_generate_result SYSTEM PUBLIC "")
 target_include_directories(paraboloid_amr_generate_result SYSTEM PUBLIC "${MPI_INCLUDE_PATH}")
 
@@ -76,7 +76,7 @@ target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "${IRL_RO
 target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "${IRL_ROOT_LOCATION}/external/triangle/")
 target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/json/include")
 target_link_libraries(paraboloid_irl_confirm_result INTERFACE PUBLIC Eigen3::Eigen)
-target_link_libraries(paraboloid_irl_confirm_result INTERFACE PUBLIC CGAL)
+# target_link_libraries(paraboloid_irl_confirm_result INTERFACE PUBLIC CGAL)
 target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "")
 
 

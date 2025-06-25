@@ -23,8 +23,18 @@ void c_reconstructELVIRA2D(const c_ELVIRANeigh* a_elvira_neighborhood,
       reconstructionWithELVIRA2D(*a_elvira_neighborhood->obj_ptr);
 }
 
-void c_reconstructELVIRA3D(const c_ELVIRANeigh* a_elvira_neighborhood,
-                           c_PlanarSep* a_separator) {
+void c_reconstructELVIRA3D_Sep(const c_ELVIRANeigh* a_elvira_neighborhood,
+                               c_PlanarSep* a_separator) {
+  assert(a_elvira_neighborhood != nullptr);
+  assert(a_elvira_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  *a_separator->obj_ptr =
+      reconstructionWithELVIRA3D(*a_elvira_neighborhood->obj_ptr);
+}
+
+void c_reconstructELVIRA3D_Variant(const c_ELVIRANeigh* a_elvira_neighborhood,
+                                   c_SeparatorVariant* a_separator) {
   assert(a_elvira_neighborhood != nullptr);
   assert(a_elvira_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -46,9 +56,22 @@ void c_reconstructMOF2D_RectCub(const c_RectCub* a_cell,
       *a_cell->obj_ptr, *a_separated_volume_moments->obj_ptr);
 }
 
-void c_reconstructMOF3D_RectCub(const c_RectCub* a_cell,
-                                const c_SepVM* a_separated_volume_moments,
-                                c_PlanarSep* a_separator) {
+void c_reconstructMOF3D_RectCub_Sep(const c_RectCub* a_cell,
+                                    const c_SepVM* a_separated_volume_moments,
+                                    c_PlanarSep* a_separator) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  assert(a_separated_volume_moments != nullptr);
+  assert(a_separated_volume_moments->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  *a_separator->obj_ptr = reconstructionWithMOF3D(
+      *a_cell->obj_ptr, *a_separated_volume_moments->obj_ptr);
+}
+
+void c_reconstructMOF3D_RectCub_Variant(
+    const c_RectCub* a_cell, const c_SepVM* a_separated_volume_moments,
+    c_SeparatorVariant* a_separator) {
   assert(a_cell != nullptr);
   assert(a_cell->obj_ptr != nullptr);
   assert(a_separated_volume_moments != nullptr);
@@ -92,8 +115,8 @@ void c_reconstructMOF3D_GW_RectCub(const c_RectCub* a_cell,
 }
 
 void c_reconstructMOF3D_Hex(const c_Hex* a_cell,
-                                const c_SepVM* a_separated_volume_moments,
-                                c_PlanarSep* a_separator) {
+                            const c_SepVM* a_separated_volume_moments,
+                            c_PlanarSep* a_separator) {
   assert(a_cell != nullptr);
   assert(a_cell->obj_ptr != nullptr);
   assert(a_separated_volume_moments != nullptr);
@@ -105,10 +128,10 @@ void c_reconstructMOF3D_Hex(const c_Hex* a_cell,
 }
 
 void c_reconstructMOF3D_GW_Hex(const c_Hex* a_cell,
-                                   const c_SepVM* a_separated_volume_moments,
-                                   const double* a_internal_weight,
-                                   const double* a_external_weight,
-                                   c_PlanarSep* a_separator) {
+                               const c_SepVM* a_separated_volume_moments,
+                               const double* a_internal_weight,
+                               const double* a_external_weight,
+                               c_PlanarSep* a_separator) {
   assert(a_cell != nullptr);
   assert(a_cell->obj_ptr != nullptr);
   assert(a_separated_volume_moments != nullptr);
@@ -178,10 +201,25 @@ void c_reconstructMOF3D_GW_Tet(const c_Tet* a_cell,
       *a_internal_weight, *a_external_weight);
 }
 
-void c_reconstructAdvectedNormals_RectCub(
+void c_reconstructAdvectedNormals_RectCub_Sep(
     const c_ListVM_VMAN* a_volume_moments_list,
     const c_R2PNeigh_RectCub* a_neighborhood,
     const double* a_two_plane_threshold, c_PlanarSep* a_separator) {
+  assert(a_volume_moments_list != nullptr);
+  assert(a_volume_moments_list->obj_ptr != nullptr);
+  assert(a_neighborhood != nullptr);
+  assert(a_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  (*a_separator->obj_ptr) = IRL::reconstructionWithAdvectedNormals(
+      *a_volume_moments_list->obj_ptr, *a_neighborhood->obj_ptr,
+      *a_two_plane_threshold);
+}
+
+void c_reconstructAdvectedNormals_RectCub_Variant(
+    const c_ListVM_VMAN* a_volume_moments_list,
+    const c_R2PNeigh_RectCub* a_neighborhood,
+    const double* a_two_plane_threshold, c_SeparatorVariant* a_separator) {
   assert(a_volume_moments_list != nullptr);
   assert(a_volume_moments_list->obj_ptr != nullptr);
   assert(a_neighborhood != nullptr);
@@ -218,8 +256,8 @@ void c_reconstructR2P2D_RectCub(const c_R2PNeigh_RectCub* a_neighborhood,
       *a_neighborhood->obj_ptr, *a_separator->obj_ptr);
 }
 
-void c_reconstructR2P3D_RectCub(const c_R2PNeigh_RectCub* a_neighborhood,
-                                c_PlanarSep* a_separator) {
+void c_reconstructR2P3D_RectCub_Sep(const c_R2PNeigh_RectCub* a_neighborhood,
+                                    c_PlanarSep* a_separator) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -228,33 +266,52 @@ void c_reconstructR2P3D_RectCub(const c_R2PNeigh_RectCub* a_neighborhood,
       *a_neighborhood->obj_ptr, *a_separator->obj_ptr);
 }
 
-void c_reconstructR2P3DwWeights_RectCub(const c_R2PNeigh_RectCub* a_neighborhood,
-                                c_PlanarSep* a_separator,
-                                const c_R2PWeighting* a_r2p_weighting) {
+void c_reconstructR2P3D_RectCub_Variant(
+    const c_R2PNeigh_RectCub* a_neighborhood, c_SeparatorVariant* a_separator) {
+  assert(a_neighborhood != nullptr);
+  assert(a_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  if (IRL::PlanarSeparator* separator_guess =
+          std::get_if<IRL::PlanarSeparator>(a_separator->obj_ptr)) {
+    (*a_separator->obj_ptr) = IRL::reconstructionWithR2P3D(
+        *a_neighborhood->obj_ptr, *separator_guess);
+  } else {
+    throw std::runtime_error(
+        "When R2P3D is provided with a guess of the SeparatorVariant type, "
+        "this active type needs to be PlanarSeparator");
+  }
+}
+
+void c_reconstructR2P3DwWeights_RectCub(
+    const c_R2PNeigh_RectCub* a_neighborhood, c_PlanarSep* a_separator,
+    const c_R2PWeighting* a_r2p_weighting) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
   assert(a_r2p_weighting != nullptr);
-  assert(a_r2p_weighting->obj_ptr != nullptr);  
+  assert(a_r2p_weighting->obj_ptr != nullptr);
   (*a_separator->obj_ptr) = IRL::reconstructionWithR2P3D(
-      *a_neighborhood->obj_ptr, *a_separator->obj_ptr, *a_r2p_weighting->obj_ptr);
+      *a_neighborhood->obj_ptr, *a_separator->obj_ptr,
+      *a_r2p_weighting->obj_ptr);
 }
 
-void c_reconstructR2P3DChangeBehavior_RectCub(const c_R2PNeigh_RectCub* a_neighborhood,
-                                c_PlanarSep* a_separator,
-                                const c_OptimizationBehavior* a_optimization_behavior,
-                                const c_R2PWeighting* a_r2p_weighting) {
+void c_reconstructR2P3DChangeBehavior_RectCub(
+    const c_R2PNeigh_RectCub* a_neighborhood, c_PlanarSep* a_separator,
+    const c_OptimizationBehavior* a_optimization_behavior,
+    const c_R2PWeighting* a_r2p_weighting) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
   assert(a_optimization_behavior != nullptr);
-  assert(a_optimization_behavior->obj_ptr != nullptr);    
+  assert(a_optimization_behavior->obj_ptr != nullptr);
   assert(a_r2p_weighting != nullptr);
-  assert(a_r2p_weighting->obj_ptr != nullptr);  
+  assert(a_r2p_weighting->obj_ptr != nullptr);
   (*a_separator->obj_ptr) = IRL::reconstructionWithR2P3D(
-      *a_neighborhood->obj_ptr, *a_separator->obj_ptr, *a_optimization_behavior->obj_ptr, *a_r2p_weighting->obj_ptr);
+      *a_neighborhood->obj_ptr, *a_separator->obj_ptr,
+      *a_optimization_behavior->obj_ptr, *a_r2p_weighting->obj_ptr);
 }
 
 void c_reconstructR2P2DDbg_RectCub(const c_R2PNeigh_RectCub* a_neighborhood,
@@ -287,8 +344,8 @@ void c_reconstructLVIRA2D_RectCub(const c_LVIRANeigh_RectCub* a_neighborhood,
       *a_neighborhood->obj_ptr, *a_separator->obj_ptr);
 }
 
-void c_reconstructLVIRA3D_RectCub(const c_LVIRANeigh_RectCub* a_neighborhood,
-                                  c_PlanarSep* a_separator) {
+void c_reconstructLVIRA3D_RectCub_Sep(
+    const c_LVIRANeigh_RectCub* a_neighborhood, c_PlanarSep* a_separator) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -297,8 +354,26 @@ void c_reconstructLVIRA3D_RectCub(const c_LVIRANeigh_RectCub* a_neighborhood,
       *a_neighborhood->obj_ptr, *a_separator->obj_ptr);
 }
 
+void c_reconstructLVIRA3D_RectCub_Variant(
+    const c_LVIRANeigh_RectCub* a_neighborhood,
+    c_SeparatorVariant* a_separator) {
+  assert(a_neighborhood != nullptr);
+  assert(a_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  if (IRL::PlanarSeparator* separator_guess =
+          std::get_if<IRL::PlanarSeparator>(a_separator->obj_ptr)) {
+    (*a_separator->obj_ptr) = IRL::reconstructionWithLVIRA3D(
+        *a_neighborhood->obj_ptr, *separator_guess);
+  } else {
+    throw std::runtime_error(
+        "When LVIRA3D is provided with a guess of the SeparatorVariant type, "
+        "this active type needs to be PlanarSeparator");
+  }
+}
+
 void c_reconstructLVIRA2D_Hex(const c_LVIRANeigh_Hex* a_neighborhood,
-                                  c_PlanarSep* a_separator) {
+                              c_PlanarSep* a_separator) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -308,7 +383,7 @@ void c_reconstructLVIRA2D_Hex(const c_LVIRANeigh_Hex* a_neighborhood,
 }
 
 void c_reconstructLVIRA3D_Hex(const c_LVIRANeigh_Hex* a_neighborhood,
-                                  c_PlanarSep* a_separator) {
+                              c_PlanarSep* a_separator) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -318,7 +393,7 @@ void c_reconstructLVIRA3D_Hex(const c_LVIRANeigh_Hex* a_neighborhood,
 }
 
 void c_reconstructLVIRA3D_Tet(const c_LVIRANeigh_Tet* a_neighborhood,
-                                  c_PlanarSep* a_separator) {
+                              c_PlanarSep* a_separator) {
   assert(a_neighborhood != nullptr);
   assert(a_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -326,6 +401,5 @@ void c_reconstructLVIRA3D_Tet(const c_LVIRANeigh_Tet* a_neighborhood,
   (*a_separator->obj_ptr) = IRL::reconstructionWithLVIRA3D(
       *a_neighborhood->obj_ptr, *a_separator->obj_ptr);
 }
-
 
 }  // end extern C
