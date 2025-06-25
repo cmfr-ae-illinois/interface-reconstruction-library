@@ -2,8 +2,8 @@
 
 #include "examples/initialize_vf/surfaces.h"
 
-const double xc = 0, yc = 0;
-const double a = 1.0, b = 1.0;
+const double xc = 0, yc = 0.03125;
+const double a = 0.2, b = 0.05;
 
 double F_ellipse(const double& x, const double& y){
   return std::pow((x - xc) / a, 2.0) + std::pow((y - yc) / b, 2.0) - 1.0;
