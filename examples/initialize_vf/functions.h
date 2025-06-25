@@ -61,13 +61,7 @@ struct PointHash {
 double evaluate_or_cache(double x, double y, ImplicitF F,
                          std::unordered_map<Point, double, PointHash>& cache);
 
-// CellStatus get_cell_status(const Cell& cell, ImplicitF F);
-
-// CellStatus get_cell_status2(const Cell& cell, ImplicitF F,
-//                             GradientF gradF, HessianF hessF,
-//                             const BasicMesh& mesh);
-
-CellStatus get_cell_status3(const Cell& cell, ImplicitF F,
+CellStatus get_cell_status(const Cell& cell, ImplicitF F,
                             GradientF gradF, HessianF hessF,
                             std::unordered_map<Point, double, PointHash>& F_cache);                            
 
