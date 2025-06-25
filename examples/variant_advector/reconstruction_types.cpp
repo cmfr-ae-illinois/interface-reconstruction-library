@@ -1088,6 +1088,27 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                             &jibben_reconstruction, true, &interface_centroids,
                             &interface_areas, &jibben_errors);
 
+  // Cleanup jibben
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        const double liquid_volume_fraction =
+            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          if (IRL::Paraboloid* paraboloid = std::get_if<IRL::Paraboloid>(
+                  &jibben_reconstruction(i, j, k))) {
+            const auto& aligned_paraboloid = paraboloid->getAlignedParaboloid();
+            if (std::fabs(aligned_paraboloid.a()) > 1.0 / mesh.dx() ||
+                std::fabs(aligned_paraboloid.b()) > 1.0 / mesh.dx()) {
+              jibben_reconstruction(i, j, k) = plic_reconstruction(i, j, k);
+            }
+          }
+        }
+      }
+    }
+  }
+
   const int nlayers = 1;
   const double delta = 5.0 * mesh.dx();
   // const double jibben_error_threshold = 5.0e-3;
