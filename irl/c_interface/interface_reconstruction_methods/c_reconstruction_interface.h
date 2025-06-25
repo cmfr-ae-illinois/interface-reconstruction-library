@@ -113,7 +113,7 @@ void c_reconstructAdvectedNormals_RectCub_Sep(
 void c_reconstructAdvectedNormals_RectCub_Variant(
     const c_ListVM_VMAN* a_volume_moments_list,
     const c_R2PNeigh_RectCub* a_neighborhood,
-    const double* a_two_plane_threshold, c_PlanarSep* a_separator);
+    const double* a_two_plane_threshold, c_SeparatorVariant* a_separator);
 
 void c_reconstructAdvectedNormalsDbg_RectCub(
     const c_ListVM_VMAN* a_volume_moments_list,
