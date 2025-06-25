@@ -106,7 +106,6 @@ void write_vtu(const std::string& filepath, const std::vector<const Cell*>& cell
 
   out << "      </Cells>\n";
 
-  // === No scalar data ===
   out << "    </Piece>\n";
   out << "  </UnstructuredGrid>\n";
   out << "</VTKFile>\n";

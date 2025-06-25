@@ -132,7 +132,7 @@ CellStatus get_cell_status(const Cell& cell, ImplicitF F,
 void refine_cell(std::unique_ptr<Cell>& cell, ImplicitF F, const int& max_level,
                  GradientF gradF, HessianF hessF, std::unordered_map<Point, double, PointHash>& F_cache){
 
-  cell->status = get_cell_status3(*cell, F, gradF, hessF, F_cache);
+  cell->status = get_cell_status(*cell, F, gradF, hessF, F_cache);
   if (cell->status != CellStatus::Mixed || cell->level >= max_level) return;
 
   double x = cell->x, y = cell->y, dx = cell->dx/2.0;
