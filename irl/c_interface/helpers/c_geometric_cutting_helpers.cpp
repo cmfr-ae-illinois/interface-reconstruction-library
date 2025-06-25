@@ -35,6 +35,11 @@ bool c_isPtInt_Variant(const double* a_pt,
                  std::get_if<IRL::Cylinder>(a_separator->obj_ptr)) {
     throw std::runtime_error(
         "Function \"isPtInt\" not yet implemented for cylinders");
+  } else {
+    throw std::runtime_error(
+        "Function  \"isPtInt\" not yet implemented for unknown "
+        "SeparatorVariant "
+        "type");
   }
 }
 
