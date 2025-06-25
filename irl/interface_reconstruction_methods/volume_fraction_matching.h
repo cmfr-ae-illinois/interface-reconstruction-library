@@ -10,19 +10,24 @@
 #ifndef IRL_INTERFACE_RECONSTRUCTION_METHODS_VOLUME_FRACTION_MATCHING_H_
 #define IRL_INTERFACE_RECONSTRUCTION_METHODS_VOLUME_FRACTION_MATCHING_H_
 
+#include <type_traits>
+
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/helpers/helper.h"
 #include "irl/interface_reconstruction_methods/plane_distance.h"
+#include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
+#include "irl/interface_reconstruction_methods/progressive_radius_solver_cylinder.h"
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.h"
-#include "irl/planar_reconstruction/planar_separator_path_group.h"
 #include "irl/parameters/constants.h"
+#include "irl/planar_reconstruction/planar_separator_path_group.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
 
-template <class CellType, class PlanarType>
+template <class CellType, class ReconstructionType>
 inline void setDistanceToMatchVolumeFraction(
     const CellType& a_cell, const double a_volume_fraction,
-    PlanarType* a_reconstruction,
+    ReconstructionType* a_reconstruction,
     const double a_volume_fraction_tolerance =
         global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
 
@@ -59,30 +64,41 @@ inline void setGroupDistanceToMatchVolumeFraction(
 /// that the updated distance will recreate.
 /// \param[in] a_volume_fraction_tolerance Tolerance allowed
 /// in recreating `a_volume_fraction`.
-template <class CellType, class PlanarType>
+template <class CellType, class ReconstructionType>
 inline void setDistanceToMatchVolumeFractionPartialFill(
     const CellType& a_cell, const double a_volume_fraction,
-    PlanarType* a_reconstruction,
+    ReconstructionType* a_reconstruction,
+    const double a_volume_fraction_tolerance =
+        global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
+
+template <class CellType>
+inline void setDistanceToMatchVolumeFractionPartialFill(
+    const CellType& a_cell, const double a_volume_fraction,
+    SeparatorVariant* a_reconstruction,
     const double a_volume_fraction_tolerance =
         global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
 
 /// \brief Specialization for RectangularCuboids that calls Analytical distance
 /// finding if a single plane.
-template <class PlanarType>
-inline void setDistanceToMatchVolumeFractionPartialFill(
+template <class ReconstructionType>
+inline enable_if_t<not std::is_same_v<ReconstructionType, SeparatorVariant>,
+                   void>
+setDistanceToMatchVolumeFractionPartialFill(
     const RectangularCuboid& a_cell, const double a_volume_fraction,
-    PlanarType* a_reconstruction,
+    ReconstructionType* a_reconstruction,
     const double a_volume_fraction_tolerance =
         global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
 
 /// \brief Specialization for Tet  that calls Analytical distance
 /// finding if a single plane.
-template <class PlanarType>
-inline void setDistanceToMatchVolumeFractionPartialFill(
+template <class ReconstructionType>
+inline enable_if_t<not std::is_same_v<ReconstructionType, SeparatorVariant>,
+                   void>
+setDistanceToMatchVolumeFractionPartialFill(
     const Tet& a_cell, const double a_volume_fraction,
-    PlanarType* a_reconstruction,
+    ReconstructionType* a_reconstruction,
     const double a_volume_fraction_tolerance =
-        global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);  
+        global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
 
 template <class CellType, class VolumeFractionArrayType>
 inline void setGroupDistanceToMatchVolumeFractionPartialFill(
@@ -94,4 +110,4 @@ inline void setGroupDistanceToMatchVolumeFractionPartialFill(
 
 #include "irl/interface_reconstruction_methods/volume_fraction_matching.tpp"
 
-#endif // IRL_INTERFACE_RECONSTRUCTION_METHODS_VOLUME_FRACTION_MATCHING_H_
+#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_VOLUME_FRACTION_MATCHING_H_

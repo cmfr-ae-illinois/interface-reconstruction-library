@@ -30,25 +30,8 @@ void c_matchVolumeFraction_RectCub_Variant_Default(
   assert(a_cell->obj_ptr != nullptr);
   assert(a_reconstruction != nullptr);
   assert(a_reconstruction->obj_ptr != nullptr);
-  if (IRL::PlanarSeparator* separator =
-          std::get_if<IRL::PlanarSeparator>(a_reconstruction->obj_ptr)) {
-    IRL::setDistanceToMatchVolumeFraction(*a_cell->obj_ptr, *a_volume_fraction,
-                                          separator);
-  } else if (IRL::Paraboloid* paraboloid =
-                 std::get_if<IRL::Paraboloid>(a_reconstruction->obj_ptr)) {
-    const IRL::Pt& datum = paraboloid->getDatum();
-    const IRL::ReferenceFrame& frame = paraboloid->getReferenceFrame();
-    IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid> solver(
-        *a_cell->obj_ptr, *a_volume_fraction, 1.0e-14, *paraboloid);
-    paraboloid->setDatum(IRL::Pt(datum + solver.getDistance() * frame[2]));
-  } else if (IRL::Cylinder* cylinder =
-                 std::get_if<IRL::Cylinder>(a_reconstruction->obj_ptr)) {
-    const IRL::Pt& datum = cylinder->getDatum();
-    const IRL::ReferenceFrame& frame = paraboloid->getReferenceFrame();
-    IRL::ProgressiveRadiusSolverCylinder<IRL::RectangularCuboid> solver(
-        *a_cell->obj_ptr, *a_volume_fraction, 1.0e-14, *cylinder);
-    *a_reconstruction->obj_ptr = solver.getCylinder();
-  }
+  IRL::setDistanceToMatchVolumeFraction(*a_cell->obj_ptr, *a_volume_fraction,
+                                        a_reconstruction->obj_ptr);
 }
 
 void c_matchVolumeFraction_RectCub_PlanarSep(
