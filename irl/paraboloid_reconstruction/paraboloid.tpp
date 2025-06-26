@@ -32,52 +32,6 @@ inline ParaboloidBase<ScalarType>::ParaboloidBase(
 }
 
 template <class ScalarType>
-inline ParaboloidBase<ScalarType> ParaboloidBase<ScalarType>::fromDerivatives(
-    const PtBase<ScalarType>& a_datum,
-    const Eigen::Vector<ScalarType, 3>& a_gradF,
-    const Eigen::Matrix<ScalarType, 3, 3>& a_hessF) {
-  using Vector2Type = Eigen::Vector<ScalarType, 2>;
-  using Vector3Type = Eigen::Vector<ScalarType, 3>;
-  using Matrix22Type = Eigen::Matrix<ScalarType, 2, 2>;
-  using Matrix33Type = Eigen::Matrix<ScalarType, 3, 3>;
-  using Matrix32Type = Eigen::Matrix<ScalarType, 3, 2>;
-  using NormalType = NormalBase<ScalarType>;
-  using ReferenceFrameType = ReferenceFrameBase<ScalarType>;
-  const ScalarType ZERO = static_cast<ScalarType>(0);
-  const ScalarType ONE = static_cast<ScalarType>(1);
-  const ScalarType TWO = static_cast<ScalarType>(2);
-  const ScalarType HALF = ONE / TWO;
-  const Matrix33Type hessF = 0.5 * (a_hessF + a_hessF.transpose());
-
-  // This uses the method described in
-  // https://www.geometrictools.com/Documentation/PrincipalCurvature.pdf
-  const ScalarType inv_gradF_norm = ONE / a_gradF.norm();
-  const NormalType normal =
-      NormalType(a_gradF(0), a_gradF(1), a_gradF(2)) * inv_gradF_norm;
-  ReferenceFrameType frame = ReferenceFrameType::fromNormal(normal);
-  Matrix32Type J;
-  for (UnsignedIndex_t i = 0; i < 3; i++) {
-    for (UnsignedIndex_t j = 0; j < 2; j++) {
-      J(i, j) = frame[j][i];
-    }
-  }
-  const Matrix22Type A = (J.transpose() * hessF * J) * inv_gradF_norm;
-  ////////// TODO: compute eigenvalues and eigenvectors "by hand"
-  Eigen::EigenSolver<Matrix22Type> eigensolver(A);
-  const ScalarType eval1 = eigensolver.eigenvalues()(0).real();
-  const ScalarType eval2 = eigensolver.eigenvalues()(1).real();
-  const Vector2Type evec1 =
-      Vector2Type(eigensolver.eigenvectors()(0, 0).real(),
-                  eigensolver.eigenvectors()(1, 0).real());
-  //////////
-  const Vector3Type T1 = J * evec1;
-  frame[0] = NormalType(T1(0), T1(1), T1(2));
-  frame[0].normalize();
-  frame[1] = crossProduct(frame[2], frame[0]);
-  return ParaboloidBase<ScalarType>(a_datum, frame, HALF * eval1, HALF * eval2);
-}
-
-template <class ScalarType>
 inline ParaboloidBase<ScalarType> ParaboloidBase<ScalarType>::createAlwaysAbove(
     void) {
   ParaboloidBase<ScalarType> par;
