@@ -48,11 +48,6 @@ class ParaboloidBase {
                  const ReferenceFrameBase<ScalarType>& a_reference_frame,
                  const ScalarType a_coef_a, const ScalarType a_coef_b);
 
-  static ParaboloidBase fromDerivatives(
-      const PtBase<ScalarType>& a_datum,
-      const Eigen::Vector<ScalarType, 3>& a_gradF,
-      const Eigen::Matrix<ScalarType, 3, 3>& a_hessF);
-
   static ParaboloidBase createAlwaysAbove(void);
 
   static ParaboloidBase createAlwaysBelow(void);
@@ -84,7 +79,7 @@ class ParaboloidBase {
   /// Whether the paraboloid has been set to be below any polyhedron.
   bool isAlwaysBelow(void) const;
 
-  // Recenter paraboloid at new location
+  // Recenter paraboloida at new location
   void regenerateAtLocation(const PtBase<ScalarType>& a_pt);
 
   /// Paraboloid cannot be a flipped reconstruction. Add this for ease of use
