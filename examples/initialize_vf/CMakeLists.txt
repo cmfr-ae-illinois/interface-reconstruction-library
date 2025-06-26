@@ -1,0 +1,19 @@
+IRLAddExample_cpp(
+  TARGET_NAME
+  initialize_vf
+  HDRS
+  "functions.h"
+  "surfaces.h"
+  SRCS
+  "main.cpp"
+  "functions.cpp"
+  "../variant_advector/basic_mesh.cpp"
+  "../variant_advector/reconstruction_types.cpp"
+  # "output.cpp"
+  "sphere.cpp"
+  "ellipsoid.cpp"
+  OUTPUT_DIR
+  "${IRL_EXAMPLES_OUTPUT_DIR}/initialize_vf"
+  COLLECTION
+  "examples_initialize_vf"
+)
