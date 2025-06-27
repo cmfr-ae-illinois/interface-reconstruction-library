@@ -87,7 +87,7 @@ int c_SeparatorVariant_getNumberOfPlanes(const c_SeparatorVariant* a_self) {
           std::get_if<IRL::PlanarSeparator>(a_self->obj_ptr)) {
     return static_cast<int>(separator->getNumberOfPlanes());
   } else {
-    return -1;
+    return 0;
   }
 }
 
@@ -139,6 +139,30 @@ void c_SeparatorVariant_printToScreen(const c_SeparatorVariant* a_self) {
   } else if (IRL::Cylinder* cylinder =
                  std::get_if<IRL::Cylinder>(a_self->obj_ptr)) {
     std::cout << (*cylinder);
+  } else {
+    throw std::runtime_error("Variant type unknown");
+  }
+}
+
+void c_SeparatorVariant_shift(c_SeparatorVariant* a_self,
+                              const double* a_shift) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(a_shift != nullptr);
+  const IRL::Pt shift = IRL::Pt::fromRawDoublePointer(a_shift);
+  if (IRL::PlanarSeparator* separator =
+          std::get_if<IRL::PlanarSeparator>(a_self->obj_ptr)) {
+    for (auto& plane : *separator) {
+      plane.distance() += plane.normal() * shift;
+    }
+  } else if (IRL::Paraboloid* paraboloid =
+                 std::get_if<IRL::Paraboloid>(a_self->obj_ptr)) {
+    const IRL::Pt& datum = paraboloid->getDatum();
+    paraboloid->setDatum(datum + shift);
+  } else if (IRL::Cylinder* cylinder =
+                 std::get_if<IRL::Cylinder>(a_self->obj_ptr)) {
+    const IRL::Pt& datum = cylinder->getDatum();
+    cylinder->setDatum(datum + shift);
   } else {
     throw std::runtime_error("Variant type unknown");
   }

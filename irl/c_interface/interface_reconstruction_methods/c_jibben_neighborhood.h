@@ -25,6 +25,8 @@ void c_JibbenNeigh_delete(c_JibbenNeigh* a_self);
 
 void c_JibbenNeigh_reserve(c_JibbenNeigh* a_self, const int* a_size);
 
+void c_JibbenNeigh_setSize(c_JibbenNeigh* a_self, const int* a_size);
+
 void c_JibbenNeigh_localize(c_JibbenNeigh* a_self);
 
 void c_JibbenNeigh_setDelta(c_JibbenNeigh* a_self, const double* a_delta);

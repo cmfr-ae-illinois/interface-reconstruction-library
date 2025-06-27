@@ -19,3 +19,5 @@ target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_obj
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_separator_variant.cpp)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_localized_variant_link.h)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_localized_variant_link.cpp)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_bezier_triangles.h)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/data_structures/c_object_allocation_server_bezier_triangles.cpp)
