@@ -17,6 +17,11 @@
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/normal.h"
 
+#include "irl/generic_cutting/cut_polygon.h"
+#include "irl/generic_cutting/generic_cutting.h"
+
+#include "irl/variant_reconstruction/separator_variant.h"
+
 int main(int argc, char* argv[]) {
     const auto xy_plane = IRL::Plane(IRL::Normal(0.0, 0.0, 1.0), 0.0);
     IRL::PUSTNeighborhood<IRL::RectangularCuboid> test;
@@ -51,8 +56,8 @@ int main(int argc, char* argv[]) {
 
     std::cout << "\n====== BEGIN WENDLAND TESTS ====\n";
     IRL::Normal xi; double delta; IRL::Normal x_eval;
-    x_eval = IRL::Normal(0.0,1.0,1.0);
-    IRL::Normal x_cen = IRL::Normal(0.0,1.0,0.0);
+    x_eval = IRL::Normal(0.0,1.0,0);
+    
     delta = 50;
     std::cout << "Wendland Origin: " << (IRL::Wendland::phi(x_eval,delta, x_eval)) << std::endl;
     std::cout << "Wendland x  Origin: " << (IRL::Wendland::dphidx(x_eval,delta, x_eval)) << std::endl;
@@ -63,25 +68,86 @@ int main(int argc, char* argv[]) {
 
 
     std::cout << "\n====== BEGIN IMPLICIT SURFACE TESTS ====\n";
-    std::vector<IRL::Normal> centroids, normals;
+    std::vector<IRL::Pt> centroids;
+    std::vector<IRL::Normal> normals;
     double kernel_size;
-    
+    IRL::Pt x_cen = IRL::Pt(0.0,1.0,0.0);
     centroids = {x_cen};
-    IRL::Normal nor(1.0,1.0,0.0);
+    IRL::Normal nor(1.0,0,0.0);
     nor.normalize();
     normals = {nor};
     IRL::ImplicitSurface implicitTest(centroids,normals,delta);
-    std::cout << implicitTest.F(x_eval) << std::endl;
-    std::cout << implicitTest.Fx(x_eval) << std::endl;
-    std::cout << implicitTest.Fy(x_eval) << std::endl;
+    std::cout << "Function Value: " << implicitTest.F(x_eval) << std::endl;
+    std::cout << "Function xder Value: " << implicitTest.Fx(x_eval) << std::endl;
+    std::cout << "Function yder Value: " << implicitTest.Fy(x_eval) << std::endl;
     std::vector<double> res = implicitTest.HessianTerms(x_eval);
-    std::cout << res[0] << ","<< res[1] << ","<< res[2] << std::endl;
+    std::cout << "Hessian Terms: "<< res[0] << ","<< res[1] << ","<< res[2] << std::endl;
 
     IRL::Normal x0(-1.0,0.0,0.0);
-    IRL::Normal x1(1.0,0.0,0.0);
-
+    IRL::Normal x1(1.0,1.0,0.0);
     auto result = implicitTest.intersectEdge(x0,x1,10);
     std::cout << result.size() << " Intersections Found" << std::endl;
-    std::cout << result[1][0] << ","<< result[1][1] << ","<< result[1][2] << std::endl;
+    if(result.size() > 0) {
+        for(int i =0; i < result.size(); i++) {
+            std::cout << result[i][0] << ","<< result[i][1] << ","<< result[i][2] << std::endl;
+        }
+    }
+    
+    // PUST Solver Test
+    std::cout << "\n===== BEGIN SOLVER TESTS ==== " << std::endl;
+    IRL::Pt BL(-0.5,0.0,-0.5);
+    IRL::Pt BR(0.5,0.0,0.0);
+    IRL::Pt TL(-0.5,1.0,0.0);
+    IRL::Pt TR(0.5,1.0,0.5);
+    std::vector<IRL::Pt> poly = {BL,BR,TR,TL,BL};      
+    IRL::RectangularCuboid cell = IRL::RectangularCuboid::fromBoundingPts(BL, TR);
+    IRL::Plane plane = IRL::Plane(nor,0);
+    IRL::PlanarSeparator sep = IRL::PlanarSeparator::fromOnePlane(plane);
+    IRL::PUSTNeighborhood<IRL::RectangularCuboid> testNeigh;
+    testNeigh.addMember(&cell,&sep);
+    testNeigh.setCenterOfStencil(0);
+    
+    IRL::PUST<IRL::RectangularCuboid> sol(testNeigh);
+    IRL::Normal solRes = sol.solve(1.0);
+    std::cout << "Force Result: " << solRes[0] << "," << solRes[1] << "," << solRes[2] << "\n";
+
+
+
+    std::cout << "\n======= BEGIN MAIN TEST ===== \n";
+    IRL::Pt P0,P1;
+    std::vector<IRL::Pt> inters;
+    IRL::Pt force(0.0,0.0,0.0); // Surface Tension Force
+    double STCoeff = 1;
+    IRL::Normal tangent(0.0,0.0,0.0);
+    for(int i = 0; i < poly.size()-1; i++) {
+        P0 = poly[i];
+        P1 = poly[i+1];
+        std::cout << " P0 = " << P0[0] << "," << P0[1] << "," << P0[2] << "\n";
+        std::cout << " P1 = " << P1[0] << "," << P1[1] << "," << P1[2] << "\n";
+        inters = implicitTest.intersectEdge(P0,P1,10);
+
+        std::cout << "In loop - " << inters.size() << " intersections \n";
+
+        if(inters.size() > 0) {
+            for(int j = 0; j < inters.size(); j++) {
+                std::cout << inters[j][0] << "," << inters[j][1] << "," << inters[j][2] << "\n";
+                double Fx = implicitTest.Fx(inters[j]);
+                double Fy = implicitTest.Fy(inters[j]);
+                std::cout << Fx << "," << Fy << " Gradient \n";
+                tangent[0] = -Fy;
+                tangent[1] = Fx;
+
+                tangent.normalize();
+                force = force + STCoeff * tangent;
+            }
+        }
+    }
+
+    std::cout << "Force = \n";
+    std::cout << force[0] << "," << force[1] << "," << force[2] << std::endl;
+
+
+
+
     return -1;
 }
