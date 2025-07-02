@@ -22,7 +22,7 @@ namespace IRL {
 
 class MarchingCubes {
  public:
-  using ImplicitF = std::function<double(IRL::Pt)>;
+  using ImplicitF = std::function<double(Pt)>;
 
   MarchingCubes(void) = default;
   ~MarchingCubes(void) = default;
