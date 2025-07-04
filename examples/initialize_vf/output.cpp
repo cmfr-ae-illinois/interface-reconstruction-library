@@ -13,20 +13,22 @@ void write_vtr(const std::string& filepath, const Data<double>& vf, const BasicM
     if (!out.is_open()) {
     std::cerr << "Failed to open " << filepath << " for writing.\n";
     return;
-}
+  }
     out << std::fixed << std::setprecision(6);
 
     out << "<?xml version=\"1.0\"?>\n";
     out << "<VTKFile type=\"RectilinearGrid\" version=\"1.0\" byte_order=\"LittleEndian\">\n";
-    out << "  <RectilinearGrid WholeExtent=\"0 " << mesh.imax() + 1 << " 0 " << mesh.jmax() + 1 << " 0 0\">\n";
-    out << "    <Piece Extent=\"0 " << mesh.imax() + 1 << " 0 " << mesh.jmax() + 1 << " 0 0\">\n";
+    out << "  <RectilinearGrid WholeExtent=\"0 " << mesh.imax() + 1 << " 0 " << mesh.jmax() + 1 << " 0 " << mesh.kmax() + 1 << "\">\n";
+    out << "    <Piece Extent=\"0 " << mesh.imax() + 1 << " 0 " << mesh.jmax() + 1 << " 0 " << mesh.kmax() + 1 << "\">\n";
 
     out << "      <CellData Scalars=\"volumeFraction\">\n";
     out << "        <DataArray type=\"Float32\" Name=\"volumeFraction\" format=\"ascii\">\n";
-    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-        for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-            out << "          " << vf(i, j) << "\n";
-        }
+    for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {  
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+          for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+              out << "          " << vf(i, j, k) << "\n";
+          }
+      }
     }
     out << "        </DataArray>\n";
     out << "      </CellData>\n";
@@ -45,8 +47,11 @@ void write_vtr(const std::string& filepath, const Data<double>& vf, const BasicM
     out << "        </DataArray>\n";
 
     out << "        <DataArray type=\"Float32\" Name=\"Z\" format=\"ascii\">\n";
-    out << "          0.0\n"; 
+    for (int k = mesh.kmin(); k <= mesh.kmax() + 1; ++k) {
+        out << "          " << mesh.z(k) << "\n"; 
+    }
     out << "        </DataArray>\n";
+
     out << "      </Coordinates>\n";
 
     out << "    </Piece>\n";
@@ -67,17 +72,21 @@ void write_vtu(const std::string& filepath, const std::vector<const Cell*>& cell
   out << "<?xml version=\"1.0\"?>\n";
   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
   out << "  <UnstructuredGrid>\n";
-  out << "    <Piece NumberOfPoints=\"" << 4 * cells.size()
+  out << "    <Piece NumberOfPoints=\"" << 8 * cells.size()
       << "\" NumberOfCells=\"" << cells.size() << "\">\n";
 
   out << "      <Points>\n";
   out << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
   for (const Cell* c : cells) {
-    double x = c->x, y = c->y, dx = c->dx;
-    out << x        << " " << y        << " 0\n";
-    out << x + dx   << " " << y        << " 0\n";
-    out << x + dx   << " " << y + dx   << " 0\n";
-    out << x        << " " << y + dx   << " 0\n";
+    double x = c->x, y = c->y, z = c->z, dx = c->dx;
+    out << x      << " " << y      << " " << z      << "\n";
+    out << x+dx   << " " << y      << " " << z      << "\n";
+    out << x+dx   << " " << y+dx   << " " << z      << "\n";
+    out << x      << " " << y+dx   << " " << z      << "\n";
+    out << x      << " " << y      << " " << z+dx   << "\n";
+    out << x+dx   << " " << y      << " " << z+dx   << "\n";
+    out << x+dx   << " " << y+dx   << " " << z+dx   << "\n";
+    out << x      << " " << y+dx   << " " << z+dx   << "\n";
   }
   out << "        </DataArray>\n";
   out << "      </Points>\n";
@@ -87,21 +96,22 @@ void write_vtu(const std::string& filepath, const std::vector<const Cell*>& cell
   // Connectivity
   out << "        <DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
   for (int i = 0; i < cells.size(); ++i) {
-    int base = 4 * i;
-    out << base << " " << base + 1 << " " << base + 2 << " " << base + 3 << "\n";
+    int base = 8 * i;
+    out << base     << " " << base + 1 << " " << base + 2 << " " << base + 3 << " "
+        << base + 4 << " " << base + 5 << " " << base + 6 << " " << base + 7 << "\n";
   }
   out << "        </DataArray>\n";
 
   // Offsets
   out << "        <DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
   for (int i = 1; i <= cells.size(); ++i)
-    out << 4 * i << "\n";
+    out << 8 * i << "\n";
   out << "        </DataArray>\n";
 
-  // Types (VTK_QUAD = 9)
+  // Types (VTK_HEXAHEDRON = 12)
   out << "        <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
   for (int i = 0; i < cells.size(); ++i)
-    out << "9\n";
+    out << "12\n";
   out << "        </DataArray>\n";
 
   out << "      </Cells>\n";

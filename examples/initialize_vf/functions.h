@@ -7,6 +7,8 @@
 #include "examples/variant_advector/basic_mesh.h"
 #include "examples/variant_advector/reconstruction_types.h"
 
+#include "irl/generic_cutting/generic_cutting.h"
+
 #ifndef EXAMPLES_INITIALIZE_VF_FUNCTIONS_H_
 #define EXAMPLES_INITIALIZE_VF_FUNCTIONS_H_
 
@@ -14,15 +16,12 @@ using ImplicitF = std::function<double(double,double,double)>;
 using GradientF = std::function<Eigen::Vector3d(double, double, double)>;
 using HessianF  = std::function<Eigen::Matrix3d(double, double, double)>;
 
-void selectSurface(const std::string& implicit_surface, ImplicitF& F,
-                   GradientF& gradF, HessianF& hessF);
+                  
+void initialize(const std::string& implicit_surface, ImplicitF& F,
+                GradientF& gradF, HessianF& hessF, BasicMesh& mesh);
 
 Eigen::Vector3d project_onto_surface(const Eigen::Vector3d& x0, ImplicitF F,
                                      GradientF gradF);
-
-// IRL::Paraboloid generateLocalParaboloid(const IRL::Pt& a_pt,
-//                                         const Eigen::Vector3d& a_gradF,
-//                                         const Eigen::Matrix3d& a_hessF);
 
 enum class CellStatus { Above, Below, Mixed};
 
@@ -44,21 +43,41 @@ struct Cell {
   }
 };
 
+// struct Vector3dHash {
+//     std::size_t operator()(const Eigen::Vector3d& v) const {
+//         std::hash<double> hasher;
+//         std::size_t h1 = hasher(v[0]);
+//         std::size_t h2 = hasher(v[1]);
+//         std::size_t h3 = hasher(v[2]);
+//         return h1 ^ (h2 << 1) ^ (h3 << 2);
+//     }
+// };
+
 struct Vector3dHash {
     std::size_t operator()(const Eigen::Vector3d& v) const {
         std::hash<double> hasher;
-        std::size_t h1 = hasher(v[0]);
-        std::size_t h2 = hasher(v[1]);
-        std::size_t h3 = hasher(v[2]);
-        return h1 ^ (h2 << 1) ^ (h3 << 2);
+        std::size_t seed = 0;
+        hash_combine(seed, hasher(v[0]));
+        hash_combine(seed, hasher(v[1]));
+        hash_combine(seed, hasher(v[2]));
+        return seed;
+    }
+
+private:
+    static void hash_combine(std::size_t& seed, std::size_t hash) {
+        seed ^= hash + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
 };
 
-double evaluate_or_cache(const double& x, const double& y, const double& z, ImplicitF F,
+double evaluate_or_cache(const Eigen::Vector3d& pt, ImplicitF F,
                          std::unordered_map<Eigen::Vector3d, double, Vector3dHash>& cache);
 
+// std::vector<Eigen::Vector3d> get_sample_points(const double& x, const double& y,
+//                                                const double& z, const double& dx);
+
 std::vector<Eigen::Vector3d> get_sample_points(const double& x, const double& y,
-                                               const double& z, const double& dx);
+                                               const double& z, const double& dx,
+                                               const bool& use_stencil);
 
 CellStatus get_cell_status(const Cell& cell, ImplicitF F,
                            GradientF gradF, HessianF hessF,
@@ -96,5 +115,55 @@ void collect_leaf_cells(const Cell& cell, std::vector<const Cell*>& output,
 void write_vtr(const std::string& filepath, const Data<double>& vf, const BasicMesh& mesh);
 
 void write_vtu(const std::string& filepath, const std::vector<const Cell*>& cells);
+
+class vfInitializer{
+  public:
+    vfInitializer(const int& Nx, const int& max_refine_level,
+                  const std::string& surface_name,
+                  const std::string& vtk_output_path);
+    
+    void run();
+
+    // public accessors
+    const Data<double>& getVolumeFractions() const { return vf_; }
+    const std::vector<const Cell*>& getLeafCells() const { return leaf_cells_; }
+    const std::vector<const Cell*>& getMixedLeafCells() const { return mixed_leaf_cells_; }
+    double getTotalVolume() const { return volume_amr_; }
+    std::chrono::duration<double> getElapsedTime() const { return elapsed_; }
+
+  private:
+    int Nx_, max_refine_level_;
+    std::string surface_name_, vtk_output_path_;
+    BasicMesh mesh_;
+    std::vector<std::unique_ptr<Cell>> grid_;
+    Data<double> vf_;
+    double volume_amr_ = 0.0;
+    std::chrono::duration<double> elapsed_;
+    std::vector<const Cell*> leaf_cells_, mixed_leaf_cells_;
+};
+
+// surface moment calculations
+// double peskin_delta(const double& phi, const double& epsilon);
+// double gaussian_delta_truncated(double phi, double sigma);
+// struct SurfaceMoments {
+//     double M0 = 0;            
+//     Eigen::Vector3d M1 = Eigen::Vector3d::Zero(); 
+//     Eigen::Matrix3d M2 = Eigen::Matrix3d::Zero(); 
+//     SurfaceMoments& operator+=(const SurfaceMoments& other) {
+//       M0 += other.M0;
+//       M1 += other.M1;
+//       M2 += other.M2;
+//       return *this;
+//     }
+//     SurfaceMoments operator+(const SurfaceMoments& other) const {
+//       SurfaceMoments result = *this;
+//       result += other;
+//       return result;
+//     }
+// };
+// SurfaceMoments compute_surface_moments(const Cell& cell, const int& N, 
+//                                        ImplicitF F, GradientF gradF);                                
+// void get_shape_moments(const Cell& cell, SurfaceMoments& sm, const int& N,
+//                        ImplicitF F, GradientF gradF);
 
 #endif

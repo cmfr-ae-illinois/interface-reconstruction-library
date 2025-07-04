@@ -3,7 +3,7 @@
 #include "examples/initialize_vf/surfaces.h"
 
 const double xc = 0.0, yc = 0.0, zc = 0.0;
-const double a = 1.0, b = 1.0, c = 1.0;
+const double a = 0.3, b = 0.15, c = 0.1;
 
 double F_ellipsoid(const double& x, const double& y, const double& z){
   return std::pow((x - xc) / a, 2.0) + std::pow((y - yc) / b, 2.0) +
