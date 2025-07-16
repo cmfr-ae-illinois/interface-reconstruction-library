@@ -75,3 +75,6 @@ target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_cappedd
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_cappeddodecahedron_LLLL_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_r2pweighting_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_optimizationbehavior_class.f90)
+
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_pu_solve_planar_rectangularcuboid_class.f90)
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_puneighborhood_rectangularcuboid_class.f90)

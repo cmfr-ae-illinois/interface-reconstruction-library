@@ -384,9 +384,6 @@ namespace IRL {
         // First, Make the Implicit Edge
         ImplicitSurface s = this->neighborhoodToImplicitSurface(50.0);
 
-        
-
-
         // Below Here is the Intersection
         Pt P0,P1;
         std::vector<Pt> inters;

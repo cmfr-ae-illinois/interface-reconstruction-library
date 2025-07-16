@@ -11,6 +11,8 @@
 #define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
 
 #include <variant>
+#include <tuple>
+
 
 #include "irl/generic_cutting/general/class_classifications.h"
 
@@ -29,6 +31,9 @@ class SeparatorVariant
 
   void serialize(ByteBuffer* a_buffer) const;
   void unpackSerialized(ByteBuffer* a_buffer);
+
+  std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
+    getSignedDistanceAndGradAndHessianSep(const Pt& a_pt, const Pt& a_centroid) const;
 };
 
 using LocalizedSeparatorVariant =

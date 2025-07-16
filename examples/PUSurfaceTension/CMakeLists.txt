@@ -2,12 +2,8 @@ IRLAddExample_cpp(
   TARGET_NAME
     PU_SurfaceTension
   HDRS
-    "pu_neighborhood.h"
-    "pu_solve.h"
   SRCS
     "main.cpp"
-    "pu_neighborhood.tpp"
-    "pu_solve.tpp"
   OUTPUT_DIR
     "${IRL_EXAMPLES_OUTPUT_DIR}/PUSurfaceTension"
   COLLECTION

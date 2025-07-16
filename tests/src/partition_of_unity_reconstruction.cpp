@@ -22,6 +22,8 @@
 #include "irl/moments/general_moments.h"
 
 #include "irl/variant_reconstruction/separator_variant.h"
+#include "irl/conservative_surface_tension/pu_neighborhood.h"
+#include "irl/conservative_surface_tension/pu_solve.h"
 
 namespace {
 using namespace IRL;
@@ -51,9 +53,9 @@ TEST(PUReconstruction, Test1) {
   const int nlayers = 2;
   const int ncells = (1 + 2 * nlayers) * (1 + 2 * nlayers);
 
-  std::vector<PlanarSeparator> planar_separator(ncells);
+  std::vector<SeparatorVariant> planar_separator(ncells);
   std::vector<RectangularCuboid> cells(ncells);
-
+  std::vector<Pt> centroids;
   // Generate planar separator corresponding to circle centred at (0,0)
   const auto sphere_center = Pt(0.0, 0.0, 0.0);
   const double sphere_radius = 2.5;
@@ -75,24 +77,42 @@ TEST(PUReconstruction, Test1) {
     }
   }
 
-  // Compute end points of 2D PLIC
+  // Compute end points of 2D PLIC, use to calculate centroids, and add to neighborhood
+
   count = 0;
   StackVector<Pt, 2> intersections;
+  PUSTNeighborhood<RectangularCuboid> neighborhood;
   const auto xy_plane = Plane(Normal(0.0, 0.0, 1.0), 0.0);
   for (int i = 0; i < 1 + 2 * nlayers; ++i) {
     for (int j = 0; j < 1 + 2 * nlayers; ++j) {
+      auto separatorPtr = std::get_if<PlanarSeparator>(&planar_separator[count]);
+      auto separator = *separatorPtr;
       const Polygon polygon = getPlanePolygonFromReconstruction<Polygon>(
-          cells[count], planar_separator[count], planar_separator[count][0]);
-      count++;
+          cells[count], separator, separator[0]);
+      
       getIntersectionPts(polygon, xy_plane, &intersections);
       if (intersections.size() == 2) {
         std::cout << "Start point for cell " << i << ", " << j << " = "
                   << intersections[0] << std::endl;
         std::cout << "  End point for cell " << i << ", " << j << " = "
                   << intersections[1] << std::endl;
+        
+        Pt cen = (intersections[0] + intersections[1]) *0.5;
+        centroids.push_back(cen);
+        neighborhood.addMember(&cen,&planar_separator[count]);
       }
+      count++;
     }
   }
+
+  std::cout << neighborhood.size() << "\n";
+  const auto centerCell = cells[0];
+  neighborhood.setCenterCell(&centerCell);
+  // Create the Solver Objet
+  PUST<RectangularCuboid> solver(neighborhood);
+  auto out = solver.solve(1.0);
+  std::cout << "SOLVER RESULT = \n";
+  std::cout << out << "\n";
 
   SUCCEED();
 }
