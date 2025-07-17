@@ -6,6 +6,15 @@
  * 1983.
  */
 
+/**
+ * This file was modified in 2025 by
+ *
+ * Fabien Evrard <fa.evrard@gmail.com>
+ *
+ * to introduce the capability to compute 2D integral adaptively, building on
+ * the existing 1D routine
+ */
+
 #ifndef EIGEN_INTEGRATOR_H
 #define EIGEN_INTEGRATOR_H
 
