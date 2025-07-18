@@ -3,62 +3,37 @@
 
 #include "examples/initialize_vf/functions.h"
 
-// selecting implicit surface and setting mesh bounds
-void initialize(const std::string& implicit_surface, ImplicitF& F,
-                GradientF& gradF, HessianF& hessF, BasicMesh& mesh){
+// select implicit surface
+std::unique_ptr<Surface> makeSurface(const std::string& name) {
+  if (name == "sphere") return std::make_unique<Sphere>();
+  if (name == "ellipsoid") return std::make_unique<Ellipsoid>();
+  if (name == "genus") return std::make_unique<Genus>();
+  if (name == "orthocircle") return std::make_unique<Orthocircle>();
+  std::cerr << "Unknown input: " << name << "\n";
+  std::exit(1);
+}
 
-  if (implicit_surface == "sphere"){
-    F = F_sphere;
-    gradF = gradF_sphere;
-    hessF = hessF_sphere;
-    mesh.setCellBoundaries({-0.5,-0.5,-0.5}, {0.5,0.5,0.5});
-  } else if (implicit_surface == "ellipsoid"){
-    F = F_ellipsoid;
-    gradF = gradF_ellipsoid;
-    hessF = hessF_ellipsoid;
-    mesh.setCellBoundaries({-0.5,-0.5,-0.5}, {0.5,0.5,0.5});
-  } else if (implicit_surface == "torus"){
-    F = F_torus;
-    gradF = gradF_torus;
-    hessF = hessF_torus;
-    mesh.setCellBoundaries({-0.5,-0.5,-0.5}, {0.5,0.5,0.5});
-  } else if (implicit_surface == "genus"){
-    F = F_genus;
-    gradF = gradF_genus;
-    hessF = hessF_genus;
-    mesh.setCellBoundaries({-2.5,-2.5,-2.5}, {2.5,2.5,2.5});
-  } else if (implicit_surface == "orthocircle"){
-    F = F_orthocircle;
-    gradF = gradF_orthocircle;
-    hessF = hessF_orthocircle;
-    mesh.setCellBoundaries({-2.5,-2.5,-2.5}, {2.5,2.5,2.5});
-  } else if (implicit_surface == "wineglass"){
-    F = F_wineglass;
-    gradF = gradF_wineglass;
-    hessF = hessF_wineglass;
-    mesh.setCellBoundaries({-2.9,-2.9,-2.9}, {2.9,2.9,2.9});
-  } else {
-    std::cerr << "Unknown input: " << implicit_surface << "\n";
-    std::exit(1);
-  }
+// initialize
+void initialize(std::unique_ptr<Surface>& surface,
+                ImplicitF& F, GradientF& gradF,
+                HessianF& hessF, BasicMesh& mesh) {
+  F = [surface_ptr = surface.get()](const double& x, const double& y, const double& z) {
+    return surface_ptr->F(x, y, z);
+  };
+  gradF = [surface_ptr = surface.get()](const double& x, const double& y, const double& z) {
+    return surface_ptr->gradF(x, y, z);
+  };
+  hessF = [surface_ptr = surface.get()](const double& x, const double& y, const double& z) {
+    return surface_ptr->hessF(x, y, z);
+  };
 
+  auto [lower, upper] = surface->domainBounds();
+  mesh.setCellBoundaries(lower, upper);
 }
 
 // projecting point onto implicit surface
 Eigen::Vector3d project_onto_surface(const Eigen::Vector3d& x0, ImplicitF F,
                                      GradientF gradF){
-
-  // diagnostics for initial guess
-  // std::ostringstream diagnostics;
-  // double f0 = F(x0(0), x0(1), x0(2));
-  // Eigen::Vector3d g0 = gradF(x0(0), x0(1), x0(2));
-  // double g_norm2_0 = g0.squaredNorm();
-  // diagnostics << "f0 = " << f0 << std::endl;
-  // diagnostics << "g0 = " << g0 << std::endl;
-  // diagnostics << "g0_sq = " << g_norm2_0 << std::endl;
-  // diagnostics << "step = " << (f0 / g_norm2_0) * g0 << std::endl;
-  // std::vector<Eigen::Vector3d> steps;
-  // std::vector<double> fvals;
   
   Eigen::Vector3d x_proj = x0;
   const int max_iter = 500;
@@ -68,23 +43,10 @@ Eigen::Vector3d project_onto_surface(const Eigen::Vector3d& x0, ImplicitF F,
     Eigen::Vector3d g = gradF(x_proj(0), x_proj(1), x_proj(2));
     double g_norm2 = g.squaredNorm();
     if (g_norm2 < 1e-14) break;
-    // steps.emplace_back((f / g_norm2) * g);
-    // fvals.push_back(f);
     x_proj -= (f / g_norm2) * g;
     if (std::abs(f) < tol) break;
-    // if (std::abs(f) < tol){
-    //   for (size_t j = 0; j < steps.size(); ++j) {
-    //     std::cout << "step[" << j << "] = " << steps[j].transpose() << " f = " << fvals[j] << std::endl;
-    //   }
-    //   std::exit(1);
-    // }
     if (i == (max_iter - 1)){
       std::cout << "Max iterations reached. " << "f = " << std::abs(f) << std::endl;
-      // std::cout << diagnostics.str() << std::endl;
-      // for (size_t j = 0; j < steps.size(); ++j) {
-      //   std::cout << "step[" << j << "] = " << steps[j].transpose() << " f = " << fvals[j] << std::endl;
-      // }
-      // std::exit(1);
     }
   }
   return x_proj;
@@ -169,52 +131,7 @@ std::vector<Eigen::Vector3d> get_sample_points(const double& x, const double& y,
 }
 
 
-// // mixed cell?
-// CellStatus get_cell_status(const Cell& cell, ImplicitF F,
-//                            GradientF gradF, HessianF hessF,
-//                            std::unordered_map<Eigen::Vector3d, double, Vector3dHash>& F_cache){
-//   // target cell points
-//   double x = cell.x, y = cell.y, z = cell.z, dx = cell.dx;
-//   std::vector<Eigen::Vector3d> pts = get_sample_points(x, y, z, dx);
-//   std::vector<double> Fvals;
-//   for (const auto& pt : pts){
-//     Fvals.push_back(evaluate_or_cache(pt, F, F_cache));
-//   }
-//   bool all_pos = std::all_of(Fvals.begin(), Fvals.end(), [](double Fval){return Fval > 0;});  
-//   bool all_neg = std::all_of(Fvals.begin(), Fvals.end(), [](double Fval){return Fval < 0;});
-//   if (!all_pos && !all_neg) return CellStatus::Mixed;
-//   // 3x3x3 stencil
-//   for (int i = -1; i <= 1; i++){
-//     for (int j = -1; j <= 1; j++){
-//       for (int k = -1; k <= 1; k++){
-//         double cx = x + i * dx;
-//         double cy = y + j * dx;
-//         double cz = z + k * dx;
-//         std::vector<Eigen::Vector3d> stencil_pts = get_sample_points(cx, cy, cz, dx);
-//         for (const auto& pt : stencil_pts){
-//           double val = evaluate_or_cache(pt, F, F_cache);
-//           if ((val > 0 && !all_pos) || (val < 0 && !all_neg)){
-//             Eigen::Vector3d x_center(x + 0.5*dx, y + 0.5*dx, z + 0.5*dx);
-//             Eigen::Vector3d x_proj = project_onto_surface(x_center, F, gradF);
-//             IRL::Pt x_proj_pt(x_proj(0), x_proj(1), x_proj(2));
-//             Eigen::Vector3d gradF_val = gradF(x_proj(0), x_proj(1), x_proj(2));
-//             Eigen::Matrix3d hessF_val = hessF(x_proj(0), x_proj(1), x_proj(2));
-//             IRL::Paraboloid paraboloid = IRL::Paraboloid::fromDerivatives(x_proj_pt, gradF_val, hessF_val);
-//             auto rectangle = IRL::RectangularCuboid::fromBoundingPts(IRL::Pt(x, y, z), 
-//                                                                      IRL::Pt(x + dx, y + dx, z + dx));
-//             auto moments = IRL::getNormalizedVolumeMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(rectangle, paraboloid);
-//             double liq_vf = moments[0].volume();
-//             bool not_mixed = true;
-//             if (liq_vf >= IRL::global_constants::VF_LOW && liq_vf <= IRL::global_constants::VF_HIGH) not_mixed = false;
-//             return not_mixed ? (all_pos ? CellStatus::Above : CellStatus::Below) : CellStatus::Mixed;
-//           }
-//         }
-//       }
-//     }
-//   } 
-//   return all_pos ? CellStatus::Above : CellStatus::Below;
-// }
-
+// mixed cell?
 CellStatus get_cell_status(const Cell& cell, ImplicitF F,
                            GradientF gradF, HessianF hessF,
                            std::unordered_map<Eigen::Vector3d, double, Vector3dHash>& F_cache){
@@ -254,6 +171,7 @@ CellStatus get_cell_status(const Cell& cell, ImplicitF F,
       auto rectangle = IRL::RectangularCuboid::fromBoundingPts(IRL::Pt(x, y, z), 
                                                                IRL::Pt(x + dx, y + dx, z + dx));
       auto moments = IRL::getNormalizedVolumeMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(rectangle, paraboloid);
+      // auto moments = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(rectangle, paraboloid);
       double liq_vf = moments[0].volume();
       bool not_mixed = true;
       if (liq_vf >= IRL::global_constants::VF_LOW && liq_vf <= IRL::global_constants::VF_HIGH) not_mixed = false;
@@ -391,13 +309,15 @@ vfInitializer::vfInitializer(const int& Nx, const int& max_refine_level,
       surface_name_(surface_name),
       vtk_output_path_(vtk_output_path),
       mesh_(Nx, Nx, Nx, 5),
-      vf_(&mesh_)  {}
+      vf_(&mesh_)  {
+    surface_ = makeSurface(surface_name_);
+}
 
 void vfInitializer::run() {
     ImplicitF F;
     GradientF gradF;
     HessianF hessF;
-    initialize(surface_name_, F, gradF, hessF, mesh_);
+    initialize(surface_, F, gradF, hessF, mesh_);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -427,6 +347,85 @@ void vfInitializer::run() {
     write_vtr(vtk_output_path_ + "vf.vtr", vf_, mesh_);
     write_vtu(vtk_output_path_ + "mixed_amr.vtu", mixed_leaf_cells_);
 }
+
+// triangle class
+Triangle::Triangle(const Eigen::Vector3d& v0,
+                   const Eigen::Vector3d& v1,
+                   const Eigen::Vector3d& v2)
+    : v0_(v0), v1_(v1), v2_(v2) {}
+
+double Triangle::computeM0() const {
+  return 0.5 * ((v1_ - v0_).cross(v2_ - v0_)).norm();
+}
+
+Eigen::Vector3d Triangle::computeM1() const {
+  double A = computeM0();
+  return A * (v0_ + v1_ + v2_) / 3.0;
+}
+
+Eigen::Matrix3d Triangle::computeM2() const {
+  double A = computeM0();
+  Eigen::Matrix3d M = Eigen::Matrix3d::Zero();
+  const std::vector<Eigen::Vector3d> v = {v0_, v1_, v2_};
+  for (int i = 0; i < 3; i++){
+    for (int j = 0; j < 3; j++){
+      M += v[i] * v[j].transpose();
+    }
+  }
+  return A / 12.0 * M;
+}
+
+// surface metric class function definitions
+SurfaceMetrics::SurfaceMetrics(const Cell& base_cell, ImplicitF F, const int num_divisions)
+    : base_cell_(base_cell),
+      F_([F](const IRL::Pt& p) { return F(p[0], p[1], p[2]); }),
+      num_divisions_(num_divisions) {}
+
+std::vector<const Cell*> SurfaceMetrics::collectMixedLeafCells() const {
+  std::vector<const Cell*> mixed_leaf_cells;
+  std::function<void(const Cell&)> recurse = [&](const Cell& c){
+    if (c.children.empty()){
+        if (c.status == CellStatus::Mixed){
+          mixed_leaf_cells.push_back(&c);
+        }
+    } else {
+        for (const auto& child : c.children){
+          recurse(*child);
+        }
+    }
+  };
+  recurse(base_cell_);
+  return mixed_leaf_cells;
+}
+
+// metric for surface within a base cell
+Metrics SurfaceMetrics::computeSurfaceMetrics() {
+  
+  auto mixed_leaves = collectMixedLeafCells();
+
+  // loop over all leaves
+  for (const auto& c : mixed_leaves){
+    auto domain = IRL::RectangularCuboid::fromBoundingPts(IRL::Pt(c->x, c->y, c->z), 
+                                                          IRL::Pt(c->x + c->dx, c->y + c->dx, c->z + c->dx));
+    IRL::MarchingCubes mc(domain, F_);
+    auto surface = mc.triangulate(num_divisions_);
+    auto triangles = surface.getTriangleList();
+
+    // looping over all triangles within a leaf
+    for (const auto& tri : triangles){
+      Eigen::Vector3d v0(tri[0][0], tri[0][1], tri[0][2]);
+      Eigen::Vector3d v1(tri[1][0], tri[1][1], tri[1][2]);
+      Eigen::Vector3d v2(tri[2][0], tri[2][1], tri[2][2]);
+      Triangle triangle(v0, v1, v2);
+      metrics_.sM0 += triangle.computeM0();
+      metrics_.sM1 += triangle.computeM1();
+      metrics_.sM2 += triangle.computeM2();
+    } 
+  }
+
+  return metrics_;
+}
+
 
 // for surface moment calculations
 // double peskin_delta(const double& phi, const double& epsilon) {

@@ -122,3 +122,38 @@ void write_vtu(const std::string& filepath, const std::vector<const Cell*>& cell
 
   out.close();
 }
+
+// for convergence
+void performConvergence(const std::string& csv_path, const int& max_refine_level,
+                        const vfInitializer& vfi){
+
+  const Surface* surface = vfi.getSurface();
+  double volume_amr = vfi.getTotalVolume();
+  const auto& mixed_leaf_cells = vfi.getMixedLeafCells();
+
+  if (mixed_leaf_cells.empty() || surface == nullptr) return;
+
+  double cell_spacing = mixed_leaf_cells[0]->dx;
+  double true_volume = surface->volume();
+  double rel_err = (true_volume == 0.0) ? 0.0 : std::abs(true_volume - volume_amr) / true_volume;
+
+  // file exists?
+  std::ifstream test(csv_path);
+  bool exists = test.good();
+  test.close();
+  
+  // write to file
+  std::ofstream out(csv_path, std::ios::app);
+  if (out.is_open()){
+    if (!exists){
+      out << "Refinement Level,Refined Cell Spacing,True Volume,AMR Volume,Relative Error\n";
+    }
+    out << std::fixed << std::setprecision(16)
+        << max_refine_level << ","
+        << cell_spacing << ","
+        << true_volume << ","
+        << volume_amr << ","
+        << rel_err << "\n";
+    out.close();
+  }
+}

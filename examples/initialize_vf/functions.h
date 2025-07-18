@@ -8,6 +8,7 @@
 #include "examples/variant_advector/reconstruction_types.h"
 
 #include "irl/generic_cutting/generic_cutting.h"
+#include "irl/surface_mesher/marching_cubes.h"
 
 #ifndef EXAMPLES_INITIALIZE_VF_FUNCTIONS_H_
 #define EXAMPLES_INITIALIZE_VF_FUNCTIONS_H_
@@ -16,9 +17,12 @@ using ImplicitF = std::function<double(double,double,double)>;
 using GradientF = std::function<Eigen::Vector3d(double, double, double)>;
 using HessianF  = std::function<Eigen::Matrix3d(double, double, double)>;
 
-                  
-void initialize(const std::string& implicit_surface, ImplicitF& F,
-                GradientF& gradF, HessianF& hessF, BasicMesh& mesh);
+
+std::unique_ptr<Surface> makeSurface(const std::string& name);
+
+void initialize(std::unique_ptr<Surface>& surface,
+                ImplicitF& F, GradientF& gradF,
+                HessianF& hessF, BasicMesh& mesh);
 
 Eigen::Vector3d project_onto_surface(const Eigen::Vector3d& x0, ImplicitF F,
                                      GradientF gradF);
@@ -124,12 +128,13 @@ class vfInitializer{
     
     void run();
 
-    // public accessors
     const Data<double>& getVolumeFractions() const { return vf_; }
     const std::vector<const Cell*>& getLeafCells() const { return leaf_cells_; }
     const std::vector<const Cell*>& getMixedLeafCells() const { return mixed_leaf_cells_; }
     double getTotalVolume() const { return volume_amr_; }
+    const Surface* getSurface() const { return surface_.get();}
     std::chrono::duration<double> getElapsedTime() const { return elapsed_; }
+    const std::vector<std::unique_ptr<Cell>>& getRefinedGrid() { return grid_; }
 
   private:
     int Nx_, max_refine_level_;
@@ -140,6 +145,66 @@ class vfInitializer{
     double volume_amr_ = 0.0;
     std::chrono::duration<double> elapsed_;
     std::vector<const Cell*> leaf_cells_, mixed_leaf_cells_;
+    std::unique_ptr<Surface> surface_;
+};
+
+void performConvergence(const std::string& csv_path, const int& max_refine_level,
+                        const vfInitializer& vfi);
+
+class Triangle{
+  public:
+    Triangle(const Eigen::Vector3d& v0,
+             const Eigen::Vector3d& v1,
+             const Eigen::Vector3d& v2);
+            
+    double computeM0() const;
+    Eigen::Vector3d computeM1() const;
+    Eigen::Matrix3d computeM2() const;
+  
+  private:
+    Eigen::Vector3d v0_, v1_, v2_;
+};
+
+struct Metrics{
+  // geometric surface moments
+  double sM0 = 0.0;
+  Eigen::Vector3d sM1 = Eigen::Vector3d::Zero();
+  Eigen::Matrix3d sM2 = Eigen::Matrix3d::Zero();
+
+  // geometric volume moments
+  double vM0 = 0.0;
+  Eigen::Vector3d vM1 = Eigen::Vector3d::Zero();
+  Eigen::Matrix3d vM2 = Eigen::Matrix3d::Zero();
+
+  // other metrics
+
+  // operator definitions
+  Metrics& operator+=(const Metrics& other){
+    sM0 += other.sM0;
+    sM1 += other.sM1;
+    sM2 += other.sM2;
+    vM0 += other.vM0;
+    vM1 += other.vM1;
+    vM2 += other.vM2;
+    return *this;
+  }
+  
+};
+
+class SurfaceMetrics{
+  public:
+    using ImplicitF_pt = std::function<double(IRL::Pt)>;
+
+    SurfaceMetrics(const Cell& base_cell, ImplicitF F, const int num_divisions);
+
+    Metrics computeSurfaceMetrics();
+
+  private:
+    const Cell& base_cell_;
+    ImplicitF_pt F_; 
+    int num_divisions_; 
+    Metrics metrics_;
+    std::vector<const Cell*> collectMixedLeafCells() const;
 };
 
 // surface moment calculations
