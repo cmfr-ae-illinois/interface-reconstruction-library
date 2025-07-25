@@ -52,14 +52,14 @@ namespace IRL {
     };
 
     // template<class SeparatorType>
-    class ImplicitSurface {
+    class PUImplicitSurface {
         private:
             const std::vector<Pt> centroids;
             const std::vector<SeparatorVariant> separators;
             const double kernel_size;
         public:
             // Constructor
-            ImplicitSurface(const std::vector<Pt>& centroids_, const std::vector<SeparatorVariant>& separators, const double& kernel_size_);
+            PUImplicitSurface(const std::vector<Pt>& centroids_, const std::vector<SeparatorVariant>& separators, const double& kernel_size_);
             // Function Eval
             double F(Pt& x); // Change to Points
             // x derivative eval
@@ -75,6 +75,10 @@ namespace IRL {
             Normal projectToImplicitSurface(const Pt& x0, bool& usePlane); // Can add in options for max_iter and tol later
             // Find intersection between the implicit curve and a provided line. 
             std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1, const int& Npartitions);
+
+            // Find the Tangent and Curvature at the point
+            Normal getTangent(Pt& x);
+            double getCurvature(Pt& x);
     };
 
     template<class CellType>
@@ -86,15 +90,15 @@ namespace IRL {
             // Constructor
             PUST(const PUSTNeighborhood<CellType> stencil_);
             // Takes Neighborhood and Returns the Implicit Surface
-            ImplicitSurface neighborhoodToImplicitSurface(double delta);
+            PUImplicitSurface neighborhoodToImplicitSurface(double delta);
             // Solve Method - Returns the surface tension vector in center cell
-            Normal solve(double STCoeff);
+            std::vector<double> solve(double STCoeff,int direction);
             
     };
 
 
 } // End Namespace IRL
 
-#include "irl/conservative_surface_tension/pu_solve.tpp"
+#include "irl/interface_reconstruction_methods/pu_solve.tpp"
 
 #endif

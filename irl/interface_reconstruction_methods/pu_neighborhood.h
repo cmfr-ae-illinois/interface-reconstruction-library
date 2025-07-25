@@ -95,6 +95,6 @@ namespace IRL {
     };
 } // End Namespace IRL
 
-#include "irl/conservative_surface_tension/pu_neighborhood.tpp"
+#include "irl/interface_reconstruction_methods/pu_neighborhood.tpp"
 
 #endif

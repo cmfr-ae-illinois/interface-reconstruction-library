@@ -5,8 +5,8 @@
 // #include "examples/PUSurfaceTension/pu_neighborhood.h"
 // #include "examples/PUSurfaceTension/pu_solve.h"
 
-#include "irl/conservative_surface_tension/pu_neighborhood.h"
-#include "irl/conservative_surface_tension/pu_solve.h"
+#include "irl/interface_reconstruction_methods/pu_neighborhood.h"
+#include "irl/interface_reconstruction_methods/pu_solve.h"
 
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 
@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
     centroids.push_back(p2);
 
     // Construct Implicit Surfaces
-    IRL::ImplicitSurface planarSurface(centroids,variantSeps,delta);
+    IRL::PUImplicitSurface planarSurface(centroids,variantSeps,delta);
     // IRL::ImplicitSurface<IRL::Paraboloid> paraSurface(centroids,paraSeps,delta);
 
     // Calculate Value at Point

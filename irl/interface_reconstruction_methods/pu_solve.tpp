@@ -79,14 +79,14 @@ namespace IRL {
 
     // =================== Implicit Surface Class Functions
     // template <class SeparatorType>
-    ImplicitSurface::ImplicitSurface(const std::vector<Pt>& centroids_, 
+    PUImplicitSurface::PUImplicitSurface(const std::vector<Pt>& centroids_, 
                                     const std::vector<SeparatorVariant>& separators_,
                                     const double& kernel_size_)
                                     : centroids(centroids_), separators(separators_), kernel_size(kernel_size_) {}
     
     
     // template <class SeparatorType>
-    double ImplicitSurface::F(Pt& x) {
+    double PUImplicitSurface::F(Pt& x) {
         double num = 0.0;
         double denom = 0.0;
         for(int i=0; i < centroids.size(); i++) {
@@ -108,7 +108,7 @@ namespace IRL {
         return num/ denom;
     }
     // template <class SeparatorType>
-    double ImplicitSurface::Fx(Pt& x) {
+    double PUImplicitSurface::Fx(Pt& x) {
         double sum_phi      = 0.0;
         double sum_phi_F    = 0.0;
         double sum_dphidx   = 0.0;
@@ -148,7 +148,7 @@ namespace IRL {
         return ((sum_dphidx_F + sum_phi_dFdx) * sum_phi - sum_phi_F * sum_dphidx) / (sum_phi * sum_phi);
     }
     // template <class SeparatorType>
-    double ImplicitSurface::Fy(Pt& x) {
+    double PUImplicitSurface::Fy(Pt& x) {
         double sum_phi      = 0.0;
         double sum_phi_F    = 0.0;
         double sum_dphidy   = 0.0;
@@ -187,7 +187,7 @@ namespace IRL {
         return ((sum_dphidy_F + sum_phi_dFdy) * sum_phi - sum_phi_F * sum_dphidy) / (sum_phi * sum_phi);
     }
     
-    std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d> ImplicitSurface::getValueAndGradAndHessian(Pt& x) {
+    std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d> PUImplicitSurface::getValueAndGradAndHessian(Pt& x) {
         // =====Implicit Function Value Variables
         double F_phi_sum = 0.0; // Sum of Fi*phi_i
         double phi_sum   = 0.0; // sum of phi_i
@@ -324,7 +324,7 @@ namespace IRL {
 
 
     // template <class SeparatorType>
-    std::vector<double> ImplicitSurface::HessianTerms(Pt& x) {
+    std::vector<double> PUImplicitSurface::HessianTerms(Pt& x) {
         double N   = 0.0;
         double Nx  = 0.0;
         double Ny  = 0.0;
@@ -397,7 +397,7 @@ namespace IRL {
         return {Fxx, Fyy, Fxy};
     }
     // template <class SeparatorType>
-    Normal ImplicitSurface::projectToImplicitSurface(const Pt& x0, bool& usePlane) {
+    Normal PUImplicitSurface::projectToImplicitSurface(const Pt& x0, bool& usePlane) {
         int max_iter = 200;
         double tol = 1e-12;
         Pt x = x0;
@@ -426,8 +426,9 @@ namespace IRL {
         }
         return x;
     }
+
     // template <class SeparatorType>
-    std::vector<Pt> ImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1, const int& Npartitions) {
+    std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1, const int& Npartitions) {
         // Split the domain into segments
         std::vector<Pt> sampleLocations = {};
         // At these locations, calculate the function value
@@ -505,9 +506,40 @@ namespace IRL {
         return intersections;
     }
 
+    Normal PUImplicitSurface::getTangent(Pt& x) {
+        auto holdsGrad = this->getValueAndGradAndHessian(x);
+        auto gradF = std::get<1>(holdsGrad);
+        double Fx = gradF(0);
+        double Fy = gradF(1);
+
+        return Normal(-Fy,Fx,0.0);
+    }
+
+    double PUImplicitSurface::getCurvature(Pt& x) {
+        auto holdsGradAndHessian = this->getValueAndGradAndHessian(x);
+        auto gradF = std::get<1>(holdsGradAndHessian);
+        auto hessF = std::get<2>(holdsGradAndHessian);
+
+        double Fxx = hessF(0,0);
+        double Fyy = hessF(1,1);
+        double Fxy = hessF(0,1);
+        double Fx = gradF(0);
+        double Fy = gradF(1);
+
+        double numer = Fxx*Fy*Fy - 2*Fxy*Fx*Fy + Fx*Fx*Fyy;
+        double magGradF = std::sqrt(Fx*Fx+Fy*Fy);
+        double denom = magGradF*magGradF*magGradF;
+
+        double kz = -numer/denom;
+
+        return kz;
+    }   
+
     // ============== Solver Methods
     template <class CellType>
-    PUST<CellType>::PUST(const PUSTNeighborhood<CellType> stencil_) : stencil_m(stencil_){}
+    PUST<CellType>::PUST(const PUSTNeighborhood<CellType> stencil_) : stencil_m(stencil_){
+        this->surface_m = this ->neighborhoodToImplicitSurface(5.0);
+    }
 
     // void getIntersectionPts(const IRL::Polygon& a_polygon,
     //                     const IRL::Plane& a_cutting_plane,
@@ -525,60 +557,78 @@ namespace IRL {
     //         }
     //         }
     //         distance = next_distance;
-    //     }
+    //     }s
     // }
     
     template <class CellType>
-    ImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
+    PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
         const auto centroids = stencil_m.getCentroids();
         const auto separators = stencil_m.getSeparators();
 
-        return ImplicitSurface(centroids,separators,delta);
+        return PUImplicitSurface(centroids,separators,delta);
     }
 
     template <class CellType>
-    Normal PUST<CellType>::solve(double STCoeff) {
+    std::vector<double> PUST<CellType>::solve(double STCoeff,int direction) {
+        // Direction should be 0 for x, 1 for y
+        
         // First, Make the Implicit Edge
-        ImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
+        PUImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
 
         // Below Here is the Intersection
         Pt P0,P1;
         std::vector<Pt> inters;
 
-        CellType c = stencil_m.getCenterCell();
+        CellType c = stencil_m.getCenterCell(); // Should be an x cell or a y cell
         Pt BL = c.getLowerLimits();
         Pt TR = c.getUpperLimits();
         std::cout << "Lower Point: " << BL[0] << "," << BL[1] << "," << BL[2] << "\n";
         std::cout << "Upper Point: " << TR[0] << "," << TR[1] << "," << TR[2] << "\n";
         Pt BR = Pt(TR[0],BL[1],TR[2]);
         Pt TL = Pt(BL[0],TR[1],BL[2]);
-        std::vector<Pt> poly = {BL,BR,TR,TL,BL};
-        IRL::Normal force(0.0,0.0,0.0); // Surface Tension Force
-        
-        IRL::Normal tangent(0.0,0.0,0.0);
+        std::vector<Pt> poly = {BR,TR,TL,BL,BR};
+
+        Normal tangent;
+        std::vector<double> surfaceTensionComponents = {0,0,0,0}; 
+        // sigma_xx_i, sigma_xy_j+1/2, sigma_xx_i-1, sigma_xy_j-1/2 for x cell
+        // sigma_yx,i+1/2, sigma_yy_j, sigma_yx_i-1/2, sigma_yy_j-1 for y cell
+        // Assume proper cell is set as center cell.
+
+        double D;
+        Pt dP;
         for(int i = 0; i < poly.size()-1; i++) {
             P0 = poly[i];
             P1 = poly[i+1];
             inters = s.intersectEdge(P0,P1,10);
+            dP = P1-P0;
+            D = std::sqrt(dP[0]*dP[0] + dP[1]*dP[1]);
 
             if(inters.size() > 0) {
                 for(int j = 0; j < inters.size(); j++) {
-                    std::cout << inters[j][0] << "," << inters[j][1] << "," << inters[j][2] << "\n";
-
-                    auto holdsGrad = s.getValueAndGradAndHessian(inters[j]);
-                    auto gradF = std::get<1>(holdsGrad);
-                    double Fx = gradF(0);
-                    double Fy = gradF(1);
-                    std::cout << Fx << "," << Fy << " Gradient \n";
-                    tangent[0] = -Fy;
-                    tangent[1] = Fx;
-
-                    tangent.normalize();
-                    force = force + STCoeff * tangent;
+                    tangent = s.getTangent(inters[j]);
+                    
+                    surfaceTensionComponents[i] += STCoeff*tangent[direction]/D;
                 }
             }
         }
-        return force;
+        //     if(inters.size() > 0) {
+        //         for(int j = 0; j < inters.size(); j++) {
+        //             std::cout << inters[j][0] << "," << inters[j][1] << "," << inters[j][2] << "\n";
+
+        //             auto holdsGrad = s.getValueAndGradAndHessian(inters[j]);
+        //             auto gradF = std::get<1>(holdsGrad);
+        //             double Fx = gradF(0);
+        //             double Fy = gradF(1);
+        //             std::cout << Fx << "," << Fy << " Gradient \n";
+        //             tangent[0] = -Fy;
+        //             tangent[1] = Fx;
+
+        //             tangent.normalize();
+        //             force = force + STCoeff * tangent;
+        //         }
+        //     }
+        // }
+        return surfaceTensionComponents;
     }
                         
 } // End Namespace IRL

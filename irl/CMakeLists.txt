@@ -18,7 +18,7 @@ add_subdirectory(cylinder_reconstruction)
 add_subdirectory(surface_mesher)
 add_subdirectory(variant_reconstruction)
 
-add_subdirectory(conservative_surface_tension)
+# add_subdirectory(conservative_surface_tension)
 
 # Other directories for the C/Fortran interface.
 
