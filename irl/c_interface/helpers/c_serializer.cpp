@@ -49,4 +49,22 @@ void c_unpackAndStore_Paraboloid_ByteBuffer(c_Paraboloid* a_separator,
   IRL::unpackAndStore(a_separator->obj_ptr, a_container->obj_ptr);
 }
 
+void c_serializeAndPack_SeparatorVariant_ByteBuffer(
+    const c_SeparatorVariant* a_separator, c_ByteBuffer* a_container) {
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  assert(a_container != nullptr);
+  assert(a_container->obj_ptr != nullptr);
+  IRL::serializeAndPack(*a_separator->obj_ptr, a_container->obj_ptr);
+}
+
+void c_unpackAndStore_SeparatorVariant_ByteBuffer(
+    c_SeparatorVariant* a_separator, c_ByteBuffer* a_container) {
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  assert(a_container != nullptr);
+  assert(a_container->obj_ptr != nullptr);
+  IRL::unpackAndStore(a_separator->obj_ptr, a_container->obj_ptr);
+}
+
 }  // end extern C

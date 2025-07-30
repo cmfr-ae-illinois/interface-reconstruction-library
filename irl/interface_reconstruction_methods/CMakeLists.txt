@@ -34,3 +34,7 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_solve.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_neighborhood.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_solve.tpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben_neighborhood.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben_neighborhood.cpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben.cpp)

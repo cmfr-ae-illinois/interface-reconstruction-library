@@ -21,6 +21,7 @@
 module f_GeometricCuttingHelpers
   use f_DefinedTypes
   use f_PlanarSep_class
+  use f_SeparatorVariant_class
   use f_PlanarLoc_class
   use f_LocSepLink_class
   use f_LocSepGroupLink_class
@@ -29,6 +30,8 @@ module f_GeometricCuttingHelpers
   interface isPtInt
     ! Check if Pt is internal to a PlanarSeparator
     module procedure isPtInt_PlanarSep
+    ! Check if Pt is internal to a PlanarSeparator
+    module procedure isPtInt_Variant
     ! Check if Pt is internal to a PlanarLocalizer
     module procedure isPtInt_PlanarLoc
   end interface isPtInt
@@ -47,6 +50,17 @@ module f_GeometricCuttingHelpers
       type(c_PlanarSep) :: a_separator ! Pointer to PlanarSeparator
       logical(C_BOOL) :: is_internal ! Boolean, true if internal
     end function F_isPtInt_PlanarSep
+  end interface
+
+  interface
+    function F_isPtInt_Variant(a_pt, a_separator) result (is_internal) &
+    bind(C, name="c_isPtInt_Variant")
+      import
+      implicit none
+      real(C_DOUBLE), dimension(*), intent(in) :: a_pt ! dimension(1:3)
+      type(c_SeparatorVariant) :: a_separator ! Pointer to PlanarSeparator
+      logical(C_BOOL) :: is_internal ! Boolean, true if internal
+    end function F_isPtInt_Variant
   end interface
 
   interface
@@ -92,6 +106,14 @@ contains
       logical(1) :: is_internal
       is_internal = F_isPtInt_PlanarSep(a_pt, a_separator%c_object)
   end function isPtInt_PlanarSep
+
+  function isPtInt_Variant(a_pt, a_separator) result (is_internal)
+    implicit none
+      real(IRL_double), dimension(3), intent(in) :: a_pt
+      type(SeparatorVariant_type), intent(in) :: a_separator
+      logical(1) :: is_internal
+      is_internal = F_isPtInt_Variant(a_pt, a_separator%c_object)
+  end function isPtInt_Variant
 
   function isPtInt_PlanarLoc(a_pt, a_localizer) result (is_internal)
     implicit none

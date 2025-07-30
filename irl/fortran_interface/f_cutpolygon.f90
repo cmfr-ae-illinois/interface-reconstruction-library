@@ -26,22 +26,25 @@ module f_CutPolygon
   use f_Poly_class
   use f_DivPoly_class
   use f_PlanarSep_class
+  use f_SeparatorVariant_class
   implicit none
 
   interface getPoly
-    module procedure getPoly_RectCub_Poly
+    module procedure getPoly_RectCub_Poly_Sep
+    module procedure getPoly_RectCub_Poly_Variant
     module procedure getPoly_Tet_Poly
     module procedure getPoly_Hex_Poly         
     module procedure getPoly_RectCub_DivPoly
   end interface getPoly
 
   interface getSA
-    module procedure getSA_RectCub
+    module procedure getSA_RectCub_Sep
+    module procedure getSA_RectCub_Variant
   end interface getSA
 
   interface
-    subroutine F_getPoly_RectCub_Poly(a_rectangular_cuboid, a_planar_separator, a_plane_index, a_polygon) &
-    bind(C, name="c_getPoly_RectCub_Poly")
+    subroutine F_getPoly_RectCub_Poly_Sep(a_rectangular_cuboid, a_planar_separator, a_plane_index, a_polygon) &
+    bind(C, name="c_getPoly_RectCub_Poly_Sep")
       use, intrinsic :: iso_c_binding
       import
       implicit none
@@ -49,7 +52,20 @@ module f_CutPolygon
       type(c_PlanarSep) :: a_planar_separator ! Pointer to PlanarSep object
       integer(C_INT), intent(in) :: a_plane_index ! Plane to get polygon for
       type(c_Poly) :: a_polygon ! Pointer to Polyg object
-    end subroutine F_getPoly_RectCub_Poly
+    end subroutine F_getPoly_RectCub_Poly_Sep
+  end interface
+
+  interface
+    subroutine F_getPoly_RectCub_Poly_Variant(a_rectangular_cuboid, a_variant, a_plane_index, a_polygon) &
+    bind(C, name="c_getPoly_RectCub_Poly_Variant")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_RectCub) :: a_rectangular_cuboid ! Pointer to RectCub object
+      type(c_SeparatorVariant) :: a_variant ! Pointer to PlanarSep object
+      integer(C_INT), intent(in) :: a_plane_index ! Plane to get polygon for
+      type(c_Poly) :: a_polygon ! Pointer to Polyg object
+    end subroutine F_getPoly_RectCub_Poly_Variant
   end interface
 
   interface
@@ -92,15 +108,27 @@ module f_CutPolygon
   end interface
 
   interface
-    function F_getSA_RectCub(a_rectangular_cuboid, a_planar_separator) result(a_surface_area) &
-    bind(C, name="c_getSA_RectCub")
+    function F_getSA_RectCub_Sep(a_rectangular_cuboid, a_planar_separator) result(a_surface_area) &
+    bind(C, name="c_getSA_RectCub_Sep")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(c_RectCub) :: a_rectangular_cuboid ! Pointer to RectCub object
       type(c_PlanarSep) :: a_planar_separator ! Pointer to PlanarSep object
       real(C_DOUBLE) :: a_surface_area
-    end function F_getSA_RectCub
+    end function F_getSA_RectCub_Sep
+  end interface
+
+  interface
+    function F_getSA_RectCub_Variant(a_rectangular_cuboid, a_variant) result(a_surface_area) &
+    bind(C, name="c_getSA_RectCub_Variant")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_RectCub) :: a_rectangular_cuboid ! Pointer to RectCub object
+      type(c_SeparatorVariant) :: a_variant ! Pointer to PlanarSep object
+      real(C_DOUBLE) :: a_surface_area
+    end function F_getSA_RectCub_Variant
   end interface
 
 
@@ -108,16 +136,27 @@ module f_CutPolygon
 
 contains
 
-  subroutine getPoly_RectCub_Poly(a_rectangular_cuboid, a_planar_separator, a_plane_index, a_polygon)
+  subroutine getPoly_RectCub_Poly_Sep(a_rectangular_cuboid, a_planar_separator, a_plane_index, a_polygon)
     use, intrinsic :: iso_c_binding
     implicit none
       type(RectCub_type) :: a_rectangular_cuboid
       type(PlanarSep_type) :: a_planar_separator
       integer(IRL_UnsignedIndex_t), intent(in) :: a_plane_index
       type(Poly_type) :: a_polygon
-      call F_getPoly_RectCub_Poly &
+      call F_getPoly_RectCub_Poly_Sep &
           (a_rectangular_cuboid%c_object, a_planar_separator%c_object, a_plane_index, a_polygon%c_object)
-  end subroutine getPoly_RectCub_Poly
+  end subroutine getPoly_RectCub_Poly_Sep
+
+  subroutine getPoly_RectCub_Poly_Variant(a_rectangular_cuboid, a_variant, a_plane_index, a_polygon)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(RectCub_type) :: a_rectangular_cuboid
+      type(SeparatorVariant_type) :: a_variant
+      integer(IRL_UnsignedIndex_t), intent(in) :: a_plane_index
+      type(Poly_type) :: a_polygon
+      call F_getPoly_RectCub_Poly_Variant &
+          (a_rectangular_cuboid%c_object, a_variant%c_object, a_plane_index, a_polygon%c_object)
+  end subroutine getPoly_RectCub_Poly_Variant
 
   subroutine getPoly_Tet_Poly(a_tet, a_planar_separator, a_plane_index, a_polygon)
     use, intrinsic :: iso_c_binding
@@ -152,13 +191,22 @@ contains
           (a_rectangular_cuboid%c_object, a_planar_separator%c_object, a_plane_index, a_divided_polygon%c_object)
   end subroutine getPoly_RectCub_DivPoly
 
-  function getSA_RectCub(a_rectangular_cuboid, a_planar_separator) result(a_surface_area)
+  function getSA_RectCub_Sep(a_rectangular_cuboid, a_planar_separator) result(a_surface_area)
     use, intrinsic :: iso_c_binding
     implicit none
       type(RectCub_type) :: a_rectangular_cuboid
       type(PlanarSep_type) :: a_planar_separator
       real(IRL_double) :: a_surface_area
-      a_surface_area = F_getSA_RectCub(a_rectangular_cuboid%c_object, a_planar_separator%c_object)
-  end function getSA_RectCub
+      a_surface_area = F_getSA_RectCub_Sep(a_rectangular_cuboid%c_object, a_planar_separator%c_object)
+  end function getSA_RectCub_Sep
+
+  function getSA_RectCub_Variant(a_rectangular_cuboid, a_variant) result(a_surface_area)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(RectCub_type) :: a_rectangular_cuboid
+      type(SeparatorVariant_type) :: a_variant
+      real(IRL_double) :: a_surface_area
+      a_surface_area = F_getSA_RectCub_Variant(a_rectangular_cuboid%c_object, a_variant%c_object)
+  end function getSA_RectCub_Variant
 
 end module f_CutPolygon

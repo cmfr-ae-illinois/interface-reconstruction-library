@@ -57,6 +57,9 @@
 #include "irl/c_interface/paraboloid_reconstruction/c_localized_paraboloid_link.h"
 #include "irl/c_interface/paraboloid_reconstruction/c_paraboloid.h"
 
+#include "irl/c_interface/variant_reconstruction/c_localized_variant_link.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
+
 #include "irl/generic_cutting/generic_cutting.h"
 
 extern "C" {
@@ -114,6 +117,10 @@ void c_getNormMoments_CapDod_LocParabLink_SepVM(
     const c_LocParabLink* a_localized_paraboloid_link,
     c_SepVM* a_moments_to_return);
 
+void c_getNormMoments_CapDod_LocVariantLink_SepVM(
+    const c_CapDod* a_Cap_Dod, const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return);
+
 void c_getNormMoments_CapDod_d3_LocSepLink_SepVM_d3(
     const c_CapDod_d3* a_Cap_Dod,
     const c_LocSepLink* a_localized_separator_link,
@@ -122,6 +129,11 @@ void c_getNormMoments_CapDod_d3_LocSepLink_SepVM_d3(
 void c_getNormMoments_Poly24_LocSepLink_SepVM(
     const c_Poly24* a_polyhedron_24,
     const c_LocSepLink* a_localized_separator_link,
+    c_SepVM* a_moments_to_return);
+
+void c_getNormMoments_Poly24_LocVariantLink_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocVariantLink* a_localized_variant_link,
     c_SepVM* a_moments_to_return);
 
 void c_getNormMoments_Poly24_d3_LocSepLink_SepVM_d3(
@@ -138,6 +150,10 @@ void c_getMoments_CapDod_LocParabLink_SepVM(
     const c_LocParabLink* a_localized_paraboloid_link,
     c_SepVM* a_moments_to_return);
 
+void c_getMoments_CapDod_LocVariantLink_SepVM(
+    const c_CapDod* a_Cap_Dod, const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return);
+
 void c_getMoments_Dod_LocSepLink_SepVM(
     const c_Dod* a_Dod, const c_LocSepLink* a_localized_separator_link,
     c_SepVM* a_moments_to_return);
@@ -146,6 +162,21 @@ void c_getMoments_Poly24_LocSepLink_SepVM(
     const c_Poly24* a_polyhedron_24,
     const c_LocSepLink* a_localized_separator_link,
     c_SepVM* a_moments_to_return);
+
+void c_getMoments_Poly24_LocVariantLink_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return);
+
+void c_getMoments_Poly24_LocSepLink_TagAccVM_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return);
+
+void c_getMoments_Poly24_LocVariantLink_TagAccVM_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_TagAccVM_SepVM* a_moments_to_return);
 
 void c_getNormMoments_Tet_LocSepLink_SepVM(
     const c_Tet* a_tet, const c_LocSepLink* a_localized_separator_link,
@@ -157,6 +188,10 @@ void c_getNormMoments_RectCub_PlanarSep_Vol(
 
 void c_getNormMoments_RectCub_Paraboloid_Vol(
     const c_RectCub* a_rectangular_cuboid, const c_Paraboloid* a_paraboloid,
+    double* a_moments_to_return);
+
+void c_getNormMoments_RectCub_SeparatorVariant_Vol(
+    const c_RectCub* a_rectangular_cuboid, const c_SeparatorVariant* a_variant,
     double* a_moments_to_return);
 
 void c_getNormMoments_Tet_PlanarSep_Vol(const c_Tet* a_tet,
@@ -185,6 +220,18 @@ void c_getNormMoments_Dod_PlanarSep_SepVM(const c_Dod* a_Dod,
 
 void c_getNormMoments_CapDod_LocSepLink_TagAccVM_SepVM(
     const c_CapDod* a_Cap_Dod, const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return);
+
+void c_getNormMoments_CapDod_LocVariantLink_TagAccVM_SepVM(
+    const c_CapDod* a_Cap_Dod, const c_LocVariantLink* a_localized_variant_link,
+    c_TagAccVM_SepVM* a_moments_to_return);
+
+void c_getMoments_CapDod_LocSepLink_TagAccVM_SepVM(
+    const c_CapDod* a_Cap_Dod, const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return);
+
+void c_getMoments_CapDod_LocVariantLink_TagAccVM_SepVM(
+    const c_CapDod* a_Cap_Dod, const c_LocVariantLink* a_localized_variant_link,
     c_TagAccVM_SepVM* a_moments_to_return);
 
 void c_getNormMoments_Dod_LocSepLink_TagAccVM_SepVM(
@@ -217,6 +264,10 @@ void c_getNormMoments_RectCub_PlanarSep_SepVM(
 
 void c_getNormMoments_RectCub_Paraboloid_SepVM(
     const c_RectCub* a_rectangular_cuboid, const c_Paraboloid* a_paraboloid,
+    c_SepVM* a_moments_to_return);
+
+void c_getNormMoments_RectCub_SeparatorVariant_SepVM(
+    const c_RectCub* a_rectangular_cuboid, const c_SeparatorVariant* a_variant,
     c_SepVM* a_moments_to_return);
 
 void c_getNormMoments_Tri_LocLink_TagAccVM_VM(

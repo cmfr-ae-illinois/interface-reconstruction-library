@@ -32,6 +32,52 @@ inline ParaboloidBase<ScalarType>::ParaboloidBase(
 }
 
 template <class ScalarType>
+inline ParaboloidBase<ScalarType> ParaboloidBase<ScalarType>::fromDerivatives(
+    const PtBase<ScalarType>& a_datum,
+    const Eigen::Vector<ScalarType, 3>& a_gradF,
+    const Eigen::Matrix<ScalarType, 3, 3>& a_hessF) {
+  using Vector2Type = Eigen::Vector<ScalarType, 2>;
+  using Vector3Type = Eigen::Vector<ScalarType, 3>;
+  using Matrix22Type = Eigen::Matrix<ScalarType, 2, 2>;
+  using Matrix33Type = Eigen::Matrix<ScalarType, 3, 3>;
+  using Matrix32Type = Eigen::Matrix<ScalarType, 3, 2>;
+  using NormalType = NormalBase<ScalarType>;
+  using ReferenceFrameType = ReferenceFrameBase<ScalarType>;
+  const ScalarType ZERO = static_cast<ScalarType>(0);
+  const ScalarType ONE = static_cast<ScalarType>(1);
+  const ScalarType TWO = static_cast<ScalarType>(2);
+  const ScalarType HALF = ONE / TWO;
+  const Matrix33Type hessF = 0.5 * (a_hessF + a_hessF.transpose());
+
+  // This uses the method described in
+  // https://www.geometrictools.com/Documentation/PrincipalCurvature.pdf
+  const ScalarType inv_gradF_norm = ONE / a_gradF.norm();
+  const NormalType normal =
+      NormalType(a_gradF(0), a_gradF(1), a_gradF(2)) * inv_gradF_norm;
+  ReferenceFrameType frame = ReferenceFrameType::fromNormal(normal);
+  Matrix32Type J;
+  for (UnsignedIndex_t i = 0; i < 3; i++) {
+    for (UnsignedIndex_t j = 0; j < 2; j++) {
+      J(i, j) = frame[j][i];
+    }
+  }
+  const Matrix22Type A = (J.transpose() * hessF * J) * inv_gradF_norm;
+  ////////// TODO: compute eigenvalues and eigenvectors "by hand"
+  Eigen::EigenSolver<Matrix22Type> eigensolver(A);
+  const ScalarType eval1 = eigensolver.eigenvalues()(0).real();
+  const ScalarType eval2 = eigensolver.eigenvalues()(1).real();
+  const Vector2Type evec1 =
+      Vector2Type(eigensolver.eigenvectors()(0, 0).real(),
+                  eigensolver.eigenvectors()(1, 0).real());
+  //////////
+  const Vector3Type T1 = J * evec1;
+  frame[0] = NormalType(T1(0), T1(1), T1(2));
+  frame[0].normalize();
+  frame[1] = crossProduct(frame[2], frame[0]);
+  return ParaboloidBase<ScalarType>(a_datum, frame, HALF * eval1, HALF * eval2);
+}
+
+template <class ScalarType>
 inline ParaboloidBase<ScalarType> ParaboloidBase<ScalarType>::createAlwaysAbove(
     void) {
   ParaboloidBase<ScalarType> par;
@@ -110,6 +156,92 @@ inline bool ParaboloidBase<ScalarType>::isAlwaysAbove(void) const {
 template <class ScalarType>
 inline bool ParaboloidBase<ScalarType>::isAlwaysBelow(void) const {
   return place_infinite_shortcut_m[1];
+}
+
+template <class ScalarType>
+inline void ParaboloidBase<ScalarType>::regenerateAtLocation(
+    const PtBase<ScalarType>& a_pt) {
+  const ScalarType ZERO = static_cast<ScalarType>(0);
+  const ScalarType ONE = static_cast<ScalarType>(1);
+  const ScalarType TWO = static_cast<ScalarType>(2);
+  const ScalarType HALF = ONE / TWO;
+
+  // Get paraboloid information
+  const ScalarType a = paraboloid_m.a();
+  const ScalarType b = paraboloid_m.b();
+
+  // Bring point in local frame of reference
+  const Pt pt_tmp = a_pt - datum_m;
+  PtBase<ScalarType> local_pt;
+  for (UnsignedIndex_t n = 0; n < 3; ++n) {
+    local_pt[n] = frame_m[n] * pt_tmp;
+  }
+  local_pt[2] = -a * local_pt[0] * local_pt[0] - b * local_pt[1] * local_pt[1];
+
+  // Compute local derivatives
+  const Eigen::Vector<ScalarType, 3> gradF(TWO * a * local_pt[0],
+                                           TWO * b * local_pt[1], ONE);
+  Eigen::Matrix<ScalarType, 3, 3> hessF =
+      Eigen::Matrix<ScalarType, 3, 3>::Zero();
+  hessF(0, 0) = TWO * a;
+  hessF(1, 1) = TWO * b;
+  Eigen::Matrix<ScalarType, 3, 3> adjHessF =
+      Eigen::Matrix<ScalarType, 3, 3>::Zero();
+  adjHessF(2, 2) = TWO * TWO * a * b;
+  auto new_normal = NormalBase<ScalarType>(gradF(0), gradF(1), gradF(2));
+  new_normal.normalize();
+
+  // Based on Goldman 2005
+  ScalarType H = gradF.transpose() * (hessF * gradF);
+  H -= gradF.squaredNorm() * hessF.trace();
+  H /= TWO * gradF.squaredNorm() * gradF.norm();
+  ScalarType K = gradF.transpose() * (adjHessF * gradF);
+  K /= gradF.squaredNorm() * gradF.squaredNorm();
+  const ScalarType k1 = -H + sqrt(maximum(H * H - K, ZERO));
+  const ScalarType k2 = -H - sqrt(maximum(H * H - K, ZERO));
+
+  // Compute principal directions
+  const ScalarType B = a - b, C = -gradF(1) * a, E = gradF(0) * b;
+  const ScalarType U = TWO * gradF(0) * gradF(1) * a;
+  const ScalarType V = TWO * (B - C * gradF(1) - E * gradF(0));
+  const ScalarType W = -TWO * gradF(1) * gradF(0) * b;
+  const ScalarType delta = V * V - TWO * TWO * U * W;
+  const ScalarType X1 = -V - sqrt(maximum(0., delta));
+  auto T1 =
+      NormalBase<ScalarType>(X1, TWO * U, -X1 * gradF(0) - TWO * U * gradF(1));
+  const ScalarType normT1 = magnitude(T1);
+  ReferenceFrame new_local_frame;
+  if (normT1 > DBL_EPSILON) {
+    T1 *= ONE / normT1;
+    new_local_frame[2] = new_normal;
+    new_local_frame[0] = T1;
+    new_local_frame[1] = crossProduct(new_local_frame[2], new_local_frame[0]);
+  } else {  /// The point is umbilical
+    new_local_frame = ReferenceFrameBase<ScalarType>::fromNormal(new_normal);
+  }
+
+  // Now move frame back to canonical frame and return paraboloid
+  ReferenceFrame new_frame;
+  for (int n = 0; n < 3; n++) {
+    new_frame[n] = NormalBase<ScalarType>(ZERO, ZERO, ZERO);
+    for (int d = 0; d < 3; d++) {
+      new_frame[n] += new_local_frame[n][d] * frame_m[d];
+    }
+    new_frame[n].normalize();
+  }
+
+  // Bring point back to canonical frame of reference
+  PtBase<ScalarType> projection(ZERO, ZERO, ZERO);
+  for (UnsignedIndex_t n = 0; n < 3; ++n) {
+    for (UnsignedIndex_t d = 0; d < 3; ++d) {
+      projection[n] += frame_m[d][n] * local_pt[d];
+    }
+  }
+
+  datum_m += projection;
+  frame_m = new_frame;
+  paraboloid_m.a() = HALF * k1;
+  paraboloid_m.b() = HALF * k2;
 }
 
 template <class ScalarType>

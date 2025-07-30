@@ -20,6 +20,26 @@ inline ReferenceFrameBase<ScalarType>::ReferenceFrameBase(
     : axis_m{a_axis_0, a_axis_1, a_axis_2} {}
 
 template <class ScalarType>
+inline ReferenceFrameBase<ScalarType>
+ReferenceFrameBase<ScalarType>::fromNormal(
+    const NormalBase<ScalarType>& a_normal) {
+  ReferenceFrame frame;
+  UnsignedIndex_t largest_dir = 0;
+  if (fabs(a_normal[largest_dir]) < fabs(a_normal[1])) largest_dir = 1;
+  if (fabs(a_normal[largest_dir]) < fabs(a_normal[2])) largest_dir = 2;
+  if (largest_dir == 0)
+    frame[0] = crossProduct(a_normal, NormalBase<ScalarType>(0, 1, 0));
+  else if (largest_dir == 1)
+    frame[0] = crossProduct(a_normal, NormalBase<ScalarType>(0, 0, 1));
+  else
+    frame[0] = crossProduct(a_normal, NormalBase<ScalarType>(1, 0, 0));
+  frame[0].normalize();
+  frame[1] = crossProduct(a_normal, frame[0]);
+  frame[2] = a_normal;
+  return frame;
+}
+
+template <class ScalarType>
 inline NormalBase<ScalarType>& ReferenceFrameBase<ScalarType>::operator[](
     const UnsignedIndex_t a_axis) {
   assert(a_axis < 3);

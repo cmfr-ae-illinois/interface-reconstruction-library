@@ -28,10 +28,12 @@
 #include "irl/c_interface/helpers/c_byte_buffer.h"
 #include "irl/c_interface/paraboloid_reconstruction/c_paraboloid.h"
 #include "irl/c_interface/planar_reconstruction/c_separators.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/helpers/serializer.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/parameters/defined_types.h"
 #include "irl/planar_reconstruction/planar_separator.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {
 
@@ -46,6 +48,12 @@ void c_serializeAndPack_Paraboloid_ByteBuffer(const c_Paraboloid* a_separator,
 
 void c_unpackAndStore_Paraboloid_ByteBuffer(c_Paraboloid* a_separator,
                                             c_ByteBuffer* a_container);
+
+void c_serializeAndPack_SeparatorVariant_ByteBuffer(
+    const c_SeparatorVariant* a_separator, c_ByteBuffer* a_container);
+
+void c_unpackAndStore_SeparatorVariant_ByteBuffer(
+    c_SeparatorVariant* a_separator, c_ByteBuffer* a_container);
 }
 
 #endif  // IRL_C_INTERFACE_HELPERS_C_SERIALIZER_H_

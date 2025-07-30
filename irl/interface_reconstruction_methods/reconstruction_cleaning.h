@@ -15,6 +15,7 @@
 #include "irl/interface_reconstruction_methods/volume_fraction_matching.h"
 #include "irl/parameters/constants.h"
 #include "irl/parameters/defined_types.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
 
@@ -42,4 +43,4 @@ inline void setToPurePhaseReconstruction(
 
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.tpp"
 
-#endif // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_CLEANING_H_
+#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_CLEANING_H_

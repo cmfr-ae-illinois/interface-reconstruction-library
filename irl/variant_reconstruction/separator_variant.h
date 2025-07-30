@@ -29,12 +29,19 @@ class SeparatorVariant
   using base::base;
   using base::operator=;
 
+  void setToPlanarSeparator(void);
+  void setToParaboloid(void);
+  void setToCylinder(void);
+
   void serialize(ByteBuffer* a_buffer) const;
   void unpackSerialized(ByteBuffer* a_buffer);
 
   std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
     getSignedDistanceAndGradAndHessianSep(const Pt& a_pt, const Pt& a_centroid) const;
 };
+
+inline std::ostream& operator<<(std::ostream& out,
+                                const SeparatorVariant& a_reconstruction);
 
 using LocalizedSeparatorVariant =
     JoinedReconstructions<PlanarLocalizer, SeparatorVariant>;

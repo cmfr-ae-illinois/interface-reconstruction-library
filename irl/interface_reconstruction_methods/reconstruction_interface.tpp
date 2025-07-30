@@ -12,6 +12,12 @@
 
 namespace IRL {
 
+Paraboloid reconstructionWithJibben3D(
+    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
+  Jibben_3D jibben_solver;
+  return jibben_solver.solve(&a_neighborhood_geometry, a_delta);
+}
+
 template <class CellType>
 PlanarSeparator reconstructionWithR2P2D(
     const R2PNeighborhood<CellType>& a_neighborhood_geometry,
@@ -73,7 +79,7 @@ template <class CellType>
 PlanarSeparator reconstructionWithR2P3D(
     const R2PNeighborhood<CellType>& a_neighborhood_geometry,
     PlanarSeparator a_initial_reconstruction,
-    const OptimizationBehavior& a_optimization_behavior,    
+    const OptimizationBehavior& a_optimization_behavior,
     const R2PWeighting& a_r2p_weighting) {
   cleanReconstruction(
       a_neighborhood_geometry.getCenterCell(),
@@ -254,4 +260,4 @@ PlanarSeparator reconstructionWithAdvectedNormalsDebug(
 
 }  // namespace IRL
 
-#endif // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_INTERFACE_TPP_
+#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_INTERFACE_TPP_

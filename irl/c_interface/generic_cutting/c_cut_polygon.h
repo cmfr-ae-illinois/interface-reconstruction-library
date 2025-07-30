@@ -12,11 +12,13 @@
 
 #include "irl/c_interface/geometry/polygons/c_divided_polygon.h"
 #include "irl/c_interface/geometry/polygons/c_polygon.h"
+#include "irl/c_interface/geometry/polyhedrons/c_hexahedron.h"
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
 #include "irl/c_interface/geometry/polyhedrons/c_tet.h"
-#include "irl/c_interface/geometry/polyhedrons/c_hexahedron.h"
 #include "irl/c_interface/planar_reconstruction/c_separators.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/generic_cutting/cut_polygon.h"
+#include "irl/generic_cutting/generic_cutting.h"
 #include "irl/geometry/polygons/tri.h"
 
 extern "C" {
@@ -50,19 +52,21 @@ extern "C" {
 /// that the Polygon will be created from.
 /// @param[out] a_polygon Pointer to Polygon object where the
 /// created Polygon will be stored.
-void c_getPoly_RectCub_Poly(const c_RectCub* a_rectangular_cuboid,
-                            const c_PlanarSep* a_separator,
-                            const int* a_plane_index, c_Poly* a_polygon);
+void c_getPoly_RectCub_Poly_Sep(const c_RectCub* a_rectangular_cuboid,
+                                const c_PlanarSep* a_separator,
+                                const int* a_plane_index, c_Poly* a_polygon);
 
-void c_getPoly_Tet_Poly(const c_Tet* a_tet,
-                               const c_PlanarSep* a_separator,
-                               const int* a_plane_index,
-                               c_Poly* a_divided_polygon);
+void c_getPoly_RectCub_Poly_Variant(const c_RectCub* a_rectangular_cuboid,
+                                    const c_SeparatorVariant* a_separator,
+                                    const int* a_plane_index,
+                                    c_Poly* a_polygon);
+
+void c_getPoly_Tet_Poly(const c_Tet* a_tet, const c_PlanarSep* a_separator,
+                        const int* a_plane_index, c_Poly* a_divided_polygon);
 
 void c_getPoly_Hex_Poly(const c_Hex* a_hexahedron,
-                               const c_PlanarSep* a_separator,
-                               const int* a_plane_index,
-                               c_Poly* a_divided_polygon);
+                        const c_PlanarSep* a_separator,
+                        const int* a_plane_index, c_Poly* a_divided_polygon);
 
 /// \brief Create a DividedPolygon by truncating a Plane from a PlanarSeparator
 ///  by a RectangularCuboid.
@@ -102,9 +106,12 @@ void c_getPoly_RectCub_DivPoly(const c_RectCub* a_rectangular_cuboid,
 /// object that will be used to truncate the planes in `a_separator`.
 /// @param[in] a_separator Pointer to PlanarSeparator object
 /// from which the planes will be taken.
-double c_getSA_RectCub(const c_RectCub* a_rectangular_cuboid,
-                       const c_PlanarSep* a_separator);
+double c_getSA_RectCub_Sep(const c_RectCub* a_rectangular_cuboid,
+                           const c_PlanarSep* a_separator);
+
+double c_getSA_RectCub_Variant(const c_RectCub* a_rectangular_cuboid,
+                               const c_SeparatorVariant* a_separator);
 
 }  // end extern C
 
-#endif // IRL_C_INTERFACE_GENERIC_CUTTING_C_CUT_POLYGON_H_
+#endif  // IRL_C_INTERFACE_GENERIC_CUTTING_C_CUT_POLYGON_H_

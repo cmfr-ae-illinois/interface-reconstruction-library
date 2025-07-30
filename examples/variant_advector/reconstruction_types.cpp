@@ -17,6 +17,7 @@
 #include "irl/geometry/polygons/polygon.h"
 #include "irl/interface_reconstruction_methods/constrained_optimization_behavior.h"
 #include "irl/interface_reconstruction_methods/elvira_neighborhood.h"
+#include "irl/interface_reconstruction_methods/jibben_neighborhood.h"
 #include "irl/interface_reconstruction_methods/plvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
@@ -347,12 +348,13 @@ void getIntersectionPts(const IRL::Polygon& a_polygon,
                         IRL::StackVector<IRL::Pt, 2>* a_intersection_pts) {
   a_intersection_pts->resize(0);
   double distance = a_cutting_plane.signedDistanceToPoint(a_polygon[0]);
-  for (int n = 0; n < a_polygon.getNumberOfVertices() - 1; ++n) {
+  for (int n = 0; n < a_polygon.getNumberOfVertices(); ++n) {
+    const int next_id = (n + 1) % a_polygon.getNumberOfVertices();
     double next_distance =
-        a_cutting_plane.signedDistanceToPoint(a_polygon[n + 1]);
+        a_cutting_plane.signedDistanceToPoint(a_polygon[next_id]);
     if (distance * next_distance < 0.0) {
       a_intersection_pts->push_back(IRL::Pt::fromEdgeIntersection(
-          a_polygon[n], distance, a_polygon[n + 1], next_distance));
+          a_polygon[n], distance, a_polygon[next_id], next_distance));
       if (a_intersection_pts->size() == 2) {
         break;
       }
@@ -378,286 +380,6 @@ const IRL::Normal calculatePolygonNormal(const IRL::Polygon& a_polygon) {
     }
   }
   return IRL::Normal(0, 0, 0);
-}
-
-// Based on the paper by Chernova and Wijewickremab, JCAM 2013
-const IRL::Pt closestPointOnParaboloid(const IRL::Paraboloid& a_paraboloid,
-                                       const IRL::Pt& a_pt) {
-  // Get paraboloid information
-  const double a = a_paraboloid.getAlignedParaboloid().a();
-  const double b = a_paraboloid.getAlignedParaboloid().b();
-  const IRL::Pt& datum = a_paraboloid.getDatum();
-  const IRL::ReferenceFrame& frame = a_paraboloid.getReferenceFrame();
-
-  // Bring point in local frame of reference
-  const IRL::Pt pt_tmp = a_pt - datum;
-  IRL::Pt local_pt;
-  for (int n = 0; n < 3; ++n) {
-    local_pt[n] = frame[n] * pt_tmp;
-  }
-
-  // Compute quintic polynomial coeffs
-  const double eps = std::numeric_limits<double>::epsilon();
-  auto A = -16. * (a * a) * (b * b);
-  auto B = 16. * a * b * (-b + a * (-1. + b * local_pt[2]));
-  auto C =
-      -4. * (a * a + 4. * a * b + b * b) + 16. * a * b * (a + b) * local_pt[2];
-  auto D =
-      4. *
-      (a * a * (b * (local_pt[1] * local_pt[1]) + local_pt[2]) +
-       b * (-1. + b * local_pt[2]) +
-       a * (-1. + b * b * (local_pt[0] * local_pt[0]) + 4. * b * local_pt[2]));
-  auto E =
-      -1. +
-      4. * a * b * (local_pt[0] * local_pt[0] + local_pt[1] * local_pt[1]) +
-      4. * (a + b) * local_pt[2];
-  auto F = a * (local_pt[0] * local_pt[0]) + b * (local_pt[1] * local_pt[1]) +
-           local_pt[2];
-  std::vector<double> t_vals(0);
-  t_vals.reserve(5);
-
-  if (std::abs(A) > eps) {
-    Eigen::PolynomialSolver<double, Eigen::Dynamic> solver;
-    Eigen::Matrix<double, 6, 1> coeff(F, E, D, C, B, A);
-    solver.compute(coeff);
-    for (int i = 0; i < solver.roots().size(); ++i) {
-      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e4 * eps) {
-        const double sol = std::real(solver.roots()[i]);
-        t_vals.push_back(sol);
-      }
-    }
-  } else if (std::abs(B) > eps) {
-    Eigen::PolynomialSolver<double, Eigen::Dynamic> solver;
-    Eigen::Matrix<double, 5, 1> coeff(F, E, D, C, B);
-    solver.compute(coeff);
-    for (int i = 0; i < solver.roots().size(); ++i) {
-      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e4 * eps) {
-        const double sol = std::real(solver.roots()[i]);
-        t_vals.push_back(sol);
-      }
-    }
-  } else if (std::abs(C) > eps) {
-    Eigen::PolynomialSolver<double, Eigen::Dynamic> solver;
-    Eigen::Matrix<double, 4, 1> coeff(F, E, D, C);
-    solver.compute(coeff);
-    for (int i = 0; i < solver.roots().size(); ++i) {
-      if (std::fabs(std::imag(solver.roots()[i])) < 1.0e4 * eps) {
-        const double sol = std::real(solver.roots()[i]);
-        t_vals.push_back(sol);
-      }
-    }
-
-  } else if (std::abs(D) > eps) {
-    double discriminant = E * E - 4.0 * D * F;
-    if (discriminant > 0.0) {
-      discriminant = std::sqrt(discriminant);
-      const double q = -0.5 * (E + std::copysign(discriminant, E));
-      const double safe_q = std::fabs(q) < eps ? std::copysign(eps, q) : q;
-      const double sol1 = q / D;
-      const double sol2 = F / safe_q;
-      t_vals.push_back(sol1);
-      t_vals.push_back(sol2);
-    }
-  } else if (std::abs(E) > eps) {
-    const double sol = -F / E;
-    t_vals.push_back(sol);
-  }
-
-  if (t_vals.size() > 0) {
-    std::vector<std::pair<double, double>> t_and_dist(t_vals.size());
-    for (int i = 0; i < t_vals.size(); i++) {
-      const double t = t_vals[i];
-      const double d = IRL::magnitude(
-          IRL::Pt(local_pt[0] / (1. + 2. * a * t) - local_pt[0],
-                  local_pt[1] / (1. + 2. * b * t) - local_pt[0], -t));
-      t_and_dist[i] = std::make_pair(d, t);
-    }
-    std::sort(t_and_dist.begin(), t_and_dist.end());
-    const double t = t_and_dist[0].second;
-    auto closest_pt_local =
-        IRL::Pt(local_pt[0] / (1. + 2. * a * t),
-                local_pt[1] / (1. + 2. * b * t), local_pt[2] - t);
-    closest_pt_local[2] = -a * closest_pt_local[0] * closest_pt_local[0] -
-                          b * closest_pt_local[1] * closest_pt_local[1];
-    auto closest_pt = IRL::Pt(0., 0., 0.);
-    for (int d = 0; d < 3; ++d) {
-      for (int n = 0; n < 3; ++n) {
-        closest_pt[n] += frame[d][n] * closest_pt_local[d];
-      }
-    }
-    closest_pt += datum;
-    return closest_pt;
-  }
-
-  return a_pt;
-}
-
-const IRL::Paraboloid regenerateParaboloid(const IRL::Paraboloid& a_paraboloid,
-                                           const IRL::Pt& a_pt) {
-  const IRL::Pt closest_pt = closestPointOnParaboloid(a_paraboloid, a_pt);
-
-  // Get paraboloid information
-  const double a = a_paraboloid.getAlignedParaboloid().a();
-  const double b = a_paraboloid.getAlignedParaboloid().b();
-  const IRL::Pt& datum = a_paraboloid.getDatum();
-  const IRL::ReferenceFrame& frame = a_paraboloid.getReferenceFrame();
-
-  // Bring point in local frame of reference
-  const IRL::Pt pt_tmp = closest_pt - datum;
-  IRL::Pt local_pt;
-  for (int n = 0; n < 3; ++n) {
-    local_pt[n] = frame[n] * pt_tmp;
-  }
-
-  // Compute local derivatives
-  const Eigen::Vector3d gradF(2. * a * local_pt[0], 2. * b * local_pt[1], 1.);
-  Eigen::Matrix3d hessF = Eigen::Matrix3d::Zero();
-  hessF(0, 0) = 2. * a;
-  hessF(1, 1) = 2. * b;
-  Eigen::Matrix3d adjHessF = Eigen::Matrix3d::Zero();
-  adjHessF(2, 2) = 4. * a * b;
-  auto new_normal = IRL::Normal(gradF(0), gradF(1), gradF(2));
-  new_normal.normalize();
-
-  // Based on Goldman 2005
-  double H = gradF.transpose() * (hessF * gradF);
-  H -= gradF.squaredNorm() * hessF.trace();
-  H /= 2. * gradF.squaredNorm() * gradF.norm();
-  double K = gradF.transpose() * (adjHessF * gradF);
-  K /= gradF.squaredNorm() * gradF.squaredNorm();
-  const double k1 = -H + std::sqrt(std::max(H * H - K, 0.));
-  const double k2 = -H - std::sqrt(std::max(H * H - K, 0.));
-
-  // Compute principal directions
-  const double B = a - b, C = -gradF(1) * a, E = gradF(0) * b;
-  const double U = 2. * gradF(0) * gradF(1) * a;
-  const double V = 2. * (B - C * gradF(1) - E * gradF(0));
-  const double W = -2. * gradF(1) * gradF(0) * b;
-  const double delta = V * V - 4. * U * W;
-  const double X1 = -V - std::sqrt(std::max(0., delta));
-  auto T1 = IRL::Normal(X1, 2. * U, -X1 * gradF(0) - 2.0 * U * gradF(1));
-  const double normT1 = IRL::magnitude(T1);
-  IRL::ReferenceFrame new_local_frame;
-  if (normT1 > DBL_EPSILON) {
-    T1 *= 1.0 / normT1;
-    new_local_frame[2] = new_normal;
-    new_local_frame[0] = T1;
-    new_local_frame[1] =
-        IRL::crossProduct(new_local_frame[2], new_local_frame[0]);
-  } else {  /// The point is umbilical
-    new_local_frame = referenceFrameFromNormal(new_normal);
-  }
-
-  // Now move frame back to canonical frame and return paraboloid
-  IRL::ReferenceFrame new_frame;
-  for (int n = 0; n < 3; n++) {
-    new_frame[n] = IRL::Normal(0., 0., 0.);
-    for (int d = 0; d < 3; d++) {
-      new_frame[n] += new_local_frame[n][d] * frame[d];
-    }
-    new_frame[n].normalize();
-  }
-  return IRL::Paraboloid(closest_pt, new_frame, 0.5 * k1, 0.5 * k2);
-}
-
-const IRL::Paraboloid generateLocalParaboloid(const IRL::Pt& a_pt,
-                                              const Eigen::Vector3d& a_gradF,
-                                              const Eigen::Matrix3d& a_hessF) {
-  const Eigen::Matrix3d hessF = 0.5 * (a_hessF + a_hessF.transpose());
-
-#if 0  // This uses the method of Che, Paul, Zhang, CAGD 2007 (-> Che2007 on
-       // Zotero)
-  // Compute adjugate hessian
-  Eigen::Matrix3d adjHessF = Eigen::Matrix3d::Zero();
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      adjHessF(i, j) =
-          hessF((i + 1) % 3, (j + 1) % 3) * hessF((i + 2) % 3, (j + 2) % 3) -
-          hessF((i + 1) % 3, (j + 2) % 3) * hessF((i + 2) % 3, (j + 1) % 3);
-    }
-  }
-
-  // Based on Goldman 2005
-  double H = a_gradF.transpose() * hessF * a_gradF;
-  H -= a_gradF.squaredNorm() * hessF.trace();
-  H /= 2. * a_gradF.squaredNorm() * a_gradF.norm();
-  double K = a_gradF.transpose() * adjHessF * a_gradF;
-  K /= a_gradF.squaredNorm() * a_gradF.squaredNorm();
-  const double k1 = H + std::sqrt(std::max(H * H - K, 0.));
-  const double k2 = H - std::sqrt(std::max(H * H - K, 0.));
-
-  // Compute principal directions
-  const double fx = a_gradF(0), fy = a_gradF(1), fz = a_gradF(2);
-  const double fxx = hessF(0, 0), fxy = hessF(0, 1), fxz = hessF(0, 2);
-  const double fyx = hessF(1, 0), fyy = hessF(1, 1), fyz = hessF(1, 2);
-  const double fzx = hessF(2, 0), fzy = hessF(2, 1), fzz = hessF(2, 2);
-  const double A = fy * fzx - fz * fyx;
-  const double B = .5 * (fz * fxx - fx * fzx + fy * fzy - fz * fyy);
-  const double C = .5 * (fy * fzz - fz * fyz + fx * fyx - fy * fxx);
-  const double D = fz * fxy - fx * fzy;
-  const double E = .5 * (fx * fyy - fy * fxy + fz * fxz - fx * fzz);
-  const double F = fx * fyz - fy * fxz;
-  const double U = A * fz * fz - 2. * C * fx * fz + F * fx * fx;
-  const double V = 2. * (B * fz * fz - C * fy * fz - E * fx * fz + F * fx * fy);
-  const double W = D * fz * fz - 2. * E * fy * fz + F * fy * fy;
-  const double delta = V * V - 4. * U * W;
-  const double sqrt_delta = std::sqrt(std::max(0., delta));
-  const double X1 = -V + std::copysign(sqrt_delta, fz);
-  auto T1 = IRL::Normal(X1 * fz, 2. * U * fz, -X1 * fx - 2. * U * fy);
-  const double normT1 = IRL::magnitude(T1);
-
-  auto new_normal = IRL::Normal(fx, fy, fz);
-  new_normal.normalize();
-  IRL::ReferenceFrame new_frame;
-  if (normT1 > DBL_EPSILON) {
-    T1 *= 1.0 / normT1;
-    new_frame[2] = new_normal;
-    new_frame[0] = T1;
-    new_frame[1] = IRL::crossProduct(new_normal, T1);
-  } else {  /// The point is umbilical
-    new_frame = referenceFrameFromNormal(new_normal);
-  }
-  return IRL::Paraboloid(a_pt, new_frame, -0.5 * k1, -0.5 * k2);
-#endif
-
-  // This uses the method described in
-  // https://www.geometrictools.com/Documentation/PrincipalCurvature.pdf
-  const double inv_gradF_norm = 1. / a_gradF.norm();
-  const IRL::Normal normal =
-      IRL::Normal(a_gradF(0), a_gradF(1), a_gradF(2)) * inv_gradF_norm;
-  IRL::ReferenceFrame frame = referenceFrameFromNormal(normal);
-  Eigen::MatrixXd J(3, 2);
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 2; j++) {
-      J(i, j) = frame[j][i];
-    }
-  }
-  const Eigen::Matrix2d A = (J.transpose() * hessF * J) * inv_gradF_norm;
-  Eigen::EigenSolver<Eigen::Matrix2d> eigensolver(A);
-  const double eval1 = eigensolver.eigenvalues()(0).real();
-  const double eval2 = eigensolver.eigenvalues()(1).real();
-  const Eigen::Vector2d evec1 =
-      Eigen::Vector2d(eigensolver.eigenvectors()(0, 0).real(),
-                      eigensolver.eigenvectors()(1, 0).real());
-  const Eigen::Vector3d T1 = J * evec1;
-  frame[0] = IRL::Normal(T1(0), T1(1), T1(2));
-  frame[0].normalize();
-  frame[1] = IRL::crossProduct(frame[2], frame[0]);
-  return IRL::Paraboloid(a_pt, frame, 0.5 * eval1, 0.5 * eval2);
-
-  ////////// TODO: compute eigenvalues and eigenvectors "by hand"
-  // const double m11 = A(0, 0);
-  // const double m22 = A(1, 1);
-  // const double m12 = 0.5 * (A(1, 0) + A(0, 1));
-  // // Compute eigenvalues and Givens rotation angle
-  // const double tmp_sqrt = std::sqrt((m11 - m22) * (m11 - m22) + 4.0 * m12 *
-  // m12); const double lambda1 = 0.5 * (m11 + m22 + tmp_sqrt); const double
-  // lambda2 = 0.5 * (m11 + m22 - tmp_sqrt); const double theta = 0.5 *
-  // std::atan2(2.0 * m12, m11 - m22);
-  // // Compute principal directions (Darboux frame)
-  // const IRL::UnitQuaternion givens_rotation(-theta, normal);
-  // const auto darboux_frame = givens_rotation * frame;
-  // return IRL::Paraboloid(a_pt, darboux_frame, 0.5 * lambda2, 0.5 * lambda1);
 }
 
 void Jibben::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
@@ -720,6 +442,13 @@ void Jibben::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
   }
 
   // Now let's compute the Jibben parabolic fit
+  IRL::JibbenNeighborhood neighborhood;
+  const int nlayers = 1;
+  const int nstencil =
+      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  neighborhood.reserve(nstencil);
+  neighborhood.setDelta(2.5 * mesh.dx());
+
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
@@ -727,175 +456,35 @@ void Jibben::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
         if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
             liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          // Compute local frame of reference based on polygon
-          const IRL::Normal polygon_normal =
-              calculatePolygonNormal(polygon(i, j, k));
-          const IRL::ReferenceFrame polygon_frame =
-              referenceFrameFromNormal(polygon_normal);
-          const IRL::Pt polygon_centroid = polygon(i, j, k).calculateCentroid();
-          // Compute number of existing polygons in 5x5x5 stencil
-          const int nneigh = 1;
-          int num_polygons = 0;
-          for (int kk = k - nneigh; kk <= k + nneigh; ++kk) {
-            for (int jj = j - nneigh; jj <= j + nneigh; ++jj) {
-              for (int ii = i - nneigh; ii <= i + nneigh; ++ii) {
+          // Fill neighborhood with polygons
+          neighborhood.emptyNeighborhood();
+          int count = 0;
+          for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+            for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+              for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
                 if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-                  num_polygons++;
-                }
-              }
-            }
-          }
-          // Allocate least-squares system (using Eigen)
-          Eigen::MatrixXd Amat = Eigen::MatrixXd::Zero(num_polygons, 6);
-          Eigen::VectorXd bvec = Eigen::VectorXd::Zero(num_polygons);
-          num_polygons = 0;
-          for (int kk = k - nneigh; kk <= k + nneigh; ++kk) {
-            for (int jj = j - nneigh; jj <= j + nneigh; ++jj) {
-              for (int ii = i - nneigh; ii <= i + nneigh; ++ii) {
-                // Skip if no polygon
-                const IRL::UnsignedIndex_t num_vertices =
-                    polygon(ii, jj, kk).getNumberOfVertices();
-                if (num_vertices == 0) {
-                  continue;
-                }
-                // Local polygon normal and centroid
-                IRL::Pt local_polygon_centroid =
-                    polygon(ii, jj, kk).calculateCentroid() - polygon_centroid;
-                IRL::Normal local_polygon_normal =
-                    calculatePolygonNormal(polygon(ii, jj, kk));
-
-                // Ignore polygons oriented more than 90 degrees compared to
-                // central polygon
-                if (polygon_frame[2] * local_polygon_normal <= 0.0) {
-                  continue;
-                }
-                // Move centroid and normal to local frame
-                const IRL::Pt tmp_c = local_polygon_centroid;
-                const IRL::Normal tmp_n = local_polygon_normal;
-                for (int d = 0; d < 3; ++d) {
-                  local_polygon_centroid[d] = polygon_frame[d] * tmp_c;
-                  local_polygon_normal[d] = polygon_frame[d] * tmp_n;
-                }
-                // Compute polygon plane coefficients
-                Eigen::VectorXd plane_coeffs(3);
-                plane_coeffs
-                    << -(local_polygon_centroid * local_polygon_normal),
-                    local_polygon_normal[0], local_polygon_normal[1];
-                plane_coeffs /= -local_polygon_normal[2];
-                // Compute distance and volume fraction weighting
-                const double distance = IRL::magnitude(local_polygon_centroid);
-                const double distance_ndim = distance / 2.5 * mesh.dx();
-                const double distance_weight =
-                    distance_ndim >= 1.0
-                        ? 0.0
-                        : (1.0 + 4.0 * distance_ndim) *
-                              std::pow(1.0 - distance_ndim, 4.0);
-                const double vfrac =
-                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
-                double vfrac_weight = 1.0;
-                const double limit_vfrac = 0.1;
-                if (vfrac < 0.1) {
-                  vfrac_weight = 0.5 - 0.5 * std::cos(10.0 * M_PI * vfrac);
-                } else if (vfrac > 0.9) {
-                  vfrac_weight =
-                      0.5 - 0.5 * std::cos(10.0 * M_PI * (1.0 - vfrac));
-                }
-                const double weight = vfrac_weight * distance_weight;
-                // Compute momonial integrals and feed to LS system
-                Eigen::VectorXd integrals = Eigen::VectorXd::Zero(6);
-                double b_dot_sum = 0.0;
-                for (int v = 0; v < num_vertices; ++v) {
-                  const int vn = (v + 1) % num_vertices;
-                  IRL::Pt vert1 = polygon(ii, jj, kk)[v] - polygon_centroid;
-                  IRL::Pt vert2 = polygon(ii, jj, kk)[vn] - polygon_centroid;
-                  IRL::Pt tmp_pt1 = vert1, tmp_pt2 = vert2;
-                  for (int d = 0; d < 3; ++d) {
-                    vert1[d] = polygon_frame[d] * tmp_pt1;
-                    vert2[d] = polygon_frame[d] * tmp_pt2;
+                  neighborhood.addMember(polygon(ii, jj, kk));
+                  if (i == ii && j == jj && k == kk) {
+                    neighborhood.setCenterOfStencil(count);
                   }
-                  const double xv = vert1[0], yv = vert1[1];
-                  const double xvn = vert2[0], yvn = vert2[1];
-                  Eigen::VectorXd integral_to_add(6);
-                  integral_to_add << (xv * yvn - xvn * yv) / 2.0,
-                      (xv + xvn) * (xv * yvn - xvn * yv) / 6.0,
-                      (yv + yvn) * (xv * yvn - xvn * yv) / 6.0,
-                      (xv + xvn) * (xv * xv + xvn * xvn) * (yvn - yv) / 12.0,
-                      (yvn - yv) *
-                          (3.0 * xv * xv * yv + xv * xv * yvn +
-                           2.0 * xv * xvn * yv + 2.0 * xv * xvn * yvn +
-                           xvn * xvn * yv + 3.0 * xvn * xvn * yvn) /
-                          24.0,
-                      (xv - xvn) * (yv + yvn) * (yv * yv + yvn * yvn) / 12.0;
-                  integrals += integral_to_add;
+                  count++;
                 }
-                if (weight > 0.0) {
-                  Amat.row(num_polygons) = weight * integrals;
-                  bvec(num_polygons) =
-                      weight * integrals.head(3).dot(plane_coeffs);
-                }
-                num_polygons++;
               }
             }
           }
-          // Unconstrained LS solution
-          const Eigen::VectorXd sol =
-              Amat.completeOrthogonalDecomposition().pseudoInverse() * bvec;
+          neighborhood.localize();
+          // Now perform actual the Jibben fit and obtain interface
+          (*a_interface)(i, j, k) =
+              IRL::reconstructionWithJibben3D(neighborhood);
 
-          if (a_errors != nullptr) {
-            (*a_errors)(i, j, k) =
-                static_cast<double>((Amat * sol - bvec).norm()) /
-                mesh.cell_volume();
-          }
-
-          const double a = sol[0], b = sol[1], c = sol[2], d = sol[3],
-                       e = sol[4], f = sol[5];
-          const double theta = 0.5 * std::atan2(e, (IRL::safelyTiny(d - f)));
-          const double cos_t = std::cos(theta);
-          const double sin_t = std::sin(theta);
-          const double A =
-              -(d * cos_t * cos_t + f * sin_t * sin_t + e * cos_t * sin_t);
-          const double B =
-              -(f * cos_t * cos_t + d * sin_t * sin_t - e * cos_t * sin_t);
-
-          // Skip when curvature is too high
-          if (std::fabs(A) * mesh.dx() > 1.0 ||
-              std::fabs(B) * mesh.dx() > 1.0) {
-            continue;
-          }
-
-          // Translation to coordinate system R' where aligned paraboloid valid
-          // Translation is R ' = {x' = x + u, y ' = y + v, z' = z + w }
-          const double denom_inv = 1.0 / IRL::safelyTiny(4.0 * d * f - e * e);
-          const double u = (2.0 * b * f - c * e) * denom_inv;
-          const double v = -(b * e - 2.0 * d * c) * denom_inv;
-          const double w =
-              -(a + (-b * b * f + b * c * e - c * c * d) * denom_inv);
-          const IRL::Pt paraboloid_datum =
-              polygon_centroid - u * polygon_frame[0] - v * polygon_frame[1] -
-              w * polygon_frame[2];
-          const IRL::UnitQuaternion rotation(theta, polygon_frame[2]);
-          const auto paraboloid_frame = rotation * polygon_frame;
-          auto paraboloid =
-              IRL::Paraboloid(paraboloid_datum, paraboloid_frame, A, B);
-
-          // Compute local best paraboloid fit (datum is closest point to center
-          // of local frame)
-          paraboloid = regenerateParaboloid(paraboloid, polygon_centroid);
-
-          // Translate paraboloid to match volume fraction
+          // Match to volume fraction
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
           const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
                                       mesh.z(k + 1));
-          const auto new_datum = paraboloid.getDatum();
-          const auto new_frame = paraboloid.getReferenceFrame();
           auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
                                                               upper_cell_pt);
-          IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
-              solver_distance(cell, liquid_volume_fraction, 1.0e-14,
-                              paraboloid);
-          paraboloid.setDatum(IRL::Pt(
-              new_datum + solver_distance.getDistance() * new_frame[2]));
-          (*a_interface)(i, j, k) = paraboloid;
+          IRL::setDistanceToMatchVolumeFraction(
+              cell, liquid_volume_fraction, &(*a_interface)(i, j, k), 1.0e-14);
         }
       }
     }
@@ -1219,6 +808,27 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                             &jibben_reconstruction, true, &interface_centroids,
                             &interface_areas, &jibben_errors);
 
+  // Cleanup jibben
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        const double liquid_volume_fraction =
+            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          if (IRL::Paraboloid* paraboloid = std::get_if<IRL::Paraboloid>(
+                  &jibben_reconstruction(i, j, k))) {
+            const auto& aligned_paraboloid = paraboloid->getAlignedParaboloid();
+            if (std::fabs(aligned_paraboloid.a()) > 1.0 / mesh.dx() ||
+                std::fabs(aligned_paraboloid.b()) > 1.0 / mesh.dx()) {
+              jibben_reconstruction(i, j, k) = plic_reconstruction(i, j, k);
+            }
+          }
+        }
+      }
+    }
+  }
+
   const int nlayers = 1;
   const double delta = 5.0 * mesh.dx();
   // const double jibben_error_threshold = 5.0e-3;
@@ -1248,8 +858,9 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
 
           // Generate paraboloid and match volume fraction
           if (IRL::magnitude(new_normal) > 0.9) {
-            // Generate paraboloid from gradient and hessian of implicit surface
-            auto paraboloid = generateLocalParaboloid(pt_on_PU, gradF, hessF);
+            // Generate paraboloid from gradient and hessian of surface
+            auto paraboloid =
+                IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
             const double A = paraboloid.getAlignedParaboloid().a();
             const double B = paraboloid.getAlignedParaboloid().b();
             if (std::fabs(A) * mesh.dx() > 4.0 ||

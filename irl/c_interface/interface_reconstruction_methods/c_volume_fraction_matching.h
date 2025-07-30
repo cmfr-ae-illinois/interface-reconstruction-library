@@ -15,15 +15,20 @@
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
 #include "irl/c_interface/geometry/polyhedrons/c_tet.h"
 #include "irl/c_interface/geometry/polyhedrons/c_triangular_prism.h"
-#include "irl/c_interface/planar_reconstruction/c_separators.h"
 #include "irl/c_interface/planar_reconstruction/c_planar_separator_path_group.h"
+#include "irl/c_interface/planar_reconstruction/c_separators.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/geometry/polyhedrons/hexahedron.h"
 #include "irl/geometry/polyhedrons/pyramid.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/geometry/polyhedrons/tet.h"
 #include "irl/geometry/polyhedrons/triangular_prism.h"
+#include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
+#include "irl/interface_reconstruction_methods/progressive_radius_solver_cylinder.h"
 #include "irl/interface_reconstruction_methods/volume_fraction_matching.h"
+#include "irl/parameters/constants.h"
 #include "irl/planar_reconstruction/planar_separator.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {
 
@@ -47,6 +52,10 @@ extern "C" {
 void c_matchVolumeFraction_RectCub_PlanarSep_Default(
     const c_RectCub* a_cell, const double* a_volume_fraction,
     c_PlanarSep* a_reconstruction);
+
+void c_matchVolumeFraction_RectCub_Variant_Default(
+    const c_RectCub* a_cell, const double* a_volume_fraction,
+    c_SeparatorVariant* a_reconstruction);
 
 /// \brief Same as
 /// c_setDistanceToMatchVolumeFraction_RectangularCuboid_PlanarSeparator_DefaultTolerance
@@ -93,7 +102,8 @@ void c_matchGroupVolumeFraction_Tet_PlanarSepPathGroup_Default(
 
 void c_matchGroupVolumeFraction_Tet_PlanarSepPathGroup(
     const c_Tet* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance);
+    c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance);
 
 void c_matchGroupVolumeFraction_Pyrmd_PlanarSepPathGroup_Default(
     const c_Pyrmd* a_cell, const int* a_size, const double* a_volume_fraction,
@@ -101,15 +111,17 @@ void c_matchGroupVolumeFraction_Pyrmd_PlanarSepPathGroup_Default(
 
 void c_matchGroupVolumeFraction_Pyrmd_PlanarSepPathGroup(
     const c_Pyrmd* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance);
+    c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance);
 
 void c_matchGroupVolumeFraction_TriPrism_PlanarSepPathGroup_Default(
-    const c_TriPrism* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction);
+    const c_TriPrism* a_cell, const int* a_size,
+    const double* a_volume_fraction, c_PlanarSepPathGroup* a_reconstruction);
 
 void c_matchGroupVolumeFraction_TriPrism_PlanarSepPathGroup(
-    const c_TriPrism* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance);
+    const c_TriPrism* a_cell, const int* a_size,
+    const double* a_volume_fraction, c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance);
 
 void c_matchGroupVolumeFraction_Hex_PlanarSepPathGroup_Default(
     const c_Hex* a_cell, const int* a_size, const double* a_volume_fraction,
@@ -117,8 +129,9 @@ void c_matchGroupVolumeFraction_Hex_PlanarSepPathGroup_Default(
 
 void c_matchGroupVolumeFraction_Hex_PlanarSepPathGroup(
     const c_Hex* a_cell, const int* a_size, const double* a_volume_fraction,
-    c_PlanarSepPathGroup* a_reconstruction, const double* a_volume_fraction_tolerance);
+    c_PlanarSepPathGroup* a_reconstruction,
+    const double* a_volume_fraction_tolerance);
 
 }  // end extern C
 
-#endif // IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_VOLUME_FRACTION_MATCHING_H_
+#endif  // IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_VOLUME_FRACTION_MATCHING_H_

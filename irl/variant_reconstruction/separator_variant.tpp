@@ -13,6 +13,24 @@
 
 namespace IRL {
 
+inline void SeparatorVariant::setToPlanarSeparator(void) {
+  if (not std::holds_alternative<PlanarSeparator>(*this)) {
+    (*this) = PlanarSeparator();
+  }
+}
+
+inline void SeparatorVariant::setToParaboloid(void) {
+  if (not std::holds_alternative<Paraboloid>(*this)) {
+    (*this) = Paraboloid();
+  }
+}
+
+inline void SeparatorVariant::setToCylinder(void) {
+  if (not std::holds_alternative<Cylinder>(*this)) {
+    (*this) = Cylinder();
+  }
+}
+
 inline void SeparatorVariant::serialize(ByteBuffer* a_buffer) const {
   const std::size_t index = this->index();
   a_buffer->pack(&index, 1);
@@ -45,6 +63,21 @@ inline void SeparatorVariant::unpackSerialized(ByteBuffer* a_buffer) {
   } else {
     throw std::runtime_error("Variant type cannot be unpacked");
   }
+}
+
+inline std::ostream& operator<<(std::ostream& out,
+                                const SeparatorVariant& a_reconstruction) {
+  if (const auto separator = std::get_if<PlanarSeparator>(&a_reconstruction)) {
+    out << (*separator);
+  } else if (const auto separator =
+                 std::get_if<Paraboloid>(&a_reconstruction)) {
+    out << (*separator);
+  } else if (const auto separator = std::get_if<Cylinder>(&a_reconstruction)) {
+    out << (*separator);
+  } else {
+    throw std::runtime_error("Variant type cannot be printed");
+  }
+  return out;
 }
 
 inline std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
