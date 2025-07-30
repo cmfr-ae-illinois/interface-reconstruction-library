@@ -1,5 +1,5 @@
-#include "irl/c_interface/conservative_surface_tension/c_pu_solve_planar_rectangular_cuboid.h"
-#include "irl/c_interface/conservative_surface_tension/c_pu_neighborhood_rectangular_cuboid.h"
+#include "irl/c_interface/interface_reconstruction_methods/c_pu_solve_planar_rectangular_cuboid.h"
+#include "irl/c_interface/interface_reconstruction_methods/c_pu_neighborhood_rectangular_cuboid.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/parameters/defined_types.h"
 

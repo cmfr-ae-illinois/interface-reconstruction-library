@@ -11,4 +11,3 @@ add_subdirectory(planar_reconstruction)
 add_subdirectory(paraboloid_reconstruction)
 add_subdirectory(variant_reconstruction)
 
-add_subdirectory(conservative_surface_tension)

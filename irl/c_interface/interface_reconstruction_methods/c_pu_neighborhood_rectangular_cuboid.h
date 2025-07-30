@@ -1,9 +1,9 @@
 
-#ifndef IRL_C_INTERFACE_CONSERVATIVE_SURFACE_TENSION_C_PU_NEIGHBORHOOD_RECTANGULAR_CUBOID_H_
-#define IRL_C_INTERFACE_CONSERVATIVE_SURFACE_TENSION_C_PU_NEIGHBORHOOD_RECTANGULAR_CUBOID_H_
+#ifndef IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_PU_NEIGHBORHOOD_RECTANGULAR_CUBOID_H_
+#define IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_PU_NEIGHBORHOOD_RECTANGULAR_CUBOID_H_
 
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
-#include "irl/conservative_surface_tension/pu_neighborhood.h"
+#include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {

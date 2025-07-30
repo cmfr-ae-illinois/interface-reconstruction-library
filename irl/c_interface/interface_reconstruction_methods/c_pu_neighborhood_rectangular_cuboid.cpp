@@ -1,4 +1,4 @@
-#include "irl/c_interface/conservative_surface_tension/c_pu_neighborhood_rectangular_cuboid.h"
+#include "irl/c_interface/interface_reconstruction_methods/c_pu_neighborhood_rectangular_cuboid.h"
 
 #include <cassert>
 

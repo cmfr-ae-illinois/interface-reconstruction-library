@@ -27,23 +27,23 @@ class LVIRANeighborhood {
  public:
   using cell_type = CellType;
 
-  /// \brief Default constructor. 
+  /// \brief Default constructor.
   LVIRANeighborhood(void);
 
-  /// \brief Construct CellGroupedMoments and add to end of collection. 
+  /// \brief Construct CellGroupedMoments and add to end of collection.
   void addMember(const CellType* a_cell, const double* a_volume_fraction);
 
-  /// \brief Construct CellGroupedMoments and place into collection. 
+  /// \brief Construct CellGroupedMoments and place into collection.
   void setMember(const UnsignedIndex_t a_index, const CellType* a_cell,
                  const double* a_volume_fraction);
 
-  /// \brief Reset neighborhood size to 0. 
+  /// \brief Reset neighborhood size to 0.
   void emptyNeighborhood(void);
 
-  /// \brief Set size of the neighborhood. 
+  /// \brief Set size of the neighborhood.
   void resize(const UnsignedIndex_t a_size);
 
-  /// \brief Set the index for the center cell in the collection. 
+  /// \brief Set the index for the center cell in the collection.
   void setCenterOfStencil(const UnsignedIndex_t a_index);
 
   /// \brief Return the index for the center stencil

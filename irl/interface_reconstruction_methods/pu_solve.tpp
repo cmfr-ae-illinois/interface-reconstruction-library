@@ -10,6 +10,7 @@
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/moments/general_moments.h"
 #include "irl/variant_reconstruction/separator_variant.h"
+#include "irl/helpers/wendland.h"
 
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
@@ -17,65 +18,7 @@
 
 
 namespace IRL {
-    // ============== Wendland Class Functions
-    double Wendland::phi(Pt xi, double delta, Pt x_eval) {
-        double r = std::sqrt( (x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) 
-                        + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
-        if (r >= delta) return 0.0;
-        double s = 1.0 - r / delta;
-        return std::pow(s, 4) * (4.0 * r / delta + 1.0);
-    }
-
-    double Wendland::dphidx(Pt xi, double delta, Pt x_eval) {
-        double r = std::sqrt( (x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) 
-                        + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) );
-        if (r >= delta) return 0.0;
-        return 1.0 / std::pow(delta, 5.0) * 20.0 * (x_eval[0] - xi[0]) * std::pow(r - delta, 3.0);
-    }
-
-    double Wendland::dphidy(Pt xi,double delta,Pt x_eval) {
-        double r = std::sqrt( (x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) 
-                        + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) );
-        if (r >= delta) return 0.0;
-        return 1.0 / std::pow(delta, 5.0) * 20.0 * (x_eval[1] - xi[1]) * std::pow(r - delta, 3.0);
-  
-    }
-
-    double Wendland::ddphidxx(Pt xi,double delta,Pt x_eval) {
-        double r = std::sqrt( (x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) 
-                        + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) );
-        if (r >= delta ) return 0.0;
-        if (r < 1e-12) r = 1.0; 
-        double num = 20.0 * std::pow(r - delta, 2.0) * ( (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (r - delta) 
-                                                        + x_eval[0] * x_eval[0] * (4.0 * r - delta) 
-                                                        + xi[0] * xi[0] * (4.0 * r - delta)
-                                                        + 2.0 * x_eval[0] * xi[0] * (-4.0 * r + delta) );
-        double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
-        return num/denom;
-    }
-
-    double Wendland::ddphidyy(Pt xi,double delta,Pt x_eval) {
-        double r = std::sqrt( (x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) 
-                        + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) );
-        if (r >= delta ) return 0.0;
-        if (r < 1e-12) r = 1.0;
-        double num = 20.0 * std::pow(r - delta, 2.0) * ( x_eval[0] * x_eval[0] * (r - delta) 
-                                                    + xi[0] * xi[0] * (r - delta) 
-                                                    + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (4.0 * r - delta)
-                                                    + 2.0 * x_eval[0] * xi[0] * (-r + delta) );
-        double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
-        return num/denom;
-    }
-
-    double Wendland::ddphidxy(Pt xi,double delta,Pt x_eval) {
-        double r = std::sqrt( (x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) 
-                        + (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) );
-        if (r >= delta ) return 0.0;
-        if (r < 1e-12) r = 1.0;
-        double num = 60.0 * (x_eval[0] - xi[0]) * (x_eval[1] - xi[1]) * std::pow(r - delta, 2.0);
-        double denom = r * std::pow(delta, 5.0);
-        return num/denom;
-    }
+    
 
     // =================== Implicit Surface Class Functions
     // template <class SeparatorType>
@@ -97,94 +40,8 @@ namespace IRL {
             num += wi * Fi;
             denom += wi;
         }
-
-        if(denom < 1e-12) {
-            std::cout << "Sum of weights is too small, denominator = " << denom << std::endl;
-        }
-        // std::cout << "\nreturn value \n" << num / denom << std::endl;
-        // if(fabs(num/denom) < 1e-6) {
-        //     std::cout << "Point = " << x[0] << "," << x[1] << "," << x[2] << std::endl;
-        // }
+        denom = safelyEpsilon(denom);
         return num/ denom;
-    }
-    // template <class SeparatorType>
-    double PUImplicitSurface::Fx(Pt& x) {
-        double sum_phi      = 0.0;
-        double sum_phi_F    = 0.0;
-        double sum_dphidx   = 0.0;
-        double sum_dphidx_F = 0.0;
-        double sum_phi_dFdx = 0.0;
-
-        for(int i = 0; i < centroids.size(); i++) {
-            // phi derivatives
-            double phi_i      = Wendland::phi(centroids[i],kernel_size,x);
-            double dphidx_i   = Wendland::dphidx(centroids[i],kernel_size,x);
-            double F_i =0;
-            double dFdx_i =0;
-            // Fi derivatives
-            if(const IRL::PlanarSeparator* sepPtr =
-                    std::get_if<IRL::PlanarSeparator>(&(separators[i]))) { // If Plane
-                // std::cout << "Plane Detected\n";
-                Normal n = (*sepPtr)[0].normal();
-                F_i = n[0] * (x[0] - centroids[i][0]) +
-                            n[1] * (x[1] - centroids[i][1]);
-                dFdx_i = n[0];
-            } else if(const IRL::Paraboloid* sepPtr =
-                    std::get_if<IRL::Paraboloid>(&(separators[i]))) {
-                // std::cout << "Paraboloid Detected Detected\n";
-            }
-            // Normal n = separators[i][0].normal();
-            // double F_i = n[0] * (x[0] - centroids[i][0]) +
-            //             n[1] * (x[1] - centroids[i][1]);
-            // double dFdx_i = n[0];
-            // terms for Fx
-            sum_phi       += phi_i;
-            sum_phi_F     += phi_i * F_i;
-            sum_dphidx    += dphidx_i;
-            sum_dphidx_F  += dphidx_i * F_i;
-            sum_phi_dFdx  += phi_i * dFdx_i;
-        }
-
-        return ((sum_dphidx_F + sum_phi_dFdx) * sum_phi - sum_phi_F * sum_dphidx) / (sum_phi * sum_phi);
-    }
-    // template <class SeparatorType>
-    double PUImplicitSurface::Fy(Pt& x) {
-        double sum_phi      = 0.0;
-        double sum_phi_F    = 0.0;
-        double sum_dphidy   = 0.0;
-        double sum_dphidy_F = 0.0;
-        double sum_phi_dFdy = 0.0;
-
-        for (int i = 0; i < centroids.size(); i++){
-            // phi derivatives
-            double phi_i      = Wendland::phi(centroids[i],kernel_size,x);
-            double dphidy_i   = Wendland::dphidy(centroids[i],kernel_size,x);
-            double F_i;
-            double dFdy_i;
-            // Fi derivatives
-            if(const IRL::PlanarSeparator* sepPtr =
-                    std::get_if<IRL::PlanarSeparator>(&(separators[i]))) { // If Plane
-                // std::cout << "Plane Detected\n";
-                Normal n = (*sepPtr)[0].normal();
-                F_i = n[0] * (x[0] - centroids[i][0]) +
-                        n[1] * (x[1] - centroids[i][1]);
-                 dFdy_i = n[1];
-            } else if(const IRL::Paraboloid* sepPtr =
-                    std::get_if<IRL::Paraboloid>(&(separators[i]))) {
-                // std::cout << "Paraboloid Detected Detected\n";
-            }
-            // Normal n = separators[i][0].normal();
-            // double F_i = n[0] * (x[0] - centroids[i][0]) +
-            //             n[1] * (x[1] - centroids[i][1]);
-            // double dFdy_i = n[1];
-            // terms for Fy
-            sum_phi       += phi_i;
-            sum_phi_F     += phi_i * F_i;
-            sum_dphidy    += dphidy_i;
-            sum_dphidy_F  += dphidy_i * F_i;
-            sum_phi_dFdy  += phi_i * dFdy_i;
-        }
-        return ((sum_dphidy_F + sum_phi_dFdy) * sum_phi - sum_phi_F * sum_dphidy) / (sum_phi * sum_phi);
     }
     
     std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d> PUImplicitSurface::getValueAndGradAndHessian(Pt& x) {
@@ -273,44 +130,40 @@ namespace IRL {
             dphi_dydy_sum += ddphidyy;
         }
         // Value
-        double F = F_phi_sum / phi_sum;
+        const double F = F_phi_sum / phi_sum;
         // Gradient 
-        double Fx = ((dphidx_F_sum+phi_dFdx_sum)*phi_sum - F_phi_sum * dphidx_sum) / (phi_sum * phi_sum);
-        double Fy = ((dphidy_F_sum+phi_dFdy_sum)*phi_sum - F_phi_sum * dphidy_sum) / (phi_sum * phi_sum);
+        const double Fx = ((dphidx_F_sum+phi_dFdx_sum)*phi_sum - F_phi_sum * dphidx_sum) / (phi_sum * phi_sum);
+        const double Fy = ((dphidy_F_sum+phi_dFdy_sum)*phi_sum - F_phi_sum * dphidy_sum) / (phi_sum * phi_sum);
         Eigen::Vector3d gradF = Eigen::Vector3d(Fx,Fy,0);
         // Hessian
         // xx derivative
-        double Term1InsideLine1xx = (dphi_dxdx_F_sum + 2*dphidx_dFdx_sum + phi_dF_dxdx_sum) * phi_sum;
-        double Term1InsideLine2xx = (dphidx_F_sum+phi_dFdx_sum)*dphidx_sum - (dphidx_F_sum+phi_dFdx_sum)*dphidx_sum; // Goes to zero for xx,yy
-        double Term1InsideLine3xx = -F_phi_sum*dphi_dxdx_sum;
-        double term1xx = (Term1InsideLine1xx + Term1InsideLine2xx + Term1InsideLine3xx)/(phi_sum*phi_sum);
+        const double Term1InsideLine1xx = (dphi_dxdx_F_sum + 2.0*dphidx_dFdx_sum + phi_dF_dxdx_sum) * phi_sum;
+        const double Term1InsideLine2xx = (dphidx_F_sum+phi_dFdx_sum)*dphidx_sum - (dphidx_F_sum+phi_dFdx_sum)*dphidx_sum; // Goes to zero for xx,yy
+        const double Term1InsideLine3xx = -F_phi_sum*dphi_dxdx_sum;
+        const double term1xx = (Term1InsideLine1xx + Term1InsideLine2xx + Term1InsideLine3xx)/(phi_sum*phi_sum);
 
-        double term2xx = Fx * (2*dphidx_sum) / phi_sum;
-        double Fxx = term1xx - term2xx;
+        const double term2xx = Fx * (2.0*dphidx_sum) / phi_sum;
+        const double Fxx = term1xx - term2xx;
 
         // yy Deriative
-        double Term1InsideLine1yy = (dphi_dydy_F_sum + 2*dphidy_dFdy_sum + phi_dF_dydy_sum) * phi_sum;
-        double Term1InsideLine2yy = (dphidy_F_sum+phi_dFdy_sum)*dphidy_sum - (dphidy_F_sum+phi_dFdy_sum)*dphidy_sum; // Goes to zero for xx,yy
-        double Term1InsideLine3yy = -F_phi_sum*dphi_dydy_sum;
-        double term1yy = (Term1InsideLine1yy + Term1InsideLine2yy + Term1InsideLine3yy)/(phi_sum*phi_sum);
+        const double Term1InsideLine1yy = (dphi_dydy_F_sum + 2.0*dphidy_dFdy_sum + phi_dF_dydy_sum) * phi_sum;
+        const double Term1InsideLine2yy = (dphidy_F_sum+phi_dFdy_sum)*dphidy_sum - (dphidy_F_sum+phi_dFdy_sum)*dphidy_sum; // Goes to zero for xx,yy
+        const double Term1InsideLine3yy = -F_phi_sum*dphi_dydy_sum;
+        const double term1yy = (Term1InsideLine1yy + Term1InsideLine2yy + Term1InsideLine3yy)/(phi_sum*phi_sum);
 
-        double term2yy = Fy * (2*dphidy_sum) / phi_sum;
-        double Fyy = term1yy - term2yy;
+        const double term2yy = Fy * (2.0*dphidy_sum) / phi_sum;
+        const double Fyy = term1yy - term2yy;
 
         // Mixed Deriative
-        double Term1InsideLine1xy = (dphi_dxdy_F_sum + dphidx_dFdy_sum + dphidy_dFdx_sum+phi_dF_dxdy_sum) * phi_sum;
-        double Term1InsideLine2xy = (dphidx_F_sum+phi_dFdx_sum)*dphidy_sum - (dphidy_F_sum+phi_dFdy_sum) * dphidx_sum;
-        double Term1InsideLine3xy = - F_phi_sum*dphi_dxdy_sum;
-        double term1xy = (Term1InsideLine1xy + Term1InsideLine2xy + Term1InsideLine3xy)/(phi_sum*phi_sum);
+        const double Term1InsideLine1xy = (dphi_dxdy_F_sum + dphidx_dFdy_sum + dphidy_dFdx_sum+phi_dF_dxdy_sum) * phi_sum;
+        const double Term1InsideLine2xy = (dphidx_F_sum+phi_dFdx_sum)*dphidy_sum - (dphidy_F_sum+phi_dFdy_sum) * dphidx_sum;
+        const double Term1InsideLine3xy = - F_phi_sum*dphi_dxdy_sum;
+        const double term1xy = (Term1InsideLine1xy + Term1InsideLine2xy + Term1InsideLine3xy)/(phi_sum*phi_sum);
 
-        double term2xy = Fx*(2*dphidy_sum)/phi_sum;
-        double term2xy_other = Fy*(2*dphidx_sum)/phi_sum;
-        if(fabs(term2xy-term2xy_other) >= 1e-8) {
-            std::cout << "MIXED DERIVATIVE ORDER MATTERS!!!!\n";
-            std::cout << "Written way: " << term2xy << "\n";
-            std::cout << "Other way: " << term2xy_other << "\n";
-        }
-        double Fxy = term1xy - term2xy;
+        const double term2xy = Fx*(2.0*dphidy_sum)/phi_sum;
+        const double term2xy_other = Fy*(2.0*dphidx_sum)/phi_sum;
+
+        const double Fxy = term1xy - term2xy;
         Eigen::Matrix3d hessF = Eigen::Matrix3d::Zero();
         hessF(0,0) = Fxx;
         hessF(0,1) = Fxy;
@@ -411,7 +264,7 @@ namespace IRL {
             double Fx = this->Fx(x);
             double Fy = this->Fy(x);
             Pt gradF = Pt(Fx,Fy,0);
-            double denom = 1/(Fx*Fx+Fy*Fy);
+            double denom = 1/safelyEpsilon(Fx*Fx+Fy*Fy);
             Pt change = denom*F*gradF;
             x = x - change;
 
@@ -436,7 +289,7 @@ namespace IRL {
         // Also get the sign of these values
         std::vector<double> signs = {};
         for(int i = 0; i < Npartitions+1;i++) {
-            Pt temp = (1-double(i)/Npartitions) * x0 + (double(i)/Npartitions) * x1;
+            Pt temp = (1-static_cast<double>(i)/static_cast<double>(Npartitions)) * x0 + (static_cast<double>(i)/static_cast<double>(Npartitions)) * x1;
             sampleLocations.push_back(temp);
             
             double val = this->F(temp);
@@ -570,65 +423,53 @@ namespace IRL {
 
     template <class CellType>
     std::vector<double> PUST<CellType>::solve(double STCoeff,int direction) {
-        // Direction should be 0 for x, 1 for y
-        
-        // First, Make the Implicit Edge
-        PUImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
+        if(constexpr(std::is_same_v<CellType,RectangularCuboid>)) {
+            // Direction should be 0 for x, 1 for y
+            
+            // First, Make the Implicit Edge
+            PUImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
 
-        // Below Here is the Intersection
-        Pt P0,P1;
-        std::vector<Pt> inters;
+            // Below Here is the Intersection
+            Pt P0,P1;
+            std::vector<Pt> inters;
 
-        CellType c = stencil_m.getCenterCell(); // Should be an x cell or a y cell
-        Pt BL = c.getLowerLimits();
-        Pt TR = c.getUpperLimits();
-        std::cout << "Lower Point: " << BL[0] << "," << BL[1] << "," << BL[2] << "\n";
-        std::cout << "Upper Point: " << TR[0] << "," << TR[1] << "," << TR[2] << "\n";
-        Pt BR = Pt(TR[0],BL[1],TR[2]);
-        Pt TL = Pt(BL[0],TR[1],BL[2]);
-        std::vector<Pt> poly = {BR,TR,TL,BL,BR};
+            CellType c = stencil_m.getCenterCell(); // Should be an x cell or a y cell
+            Pt BL = c.getLowerLimits();
+            Pt TR = c.getUpperLimits();
+            std::cout << "Lower Point: " << BL[0] << "," << BL[1] << "," << BL[2] << "\n";
+            std::cout << "Upper Point: " << TR[0] << "," << TR[1] << "," << TR[2] << "\n";
+            Pt BR = Pt(TR[0],BL[1],TR[2]);
+            Pt TL = Pt(BL[0],TR[1],BL[2]);
+            std::vector<Pt> poly = {BR,TR,TL,BL,BR};
 
-        Normal tangent;
-        std::vector<double> surfaceTensionComponents = {0,0,0,0}; 
-        // sigma_xx_i, sigma_xy_j+1/2, sigma_xx_i-1, sigma_xy_j-1/2 for x cell
-        // sigma_yx,i+1/2, sigma_yy_j, sigma_yx_i-1/2, sigma_yy_j-1 for y cell
-        // Assume proper cell is set as center cell.
+            Normal tangent;
+            std::vector<double> surfaceTensionComponents = {0,0,0,0}; 
+            // sigma_xx_i, sigma_xy_j+1/2, sigma_xx_i-1, sigma_xy_j-1/2 for x cell
+            // sigma_yx,i+1/2, sigma_yy_j, sigma_yx_i-1/2, sigma_yy_j-1 for y cell
+            // Assume proper cell is set as center cell.
 
-        double D;
-        Pt dP;
-        for(int i = 0; i < poly.size()-1; i++) {
-            P0 = poly[i];
-            P1 = poly[i+1];
-            inters = s.intersectEdge(P0,P1,10);
-            dP = P1-P0;
-            D = std::sqrt(dP[0]*dP[0] + dP[1]*dP[1]);
+            double D;
+            Pt dP;
+            for(int i = 0; i < poly.size()-1; i++) {
+                P0 = poly[i];
+                P1 = poly[i+1];
+                inters = s.intersectEdge(P0,P1,10);
+                dP = P1-P0;
+                D = std::sqrt(dP[0]*dP[0] + dP[1]*dP[1]);
 
-            if(inters.size() > 0) {
-                for(int j = 0; j < inters.size(); j++) {
-                    tangent = s.getTangent(inters[j]);
-                    
-                    surfaceTensionComponents[i] += STCoeff*tangent[direction]/D;
+                if(inters.size() > 0) {
+                    for(int j = 0; j < inters.size(); j++) {
+                        tangent = s.getTangent(inters[j]);
+                        
+                        surfaceTensionComponents[i] += STCoeff*tangent[direction]/D;
+                    }
                 }
             }
+
+            return surfaceTensionComponents;
+        } else {
+            throw std::invalid_argument("Solve Failure: CellType not RectangularCuboid");
         }
-        //     if(inters.size() > 0) {
-        //         for(int j = 0; j < inters.size(); j++) {
-        //             std::cout << inters[j][0] << "," << inters[j][1] << "," << inters[j][2] << "\n";
-
-        //             auto holdsGrad = s.getValueAndGradAndHessian(inters[j]);
-        //             auto gradF = std::get<1>(holdsGrad);
-        //             double Fx = gradF(0);
-        //             double Fy = gradF(1);
-        //             std::cout << Fx << "," << Fy << " Gradient \n";
-        //             tangent[0] = -Fy;
-        //             tangent[1] = Fx;
-
-        //             tangent.normalize();
-        //             force = force + STCoeff * tangent;
-        //         }
-        //     }
-        // }
-        return surfaceTensionComponents;
     }
                         
 } // End Namespace IRL
