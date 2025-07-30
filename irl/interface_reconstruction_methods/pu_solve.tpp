@@ -33,8 +33,8 @@ namespace IRL {
         double num = 0.0;
         double denom = 0.0;
         for(int i=0; i < centroids.size(); i++) {
-            double wi = Wendland::phi(centroids[i],kernel_size,x);
-            auto variantRet = separators[i].getSignedDistanceAndGradAndHessianSep(x,centroids[i]);
+            double wi = std::get<0>(Wendland::evaluateValGradHessian(centroid[i],kernel_size,x));
+            auto variantRet = PUImplicitSurface::getSignedDistanceAndGradAndHessianSep(x,centroids[i],&separators[i]);
             double Fi = std::get<0>(variantRet);
             
             num += wi * Fi;
@@ -43,7 +43,80 @@ namespace IRL {
         denom = safelyEpsilon(denom);
         return num/ denom;
     }
-    
+
+    std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
+      PUImplicitSurface::getSignedDistanceAndGradAndHessianSep(const Pt& a_pt, const Pt& a_centroid,const SeparatorVariant* a_sepPtr) const {
+        const Pt x = a_pt - a_centroid;
+        double F;
+        Eigen::Vector3d gradF;
+        Eigen::Matrix3d hessF;
+        if(const auto sepPtr = std::get_if<PlanarSeparator>(a_sepPtr)) {
+            // std::cout << "Variant Plane Detected\n";
+            if(sepPtr->getNumberOfPlanes() > 0){
+            const Plane plane = (*sepPtr)[0];
+            const Normal n = plane.normal();
+            F = n * x;
+            gradF = Eigen::Vector3d(n[0],n[1],n[2]);
+            hessF = Eigen::Matrix3d::Zero();
+            }
+        } else if (const auto sepPtr = std::get_if<Paraboloid>(a_sepPtr)) {
+            // std::cout << "Variant Paraboloid Detected\n";
+            const ReferenceFrame frame = sepPtr->getReferenceFrame();
+            const double a = sepPtr->getAlignedParaboloid().a();
+            const double b = sepPtr->getAlignedParaboloid().b();
+            // Move to local frame
+            const Pt tmp = a_pt - sepPtr->getDatum();
+            Pt xloc;
+            for(int d = 0; d < 3; ++d) {
+                xloc[d] = frame[d]*tmp;
+            }
+            const Eigen::Vector3d e0(frame[0][0], frame[0][1], frame[0][2]);
+            const Eigen::Vector3d e1(frame[1][0], frame[1][1], frame[1][2]);
+            const Eigen::Vector3d e2(frame[2][0], frame[2][1], frame[2][2]);
+
+            // Taubin Distance Norm,grad,hessian
+            const double dist_norm =
+                    1. / std::sqrt(1. + 4. * a * a * xloc[0] * xloc[0] +
+                                    4. * b * b * xloc[1] * xloc[1]);
+            const Eigen::Vector3d grad_dist_norm =
+                -4. * dist_norm * dist_norm * dist_norm *
+                (a * a * e0 * xloc[0] + b * b * e1 * xloc[1]);
+            const Eigen::Matrix3d hess_dist_norm =
+                4. * dist_norm * dist_norm * dist_norm * dist_norm * dist_norm *
+                (a * a *
+                    (8. * a * a * xloc[0] * xloc[0] -
+                    4. * b * b * xloc[1] * xloc[1] - 1.) *
+                    e0 * e0.transpose() +
+                b * b *
+                    (8. * b * b * xloc[1] * xloc[1] -
+                    4. * a * a * xloc[0] * xloc[0] - 1.) *
+                    e1 * e1.transpose() +
+                12. * a * a * b * b * xloc[0] * xloc[1] *
+                    (e1 * e0.transpose() + e0 * e1.transpose()));
+            
+            // Compute Algebraic Distance, grad, hessian
+            const double F_alg =
+                    xloc[2] + a * xloc[0] * xloc[0] + b * xloc[1] * xloc[1];
+            const Eigen::Vector3d grad_F_alg =
+                e2 + 2. * (a * e0 * xloc[0] + b * e1 * xloc[1]);
+            const Eigen::Matrix3d hess_F_alg =
+                2. * (a * e0 * e0.transpose() + b * e1 * e1.transpose());
+            
+            // Compute Signed Distance,grad,hessian
+            F = F_alg * dist_norm;
+            gradF =
+                F_alg * grad_dist_norm + grad_F_alg * dist_norm;
+            hessF =
+                F_alg * hess_dist_norm +
+                grad_F_alg * grad_dist_norm.transpose() +
+                grad_dist_norm * grad_F_alg.transpose() +
+                dist_norm * hess_F_alg;
+        } else {
+            throw std::runtime_error("No signed distance for Variant Type");
+        }
+        return std::make_tuple(F,gradF,hessF);
+    }
+
     std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d> PUImplicitSurface::getValueAndGradAndHessian(Pt& x) {
         // =====Implicit Function Value Variables
         double F_phi_sum = 0.0; // Sum of Fi*phi_i
@@ -80,16 +153,20 @@ namespace IRL {
         
         // Calculate
         for(int i = 0; i < centroids.size(); ++i) {
+
             // Distance Weights
-            double phi = Wendland::phi(centroids[i],kernel_size,x);
-            double dphidx = Wendland::dphidx(centroids[i],kernel_size,x);
-            double dphidy = Wendland::dphidy(centroids[i],kernel_size,x);
-            double ddphidxx = Wendland::ddphidxx(centroids[i],kernel_size,x);
-            double ddphidyy = Wendland::ddphidyy(centroids[i],kernel_size,x);
-            double ddphidxy = Wendland::ddphidxy(centroids[i],kernel_size,x);
+            auto retWend = Wendland::evaluateValGradHessian(centroids[i],kernel_size,x);
+            double phi = std::get<0>(retWend);
+            Eigen::Vector3d gradPhi = std::get<1>(retWend);
+            Eigen::Matrix3d hessPhi = std::get<2>(retWend);
+            double dphidx = gradPhi(0);
+            double dphidy = gradPhi(1);
+            double ddphidxx = hessPhi(0,0);
+            double ddphidyy = hessPhi(1,1);
+            double ddphidxy = hessPhi(1,0);
 
             // Function Values
-            auto valGradHess = separators[i].getSignedDistanceAndGradAndHessianSep(x, centroids[i]);
+            auto valGradHess = PUImplicitSurface::getSignedDistanceAndGradAndHessianSep(x, centroids[i],&separators[i]);
             double Fi = std::get<0>(valGradHess);
             Eigen::Vector3d gradFi = std::get<1>(valGradHess);
             Eigen::Matrix3d hessFi = std::get<2>(valGradHess);
@@ -171,114 +248,6 @@ namespace IRL {
         hessF(1,1) = Fyy;
         return std::make_tuple(F,gradF,hessF);
     }
-    
-
-
-
-
-    // template <class SeparatorType>
-    std::vector<double> PUImplicitSurface::HessianTerms(Pt& x) {
-        double N   = 0.0;
-        double Nx  = 0.0;
-        double Ny  = 0.0;
-        double Nxx = 0.0;
-        double Nyy = 0.0;
-        double Nxy = 0.0;
-        double D   = 0.0;
-        double Dx  = 0.0;
-        double Dy  = 0.0;
-        double Dxx = 0.0;
-        double Dyy = 0.0;
-        double Dxy = 0.0;
-
-        for (int i = 0; i < centroids.size(); i++){
-            // phi derivatives
-            double phi_i      = Wendland::phi(centroids[i],kernel_size,x);
-            double dphidx_i   = Wendland::dphidx(centroids[i],kernel_size,x);
-            double dphidy_i   = Wendland::dphidy(centroids[i],kernel_size,x);
-            double ddphidxx_i   = Wendland::ddphidxx(centroids[i],kernel_size,x);
-            double ddphidyy_i   = Wendland::ddphidyy(centroids[i],kernel_size,x);
-            double ddphidxy_i   = Wendland::ddphidxy(centroids[i],kernel_size,x);
-            double F_i = 0.0;
-            double dFdx_i = 0.0;
-            double dFdy_i = 0.0;
-            double ddFdxx_i = 0.0;
-            double ddFdyy_i = 0.0;
-            double ddFdxy_i = 0.0;
-            // F derivatives
-            if(const IRL::PlanarSeparator* sepPtr =
-                    std::get_if<IRL::PlanarSeparator>(&(separators[i]))) { // If Plane
-                // std::cout << "Plane Detected\n";
-                Normal n = (*sepPtr)[0].normal();
-                F_i = n[0] * (x[0] - centroids[i][0]) +
-                        n[1] * (x[1] - centroids[i][1]); 
-                dFdx_i = n[0];
-                dFdy_i = n[1];
-                // ddFdxx_i = 0.0;
-                // ddFdyy_i = 0.0;
-                // ddFdxy_i = 0.0;
-            }
-            // Normal n = separators[i][0].normal();
-            // double F_i = n[0] * (x[0] - centroids[i][0]) +
-            //             n[1] * (x[1] - centroids[i][1]); 
-            // double dFdx_i = n[0];
-            // double dFdy_i = n[1];
-            // double ddFdxx_i = 0.0;
-            // double ddFdyy_i = 0.0;
-            // double ddFdxy_i = 0.0;
-
-            // numerator terms
-            N   += phi_i * F_i;
-            Nx  += dphidx_i * F_i + phi_i * dFdx_i;
-            Ny  += dphidy_i * F_i + phi_i * dFdy_i;
-            Nxx += F_i * ddphidxx_i + phi_i * ddFdxx_i + 2.0 * dphidx_i * dFdx_i;
-            Nyy += F_i * ddphidyy_i + phi_i * ddFdyy_i + 2.0 * dphidy_i * dFdy_i;
-            Nxy += F_i * ddphidxy_i + phi_i * ddFdxy_i + dphidx_i * dFdy_i + dphidy_i * dFdx_i;
-
-            // denominator terms
-            D   += phi_i;
-            Dx  += dphidx_i;
-            Dy  += dphidy_i;
-            Dxx += ddphidxx_i;
-            Dyy += ddphidyy_i;
-            Dxy += ddphidxy_i;
-        }
-        double Fxx = (D * (Nxx * D - N * Dxx) - 2.0 * Dx * (Nx * D - N * Dx)) / (D * D * D);
-        double Fyy = (D * (Nyy * D - N * Dyy) - 2.0 * Dy * (Ny * D - N * Dy)) / (D * D * D);
-        double Fxy = (D * (Nxy * D + Nx * Dy - Ny * Dx - N * Dxy) - 2.0 * Dy * (Nx * D - N * Dx)) / (D * D * D);
-        
-        return {Fxx, Fyy, Fxy};
-    }
-    // template <class SeparatorType>
-    Normal PUImplicitSurface::projectToImplicitSurface(const Pt& x0, bool& usePlane) {
-        int max_iter = 200;
-        double tol = 1e-12;
-        Pt x = x0;
-
-        // std::ostringstream diagnostics;
-        // diagnostics << "x0 = " << x0 << std::endl;
-        bool nan_detected = false;
-
-        for(int i =0; i < max_iter; i++) {
-            double F = this->F(x);
-            double Fx = this->Fx(x);
-            double Fy = this->Fy(x);
-            Pt gradF = Pt(Fx,Fy,0);
-            double denom = 1/safelyEpsilon(Fx*Fx+Fy*Fy);
-            Pt change = denom*F*gradF;
-            x = x - change;
-
-            if((std::isnan(x[0])) || (std::isnan(x[1]) || (std::isnan(x[2])))  && !nan_detected) {
-                nan_detected = true;
-                usePlane = true;
-                std::cout << "========== NaN detected at iteration " << i+1 << " ==========\n";
-                // std::cout << diagnostics.str(); 
-            }
-            double magChange = std::sqrt(change[0]*change[0] + change[1]*change[1] + change[2]*change[2]);
-            if(std::fabs(magChange) < tol && !nan_detected) break;
-        }
-        return x;
-    }
 
     // template <class SeparatorType>
     std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1, const int& Npartitions) {
@@ -341,7 +310,7 @@ namespace IRL {
                 for(int j =0; j < max_iters; j++) { // Do until you reach max iters
                     midX = 0.5*(upperX + lowerX);
                     std::cout << "Current Point = "  << midX[0] << ","<< midX[1] << ","<< midX[2] << std::endl;
-                    midVal = this-> F(midX);
+                    midVal = this->F(midX);
                     std::cout << "Current Val = "  << midVal<<std::endl;
                     if(midVal < tol) {
                         break;

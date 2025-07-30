@@ -10,23 +10,19 @@ namespace IRL {
         // Note that for these functions, xi is the center, delta is the radius,
         // and x_eval is the location we are evaluating our function. 
         public:
-            // Wendland Function Eval
-            static double phi(Pt xi, double delta, Pt x_eval);
+            // New
+            // Compute the Radius
+            static double computeR(Pt xi, Pt x_eval);
+            // Compute Zeroth Derivative (Function)
+            static double eval(double r, double delta);
+            // Compute First Derivative
+            static double firstDer(double r, double delta);
+            // Compute Second Derivative
+            static double secondDer(double r, double delta);
 
-            // Wendland x derivative eval
-            static double dphidx(Pt xi, double delta, Pt x_eval);
-
-            // Wendland y derivative eval
-            static double dphidy(Pt xi, double delta, Pt x_eval);
-
-            // Wendland xx 2nd derivative eval
-            static double ddphidxx(Pt xi, double delta, Pt x_eval);
-
-            // Wendland yy 2nd derivative eval
-            static double ddphidyy(Pt xi, double delta, Pt x_eval);
-
-            // Wendland xy 2nd derivative eval
-            static double ddphidxy(Pt xi, double delta, Pt x_eval);
+            // Compute the Wendland Function
+            static std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
+                evaluateValGradHessian(Pt xi, double delta, Pt x_eval);
 
             // Disallow Instance Creation
             Wendland() = delete;

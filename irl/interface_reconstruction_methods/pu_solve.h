@@ -35,12 +35,11 @@ namespace IRL {
             // Get Value,Gradient,Hessian
             std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
                 getValueAndGradAndHessian(Pt& x);
-            // Hession Eval
-            std::vector<double> HessianTerms(Pt& x);
-            // Given an initial guess x0, finding the nearest point for when F(x)=0
-            Normal projectToImplicitSurface(const Pt& x0, bool& usePlane); // Can add in options for max_iter and tol later
             // Find intersection between the implicit curve and a provided line. 
             std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1, const int& Npartitions);
+            // Signed Distance of a Separator
+            static std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
+                getSignedDistanceAndGradAndHessianSep(const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr) const;
 
             // Find the Tangent and Curvature at the point
             Normal getTangent(Pt& x);

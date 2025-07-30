@@ -35,9 +35,6 @@ class SeparatorVariant
 
   void serialize(ByteBuffer* a_buffer) const;
   void unpackSerialized(ByteBuffer* a_buffer);
-
-  std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
-    getSignedDistanceAndGradAndHessianSep(const Pt& a_pt, const Pt& a_centroid) const;
 };
 
 inline std::ostream& operator<<(std::ostream& out,
