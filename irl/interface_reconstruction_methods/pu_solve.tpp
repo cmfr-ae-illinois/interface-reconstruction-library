@@ -391,6 +391,32 @@ namespace IRL {
     }
 
     template <class CellType>
+    Normal PUST<CellType>::solveEdge(double STCoeff,Pt& P0, Pt& P1) {
+        // Make Implicit Surface
+        PUImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
+        // Find Intersection with edge
+        std::vector<Pt> intersections; = s.intersectEdge(P0,P1,10);
+        
+        // Calculate some edge properties
+        dP = P1-P0;
+        D = std::sqrt(dP[0]*dP[0] + dP[1]*dP[1]);
+        double denom = 1/(safelyEpsilon(D));
+        // Give space for working variables
+        Normal tangent;
+        Normal total = {0.0,0.0,0.0}; // Total force
+
+        // Loop over intersections and add tangents to force
+        if(intersections.size() > 0) {
+            for(int j = 0; j < intersections.size(); j++) {
+                tangent = s.getTangent(intersections[j]);
+                tangent.normalize();
+                total = total + STCoeff*denom*tangent;
+            }
+        }
+        return total;
+    }
+
+    template <class CellType>
     std::vector<double> PUST<CellType>::solve(double STCoeff,int direction) {
         if(constexpr(std::is_same_v<CellType,RectangularCuboid>)) {
             // Direction should be 0 for x, 1 for y
