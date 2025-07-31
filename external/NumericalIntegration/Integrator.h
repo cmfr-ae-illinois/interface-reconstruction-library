@@ -158,8 +158,6 @@ class Integrator {
     m_upperList[0] = upperLimit;
     m_integralList[0] = Scalar(0.);
     m_errorList[0] = Scalar(0.);
-    m_errorListIndices[0] = 0;
-    m_errorListIndices[1] = 1;
 
     Scalar absDiff = 0.;
     Scalar absResult = 0.;
@@ -199,6 +197,9 @@ class Integrator {
 
       return integral;
     }
+
+    m_errorListIndices[0] = 0;
+    m_errorListIndices[1] = 1;
 
     // The sum of the integrals over the subintervals.
     Scalar area = integral;
