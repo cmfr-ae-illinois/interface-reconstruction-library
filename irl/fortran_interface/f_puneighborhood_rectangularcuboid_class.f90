@@ -4,7 +4,7 @@
 
 module f_PUSTNeigh_RectCub_class
     use f_RectCub_class
-    use f_PlanarSep_class
+    use f_SeparatorVariant_class
     use, intrinsic :: iso_c_binding
     use f_DefinedTypes
     implicit none
@@ -34,9 +34,6 @@ module f_PUSTNeigh_RectCub_class
     interface emptyNeighborhood
         module procedure PUSTNeigh_RectCub_class_emptyNeighborhood
     end interface
-    interface setCenterOfStencil
-        module procedure PUSTNeigh_RectCub_class_setCenterOfStencil
-    end interface
 
   interface
     
@@ -62,25 +59,25 @@ module f_PUSTNeigh_RectCub_class
         integer(C_INT) :: a_size
     end subroutine F_PUSTNeigh_RectCub_setSize
 
-    subroutine F_PUSTNeigh_RectCub_setMember(this,a_index, a_rectangular_cuboid, &
-            a_planar_separator) &
+    subroutine F_PUSTNeigh_RectCub_setMember(this,a_index, a_centroid, &
+            a_separator) &
         bind(C, name = "c_PUSTNeigh_RectCub_setMember")
         import
         implicit none
         integer(C_INT), intent(in) :: a_index
         type(c_PUSTNeigh_RectCub) :: this
-        type(c_RectCub) :: a_rectangular_cuboid
-        type(c_PlanarSep) :: a_planar_separator
+        real(C_DOUBLE), dimension(*) :: a_centroid ! dimension(1:3)
+        type(c_SeparatorVariant) :: a_separator
     end subroutine F_PUSTNeigh_RectCub_setMember
 
-    subroutine F_PUSTNeigh_RectCub_addMember(this,a_rectangular_cuboid, &
-            a_planar_separator) &
+    subroutine F_PUSTNeigh_RectCub_addMember(this,a_centroid, &
+            a_separator) &
         bind(C, name = "c_PUSTNeigh_RectCub_addMember")
         import
         implicit none 
         type(c_PUSTNeigh_RectCub) :: this
-        type(c_RectCub) :: a_rectangular_cuboid
-        type(c_PlanarSep) :: a_volume_fraction
+        real(C_DOUBLE), dimension(*) :: a_centroid ! dimension(1:3)
+        type(c_SeparatorVariant) :: a_separator
     end subroutine F_PUSTNeigh_RectCub_addMember
 
     subroutine F_PUSTNeigh_RectCub_emptyNeighborhood(this) &
@@ -89,14 +86,6 @@ module f_PUSTNeigh_RectCub_class
         implicit none 
         type(c_PUSTNeigh_RectCub) :: this
     end subroutine F_PUSTNeigh_RectCub_emptyNeighborhood
-
-    subroutine F_PUSTNeigh_RectCub_setCenterOfStencil(this,a_center_cell_index) &
-        bind(C, name="c_PUSTNeigh_RectCub_setCenterOfStencil")
-        import 
-        implicit none
-        type(c_PUSTNeigh_RectCub) :: this
-        integer(C_INT) :: a_center_cell_index
-    end subroutine F_PUSTNeigh_RectCub_setCenterOfStencil
 
   end interface
 
@@ -122,25 +111,25 @@ module f_PUSTNeigh_RectCub_class
         call F_PUSTNeigh_RectCub_setSize(this%c_object,a_size)
     end subroutine PUSTNeigh_RectCub_class_setSize
 
-    subroutine PUSTNeigh_RectCub_class_setMember(this,a_index, a_rectangular_cuboid, &
-            a_planar_separator)
+    subroutine PUSTNeigh_RectCub_class_setMember(this,a_index, a_centroid, &
+            a_separator)
         implicit none
         type(PUSTNeigh_RectCub_type), intent(in) :: this
         integer(IRL_SignedIndex_t), intent(in) :: a_index
-        type(RectCub_type), intent(in) :: a_rectangular_cuboid
-        type(PlanarSep_type), intent(in) :: a_planar_separator
-        call F_PUSTNeigh_RectCub_setMember(this%c_object,a_index,a_rectangular_cuboid%c_object, &
-            a_planar_separator%c_object)
+        real(IRL_double), dimension(1:3), intent(in) :: a_centroid
+        type(SeparatorVariant_type), intent(in) :: a_separator
+        call F_PUSTNeigh_RectCub_setMember(this%c_object,a_index,a_centroid, &
+            a_separator%c_object)
     end subroutine PUSTNeigh_RectCub_class_setMember
 
-    subroutine PUSTNeigh_RectCub_class_addMember(this, a_rectangular_cuboid, &
-            a_planar_separator)
+    subroutine PUSTNeigh_RectCub_class_addMember(this, a_centroid, &
+            a_separator)
         implicit none
         type(PUSTNeigh_RectCub_type), intent(in) :: this
-        type(RectCub_type), intent(in) :: a_rectangular_cuboid
-        type(PlanarSep_type), intent(in) :: a_planar_separator
-        call F_PUSTNeigh_RectCub_addMember(this%c_object, a_rectangular_cuboid%c_object, &
-            a_planar_separator%c_object)
+        real(IRL_double), dimension(1:3), intent(in) :: a_centroid
+        type(SeparatorVariant_type), intent(in) :: a_separator
+        call F_PUSTNeigh_RectCub_addMember(this%c_object, a_centroid, &
+            a_separator%c_object)
     end subroutine PUSTNeigh_RectCub_class_addMember 
 
     subroutine PUSTNeigh_RectCub_class_emptyNeighborhood(this)
@@ -149,11 +138,5 @@ module f_PUSTNeigh_RectCub_class
         call F_PUSTNeigh_RectCub_emptyNeighborhood(this%c_object)
     end subroutine PUSTNeigh_RectCub_class_emptyNeighborhood
 
-    subroutine PUSTNeigh_RectCub_class_setCenterOfStencil(this,a_center_cell_index)
-        implicit none
-        type(PUSTNeigh_RectCub_type), intent(in) :: this
-        integer(IRL_UnsignedIndex_t), intent(in) :: a_center_cell_index
-        call F_PUSTNeigh_RectCub_setCenterOfStencil(this%c_object, a_center_cell_index)
-    end subroutine PUSTNeigh_RectCub_class_setCenterOfStencil
 
 end module f_PUSTNeigh_RectCub_class
