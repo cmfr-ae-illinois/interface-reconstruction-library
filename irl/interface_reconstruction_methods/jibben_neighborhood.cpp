@@ -110,7 +110,7 @@ void JibbenNeighborhood::reserve(const UnsignedIndex_t a_size) {
 }
 
 UnsignedIndex_t JibbenNeighborhood::size(void) const {
-  assert(polygons_m.size() == weights.size());
+  assert(polygons_m.size() == weights_m.size());
   return static_cast<UnsignedIndex_t>(polygons_m.size());
 }
 
