@@ -20,17 +20,15 @@ extern "C" {
 
     void c_PUSTNeigh_RectCub_setMember(c_PUSTNeigh_RectCub* a_self,
                                         const int* a_index,
-                                        const c_RectCub* a_rectangular_cuboid,
-                                        const PlanarSeparator* a_planar_separator);
+                                        const double* __restrict__ a_centroid,
+                                        const c_SeparatorVariant* a_separator);
 
     void c_PUSTNeigh_RectCub_addMember(c_PUSTNeigh_RectCub* a_self,
-                                        const  c_RectCub* a_rectangular_cuboid,
-                                        const PlanarSeparator* a_planar_separator);
+                                        const double* __restrict__ a_centroid,
+                                        const c_SeparatorVariant* a_separator);
     
     void c_PUSTNeigh_RectCub_emptyNeighborhood(c_PUSTNeigh_RectCub* a_self);
 
-    void c_PUSTNeigh_RectCub_setCenterOfStencil(c_PUSTNeigh_RectCub* a_self,
-                                                const int* a_center_cell_index);
 
 }
 
