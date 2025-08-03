@@ -58,6 +58,8 @@ class TriSpecialization
 
   Pt calculateCentroid(void) const;
 
+  std::vector<double> calculateM2(void) const;
+
   Volume calculateVolume(void) const;
   Volume calculateAbsoluteVolume(void) const;
   VolumeMomentsAndNormal calculateVolumeMomentsAndNormal(void) const;
@@ -107,4 +109,4 @@ using Tri = StoredTri<Pt>;
 
 #include "irl/geometry/polygons/tri.tpp"
 
-#endif // IRL_GEOMETRY_POLYGONS_TRI_H_
+#endif  // IRL_GEOMETRY_POLYGONS_TRI_H_
