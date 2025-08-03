@@ -897,6 +897,86 @@ ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
   return this->getGaussianCurvatureAligned(aligned_pt);
 }
 
+inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
+    const F a_F, const bool useAdaptive,
+    const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
+    const int npts) {
+  double result = 0.0;
+
+  // paraboloid params
+  const auto& datum = this->getParaboloid().getDatum();
+  const auto& frame = this->getParaboloid().getReferenceFrame();
+  const auto& a = this->getParaboloid().getAlignedParaboloid().a();
+  const auto& b = this->getParaboloid().getAlignedParaboloid().b();
+
+  // reference point for pseduo-triangles
+  Pt x_ref(0., 0., 0.);
+  for (const auto& arc : arc_list_m) {
+    x_ref += arc.start_point();
+  }
+  x_ref /= static_cast<double>(arc_list_m.size());
+
+  // intgerating f(x) over clipped paraboloid
+  for (const auto& arc : arc_list_m) {
+    //  points for bezier quadrilaterals
+    Pt A = arc.start_point();
+    Pt B = arc.point(0.5);
+    Pt C = arc.end_point();
+    Pt E = x_ref;
+    Pt D = 0.5 * (E + C);
+    Pt F = 0.5 * (A + E);
+    Pt G = 1. / 3. * (A + C + E);
+
+    // arcs for bezier quadrilaterals
+    auto [arc_1, arc_2] = arc.split();
+    RationalBezierArc arc_3(C, 0.5 * (C + D), D, 1.0);
+    RationalBezierArc arc_4(D, 0.5 * (D + E), E, 1.0);
+    RationalBezierArc arc_5(E, 0.5 * (E + F), F, 1.0);
+    RationalBezierArc arc_6(F, 0.5 * (F + A), A, 1.0);
+    RationalBezierArc arc_7(B, 0.5 * (B + G), G, 1.0);
+    RationalBezierArc arc_8(D, 0.5 * (D + G), G, 1.0);
+    RationalBezierArc arc_9(F, 0.5 * (F + G), G, 1.0);
+
+    // bezier quadrilaterals
+    std::vector<RationalBezierArc> quad_1 = {arc_1, arc_7, arc_9, -arc_6};
+    std::vector<RationalBezierArc> quad_2 = {arc_2, arc_3, -arc_8, arc_7};
+    std::vector<RationalBezierArc> quad_3 = {arc_4, arc_5, -arc_9, arc_8};
+    std::vector<std::vector<RationalBezierArc>> quad_list = {quad_1, quad_2,
+                                                             quad_3};
+
+    for (const auto& quad : quad_list) {
+      const double a_bound = 0.0;
+      const double b_bound = 1.0;
+      auto functor = [=](const double u, const double v) {
+        CoonsPatch coons(quad[0], quad[1], quad[2], quad[3]);
+        Pt coons_val = coons.evaluate(u, v);
+        double det_J = coons.detJacobian(u, v);
+        double dS_factor =
+            std::sqrt(1. + 4. * a * a * coons_val[0] * coons_val[0] +
+                      4. * b * b * coons_val[1] * coons_val[1]);
+        return (a_F(coons_val) * dS_factor * det_J);
+      };
+      double integral = 0.0;
+      if (useAdaptive) {
+        const std::size_t max_nsubdivisions = 256;
+        const double epsabs = 10.0 * DBL_EPSILON;
+        const double epsrel = 10.0 * DBL_EPSILON;
+        for (std::size_t i = 1; i <= max_nsubdivisions; i *= 4) {
+          Eigen::Integrator<double, 2> integrator(i);
+          integral = integrator.quadratureAdaptive(
+              functor, a_bound, b_bound, epsabs, epsrel, quadratureRule);
+        }
+      } else {
+        GaussLegendreIntegrator<double, 2> integrator(npts);
+        integral =
+            integrator.integrate(functor, a_bound, a_bound, b_bound, b_bound);
+      }
+      result += integral;
+    }
+  }
+  return result;
+}
+
 inline MixedPolygonBezierSurface
 ParaboloidParametrizedSurfaceOutput::getQuadraticBezierTriangleApprox(void) {
   return std::move(this->getBezierTriangleApprox(2));

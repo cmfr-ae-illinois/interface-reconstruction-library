@@ -34,7 +34,9 @@
 
 #include "irl/geometry/general/normal.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/quadratic_reconstruction/coons_patch.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
+#include "irl/quadratic_reconstruction/gauss_legendre_integrator.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
@@ -83,6 +85,14 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   inline double getMeanCurvatureNonAligned(const Pt a_pt);
   inline double getGaussianCurvatureAligned(const Pt a_pt);
   inline double getGaussianCurvatureNonAligned(const Pt a_pt);
+
+  // general integrator
+  using F = std::function<double(Pt)>;
+  inline double getIntegrator(
+      const F a_F, const bool useAdaptive = true,
+      const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
+          Eigen::Integrator<double, 2>::GaussKronrod15,
+      const int npts = 75);
 
   MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
   MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);

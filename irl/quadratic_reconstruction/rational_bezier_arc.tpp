@@ -147,8 +147,7 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
     const ScalarType cross_sq_0 = start_cross_prod[0] * start_cross_prod[0];
     const ScalarType cross_sq_1 = start_cross_prod[1] * start_cross_prod[1];
     const ScalarType cross_sq_2 = start_cross_prod[2] * start_cross_prod[2];
-    const ScalarType D =
-        fabs(a_cylinder.b() * cross_sq_1 + cross_sq_2);
+    const ScalarType D = fabs(a_cylinder.b() * cross_sq_1 + cross_sq_2);
     if (D < DISTANCE_EPSILON * DISTANCE_EPSILON) {
       weight_m = DEFAULT_WEIGHT;
     } else {
@@ -363,8 +362,7 @@ inline RationalBezierArcBase<ScalarType>::RationalBezierArcBase(
       const ScalarType cross_sq_0 = start_cross_prod[0] * start_cross_prod[0];
       const ScalarType cross_sq_1 = start_cross_prod[1] * start_cross_prod[1];
       const ScalarType cross_sq_2 = start_cross_prod[2] * start_cross_prod[2];
-      const ScalarType D =
-          fabs(a_cylinder.b() * cross_sq_1 + cross_sq_2);
+      const ScalarType D = fabs(a_cylinder.b() * cross_sq_1 + cross_sq_2);
       if (D < DISTANCE_EPSILON * DISTANCE_EPSILON) {
         weight_m = DEFAULT_WEIGHT;
       } else {
@@ -495,6 +493,76 @@ inline ScalarType RationalBezierArcBase<ScalarType>::arc_length(void) const {
   const ScalarType norm2 =
       sqrt(pt_2[0] * pt_2[0] + pt_2[1] * pt_2[1] + pt_2[2] * pt_2[2]);
   return w0 * norm0 + w1 * norm1 + w2 * norm2;
+}
+
+template <class ScalarType>
+inline std::pair<RationalBezierArcBase<ScalarType>,
+                 RationalBezierArcBase<ScalarType>>
+RationalBezierArcBase<ScalarType>::split() const {
+  using Pt = PtBase<ScalarType>;
+
+  // control points and weights
+  Pt p0 = start_point_m;
+  Pt p1 = control_point_m;
+  Pt p2 = end_point_m;
+
+  ScalarType w0 = ScalarType(1), w1 = this->weight(), w2 = ScalarType(1);
+
+  // homogeneous coordinates
+  Pt Q0 = w0 * p0;
+  Pt Q1 = w1 * p1;
+  Pt Q2 = w2 * p2;
+  Pt Q01 = (Q0 + Q1) * ScalarType(0.5);
+  ScalarType w01 = (w0 + w1) * ScalarType(0.5);
+  Pt Q12 = (Q1 + Q2) * ScalarType(0.5);
+  ScalarType w12 = (w1 + w2) * ScalarType(0.5);
+  Pt Q012 = (Q01 + Q12) * ScalarType(0.5);
+  ScalarType w012 = (w01 + w12) * ScalarType(0.5);
+
+  // Euclidean space
+  Pt a1_p0 = Q0 / w0;
+  Pt a1_p1 = Q01 / w01;
+  Pt a1_p2 = Q012 / w012;
+  ScalarType a1_w = w01 / std::sqrt(w012);
+
+  Pt a2_p0 = Q012 / w012;
+  Pt a2_p1 = Q12 / w12;
+  Pt a2_p2 = Q2 / w2;
+  ScalarType a2_w = w12 / std::sqrt(w012);
+
+  // constructing split arcs
+  RationalBezierArcBase<ScalarType> arc_1(a1_p0, a1_p1, a1_p2, a1_w);
+  RationalBezierArcBase<ScalarType> arc_2(a2_p0, a2_p1, a2_p2, a2_w);
+
+  return {arc_1, arc_2};
+}
+
+template <class ScalarType>
+inline RationalBezierArcBase<ScalarType>
+RationalBezierArcBase<ScalarType>::moveToReferenceFrame(
+    const PtBase<ScalarType>& datum,
+    const ReferenceFrameBase<ScalarType>& frame) const {
+  // for translatioon
+  Eigen::Matrix<ScalarType, 3, 1> x0;
+  x0 << datum[0], datum[1], datum[2];
+
+  // rotation matrix
+  Eigen::Matrix<ScalarType, 3, 3> R;
+  for (int i = 0; i < 3; i++) {
+    R.col(i) << frame[i][0], frame[i][1], frame[i][2];
+  }
+
+  auto transform = [&](const PtBase<ScalarType>& p_local) {
+    Eigen::Matrix<ScalarType, 3, 1> x_loc;
+    x_loc << p_local[0], p_local[1], p_local[2];
+    Eigen::Matrix<ScalarType, 3, 1> x_global = x0 + R * x_loc;
+    return PtBase<ScalarType>(x_global[0], x_global[1], x_global[2]);
+  };
+
+  // transformed bezier arc
+  return RationalBezierArcBase<ScalarType>(transform(start_point_m),
+                                           transform(control_point_m),
+                                           transform(end_point_m), weight_m);
 }
 
 template <class ScalarType>

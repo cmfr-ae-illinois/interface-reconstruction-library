@@ -13,10 +13,12 @@
 #include <cstdint>
 #include <utility>
 
+#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/parameters/defined_types.h"
+
+#include <Eigen/Dense>
 
 namespace IRL {
 
@@ -83,6 +85,12 @@ class RationalBezierArcBase {
   const PtBase<ScalarType> derivative(const ScalarType a_t) const;
   /// \brief Return const approximation of arc_length.
   ScalarType arc_length(void) const;
+  /// \brief Return split arcs.
+  std::pair<RationalBezierArcBase, RationalBezierArcBase> split() const;
+  /// \brief Return arc in global coordinates
+  RationalBezierArcBase moveToReferenceFrame(
+      const PtBase<ScalarType>& datum,
+      const ReferenceFrameBase<ScalarType>& frame) const;
   /// \brief Return const reference to stored start point address.
   std::uintptr_t start_point_id(void) const;
   /// \brief Return const reference to stored end point address.
