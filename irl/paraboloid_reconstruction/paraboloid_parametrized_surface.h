@@ -89,10 +89,10 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   // general integrator
   using F = std::function<double(Pt)>;
   inline double getIntegrator(
-      const F a_F, bool useAdaptive = true,
-      Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
+      const F a_F, const bool useAdaptive = true,
+      const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
           Eigen::Integrator<double, 2>::GaussKronrod15,
-      int npts = 75);
+      const int npts = 75);
 
   MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
   MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);

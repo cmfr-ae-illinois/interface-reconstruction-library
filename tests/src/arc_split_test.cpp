@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Parin Trivedi <parin.trivedi@hotmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -21,19 +21,6 @@ using namespace IRL;
 
 // Expected location of control point
 TEST(ArcSplit, ControlPoint) {
-  // auto cell = IRL::RectangularCuboid::fromBoundingPts(IRL::Pt(0., 0, 0.),
-  //                                                     IRL::Pt(1., 1., 1.));
-  // IRL::Pt datum(0.5, 0.5, 0.1);
-  // IRL::ReferenceFrame frame(IRL::Normal(1, 0, 0), IRL::Normal(0, 1, 0),
-  //                           IRL::Normal(0, 0, 1));
-  // IRL::Paraboloid paraboloid(datum, frame, 5.0, 5.0);
-  // using VolumeMomentsAndSurface =
-  //     IRL::AddSurfaceOutput<IRL::VolumeMoments,
-  //                           IRL::ParaboloidParametrizedSurfaceOutput>;
-  // auto surface =
-  //     IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid)
-  //         .getSurface();
-  // auto arc = surface.getArcs()[0];
   RationalBezierArc arc(Pt(1.25, 1.2, 0.0), Pt(1.25, 0.5, 0.0),
                         Pt(2.0, 0.2, 0.0), 2.0);
   auto [arc_1, arc_2] = arc.split();

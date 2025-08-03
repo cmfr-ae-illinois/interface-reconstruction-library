@@ -898,8 +898,9 @@ ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
 }
 
 inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
-    const F a_F, bool useAdaptive,
-    Eigen::Integrator<double, 2>::QuadratureRule quadratureRule, int npts) {
+    const F a_F, const bool useAdaptive,
+    const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
+    const int npts) {
   double result = 0.0;
 
   // paraboloid params

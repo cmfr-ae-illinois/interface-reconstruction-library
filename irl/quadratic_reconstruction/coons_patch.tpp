@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2022 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Parin Trivedi <parin.trivedi@hotmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -122,4 +122,4 @@ inline ScalarType CoonsPatchBase<ScalarType>::detJacobian(
 
 }  // namespace IRL
 
-#endif  // IRL_QUADRATIC_RECONSTRUCTION_RATIONAL_BEZIER_ARC_TPP_
+#endif  // IRL_QUADRATIC_RECONSTRUCTION_COONS_PATCH_TPP_
