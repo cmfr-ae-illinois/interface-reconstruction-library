@@ -31,8 +31,12 @@ extern "C" {
         assert(a_centroid != nullptr);
         assert(*a_index >=0);
         assert(*a_index < static_cast<int>(a_self->obj_ptr->size()));
+        IRL::Pt centroid(0.0,0.0,0.0);
+        for(int n = 0; n < 3; ++n) {
+            centroid[n] = a_centroid[n];
+        }
         a_self->obj_ptr->setMember(static_cast<IRL::UnsignedIndex_t>(*a_index),
-                                    a_centroid,
+                                    &centroid,
                                     a_separator->obj_ptr);
     }
 
@@ -44,7 +48,11 @@ extern "C" {
         assert(a_separator != nullptr);
         assert(a_separator->obj_ptr != nullptr);
         assert(a_centroid != nullptr);
-        a_self->obj_ptr->addMember(a_centroid,a_rectangular_cuboid->obj_ptr);
+        IRL::Pt centroid(0.0,0.0,0.0);
+        for(int n = 0; n < 3; ++n) {
+            centroid[n] = a_centroid[n];
+        }
+        a_self->obj_ptr->addMember(&centroid,a_separator->obj_ptr);
     }
     
     void c_PUSTNeigh_RectCub_emptyNeighborhood(c_PUSTNeigh_RectCub* a_self) {

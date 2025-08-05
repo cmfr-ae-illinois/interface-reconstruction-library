@@ -43,9 +43,9 @@ module f_PUSolve_RectCub_class
         end subroutine F_PUST_RectCub_delete
 
         subroutine F_PUST_RectCub_solveEdge(this,surface_tension_coefficient, start_point, end_point, a_force)
-            bind(C, name = "c_PUST_RectCub_solveEdge")
             import
             implicit none
+            bind(C, name = "c_PUST_RectCub_solveEdge")
             type(c_PUST_RectCub) :: this
             real(C_DOUBLE) :: surface_tension_coefficient
             real(C_DOUBLE), dimension(*), intent(in) :: start_point ! dimension(1:3)

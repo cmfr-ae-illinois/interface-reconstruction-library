@@ -16,7 +16,7 @@ module f_PUSTNeigh_RectCub_class
     type, public :: PUSTNeigh_RectCub_type
         type(c_PUSTNeigh_RectCub) :: c_object 
     contains
-        final :: PUSTSNeigh_RectCub_class_delete
+        final :: PUSTNeigh_RectCub_class_delete
     end type PUSTNeigh_RectCub_type
 
     interface new

@@ -11,7 +11,7 @@ extern "C" {
 
     struct c_PUST_RectCub {
         IRL::PUST<IRL::RectangularCuboid>* obj_ptr = nullptr;
-    }
+    };
 
     void c_PUST_RectCub_new(c_PUST_RectCub* a_self);
 

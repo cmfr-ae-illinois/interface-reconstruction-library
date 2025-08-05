@@ -5,12 +5,13 @@
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/variant_reconstruction/separator_variant.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 
 extern "C" {
 
     struct c_PUSTNeigh_RectCub {
         IRL::PUSTNeighborhood<IRL::RectangularCuboid>* obj_ptr = nullptr;
-    }
+    };
 
     void c_PUSTNeigh_RectCub_new(c_PUSTNeigh_RectCub* a_self);
 

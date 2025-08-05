@@ -1,5 +1,5 @@
-#ifndef IRL_PARTITION_OF_UNITY_SURFACE_TENSION_SOLVE_H_
-#define IRL_PARTITION_OF_UNITY_SURFACE_TENSION_SOLVE_H_
+#ifndef IRL_WENDLAND_H_
+#define IRL_WENDLAND_H_
 
 namespace IRL {
      // Here we are going to make a static class for the Wendland function
@@ -20,18 +20,24 @@ namespace IRL {
             // Compute Second Derivative
             static double secondDer(double r, double delta);
 
-            // Compute the Wendland Function
-            static std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
-                evaluateValGradHessian(Pt xi, double delta, Pt x_eval);
+            // Compute Wendland Function
+            static void 
+                evaluate(Pt xi, double delta, Pt x_eval,
+                    double* retVal);
+            // Compute Wendland Function and Gradient
+            static void
+                evaluate(Pt xi, double delta, Pt x_eval,
+                    std::pair<double,Eigen::Vector3d>* retVal);
+            // Compute Wendland Function, Grad, And Hessian
+            static void
+                evaluate(Pt xi, double delta, Pt x_eval,
+                    std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>* retVal);
 
             // Disallow Instance Creation
             Wendland() = delete;
     };
 } // End Namespace
 
-
-
-
-#include "irl/helpers/wendland.cpp"
+#include "irl/helpers/wendland.tpp"
 
 #endif

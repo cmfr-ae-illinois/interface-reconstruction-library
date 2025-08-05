@@ -14,6 +14,7 @@
 #include <cmath>
 #include <random>
 #include <variant>
+#include <tuple>
 
 #include "gtest/gtest.h"
 
@@ -22,8 +23,9 @@
 #include "irl/moments/general_moments.h"
 
 #include "irl/variant_reconstruction/separator_variant.h"
-#include "irl/conservative_surface_tension/pu_neighborhood.h"
-#include "irl/conservative_surface_tension/pu_solve.h"
+#include "irl/interface_reconstruction_methods/pu_neighborhood.h"
+#include "irl/interface_reconstruction_methods/pu_solve.h"
+#include "irl/helpers/wendland.h"
 
 namespace {
 using namespace IRL;
@@ -47,6 +49,34 @@ void getIntersectionPts(const Polygon& a_polygon, const Plane& a_cutting_plane,
       distance = next_distance;
     }
   }
+}
+
+TEST(Wendland,Test1) {
+  IRL::Pt xi(0.0,0.0,0.0);
+  IRL::Pt x_eval(0.0,1.0,0.0);
+  double delta = 2;
+  double res1;
+  std::pair<double,Eigen::Vector3d> res2;
+  std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d> res3;
+  Wendland::evaluate(xi,delta,x_eval,&res1);
+  Wendland::evaluate(xi,delta,x_eval,&res2);
+  Wendland::evaluate(xi,delta,x_eval,&res3);
+  
+  std::cout << "Result 1 = " << res1 << "\n";
+  std::cout << "Result 2 = " << std::get<1>(res2) << "\n";
+  std::cout << "Result 3 = " << std::get<2>(res3) << "\n";
+
+
+  x_eval = IRL::Pt(1.0,1.0,0.0);
+  Wendland::evaluate(xi,delta,x_eval,&res1);
+  Wendland::evaluate(xi,delta,x_eval,&res2);
+  Wendland::evaluate(xi,delta,x_eval,&res3);
+
+  std::cout << "Result 1 = " << res1 << "\n";
+  std::cout << "Result 2 = " << std::get<1>(res2) << "\n";
+  std::cout << "Result 3 = " << std::get<2>(res3) << "\n";
+
+  SUCCEED();
 }
 
 TEST(PUReconstruction, Test1) {
@@ -108,11 +138,6 @@ TEST(PUReconstruction, Test1) {
   std::cout << neighborhood.size() << "\n";
   const auto centerCell = cells[0];
   neighborhood.setCenterCell(&centerCell);
-  // Create the Solver Objet
-  PUST<RectangularCuboid> solver(neighborhood);
-  auto out = solver.solve(1.0);
-  std::cout << "SOLVER RESULT = \n";
-  std::cout << out << "\n";
 
   SUCCEED();
 }

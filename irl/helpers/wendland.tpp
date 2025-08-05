@@ -1,14 +1,10 @@
-#ifndef IRL_PARTITION_OF_UNITY_SURFACE_TENSION_SOLVE_TPP_
-#define IRL_PARTITION_OF_UNITY_SURFACE_TENSION_SOLVE_TPP_
+#ifndef IRL_WENDLAND_TPP_
+#define IRL_WENDLAND_TPP_
 
 #include <vector>
 #include <limits>
 #include <tuple>
 
-#include "examples/PUSurfaceTension/pu_neighborhood.h"
-#include "irl/generic_cutting/cut_polygon.h"
-#include "irl/generic_cutting/generic_cutting.h"
-#include "irl/moments/general_moments.h"
 
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
@@ -27,15 +23,47 @@ namespace IRL {
     }
 
     double Wendland::firstDer(double r, double delta) {
-        return (-20*r/(d*d))*(1-r/delta)*(1-r/delta)*(1-r/delta);
+        return (-20*r/(delta*delta))*(1-r/delta)*(1-r/delta)*(1-r/delta);
     }
 
     double Wendland::secondDer(double r,double delta) {
-        return (-20/(d*d))*(1-r/delta)*(1-r/delta)*(1-4*r/delta);
+        return (-20/(delta*delta))*(1-r/delta)*(1-r/delta)*(1-4*r/delta);
     }
 
-    std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
-      Wendland::evaluateValGradHessian(Pt xi, double delta, Pt x_eval) {
+    // Evaluate 1
+    void Wendland::evaluate(Pt xi, double delta, Pt x_eval,double* retVal) {
+        // First, get r
+        double r = Wendland::computeR(xi,x_eval);
+        // Next Calculate F, the function value
+        double F = Wendland::eval(r,delta);
+        // Return
+        *retVal = F;
+    }
+
+    // Evaluate 2
+    void Wendland::evaluate(Pt xi, double delta, Pt x_eval,std::pair<double,Eigen::Vector3d>* retVal) {
+        // First, get r
+        double r = Wendland::computeR(xi,x_eval);
+
+        // Next Calculate F, the function value
+        double F = Wendland::eval(r,delta);
+
+        // Next Calculate F',F''
+        double Fp = Wendland::firstDer(r,delta);
+
+        // Now, we need to calculate the distance function derivative. To do this, first make x an Eigen Vector.
+        Eigen::Vector3d x(x_eval[0]-xi[0],x_eval[1]-xi[1],x_eval[2]-xi[2]);
+
+        // Now, calculate the Gradient of r
+        Eigen::Vector3d gradR = x/r;
+        // Calculate Gradient
+        Eigen::Vector3d gradF = Fp*gradR;
+        // Return
+        *retVal = std::make_pair(F,gradF);
+    }
+
+    // Evaluate 3
+    void Wendland::evaluate(Pt xi, double delta, Pt x_eval,std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>* retVal) {
         // First, get r
         double r = Wendland::computeR(xi,x_eval);
 
@@ -58,6 +86,7 @@ namespace IRL {
         // Calculate Return Values
         Eigen::Vector3d gradF = Fp*gradR;
         Eigen::Matrix3d hessF = Fpp * (gradR * gradR.transpose()) + Fp*hessR;
+        *retVal = std::make_tuple(F,gradF,hessF);
     }
 }
 

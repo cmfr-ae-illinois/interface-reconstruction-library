@@ -23,5 +23,5 @@ target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruct
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_neighborhood_rectangular_cuboid.h)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_neighborhood_rectangular_cuboid.cpp)
 
-target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_solve_planar_rectangular_cuboid.h)
-target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_solve_planar_rectangular_cuboid.cpp)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_solve_rectangular_cuboid.h)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_solve_rectangular_cuboid.cpp)

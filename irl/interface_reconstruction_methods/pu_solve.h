@@ -9,7 +9,7 @@
 #include <vector>
 #include <tuple>
 
-#include "examples/PUSurfaceTension/pu_neighborhood.h"
+#include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 
 #include "irl/moments/cell_collection.h"
 #include "irl/moments/cell_grouped_moments.h"
@@ -30,17 +30,23 @@ namespace IRL {
         public:
             // Constructor
             PUImplicitSurface(const std::vector<Pt>& centroids_, const std::vector<SeparatorVariant>& separators, const double& kernel_size_);
-            // Function Eval
-            double F(Pt& x); // Change to Points
-            // Get Value,Gradient,Hessian
-            std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
-                getValueAndGradAndHessian(Pt& x);
+            // Get Value
+            void evaluate(Pt& x,double* retVal);
+            // Get Value, Grad
+            void evaluate(Pt& x,std::pair<double,Eigen::Vector3d>* retVal);
+            // Get Value, Grad, Hessian
+            void evaluate(Pt& x,std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>* retVal);
+
             // Find intersection between the implicit curve and a provided line. 
             std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1, const int& Npartitions);
-            // Signed Distance of a Separator
-            static std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>
-                getSignedDistanceAndGradAndHessianSep(const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr) const;
-
+            // Signed Distance of Separator
+            static void implicitSeparator(const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,double* retVal);
+            // Signed Distance and Gradient of Separator
+            static void implicitSeparator(const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,std::pair<double,Eigen::Vector3d>* retVal);
+            // Signed Distance, Gradient, and Hessian of Separator
+            static void implicitSeparator(const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d>* retVal);
+            
+            // 
             // Find the Tangent and Curvature at the point
             Normal getTangent(Pt& x);
             double getCurvature(Pt& x);
@@ -54,6 +60,8 @@ namespace IRL {
         public:
             // Constructor
             PUST(const PUSTNeighborhood<CellType> stencil_);
+            // Default Constructor;
+            PUST(void);
             // Takes Neighborhood and Returns the Implicit Surface
             PUImplicitSurface neighborhoodToImplicitSurface(double delta);
             // Edge Solve Method - Returns the surface tension force vector
