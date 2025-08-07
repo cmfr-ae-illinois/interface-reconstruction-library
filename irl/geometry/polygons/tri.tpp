@@ -129,17 +129,6 @@ Pt TriSpecialization<Derived, VertexType>::calculateCentroid(void) const {
 }
 
 template <class Derived, class VertexType>
-std::vector<double> TriSpecialization<Derived, VertexType>::calculateM2(
-    void) const {
-  std::vector<double> M2(6, 0.0);
-  auto m2 = this->template calculateGeneralMoments<2>();
-  for (size_t i = 0; i < M2.size(); i++) {
-    M2[i] = m2[i + 4];
-  }
-  return M2;
-}
-
-template <class Derived, class VertexType>
 Volume TriSpecialization<Derived, VertexType>::calculateVolume(void) const {
   return this->calculateSign() * this->calculateAbsoluteVolume();
 }
