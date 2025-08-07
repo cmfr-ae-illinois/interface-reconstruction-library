@@ -19,19 +19,32 @@ double Wendland::computeR(Pt xi, Pt x_eval) {
 
 double Wendland::eval(double r, double delta) {
   double rhat = r / delta;
-  return (4.0 * rhat + 1.0) * (1.0 - rhat) * (1.0 - rhat) * (1.0 - rhat) *
-         (1.0 - rhat);
+  if (rhat <= 1) {
+    return (4.0 * rhat + 1.0) * (1.0 - rhat) * (1.0 - rhat) * (1.0 - rhat) *
+           (1.0 - rhat);
+  } else {
+    return 0.0;
+  }
 }
 
 double Wendland::firstDer(double r, double delta) {
   double rhat = r / delta;
-  return (-20.0 * rhat / (delta)) * (1.0 - rhat) * (1.0 - rhat) * (1.0 - rhat);
+  if (rhat <= 1) {
+    return (-20.0 * rhat / (delta)) * (1.0 - rhat) * (1.0 - rhat) *
+           (1.0 - rhat);
+  } else {
+    return 0.0;
+  }
 }
 
 double Wendland::secondDer(double r, double delta) {
   double rhat = r / delta;
-  return (-20.0 / (delta * delta)) * (1.0 - rhat) * (1.0 - rhat) *
-         (1.0 - 4.0 * rhat);
+  if (rhat <= 1) {
+    return (-20.0 / (delta * delta)) * (1.0 - rhat) * (1.0 - rhat) *
+           (1.0 - 4.0 * rhat);
+  } else {
+    return 0.0;
+  }
 }
 
 // Evaluate 1

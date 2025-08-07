@@ -51,29 +51,134 @@ void getIntersectionPts(const Polygon& a_polygon, const Plane& a_cutting_plane,
   }
 }
 
-TEST(Wendland, Test1) {
-  IRL::Pt xi(0.0, 0.0, 0.0);
-  IRL::Pt x_eval(0.0, 1.0, 0.0);
-  double delta = 2;
+TEST(Wendland, WendlandTests) {
+  // ComputeR Tests
+  double result;
+
+  IRL::Pt xi1(0.0, 0.0, 0.0);
+  IRL::Pt x1(2.0, 0.0, 0.0);
+  result = Wendland::computeR(xi1, x1);
+  EXPECT_EQ(result, 2.0) << "Single Direction ComputeR Fail";
+
+  IRL::Pt xi2(0.0, 0.0, 0.0);
+  IRL::Pt x2(1.0, 1.0, 1.0);
+  result = Wendland::computeR(xi2, x2);
+  EXPECT_NEAR(result, std::sqrt(3.0), std::numeric_limits<double>::epsilon())
+      << "Three Direction ComputeR Fail";
+
+  IRL::Pt xi3(-1.0, 0.0, 1.0);
+  IRL::Pt x3(0.0, 0.0, 0.0);
+  result = Wendland::computeR(xi3, x3);
+  EXPECT_NEAR(result, std::sqrt(2.0), std::numeric_limits<double>::epsilon())
+      << "Two Direction ComputeR Fail";
+
+  // Value, First, and Second Ders at r=d
+  double delta = 2.0;
+  double r = 2.0;
+  EXPECT_NEAR(Wendland::eval(r, delta), 0.0,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Right Endpoint Value Fail";  // Value
+  EXPECT_NEAR(Wendland::firstDer(r, delta), 0.0,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Right Endpoint First Derivative Fail";  // First Der
+  EXPECT_NEAR(Wendland::secondDer(r, delta), 0.0,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Right Endpoint Second Derivative Fail";  // Second Der
+
+  // Value, First, and Second Der at r=0
+  r = 0.0;
+  EXPECT_NEAR(Wendland::eval(r, delta), 1,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Left Endpoint Value Fail";  // Value
+  EXPECT_NEAR(Wendland::firstDer(r, delta), 0.0,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Left Endpoint First Derivative Fail";  // First Der
+  EXPECT_NEAR(Wendland::secondDer(r, delta), -5,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Left Endpoint Second Derivative Fail";  // Second Der
+
+  // Value, First, and Second Der at r=1
+  r = 1.0;
+  EXPECT_NEAR(Wendland::eval(r, delta), 0.1875,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Midpoint Value Fail";  // Value
+  EXPECT_NEAR(Wendland::firstDer(r, delta), -0.625,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Midpoint First Derivative Fail";  // First Der
+  EXPECT_NEAR(Wendland::secondDer(r, delta), 1.25,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Midpoint Second Derivative Fail";  // Second Der
+
+  // Value, First, and Second Der for d=4, r=0
+  r = 0.0;
+  delta = 4.0;
+  EXPECT_NEAR(Wendland::eval(r, delta), 1.0,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Left Endpoint, New Delta Value Fail";  // Value
+  EXPECT_NEAR(Wendland::firstDer(r, delta), 0.0,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Left Endpoint, New Delta First Derivative Fail";  // First
+  EXPECT_NEAR(Wendland::secondDer(r, delta), -1.25,
+              std::numeric_limits<double>::epsilon())
+      << "Wendland Left Endpoint, New Delta Second Derivative Fail";  // Second
+
+  // Full Function Evaluation
   double res1;
   std::pair<double, Eigen::Vector3d> res2;
   std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> res3;
-  Wendland::evaluate(xi, delta, x_eval, &res1);
-  Wendland::evaluate(xi, delta, x_eval, &res2);
-  Wendland::evaluate(xi, delta, x_eval, &res3);
+  // Expected Values
+  double expectedValue = 0.1875;
+  Eigen::Vector3d expectedGradient(0.0, 0.0, -0.625);
+  Eigen::Matrix3d expectedHessian = Eigen::Matrix3d::Zero();
+  expectedHessian(0, 0) = -5.0 / 8.0;
+  expectedHessian(1, 1) = -5.0 / 8.0;
+  expectedHessian(2, 2) = 1.25;
 
-  std::cout << "Result 1 = " << res1 << "\n";
-  std::cout << "Result 2 = " << std::get<1>(res2) << "\n";
-  std::cout << "Result 3 = " << std::get<2>(res3) << "\n";
+  // Points
+  IRL::Pt xi(0.0, 0.0, 0.0);
+  delta = 2;
+  IRL::Pt x(0.0, 0.0, 1.0);
+  Eigen::Vector3d gradTemp;
+  Eigen::Matrix3d hessTemp;
 
-  x_eval = IRL::Pt(1.0, 1.0, 0.0);
-  Wendland::evaluate(xi, delta, x_eval, &res1);
-  Wendland::evaluate(xi, delta, x_eval, &res2);
-  Wendland::evaluate(xi, delta, x_eval, &res3);
+  // Value Only
+  Wendland::evaluate(xi, delta, x, &res1);
+  EXPECT_NEAR(res1, expectedValue, std::numeric_limits<double>::epsilon())
+      << "Evaluate Value Only Fail - Value";
+  // Value and Gradient
+  Wendland::evaluate(xi, delta, x, &res2);
+  EXPECT_NEAR(std::get<0>(res2), expectedValue,
+              std::numeric_limits<double>::epsilon())
+      << "Evaluate Value And Gradient Fail - Value";
 
-  std::cout << "Result 1 = " << res1 << "\n";
-  std::cout << "Result 2 = " << std::get<1>(res2) << "\n";
-  std::cout << "Result 3 = " << std::get<2>(res3) << "\n";
+  gradTemp = std::get<1>(res2);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(gradTemp(i), expectedGradient(i),
+                std::numeric_limits<double>::epsilon())
+        << "Evaluate Value and Gradient Fail - Gradient Index " << i;
+  }
+  // Value and Gradient and Hessian
+  Wendland::evaluate(xi, delta, x, &res3);
+  EXPECT_NEAR(std::get<0>(res3), expectedValue,
+              std::numeric_limits<double>::epsilon())
+      << "Evaluate Value, Gradient, Hessian Fail - Value";
+
+  gradTemp = std::get<1>(res3);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(gradTemp(i), expectedGradient(i),
+                std::numeric_limits<double>::epsilon())
+        << "Evaluate Value, Gradient, Hessian Fail - Gradient Index " << i;
+  }
+
+  hessTemp = std::get<2>(res3);
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_NEAR(hessTemp(i, j), expectedHessian(i, j),
+                  std::numeric_limits<double>::epsilon())
+          << "Evaluate Value, Gradient, Hessian Fail - Hessian Index " << i
+          << "," << j;
+    }
+  }
 
   SUCCEED();
 }
