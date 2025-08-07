@@ -58,11 +58,6 @@ class TriSpecialization
 
   Pt calculateCentroid(void) const;
 
-  std::vector<double> calculateM2(void) const;  // change to general moments
-
-  template <std::size_t ORDER>
-  inline GeneralMoments3D<ORDER> calculateGeneralMoments(void) const;
-
   Volume calculateVolume(void) const;
   Volume calculateAbsoluteVolume(void) const;
   VolumeMomentsAndNormal calculateVolumeMomentsAndNormal(void) const;
