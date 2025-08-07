@@ -22,13 +22,14 @@ class Wendland {
   static double secondDer(double r, double delta);
 
   // Compute Wendland Function
-  static void evaluate(Pt xi, double delta, Pt x_eval, double* retVal);
+  static void evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
+                       double* retVal);
   // Compute Wendland Function and Gradient
-  static void evaluate(Pt xi, double delta, Pt x_eval,
+  static void evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
                        std::pair<double, Eigen::Vector3d>* retVal);
   // Compute Wendland Function, Grad, And Hessian
   static void evaluate(
-      Pt xi, double delta, Pt x_eval,
+      const Pt& xi, const double& delta, const Pt& x_eval,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
 
   // Disallow Instance Creation

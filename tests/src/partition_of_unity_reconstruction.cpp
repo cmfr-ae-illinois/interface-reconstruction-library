@@ -1,7 +1,7 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2025 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2025 Ilia Kheirkhah <iliak2@illinois.edu>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,8 +13,8 @@
 #include <sys/time.h>
 #include <cmath>
 #include <random>
-#include <variant>
 #include <tuple>
+#include <variant>
 
 #include "gtest/gtest.h"
 
@@ -22,10 +22,10 @@
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/moments/general_moments.h"
 
-#include "irl/variant_reconstruction/separator_variant.h"
+#include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/interface_reconstruction_methods/pu_solve.h"
-#include "irl/helpers/wendland.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 namespace {
 using namespace IRL;
@@ -51,26 +51,25 @@ void getIntersectionPts(const Polygon& a_polygon, const Plane& a_cutting_plane,
   }
 }
 
-TEST(Wendland,Test1) {
-  IRL::Pt xi(0.0,0.0,0.0);
-  IRL::Pt x_eval(0.0,1.0,0.0);
+TEST(Wendland, Test1) {
+  IRL::Pt xi(0.0, 0.0, 0.0);
+  IRL::Pt x_eval(0.0, 1.0, 0.0);
   double delta = 2;
   double res1;
-  std::pair<double,Eigen::Vector3d> res2;
-  std::tuple<double,Eigen::Vector3d,Eigen::Matrix3d> res3;
-  Wendland::evaluate(xi,delta,x_eval,&res1);
-  Wendland::evaluate(xi,delta,x_eval,&res2);
-  Wendland::evaluate(xi,delta,x_eval,&res3);
-  
+  std::pair<double, Eigen::Vector3d> res2;
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> res3;
+  Wendland::evaluate(xi, delta, x_eval, &res1);
+  Wendland::evaluate(xi, delta, x_eval, &res2);
+  Wendland::evaluate(xi, delta, x_eval, &res3);
+
   std::cout << "Result 1 = " << res1 << "\n";
   std::cout << "Result 2 = " << std::get<1>(res2) << "\n";
   std::cout << "Result 3 = " << std::get<2>(res3) << "\n";
 
-
-  x_eval = IRL::Pt(1.0,1.0,0.0);
-  Wendland::evaluate(xi,delta,x_eval,&res1);
-  Wendland::evaluate(xi,delta,x_eval,&res2);
-  Wendland::evaluate(xi,delta,x_eval,&res3);
+  x_eval = IRL::Pt(1.0, 1.0, 0.0);
+  Wendland::evaluate(xi, delta, x_eval, &res1);
+  Wendland::evaluate(xi, delta, x_eval, &res2);
+  Wendland::evaluate(xi, delta, x_eval, &res3);
 
   std::cout << "Result 1 = " << res1 << "\n";
   std::cout << "Result 2 = " << std::get<1>(res2) << "\n";
@@ -107,7 +106,8 @@ TEST(PUReconstruction, Test1) {
     }
   }
 
-  // Compute end points of 2D PLIC, use to calculate centroids, and add to neighborhood
+  // Compute end points of 2D PLIC, use to calculate centroids, and add to
+  // neighborhood
 
   count = 0;
   StackVector<Pt, 2> intersections;
@@ -115,21 +115,22 @@ TEST(PUReconstruction, Test1) {
   const auto xy_plane = Plane(Normal(0.0, 0.0, 1.0), 0.0);
   for (int i = 0; i < 1 + 2 * nlayers; ++i) {
     for (int j = 0; j < 1 + 2 * nlayers; ++j) {
-      auto separatorPtr = std::get_if<PlanarSeparator>(&planar_separator[count]);
+      auto separatorPtr =
+          std::get_if<PlanarSeparator>(&planar_separator[count]);
       auto separator = *separatorPtr;
       const Polygon polygon = getPlanePolygonFromReconstruction<Polygon>(
           cells[count], separator, separator[0]);
-      
+
       getIntersectionPts(polygon, xy_plane, &intersections);
       if (intersections.size() == 2) {
         std::cout << "Start point for cell " << i << ", " << j << " = "
                   << intersections[0] << std::endl;
         std::cout << "  End point for cell " << i << ", " << j << " = "
                   << intersections[1] << std::endl;
-        
-        Pt cen = (intersections[0] + intersections[1]) *0.5;
+
+        Pt cen = (intersections[0] + intersections[1]) * 0.5;
         centroids.push_back(cen);
-        neighborhood.addMember(&cen,&planar_separator[count]);
+        neighborhood.addMember(&cen, &planar_separator[count]);
       }
       count++;
     }
