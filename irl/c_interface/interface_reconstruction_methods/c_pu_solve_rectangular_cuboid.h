@@ -9,15 +9,16 @@
 
 extern "C" {
 
-    struct c_PUST_RectCub {
-        IRL::PUST<IRL::RectangularCuboid>* obj_ptr = nullptr;
-    };
+struct c_PUST_RectCub {
+  IRL::PUST<IRL::RectangularCuboid>* obj_ptr = nullptr;
+};
 
-    void c_PUST_RectCub_new(c_PUST_RectCub* a_self);
+void c_PUST_RectCub_new(c_PUST_RectCub* a_self);
 
-    void c_PUST_RectCub_delete(c_PUST_RectCub* a_self);
+void c_PUST_RectCub_delete(c_PUST_RectCub* a_self);
 
-    void c_PUST_RectCub_solveEdge(c_PUST_RectCub* a_self, double STCoeff, double* P0, double* P1, double* a_force);
+void c_PUST_RectCub_solveEdge(c_PUST_RectCub* a_self, double STCoeff,
+                              double* P0, double* P1, double* a_force);
 }
 
 #endif
