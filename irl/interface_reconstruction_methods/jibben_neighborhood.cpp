@@ -30,7 +30,7 @@ void JibbenNeighborhood::emptyNeighborhood(void) {
 }
 
 void JibbenNeighborhood::localize(void) {
-  if (not is_localized_m) {
+  if ((not is_localized_m) && polygons_m.size() > 0) {
     this->checkCenterStencilSet();
     this->checkIndex(center_cell_index_m);
     const Polygon& central_polygon = polygons_m[center_cell_index_m];

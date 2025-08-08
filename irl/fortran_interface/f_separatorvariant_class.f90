@@ -57,7 +57,9 @@ module f_SeparatorVariant_class
   interface printToScreen
     module procedure SeparatorVariant_class_printToScreen
   end interface
-
+  interface shiftOrigin
+    module procedure SeparatorVariant_class_shift
+  end interface
 
   interface
 
@@ -141,8 +143,15 @@ module f_SeparatorVariant_class
       type(c_SeparatorVariant) :: this
     end subroutine F_SeparatorVariant_printToScreen
 
-  end interface
+    subroutine F_SeparatorVariant_shift(this, a_shift) &
+      bind(C, name="c_SeparatorVariant_shift")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      real(C_DOUBLE), dimension(*), intent(in) :: a_shift !  dimension(1:3)
+    end subroutine F_SeparatorVariant_shift
 
+  end interface
 
   contains
 
@@ -216,6 +225,13 @@ module f_SeparatorVariant_class
       type(SeparatorVariant_type), intent(in) :: this
       call F_SeparatorVariant_printToScreen(this%c_object)
     end subroutine SeparatorVariant_class_printToScreen
+
+    subroutine SeparatorVariant_class_shift(this, a_shift)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      real(IRL_double), dimension(1:3), intent(in) :: a_shift
+      call F_SeparatorVariant_shift(this%c_object, a_shift)
+    end subroutine SeparatorVariant_class_shift
 
 
 end module f_SeparatorVariant_class

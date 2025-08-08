@@ -6,3 +6,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/parametriz
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/parametrized_surface.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/quadratic_helper.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/quadratic_helper.tpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/coons_patch.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/coons_patch.tpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/quadratic_reconstruction/gauss_legendre_integrator.h)

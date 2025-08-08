@@ -96,5 +96,8 @@ module irl_fortran_interface
   use f_ObjServer_TriangulatedParaboloid_class
   use f_ObjServer_LocParabLink_class
   use f_LocParabLink_class
+  use f_JibbenNeigh_class
+  use f_ObjServer_MixedPolygonBezierSurface_class
+  use f_MixedPolygonBezierSurface_class
 
 end module irl_fortran_interface

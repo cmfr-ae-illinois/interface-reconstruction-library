@@ -53,6 +53,9 @@ bool c_SeparatorVariant_isFlipped(const c_SeparatorVariant* a_self);
 
 void c_SeparatorVariant_printToScreen(const c_SeparatorVariant* a_self);
 
+void c_SeparatorVariant_shift(c_SeparatorVariant* a_self,
+                              const double* a_shift);
+
 }  // end extern C
 
 #endif  // IRL_C_INTERFACE_VARIANT_RECONSTRUCTION_C_SEPARATOR_VARIANT_H_

@@ -29,6 +29,12 @@ void c_JibbenNeigh_reserve(c_JibbenNeigh* a_self, const int* a_size) {
   a_self->obj_ptr->reserve(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 
+void c_JibbenNeigh_setSize(c_JibbenNeigh* a_self, const int* a_size) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  a_self->obj_ptr->resize(static_cast<IRL::UnsignedIndex_t>(*a_size));
+}
+
 void c_JibbenNeigh_localize(c_JibbenNeigh* a_self) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);

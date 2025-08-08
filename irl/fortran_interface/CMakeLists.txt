@@ -79,3 +79,6 @@ target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_separat
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_objectallocationserver_separatorvariant_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_objectallocationserver_localizedvariantlink_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_localizedvariantlink_class.f90)
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_jibbenneighborhood_class.f90)
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_objectallocationserver_mixedsurface_class.f90)
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_mixedsurface_class.f90)
