@@ -374,8 +374,6 @@ class ArcContributionToParaboloidSurfaceArea_Functor {
                                     4. * (b * b) * (pt[1] * pt[1]))) /
                  std::fabs(a)) /
             4.;
-        // const double primitive =
-        //     -(1. + 4. * b*b * pt[1] * pt[1]) * std::log(std::sqrt(1. + 4. * b*b * pt[1]*pt[1])) / (4. * a);
         return primitive * der[1];
       } else {
         const double primitive =
@@ -388,8 +386,6 @@ class ArcContributionToParaboloidSurfaceArea_Functor {
                                      4. * (b * b) * (pt[1] * pt[1]))) /
                   std::fabs(b)) /
             (4.);
-        // const double primitive =
-        //     (1. + 4. * a*a * pt[0] * pt[0]) * std::log(std::sqrt(1. + 4. * a*a * pt[0]*pt[0])) / (4. * b);
         return primitive * der[0];
       }
     }
