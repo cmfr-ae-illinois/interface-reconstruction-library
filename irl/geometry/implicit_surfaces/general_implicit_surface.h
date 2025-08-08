@@ -23,6 +23,7 @@ namespace IRL {
 template <class ScalarType, size_t MAX_REFINE_LEVEL = 5>
 class GeneralImplicitSurface {
  public:
+  using Scalar = ScalarType;
   using Vec3 = Eigen::Matrix<ScalarType, 3, 1>;
   using Mat3 = Eigen::Matrix<ScalarType, 3, 3>;
 
