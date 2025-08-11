@@ -17,7 +17,15 @@ void c_PUST_RectCub_delete(c_PUST_RectCub* a_self) {
   a_self->obj_ptr = nullptr;
 }
 
-void c_PUST_RectCub_solveEdge(c_PUST_RectCub* a_self, double STCoeff,
+void c_PUST_RectCub_setNeighborhood(c_PUST_RectCub* a_self,
+                                    c_PUSTNeigh_RectCub* a_neighborhood) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  a_self->obj_ptr->setNeighborhood(*a_neighborhood->obj_ptr);
+}
+
+void c_PUST_RectCub_solveEdge(c_PUST_RectCub* a_self, double* STCoeff,
                               double* P0, double* P1, double* a_force) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
@@ -25,10 +33,10 @@ void c_PUST_RectCub_solveEdge(c_PUST_RectCub* a_self, double STCoeff,
   IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
   IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P1);
 
-  IRL::Normal force = a_self->obj_ptr->solveEdge(STCoeff, P0temp, P1temp);
+  IRL::Normal force = a_self->obj_ptr->solveEdge(*STCoeff, P0temp, P1temp);
 
   for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
-    a_force[n] = force[n];
+    *(a_force + n) = force[n];
   }
 }
 }

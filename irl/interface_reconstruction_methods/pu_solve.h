@@ -65,20 +65,21 @@ class PUImplicitSurface {
 template <class CellType>
 class PUST {
  private:
-  const PUSTNeighborhood<CellType> stencil_m;
+  PUSTNeighborhood<CellType> stencil_m;
+  // PUImplicitSurface surface_m;
 
  public:
   // Constructor
-  PUST(const PUSTNeighborhood<CellType> stencil_);
+  PUST(PUSTNeighborhood<CellType> stencil_);
   // Default Constructor;
   PUST(void);
+  // Neighborhood Setter
+  void setNeighborhood(PUSTNeighborhood<CellType> stencil_);
   // Takes Neighborhood and Returns the Implicit Surface
   PUImplicitSurface neighborhoodToImplicitSurface(double delta);
   // Edge Solve Method - Returns the surface tension force vector
   // for edge
   Normal solveEdge(double STCoeff, Pt& P0, Pt& P1);
-  // Solve Method - Returns the surface tension vector in center cell
-  std::vector<double> solve(double STCoeff, int direction);
 };
 
 }  // End Namespace IRL

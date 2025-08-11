@@ -4,6 +4,7 @@
 
 module f_PUSolve_RectCub_class
     use f_RectCub_class
+    use f_PUSTNeigh_RectCub_class
     use f_SeparatorVariant_class
     use, intrinsic :: iso_c_binding
     use f_DefinedTypes
@@ -25,6 +26,9 @@ module f_PUSolve_RectCub_class
     interface solveEdge
         module procedure PUST_RectCub_class_solveEdge
     end interface
+    interface setNeighborhood
+        module procedure PUST_RectCub_class_setNeighborhood
+    end interface
 
     interface
 
@@ -42,10 +46,18 @@ module f_PUSolve_RectCub_class
             type(c_PUST_RectCub) :: this
         end subroutine F_PUST_RectCub_delete
 
-        subroutine F_PUST_RectCub_solveEdge(this,surface_tension_coefficient, start_point, end_point, a_force)
+        subroutine F_PUST_RectCub_setNeighborhood(this,neighborhood)&
+            bind(C, name = "c_PUST_RectCub_setNeighborhood")
             import
             implicit none
+            type(c_PUST_RectCub) :: this
+            type(c_PUSTNeigh_RectCub) :: neighborhood
+        end subroutine F_PUST_RectCub_setNeighborhood
+
+        subroutine F_PUST_RectCub_solveEdge(this,surface_tension_coefficient, start_point, end_point, a_force)&
             bind(C, name = "c_PUST_RectCub_solveEdge")
+            import
+            implicit none
             type(c_PUST_RectCub) :: this
             real(C_DOUBLE) :: surface_tension_coefficient
             real(C_DOUBLE), dimension(*), intent(in) :: start_point ! dimension(1:3)
@@ -68,14 +80,21 @@ module f_PUSolve_RectCub_class
             type(PUST_RectCub_type), intent(in) :: this
             call F_PUST_RectCub_delete(this%c_object)
         end subroutine PUST_RectCub_class_delete
+        
+        subroutine PUST_RectCub_class_setNeighborhood(this,neighborhood)
+            implicit none
+            type(PUST_RectCub_type), intent(in) :: this
+            type(PUSTNeigh_RectCub_type), intent(in) :: neighborhood
+            call F_PUST_RectCub_setNeighborhood(this%c_object,neighborhood%c_object)
+        end subroutine PUST_RectCub_class_setNeighborhood
 
         subroutine PUST_RectCub_class_solveEdge(this,surface_tension_coefficient, start_point, end_point, a_force)
             implicit none
             type(PUST_RectCub_type) :: this
             real(C_DOUBLE) :: surface_tension_coefficient
-            real(IRL_double), dimension(1:3), intent(out) :: start_point
-            real(IRL_double), dimension(1:3), intent(out) :: end_point
-            real(IRL_double), dimension(1:3) :: a_force
+            real(IRL_double), dimension(1:3), intent(in) :: start_point
+            real(IRL_double), dimension(1:3), intent(in) :: end_point
+            real(IRL_double), dimension(1:3), intent(out) :: a_force
             call F_PUST_RectCub_solveEdge(this%c_object, surface_tension_coefficient,start_point,end_point, a_force)
             return
         end subroutine PUST_RectCub_class_solveEdge

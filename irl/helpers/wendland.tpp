@@ -75,7 +75,7 @@ void Wendland::evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
   Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
 
   // Now, calculate the Gradient of r
-  Eigen::Vector3d gradR = x / r;
+  Eigen::Vector3d gradR = x / safelyEpsilon(r);
   // Calculate Gradient
   Eigen::Vector3d gradF = Fp * gradR;
   // Return
@@ -101,11 +101,12 @@ void Wendland::evaluate(
   Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
 
   // Now, calculate the Gradient of r
-  Eigen::Vector3d gradR = x / r;
+  Eigen::Vector3d gradR = x / safelyEpsilon(r);
 
   // Finally, calculate the Hessian of r
   Eigen::Matrix3d hessR =
-      (Eigen::Matrix3d::Identity() - x * x.transpose() / (r * r)) / r;
+      (Eigen::Matrix3d::Identity() - x * x.transpose() / safelyEpsilon(r * r)) /
+      safelyEpsilon(r);
 
   // Calculate Return Values
   Eigen::Vector3d gradF = Fp * gradR;

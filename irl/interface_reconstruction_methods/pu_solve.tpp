@@ -233,7 +233,7 @@ void PUImplicitSurface::evaluate(
                         gradF * grad_weight.transpose() + weight * hessF;
   }
   // Put Everything Together into PU Results
-  const double inv_weight_sum = 1.0 / weight_sum;
+  const double inv_weight_sum = 1.0 / safelyEpsilon(weight_sum);
   const double PU_F = F_sum * inv_weight_sum;
   const Eigen::Vector3d PU_gradF =
       (grad_product_sum - F_sum * grad_weight_sum * inv_weight_sum) *
@@ -284,12 +284,11 @@ void PUImplicitSurface::evaluate(Pt& x,
     grad_product_sum += grad_weight * F + weight * gradF;
   }
   // Put Everything Together into PU Results
-  const double inv_weight_sum = 1.0 / weight_sum;
+  const double inv_weight_sum = 1.0 / safelyEpsilon(weight_sum);
   const double PU_F = F_sum * inv_weight_sum;
   const Eigen::Vector3d PU_gradF =
       (grad_product_sum - F_sum * grad_weight_sum * inv_weight_sum) *
       inv_weight_sum;
-
   // Return
   *retVal = std::make_pair(PU_F, PU_gradF);
 }
@@ -304,14 +303,12 @@ void PUImplicitSurface::evaluate(Pt& x, double* retVal) {
     // Distance Weights
     double weight = 0.0;
     Wendland::evaluate(centroids[i], kernel_size, x, &weight);
-
     // Add results to sums
     weight_sum += weight;
 
     // How get val,grad,hess of separator
     double F = 0.0;
     PUImplicitSurface::implicitSeparator(x, centroids[i], &separators[i], &F);
-
     // Now calculate F_sum, grad_product_sum, and hess_product_sum
     F_sum += weight * F;
   }
@@ -358,11 +355,11 @@ std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
   for (int i = 0; i < Npartitions; i++) {
     if (signs[i] == 0 || signs[i + 1] == 0) {  // At least one root
       if (signs[i] == 0) {
-        std::cout << "Zero Intersection Found" << std::endl;
+        // std::cout << "Zero Intersection Found" << std::endl;
         intersections.push_back(sampleLocations[i]);
       }
       if (signs[i + 1] == 0 && i + 1 == Npartitions) {
-        std::cout << "Zero Intersection Found" << std::endl;
+        // std::cout << "Zero Intersection Found" << std::endl;
         intersections.push_back(sampleLocations[i + 1]);
       }
     } else if (signs[i] != signs[i + 1]) {  // Different signs, root somewhere
@@ -383,11 +380,8 @@ std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
       // Apply Bisection Method
       for (int j = 0; j < max_iters; j++) {  // Do until you reach max iters
         midX = 0.5 * (upperX + lowerX);
-        std::cout << "Current Point = " << midX[0] << "," << midX[1] << ","
-                  << midX[2] << std::endl;
         this->evaluate(midX, &midVal);
-        std::cout << "Current Val = " << midVal << std::endl;
-        if (midVal < tol) {
+        if (std::abs(midVal) < tol) {
           break;
         } else if (midVal > 0.0) {
           upperX = midX;
@@ -438,9 +432,9 @@ template <class CellType>
 PUST<CellType>::PUST(void) {}
 
 template <class CellType>
-PUST<CellType>::PUST(const PUSTNeighborhood<CellType> stencil_)
-    : stencil_m(stencil_) {
-  this->surface_m = this->neighborhoodToImplicitSurface(5.0);
+PUST<CellType>::PUST(PUSTNeighborhood<CellType> stencil_) {
+  this->stencil_m = stencil_;
+  // this->surface_m = this->neighborhoodToImplicitSurface(5.0);
 }
 
 template <class CellType>
@@ -478,59 +472,9 @@ Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1) {
 }
 
 template <class CellType>
-std::vector<double> PUST<CellType>::solve(double STCoeff, int direction) {
-  if constexpr (std::is_same_v<CellType, RectangularCuboid>) {
-    // Direction should be 0 for x, 1 for y
-
-    // First, Make the Implicit Edge
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
-
-    // Below Here is the Intersection
-    Pt P0, P1;
-    std::vector<Pt> inters;
-
-    CellType c = stencil_m.getCenterCell();  // Should be an x cell or a y cell
-    Pt BL = c.getLowerLimits();
-    Pt TR = c.getUpperLimits();
-    std::cout << "Lower Point: " << BL[0] << "," << BL[1] << "," << BL[2]
-              << "\n";
-    std::cout << "Upper Point: " << TR[0] << "," << TR[1] << "," << TR[2]
-              << "\n";
-    Pt BR = Pt(TR[0], BL[1], TR[2]);
-    Pt TL = Pt(BL[0], TR[1], BL[2]);
-    std::vector<Pt> poly = {BR, TR, TL, BL, BR};
-
-    Normal tangent;
-    std::vector<double> surfaceTensionComponents = {0, 0, 0, 0};
-    // sigma_xx_i, sigma_xy_j+1/2, sigma_xx_i-1, sigma_xy_j-1/2 for x cell
-    // sigma_yx,i+1/2, sigma_yy_j, sigma_yx_i-1/2, sigma_yy_j-1 for y cell
-    // Assume proper cell is set as center cell.
-
-    double D;
-    Pt dP;
-    for (int i = 0; i < poly.size() - 1; i++) {
-      P0 = poly[i];
-      P1 = poly[i + 1];
-      inters = s.intersectEdge(P0, P1, 10);
-      dP = P1 - P0;
-      D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1]);
-
-      if (inters.size() > 0) {
-        for (int j = 0; j < inters.size(); j++) {
-          tangent = s.getTangent(inters[j]);
-
-          surfaceTensionComponents[i] += STCoeff * tangent[direction] / D;
-        }
-      }
-    }
-
-    return surfaceTensionComponents;
-  } else {
-    throw std::invalid_argument(
-        "Solve Failure: CellType not RectangularCuboid");
-  }
+void PUST<CellType>::setNeighborhood(PUSTNeighborhood<CellType> stencil_) {
+  stencil_m = stencil_;
 }
-
 }  // End Namespace IRL
 
 #endif
