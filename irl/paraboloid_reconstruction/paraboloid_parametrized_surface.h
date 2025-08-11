@@ -33,6 +33,7 @@
 #endif
 
 #include "irl/geometry/general/normal.h"
+#include "irl/moments/general_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/quadratic_reconstruction/coons_patch.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
@@ -93,6 +94,9 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
           Eigen::Integrator<double, 2>::GaussKronrod15,
       const int npts = 75);
+
+  template <std::size_t ORDER>
+  inline GeneralMoments3D<ORDER> getSurfaceMoments(void);
 
   MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
   MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);
