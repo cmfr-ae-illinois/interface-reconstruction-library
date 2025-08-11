@@ -1,7 +1,7 @@
 !  This file is part of the Interface Reconstruction Library (IRL),
 !  a library for interface reconstruction and computational geometry operations.
 !
-!  Copyright (C) 2019 Robert Chiodi <robert.chiodi@gmail.com>
+!  Copyright (C) 2025 Ilia Kheirkhah <iliak2@illinois.edu>
 !
 !  This Source Code Form is subject to the terms of the Mozilla Public
 !  License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -16,68 +16,133 @@
 ! results are then printed to screen for comparison.
 program main
   use irl_fortran_interface
+  use f_PUSTNeigh_RectCub_class
+  use f_SeparatorVariant_class
+  use f_PUSolve_RectCub_class
   implicit none
   integer, parameter :: DP = kind(1.0d0)
-  real(DP), dimension(1:3,1:8) :: cube_pts
-  type(SepVM_type) :: phase_moments
-  type(RectCub_type) :: cube
-  type(PlanarSep_type) :: planar_separator
+  
+  ! Declar Centroids
+  real(DP), dimension(1:3) :: cen1,cen2,cen3,cen4,cen5,nor1,nor2,nor3,nor4,nor5
+  real(DP), dimension(1:3) :: startPoint,endPoint,force
+  real(DP) :: d1,d2,d3,d4,d5,stc
+  type(SeparatorVariant_type) :: plane1,plane2,plane3,plane4,plane5
+  ! First make a Neighborhood
+  type(PUSTNeigh_RectCub_type) :: neighborhood
+  ! Now the solver object
+  type(PUST_RectCub_type) :: solver
 
-  real(DP), dimension(3) :: plane_normal
-  real(DP) :: plane_distance
+  ! Define Planar Separators
+  ! Centroids
+  write(*,'(A)') 'Centroids Making'
+  cen1 = (/0.5_DP,2.4495097568_DP,0.0_DP /)
+  cen2 = (/1.76776695297_DP,1.76776695297_DP,0.0_DP/)
+  cen3 = (/1.26289662285_DP,2.15773797371_DP,0.0_DP/)
+  cen4 = (/2.4495097568_DP,0.5_DP,0.0_DP/)
+  cen5 = (/2.15773797371_DP,1.26289662285_DP,0.0_DP/)
+  ! Normals
+  write(*,'(A)') 'Normals Making'
+  nor1 = (/0.196116135138_DP,0.980580675691_DP,0.0_DP/)
+  nor2 = (/0.707106781187_DP,0.707106781187_DP,0.0_DP/)
+  nor3 = (/0.514495755428_DP,0.857492925713_DP,0.0_DP/)
+  nor4 = (/0.980580675691_DP,0.196116135138_DP,0.0_DP/)
+  nor5 = (/0.857492925713_DP,0.514495755428_DP,0.0_DP/)
+  ! Calculate Distances
+  write(*,'(A)') 'Distances Making'
+  d1 = nor1(1)*cen1(1) + nor1(2)*cen1(2) + nor1(3)*cen1(3)
+  d2 = nor2(1)*cen2(1) + nor2(2)*cen2(2) + nor2(3)*cen2(3)
+  d3 = nor3(1)*cen3(1) + nor3(2)*cen3(2) + nor3(3)*cen3(3)
+  d4 = nor4(1)*cen4(1) + nor4(2)*cen4(2) + nor4(3)*cen4(3)
+  d5 = nor5(1)*cen5(1) + nor5(2)*cen5(2) + nor5(3)*cen5(3)
 
-  ! Define unit-cubic cell
-  cube_pts(1:3, 1) = (/ 0.5_DP, -0.5_DP, -0.5_DP/)
-  cube_pts(1:3, 2) = (/ 0.5_DP,  0.5_DP, -0.5_DP/)
-  cube_pts(1:3, 3) = (/ 0.5_DP,  0.5_DP,  0.5_DP/)
-  cube_pts(1:3, 4) = (/ 0.5_DP, -0.5_DP,  0.5_DP/)
-  cube_pts(1:3, 5) = (/-0.5_DP, -0.5_DP, -0.5_DP/)
-  cube_pts(1:3, 6) = (/-0.5_DP,  0.5_DP, -0.5_DP/)
-  cube_pts(1:3, 7) = (/-0.5_DP,  0.5_DP,  0.5_DP/)
-  cube_pts(1:3, 8) = (/-0.5_DP, -0.5_DP,  0.5_DP/)
+  ! Make Separator Variants from normal and distance
+  write(*,'(A)') 'Making Planes'
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor1,d1)
 
-  ! Define unit-cubic cell using IRL RectangularCuboid class
-  call new(cube)
-  call construct(cube,cube_pts)
+  call new(plane2)
+  call setNumberOfPlanes(plane2,1)
+  call setPlane(plane2, 0, nor2,d2)
 
-  ! Construct the PlanarSeparator object in IRL.
-  call new(planar_separator)
+  call new(plane3)
+  call setNumberOfPlanes(plane3,1)
+  call setPlane(plane3, 0, nor3,d3)
 
-  ! Define interface reconstruction representing a x-z sheet
-  ! centered -0.25 from cell center
-  plane_normal = (/0.0_DP, 1.0_DP,0.0_DP/)
-  plane_distance = -0.2_DP
-  call addPlane(planar_separator,plane_normal,plane_distance)
-  plane_normal = (/0.0_DP, -1.0_DP,0.0_DP/)
-  plane_distance = 0.3_DP
-  call addPlane(planar_separator,plane_normal,plane_distance)
+  call new(plane4)
+  call setNumberOfPlanes(plane4,1)
+  call setPlane(plane4, 0, nor4,d4)
 
-  ! getNormalizedVolumeMoments is the main work horse of IRL.
-  ! In general, it is capable of intersecting a
-  ! polygon or polyhedron by a set of planes to return
-  ! moments of the intersection between the polygon/polyhedron
-  ! and the half-spaces of the planes.
-  call new(phase_moments)
-  call getNormMoments(cube, planar_separator, phase_moments)
+  call new(plane5)
+  call setNumberOfPlanes(plane5,1)
+  call setPlane(plane5, 0, nor5,d5)
+  
+  ! Now, add Separators to Neighborhood
+  write(*,'(A)') 'Making Neighborhood'
+  call new(neighborhood)
+  call addMember(neighborhood,cen1,plane1)
+  call addMember(neighborhood,cen2,plane2)
+  call addMember(neighborhood,cen3,plane3)
+  call addMember(neighborhood,cen4,plane4)
+  call addMember(neighborhood,cen5,plane5)
 
-  ! Print out the computed results.
-  ! The phase moments are stored as internal to the PlanarSeparator (0)
-  ! and external to the PlanarSeparator (1)
+  ! Now that everything is in the neighborhood, make the solver object and put the neighborhood in.
+  write(*,'(A)') 'Making Solver'
+  call new(solver)
+  call setNeighborhood(solver,neighborhood)
+  stc = 1.0_DP
+
   write(*,'(A)')
-  write(*,'(A)') 'Comparison between expected and computed results'
-  write(*,'(A)') '================================================'
-  write(*,'(A)') 'Volume between planes '
-  write(*,'(A,F10.5)')  '   Expected: ', 0.1_DP
-  write(*,'(A,F10.5)')  '   Computed: ',getVolume(phase_moments,0)
-  write(*,'(A)') 'Centroid for volume between planes '
-  write(*,'(A,3F10.5)') '   Expected: ', 0.0_DP, -0.25_DP, 0.0_DP
-  write(*,'(A,3F10.5)') '   Computed: ',getCentroid(phase_moments,0)
-  write(*,'(A)') 'Volume outside of planes '
-  write(*,'(A,F10.5)')  '   Expected: ', 0.9_DP
-  write(*,'(A,F10.5)')  '   Computed: ',getVolume(phase_moments,1)
-  write(*,'(A)') 'Centroid for volume outside of planes '
-  write(*,'(A,3F10.5)') '   Expected: ', 0.0_DP, -(0.1_DP*(-0.25_DP))/0.9_DP, 0.0_DP
-  write(*,'(A,3F10.5)') '   Computed: ',getCentroid(phase_moments,1)
-  write(*,'(A)')
+  write(*,'(A)') '============= RESULTS ============='
+  ! The test ran is a quarter circle of radius 2.5. The intersection edge at x=0, between y=2 and y=3.
+  ! The Points are calculated going form y=3 to y=2 to maintain counter-clockwise orientation.
+  startPoint = (/0.0_DP,3.0_DP,0.0_DP/)
+  endPoint = (/0.0_DP,2.0_DP,0.0_DP/)
+  force = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,force)
+  write(*,'(A)') 'Quarter-Circle Force 1 Test' 
+  write(*,'(A,3F10.5)') '> Expected: ', -0.961249020086_DP, 0.275681557931_DP, 0.0_DP
+  write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
+
+  startPoint = (/1.0_DP,3.0_DP,0.0_DP/)
+  endPoint = (/1.0_DP,2.0_DP,0.0_DP/)
+  force = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,force)
+  write(*,'(A)') 'Quarter-Circle Force 2 Test' 
+  write(*,'(A,3F10.5)') '> Expected: ', -0.880916212182_DP, 0.473272254748_DP, 0.0_DP
+  write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
+
+  startPoint = (/2.0_DP,2.0_DP,0.0_DP/)
+  endPoint = (/1.0_DP,2.0_DP,0.0_DP/)
+  force = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,force)
+  write(*,'(A)') 'Quarter-Circle Force 3 Test' 
+  write(*,'(A,3F10.5)') '> Expected: ', -0.739254963695_DP, 0.673425644487_DP, 0.0_DP
+  write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
+
+  startPoint = (/2.0_DP,2.0_DP,0.0_DP/)
+  endPoint = (/2.0_DP,1.0_DP,0.0_DP/)
+  force = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,force)
+  write(*,'(A)') 'Quarter-Circle Force 4 Test' 
+  write(*,'(A,3F10.5)') '> Expected: ', -0.673425644487_DP, 0.739254963695_DP, 0.0_DP
+  write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
+
+  startPoint = (/3.0_DP,1.0_DP,0.0_DP/)
+  endPoint = (/2.0_DP,1.0_DP,0.0_DP/)
+  force = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,force)
+  write(*,'(A)') 'Quarter-Circle Force 5 Test' 
+  write(*,'(A,3F10.5)') '> Expected: ', -0.473272254748_DP, 0.880916212182_DP, 0.0_DP
+  write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
+
+  startPoint = (/3.0_DP,0.0_DP,0.0_DP/)
+  endPoint = (/2.0_DP,0.0_DP,0.0_DP/)
+  force = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,force)
+  write(*,'(A)') 'Quarter-Circle Force 6 Test' 
+  write(*,'(A,3F10.5)') '> Expected: ', -0.275681557931_DP, 0.961249020086_DP, 0.0_DP
+  write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
+
 
 end program main

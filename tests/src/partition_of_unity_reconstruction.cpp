@@ -183,6 +183,114 @@ TEST(Wendland, WendlandTests) {
   SUCCEED();
 }
 
+TEST(PartitionOfUnityImplicitSurface, Test) {
+  std::vector<IRL::Pt> centroids;
+  std::vector<IRL::SeparatorVariant> variantSeps;
+  double delta = 5.0;
+
+  // Construct a Plane
+  IRL::Normal nor(1.0, 0.0, 0.0);  // Vertical Plane
+  IRL::Plane plane = IRL::Plane(nor, 0.0);
+  IRL::PlanarSeparator sep = IRL::PlanarSeparator::fromOnePlane(plane);
+  variantSeps.push_back(sep);
+  variantSeps.push_back(sep);
+  variantSeps.push_back(sep);
+
+  // Construct an Implicit Surface out of 3 Planes that are the same.
+  IRL::Pt p0(0, 0, 0);
+  IRL::Pt p1(0, 2, 0);
+  IRL::Pt p2(0, -1, 0);
+  centroids.push_back(p0);
+  centroids.push_back(p1);
+  centroids.push_back(p2);
+
+  IRL::PUImplicitSurface planarSurface(centroids, variantSeps, delta);
+
+  // Test Evaluate method, which in turn tests the implicitSeparator methods
+  double res1;
+  std::pair<double, Eigen::Vector3d> res2;
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> res3;
+
+  IRL::Pt x1(0, 0, 0);
+  IRL::Pt x2(1, 1, 0);
+  // Value
+  planarSurface.evaluate(x1, &res1);
+  EXPECT_NEAR(res1, 0.0, std::numeric_limits<double>::epsilon())
+      << "Function Value on Planar Separator is Nonzero";
+  planarSurface.evaluate(x2, &res1);
+  EXPECT_NEAR(res1, 1.0, std::numeric_limits<double>::epsilon())
+      << "Function Value off Planar Separator is Wrong";
+
+  // Gradient
+  Eigen::Vector3d expectedGrad(1.0, 0.0, 0.0);
+  planarSurface.evaluate(x1, &res2);
+  Eigen::Vector3d grad = std::get<1>(res2);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(grad(i), expectedGrad(i),
+                std::numeric_limits<double>::epsilon())
+        << "Function Value on Planar Separator is Wrong";
+  }
+
+  planarSurface.evaluate(x2, &res2);
+  grad = std::get<1>(res2);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(grad(i), expectedGrad(i),
+                std::numeric_limits<double>::epsilon())
+        << "Function Gradient off Planar Separator is Wrong";
+  }
+
+  // Hessian
+  Eigen::Matrix3d expectedHessian = Eigen::Matrix3d::Zero();
+  planarSurface.evaluate(x1, &res3);
+  Eigen::Matrix3d hess = std::get<2>(res3);
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_NEAR(hess(i), expectedHessian(i),
+                  std::numeric_limits<double>::epsilon())
+          << "Function Hessian on Planar Separator is Wrong";
+    }
+  }
+
+  planarSurface.evaluate(x2, &res3);
+  hess = std::get<2>(res3);
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_NEAR(hess(i), expectedHessian(i),
+                  std::numeric_limits<double>::epsilon())
+          << "Function Hessian on Planar Separator is Wrong";
+    }
+  }
+  // Intersect Edge Test
+  IRL::Pt x0e(-1, 1, 0);
+  IRL::Pt x1e(2, 0, 0);
+  IRL::Pt expectedIntersection(0, 2.0 / 3.0, 0);
+  std::vector<IRL::Pt> intersections =
+      planarSurface.intersectEdge(x0e, x1e, 10);
+  EXPECT_EQ(intersections.size(), 1)
+      << "Wrong Number of Planar Surface Intersections Found";
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(intersections[0][i], expectedIntersection[i], 1e-11)
+        << "Planar Intersection Index " << i << " Wrong";
+  }
+
+  // Paraboloid Implicit Testing
+  // Construct a Probaboloid
+  variantSeps.clear();
+  IRL::Normal e0(1, 0, 0);
+  IRL::Normal e1(0, 1, 0);
+  IRL::Normal e2(0, 0, 1);
+  IRL::ReferenceFrame refFrame(e0, e1, e2);
+  double a = 1;
+  double b = 0;
+  IRL::Pt datum(1, 0, 0);
+  IRL::Paraboloid para = IRL::Paraboloid(datum, refFrame, a, b);
+  variantSeps.push_back(para);
+  variantSeps.push_back(para);
+  variantSeps.push_back(para);
+
+  SUCCEED();
+}
+
 TEST(PUReconstruction, Test1) {
   const int nlayers = 2;
   const int ncells = (1 + 2 * nlayers) * (1 + 2 * nlayers);
@@ -242,9 +350,120 @@ TEST(PUReconstruction, Test1) {
   }
 
   std::cout << neighborhood.size() << "\n";
-  const auto centerCell = cells[0];
-  neighborhood.setCenterCell(&centerCell);
+  // Now that we have neighborhood, print out normals and centroids to use for
+  // some analytical stuffs
+  for (int i = 0; i < neighborhood.size(); ++i) {
+    auto cent = neighborhood.getCentroid(i);
+    auto separatorPtr =
+        std::get_if<PlanarSeparator>(&(neighborhood.getSeparator(i)));
+    PlanarSeparator sep = *separatorPtr;
+    auto plane0 = sep[0];
+    auto normal = plane0.normal();
+    std::cout << "---------------- i = " << i << "\n";
+    std::cout << "Centroid = (" << cent[0] << "," << cent[1] << "," << cent[2]
+              << ")\n";
+    std::cout << "Normal = (" << normal[0] << "," << normal[1] << "," << cent[2]
+              << ")\n";
+  }
+  // Calculate Intersections
+  IRL::Pt x1(0, 2, 0);
+  IRL::Pt x0(0, 3, 0);
+  PUST solver(neighborhood);
+  PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
+  std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10);
+  EXPECT_EQ(inters.size(), 1) << "Wrong Number of Intersections Found";
+  std::cout << "INTERSECTIONS " << inters.size() << "\n";
+  std::cout << "(" << inters[0][0] << "," << inters[0][1] << "," << inters[0][2]
+            << ")\n";
+  // Order goes x=0,x=1,y=2,x=2,y=1,y=0
+  // Intersection Points, by hand
+  IRL::Pt inter1Expected(0, 2.93192553235, 0);
+  IRL::Pt inter2Expected(1, 2.53478876547624, 0);
+  IRL::Pt inter3Expected(1.7590388618752, 2, 0);
+  IRL::Pt inter4Expected(2, 1.7590388618752, 0);
+  IRL::Pt inter5Expected(2.53478876547624, 1, 0);
+  IRL::Pt inter6Expected(2.93192553235, 0, 0);
+  std::vector<IRL::Pt> intersSet = {inter1Expected, inter2Expected,
+                                    inter3Expected, inter4Expected,
+                                    inter5Expected, inter6Expected};
 
+  // Gradients
+  Eigen::Vector3d grad1Expected(0.277899498135, 0.968982554617, 0);
+  Eigen::Vector3d grad2Expected(0.458376679255, 0.853190619123, 0);
+  Eigen::Vector3d grad3Expected(0.641841562767, 0.704583445946, 0);
+  Eigen::Vector3d grad4Expected(0.704583445946, 0.641841562767, 0);
+  Eigen::Vector3d grad5Expected(0.853190619123, 0.458376679255, 0);
+  Eigen::Vector3d grad6Expected(0.968982554617, 0.277899498135, 0);
+  std::vector<Eigen::Vector3d> gradSet = {grad1Expected, grad2Expected,
+                                          grad3Expected, grad4Expected,
+                                          grad5Expected, grad6Expected};
+
+  // Forces
+  IRL::Normal force1Expected(-0.968982554617, 0.277899498135, 0);
+  force1Expected.normalize();
+  IRL::Normal force2Expected(-0.853190619123, 0.458376679255, 0);
+  force2Expected.normalize();
+  IRL::Normal force3Expected(-0.704583445946, 0.641841562767, 0);
+  force3Expected.normalize();
+  IRL::Normal force4Expected(-0.641841562767, 0.704583445946, 0);
+  force4Expected.normalize();
+  IRL::Normal force5Expected(-0.458376679255, 0.853190619123, 0);
+  force5Expected.normalize();
+  IRL::Normal force6Expected(-0.277899498135, 0.968982554617, 0);
+  force6Expected.normalize();
+  std::vector<IRL::Normal> forceSet = {force1Expected, force2Expected,
+                                       force3Expected, force4Expected,
+                                       force5Expected, force6Expected};
+
+  // Net Force
+  IRL::Normal forceNetExpected(-0.685567462155, -0.685567462155, 0);
+  IRL::Normal forceNetCalc(0, 0, 0);
+
+  // Now that we can calculate everything using our methods.
+  std::vector<IRL::Pt> x0Set = {IRL::Pt(0, 3, 0), IRL::Pt(1, 3, 0),
+                                IRL::Pt(2, 2, 0), IRL::Pt(2, 2, 0),
+                                IRL::Pt(3, 1, 0), IRL::Pt(3, 0, 0)};
+  std::vector<IRL::Pt> x1Set = {IRL::Pt(0, 2, 0), IRL::Pt(1, 2, 0),
+                                IRL::Pt(1, 2, 0), IRL::Pt(2, 1, 0),
+                                IRL::Pt(2, 1, 0), IRL::Pt(2, 0, 0)};
+  for (int i = 0; i < x0Set.size(); i++) {  // Loop Over Edges and Solve
+    inters = semi.intersectEdge(x0Set[i], x1Set[i], 10);
+    // Check Intersection
+    EXPECT_EQ(inters.size(), 1)
+        << "Wrong Number of Intersections for Edge " << i;
+    for (int j = 0; j < 3; j++) {
+      EXPECT_NEAR(inters[0][j], intersSet[i][j], 1e-9)
+          << "Intersection " << i << " Index " << j << " Wrong";
+    }
+    // Check Gradient
+    std::pair<double, Eigen::Vector3d> retVal;
+    semi.evaluate(inters[0], &retVal);
+    Eigen::Vector3d tempGrad = std::get<1>(retVal);
+    for (int j = 0; j < 3; j++) {
+      EXPECT_NEAR(tempGrad[j], gradSet[i][j], 1e-9)
+          << "Gradient " << i << " Index " << j << " Wrong";
+    }
+    // Calculate Forces
+    IRL::Normal result = solver.solveEdge(1, x0Set[i], x1Set[i]);
+    for (int j = 0; j < 3; j++) {
+      EXPECT_NEAR(result[j], forceSet[i][j], 1e-9)
+          << "Force " << i << " Index " << j << " Wrong";
+    }
+    // Net Force Adding
+    if (i == 0) {
+      forceNetCalc = forceNetCalc + result;
+    }
+    if (i == 5) {
+      forceNetCalc = forceNetCalc + (-1 * result);
+    }
+  }
+  std::cout << "Net Force Calc = (";
+  for (int j = 0; j < 3; j++) {
+    EXPECT_NEAR(forceNetCalc[j], forceNetExpected[j], 1e-9)
+        << "Net Force Index " << j << " Wrong";
+    std::cout << forceNetCalc[j] << ",";
+  }
+  std::cout << ")\n";
   SUCCEED();
 }
 
