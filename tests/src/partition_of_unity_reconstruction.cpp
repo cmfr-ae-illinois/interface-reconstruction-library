@@ -336,10 +336,10 @@ TEST(PUReconstruction, Test1) {
 
       getIntersectionPts(polygon, xy_plane, &intersections);
       if (intersections.size() == 2) {
-        std::cout << "Start point for cell " << i << ", " << j << " = "
-                  << intersections[0] << std::endl;
-        std::cout << "  End point for cell " << i << ", " << j << " = "
-                  << intersections[1] << std::endl;
+        // std::cout << "Start point for cell " << i << ", " << j << " = "
+        //           << intersections[0] << std::endl;
+        // std::cout << "  End point for cell " << i << ", " << j << " = "
+        //           << intersections[1] << std::endl;
 
         Pt cen = (intersections[0] + intersections[1]) * 0.5;
         centroids.push_back(cen);
@@ -359,11 +359,6 @@ TEST(PUReconstruction, Test1) {
     PlanarSeparator sep = *separatorPtr;
     auto plane0 = sep[0];
     auto normal = plane0.normal();
-    std::cout << "---------------- i = " << i << "\n";
-    std::cout << "Centroid = (" << cent[0] << "," << cent[1] << "," << cent[2]
-              << ")\n";
-    std::cout << "Normal = (" << normal[0] << "," << normal[1] << "," << cent[2]
-              << ")\n";
   }
   // Calculate Intersections
   IRL::Pt x1(0, 2, 0);
@@ -372,9 +367,6 @@ TEST(PUReconstruction, Test1) {
   PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
   std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10);
   EXPECT_EQ(inters.size(), 1) << "Wrong Number of Intersections Found";
-  std::cout << "INTERSECTIONS " << inters.size() << "\n";
-  std::cout << "(" << inters[0][0] << "," << inters[0][1] << "," << inters[0][2]
-            << ")\n";
   // Order goes x=0,x=1,y=2,x=2,y=1,y=0
   // Intersection Points, by hand
   IRL::Pt inter1Expected(0, 2.93192553235, 0);
@@ -457,13 +449,10 @@ TEST(PUReconstruction, Test1) {
       forceNetCalc = forceNetCalc + (-1 * result);
     }
   }
-  std::cout << "Net Force Calc = (";
   for (int j = 0; j < 3; j++) {
     EXPECT_NEAR(forceNetCalc[j], forceNetExpected[j], 1e-9)
         << "Net Force Index " << j << " Wrong";
-    std::cout << forceNetCalc[j] << ",";
   }
-  std::cout << ")\n";
   SUCCEED();
 }
 
