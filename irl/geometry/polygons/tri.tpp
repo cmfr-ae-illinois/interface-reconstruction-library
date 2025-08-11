@@ -162,7 +162,7 @@ template <class Derived, class VertexType>
 Volume TriSpecialization<Derived, VertexType>::calculateAbsoluteVolume(
     void) const {
   return 0.5 * magnitude(crossProduct((*this)[1] - (*this)[0],
-		  	  	  	  	  	  	  	  (*this)[2] - (*this)[0]));
+                                      (*this)[2] - (*this)[0]));
 }
 
 template <class VertexType>
@@ -182,4 +182,4 @@ StoredTri<VertexType>& StoredTri<VertexType>::operator=(
 
 }  // namespace IRL
 
-#endif // IRL_GEOMETRY_POLYGONS_TRI_TPP_
+#endif  // IRL_GEOMETRY_POLYGONS_TRI_TPP_

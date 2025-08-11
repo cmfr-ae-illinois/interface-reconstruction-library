@@ -54,6 +54,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/generic_cutting/cylinder_intersecti
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/generic_cutting/cylinder_intersection/cylinder_intersection_amr.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/generic_cutting/quadratic_intersection/surface_output.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/generic_cutting/quadratic_intersection/surface_output.h)
-
-
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/generic_cutting/implicit_surface_cutting/cut_implicit_surface.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/generic_cutting/implicit_surface_cutting/cut_implicit_surface.tpp)
 

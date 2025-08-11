@@ -58,6 +58,25 @@ class GeneralMoments3D_Functor {
   Pt datum_m;
 };
 
+template <UnsignedIndex_t ORDER>
+class GeneralSurfaceMoments3D_Functor {
+ public:
+  using ReturnType = GeneralMoments3D<ORDER>;
+
+  static constexpr std::size_t linear_length = ReturnType::linear_length;
+
+  GeneralSurfaceMoments3D_Functor(void) : moments_m() {}
+
+  template <class SimplexType>
+  inline void operator()(const SimplexType& a_simplex);
+
+  inline ReturnType getMoments(void) const;
+
+ private:
+  using mom_array = std::array<double, linear_length>;
+  mom_array moments_m;
+};
+
 class Volume3D_Functor {
  public:
   using ReturnType = Volume;
