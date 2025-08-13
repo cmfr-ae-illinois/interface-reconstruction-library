@@ -8,12 +8,11 @@
 !  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
   
-! In this example a RectangularCuboid
-! is cut by a two-plane PlanarSeparator that
-! divides the RectangularCuboid into volumes internal
-! and external to the separator.
-! The computed results compared to the correct
-! results are then printed to screen for comparison.
+! In this example a quarter circle of radius 2.5
+! is created using PLIC segments. These are then blended into
+! an implicit surface by a Partition of Unity, which is then 
+! used to calculate the forces on various edges. 
+! Results are printed and verified.
 program main
   use irl_fortran_interface
   use f_PUSTNeigh_RectCub_class

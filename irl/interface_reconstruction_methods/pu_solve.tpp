@@ -455,7 +455,7 @@ Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1) {
   // Calculate some edge properties
   Pt dP = P1 - P0;
   double D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1]);
-  double denom = 1 / (safelyEpsilon(D));
+  double denom = 1.0 / (safelyEpsilon(D));
   // Give space for working variables
   Normal tangent;
   Normal total = {0.0, 0.0, 0.0};  // Total force

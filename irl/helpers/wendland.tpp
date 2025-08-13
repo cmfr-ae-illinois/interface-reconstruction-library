@@ -19,7 +19,7 @@ double Wendland::computeR(Pt xi, Pt x_eval) {
 
 double Wendland::eval(double r, double delta) {
   double rhat = r / delta;
-  if (rhat <= 1) {
+  if (rhat <= 1.0) {
     return (4.0 * rhat + 1.0) * (1.0 - rhat) * (1.0 - rhat) * (1.0 - rhat) *
            (1.0 - rhat);
   } else {
