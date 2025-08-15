@@ -944,41 +944,100 @@ inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
   return result;
 }
 
+// template <std::size_t ORDER>
+// inline GeneralSurfaceMoments3D<ORDER>
+// ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
+//   static_assert(ORDER >= 0 && ORDER <= 2,
+//                 "ONLY ORDER = 0, 1, or 2 supported for paraboloids");
+//   GeneralSurfaceMoments3D<ORDER> moments;
+
+//   const auto& a = this->getParaboloid().getAlignedParaboloid().a();
+//   const auto& b = this->getParaboloid().getAlignedParaboloid().b();
+//   const auto& datum = this->getParaboloid().getDatum();
+//   const auto& ref_frame = this->getParaboloid().getReferenceFrame();
+
+//   const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
+//   const Eigen::Matrix<double, 3, 3> R{
+//       {ref_frame[0][0], ref_frame[1][0], ref_frame[2][0]},
+//       {ref_frame[0][1], ref_frame[1][1], ref_frame[2][1]},
+//       {ref_frame[0][2], ref_frame[1][2], ref_frame[2][2]}};
+
+//   auto z = [a, b](const Pt& p) { return -a * p[0] * p[0] - b * p[1] * p[1];
+//   };
+
+//   const double M0 = this->getIntegrator([](const Pt&) { return 1.0; });
+//   moments[0] = M0;
+//   if constexpr (ORDER == 0) return moments;
+
+//   const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; });
+//   const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; });
+//   const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); });
+
+//   const Eigen::Matrix<double, 3, 1> M1prime{M1x, M1y, M1z};
+//   const Eigen::Matrix<double, 3, 1> M1 = R * M1prime + M0 * D;
+
+//   moments[1] = M1[0];
+//   moments[2] = M1[1];
+//   moments[3] = M1[2];
+//   if constexpr (ORDER == 1) return moments;
+
+//   const double Mxx =
+//       this->getIntegrator([](const Pt& p) { return p[0] * p[0]; });
+//   const double Mxy =
+//       this->getIntegrator([](const Pt& p) { return p[0] * p[1]; });
+//   const double Mxz =
+//       this->getIntegrator([&](const Pt& p) { return p[0] * z(p); });
+//   const double Myy =
+//       this->getIntegrator([](const Pt& p) { return p[1] * p[1]; });
+//   const double Myz =
+//       this->getIntegrator([&](const Pt& p) { return p[1] * z(p); });
+//   const double Mzz =
+//       this->getIntegrator([&](const Pt& p) { return z(p) * z(p); });
+
+//   const Eigen::Matrix<double, 3, 3> M2prime{
+//       {Mxx, Mxy, Mxz}, {Mxy, Myy, Myz}, {Mxz, Myz, Mzz}};
+
+//   const Eigen::Matrix<double, 3, 3> M2 =
+//       R * M2prime * R.transpose() + R * (M1prime * D.transpose()) +
+//       (D * M1prime.transpose()) * R.transpose() + M0 * (D * D.transpose());
+
+//   moments[4] = M2(0, 0);
+//   moments[5] = M2(0, 1);
+//   moments[6] = M2(0, 2);
+//   moments[7] = M2(1, 1);
+//   moments[8] = M2(1, 2);
+//   moments[9] = M2(2, 2);
+//   return moments;
+// }
+
 template <std::size_t ORDER>
-inline GeneralMoments3D<ORDER>
+inline GeneralSurfaceMoments3D<ORDER>
 ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
   static_assert(ORDER >= 0 && ORDER <= 2,
                 "ONLY ORDER = 0, 1, or 2 supported for paraboloids");
-  GeneralMoments3D<ORDER> moments;
+  GeneralSurfaceMoments3D<ORDER> moments;
 
   const auto& a = this->getParaboloid().getAlignedParaboloid().a();
   const auto& b = this->getParaboloid().getAlignedParaboloid().b();
   const auto& datum = this->getParaboloid().getDatum();
   const auto& ref_frame = this->getParaboloid().getReferenceFrame();
 
-  const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
-  const Eigen::Matrix<double, 3, 3> R{
-      {ref_frame[0][0], ref_frame[1][0], ref_frame[2][0]},
-      {ref_frame[0][1], ref_frame[1][1], ref_frame[2][1]},
-      {ref_frame[0][2], ref_frame[1][2], ref_frame[2][2]}};
-
   auto z = [a, b](const Pt& p) { return -a * p[0] * p[0] - b * p[1] * p[1]; };
 
   const double M0 = this->getIntegrator([](const Pt&) { return 1.0; });
   moments[0] = M0;
+
   if constexpr (ORDER == 0) return moments;
 
   const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; });
   const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; });
   const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); });
+  moments[1] = M1x;
+  moments[2] = M1y;
+  moments[3] = M1z;
 
-  const Eigen::Matrix<double, 3, 1> M1prime{M1x, M1y, M1z};
-  const Eigen::Matrix<double, 3, 1> M1 = R * M1prime + M0 * D;
-
-  moments[1] = M1[0];
-  moments[2] = M1[1];
-  moments[3] = M1[2];
-  if constexpr (ORDER == 1) return moments;
+  if constexpr (ORDER == 1)
+    return (moments.moveAndRotateMoments(datum, ref_frame));
 
   const double Mxx =
       this->getIntegrator([](const Pt& p) { return p[0] * p[0]; });
@@ -992,20 +1051,14 @@ ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
       this->getIntegrator([&](const Pt& p) { return p[1] * z(p); });
   const double Mzz =
       this->getIntegrator([&](const Pt& p) { return z(p) * z(p); });
+  moments[4] = Mxx;
+  moments[5] = Mxy;
+  moments[6] = Mxz;
+  moments[7] = Myy;
+  moments[8] = Myz;
+  moments[9] = Mzz;
+  moments.moveAndRotateMoments(datum, ref_frame);
 
-  const Eigen::Matrix<double, 3, 3> M2prime{
-      {Mxx, Mxy, Mxz}, {Mxy, Myy, Myz}, {Mxz, Myz, Mzz}};
-
-  const Eigen::Matrix<double, 3, 3> M2 =
-      R * M2prime * R.transpose() + R * (M1prime * D.transpose()) +
-      (D * M1prime.transpose()) * R.transpose() + M0 * (D * D.transpose());
-
-  moments[4] = M2(0, 0);
-  moments[5] = M2(0, 1);
-  moments[6] = M2(0, 2);
-  moments[7] = M2(1, 1);
-  moments[8] = M2(1, 2);
-  moments[9] = M2(2, 2);
   return moments;
 }
 
