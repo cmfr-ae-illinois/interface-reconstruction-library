@@ -189,12 +189,12 @@ class SeparatedMoments<Volume>
   explicit SeparatedMoments(const double* a_list);
 };
 
-template <std::size_t ORDER>
-class SeparatedMoments<GeneralMoments3D<ORDER>>
-    : public SeparatedMomentsCommon<SeparatedMoments<GeneralMoments3D<ORDER>>,
-                                    GeneralMoments3D<ORDER>> {
-  using SelfType = SeparatedMoments<GeneralMoments3D<ORDER>>;
-  using MomentsType = GeneralMoments3D<ORDER>;
+template <>
+class SeparatedMoments<GeneralMoments3D<2>>
+    : public SeparatedMomentsCommon<SeparatedMoments<GeneralMoments3D<2>>,
+                                    GeneralMoments3D<2>> {
+  using SelfType = SeparatedMoments<GeneralMoments3D<2>>;
+  using MomentsType = GeneralMoments3D<2>;
 
   friend SeparatedMomentsCommon<SelfType, MomentsType>;
 

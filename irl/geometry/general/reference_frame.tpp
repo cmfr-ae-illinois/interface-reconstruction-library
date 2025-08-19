@@ -12,22 +12,99 @@
 
 namespace IRL {
 
-inline ReferenceFrame::ReferenceFrame(const Normal& a_axis_0,
-                                      const Normal& a_axis_1,
-                                      const Normal& a_axis_2)
+template <class ScalarType>
+inline ReferenceFrameBase<ScalarType>::ReferenceFrameBase(
+    const NormalBase<ScalarType>& a_axis_0,
+    const NormalBase<ScalarType>& a_axis_1,
+    const NormalBase<ScalarType>& a_axis_2)
     : axis_m{a_axis_0, a_axis_1, a_axis_2} {}
 
-inline Normal& ReferenceFrame::operator[](const UnsignedIndex_t a_axis) {
+template <class ScalarType>
+inline ReferenceFrameBase<ScalarType>
+ReferenceFrameBase<ScalarType>::fromNormal(
+    const NormalBase<ScalarType>& a_normal) {
+  ReferenceFrame frame;
+  UnsignedIndex_t largest_dir = 0;
+  if (fabs(a_normal[largest_dir]) < fabs(a_normal[1])) largest_dir = 1;
+  if (fabs(a_normal[largest_dir]) < fabs(a_normal[2])) largest_dir = 2;
+  if (largest_dir == 0)
+    frame[0] = crossProduct(a_normal, NormalBase<ScalarType>(0, 1, 0));
+  else if (largest_dir == 1)
+    frame[0] = crossProduct(a_normal, NormalBase<ScalarType>(0, 0, 1));
+  else
+    frame[0] = crossProduct(a_normal, NormalBase<ScalarType>(1, 0, 0));
+  frame[0].normalize();
+  frame[1] = crossProduct(a_normal, frame[0]);
+  frame[2] = a_normal;
+  return frame;
+}
+
+template <class ScalarType>
+inline NormalBase<ScalarType>& ReferenceFrameBase<ScalarType>::operator[](
+    const UnsignedIndex_t a_axis) {
   assert(a_axis < 3);
   return axis_m[a_axis];
 }
 
-inline const Normal& ReferenceFrame::operator[](
+template <class ScalarType>
+inline const NormalBase<ScalarType>& ReferenceFrameBase<ScalarType>::operator[](
     const UnsignedIndex_t a_axis) const {
   assert(a_axis < 3);
   return axis_m[a_axis];
 }
 
+template <class ScalarType>
+inline bool ReferenceFrameBase<ScalarType>::isOrthonormalBasis(void) const {
+  static constexpr ScalarType TOLERANCE =
+      static_cast<ScalarType>(10.0 * DBL_EPSILON);
+  if (fabs(axis_m[0] * axis_m[1]) > TOLERANCE) {
+    return false;
+  }
+  if (fabs(axis_m[0] * axis_m[2]) > TOLERANCE) {
+    return false;
+  }
+  if (fabs(axis_m[1] * axis_m[2]) > TOLERANCE) {
+    return false;
+  }
+  return true;
+}
+
+template <class ScalarType>
+inline typename ReferenceFrameBase<ScalarType>::iterator
+ReferenceFrameBase<ScalarType>::begin(void) noexcept {
+  return axis_m.begin();
+}
+
+template <class ScalarType>
+inline typename ReferenceFrameBase<ScalarType>::const_iterator
+ReferenceFrameBase<ScalarType>::begin(void) const noexcept {
+  return this->cbegin();
+}
+
+template <class ScalarType>
+inline typename ReferenceFrameBase<ScalarType>::const_iterator
+ReferenceFrameBase<ScalarType>::cbegin(void) const noexcept {
+  return axis_m.cbegin();
+}
+
+template <class ScalarType>
+inline typename ReferenceFrameBase<ScalarType>::iterator
+ReferenceFrameBase<ScalarType>::end(void) noexcept {
+  return axis_m.end();
+}
+
+template <class ScalarType>
+inline typename ReferenceFrameBase<ScalarType>::const_iterator
+ReferenceFrameBase<ScalarType>::end(void) const noexcept {
+  return this->cend();
+}
+
+template <class ScalarType>
+inline typename ReferenceFrameBase<ScalarType>::const_iterator
+ReferenceFrameBase<ScalarType>::cend(void) const noexcept {
+  return axis_m.cend();
+}
+
 }  // namespace IRL
 
-#endif // IRL_GEOMETRY_GENERAL_REFERENCE_FRAME_TPP_
+#endif  // IRL_GEOMETRY_GENERAL_REFERENCE_FRAME_TPP_

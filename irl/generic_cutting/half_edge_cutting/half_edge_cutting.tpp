@@ -75,12 +75,12 @@ truncateHalfEdgePolytope(SegmentedHalfEdgePolygonType *a_polytope,
   }
 }
 
-template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType>
+template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType, class ScalarType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value>
 splitHalfEdgePolytope(SegmentedHalfEdgePolyhedronType *a_polytope,
                       SegmentedHalfEdgePolyhedronType *a_clipped_polytope,
                       HalfEdgePolytopeType *a_complete_polytope,
-                      const Plane &a_plane) {
+                      const PlaneBase<ScalarType> &a_plane) {
   using VertexType = typename HalfEdgePolytopeType::vertex_type;
   using FaceType = typename HalfEdgePolytopeType::face_type;
   using HalfEdgeType = typename HalfEdgePolytopeType::half_edge_type;
@@ -338,12 +338,12 @@ splitHalfEdgePolytope(SegmentedHalfEdgePolyhedronType *a_polytope,
 // work (on a 2D plane). This plane is used during the calculation of the
 // moments in order to assign a consistent reference direction around which
 // to determine signed normals.
-template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType>
+template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType, class ScalarType>
 enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value>
 splitHalfEdgePolytope(SegmentedHalfEdgePolygonType *a_polytope,
                       SegmentedHalfEdgePolygonType *a_clipped_polytope,
                       HalfEdgePolytopeType *a_complete_polytope,
-                      const Plane &a_plane) {
+                      const PlaneBase<ScalarType> &a_plane) {
   using VertexType = typename HalfEdgePolytopeType::vertex_type;
   using FaceType = typename HalfEdgePolytopeType::face_type;
   using HalfEdgeType = typename HalfEdgePolytopeType::half_edge_type;

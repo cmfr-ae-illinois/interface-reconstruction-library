@@ -12,15 +12,22 @@
 
 #include "irl/interface_reconstruction_methods/advected_plane_reconstruction.h"
 #include "irl/interface_reconstruction_methods/elvira.h"
+#include "irl/interface_reconstruction_methods/jibben.h"
+#include "irl/interface_reconstruction_methods/jibben_neighborhood.h"
 #include "irl/interface_reconstruction_methods/lvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/lvira_optimization.h"
 #include "irl/interface_reconstruction_methods/mof.h"
-#include "irl/interface_reconstruction_methods/r2p_optimization.h"
 #include "irl/interface_reconstruction_methods/optimization_behavior.h"
+#include "irl/interface_reconstruction_methods/r2p_optimization.h"
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 
 namespace IRL {
+
+/// \brief Perform Jibben reconstruction for a 3D problem.
+inline Paraboloid reconstructionWithJibben3D(
+    const JibbenNeighborhood& a_neighborhood_geometry,
+    const double a_delta = -1.0);
 
 /// \brief Perform R2P reconstruction for a 2D problem in the x-y plane.
 template <class CellType>
@@ -34,7 +41,7 @@ inline PlanarSeparator reconstructionWithR2P3D(
     const R2PNeighborhood<CellType>& a_neighborhood_geometry,
     PlanarSeparator a_initial_reconstruction);
 
-/// \brief Perform R2P reconstruction with user-defined weights 
+/// \brief Perform R2P reconstruction with user-defined weights
 /// for a 3D problem.
 template <class CellType>
 inline PlanarSeparator reconstructionWithR2P3D(
@@ -42,7 +49,7 @@ inline PlanarSeparator reconstructionWithR2P3D(
     PlanarSeparator a_initial_reconstruction,
     const R2PWeighting& a_r2p_weighting);
 
-/// \brief Perform R2P reconstruction with user-defined optimization 
+/// \brief Perform R2P reconstruction with user-defined optimization
 /// parameters and weights for a 3D problem.
 template <class CellType>
 inline PlanarSeparator reconstructionWithR2P3D(
@@ -166,4 +173,4 @@ PlanarSeparator reconstructionWithAdvectedNormalsDebug(
 
 #include "irl/interface_reconstruction_methods/reconstruction_interface.tpp"
 
-#endif // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_INTERFACE_H_
+#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_INTERFACE_H_

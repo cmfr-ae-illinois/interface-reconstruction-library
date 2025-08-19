@@ -13,6 +13,7 @@
 #include "irl/generic_cutting/general/class_classifications.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting.h"
 #include "irl/helpers/SFINAE_boiler_plate.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
 
@@ -28,4 +29,4 @@ void getVolumeMomentsForPolytope(SegmentedPolytopeType* a_polytope,
 
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_drivers.tpp"
 
-#endif // IRL_GENERIC_CUTTING_HALF_EDGE_CUTTING_HALF_EDGE_CUTTING_DRIVERS_H_
+#endif  // IRL_GENERIC_CUTTING_HALF_EDGE_CUTTING_HALF_EDGE_CUTTING_DRIVERS_H_

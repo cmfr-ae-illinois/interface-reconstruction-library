@@ -19,4 +19,4 @@ using enable_if_t = typename std::enable_if<Cond, T>::type;
 
 }  // namespace IRL
 
-#endif // IRL_HELPERS_SFINAE_BOILER_PLATE_H_
+#endif  // IRL_HELPERS_SFINAE_BOILER_PLATE_H_

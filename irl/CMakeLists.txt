@@ -12,6 +12,11 @@ add_subdirectory(moments)
 add_subdirectory(optimization)
 add_subdirectory(parameters)
 add_subdirectory(planar_reconstruction)
+add_subdirectory(quadratic_reconstruction)
+add_subdirectory(paraboloid_reconstruction)
+add_subdirectory(cylinder_reconstruction)
+add_subdirectory(surface_mesher)
+add_subdirectory(variant_reconstruction)
 
 # Other directories for the C/Fortran interface.
 

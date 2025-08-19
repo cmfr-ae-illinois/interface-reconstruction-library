@@ -7,6 +7,7 @@ function(IRLAddExample_cpp)
   )
 
   add_executable(${IRL_ADD_EXAMPLE_CPP_TARGET_NAME} EXCLUDE_FROM_ALL ${IRL_ADD_EXAMPLE_CPP_SRCS})
+
   if(IRL_ADD_EXAMPLE_CPP_HDRS)
     target_sources(${IRL_ADD_EXAMPLE_CPP_TARGET_NAME} PRIVATE ${IRL_ADD_EXAMPLE_CPP_HDRS})
   endif()
@@ -20,9 +21,7 @@ function(IRLAddExample_cpp)
   if(IRL_ADD_EXAMPLE_CPP_COLLECTION)
     add_dependencies(${IRL_ADD_EXAMPLE_CPP_COLLECTION} ${IRL_ADD_EXAMPLE_CPP_TARGET_NAME})
   endif()
-
 endfunction()
-
 
 function(IRLAddExample_fortran)
   cmake_parse_arguments(IRL_ADD_EXAMPLE_FORTRAN
@@ -42,5 +41,4 @@ function(IRLAddExample_fortran)
   if(IRL_ADD_EXAMPLE_FORTRAN_COLLECTION)
     add_dependencies(${IRL_ADD_EXAMPLE_FORTRAN_COLLECTION} ${IRL_ADD_EXAMPLE_FORTRAN_TARGET_NAME})
   endif()
-
 endfunction()

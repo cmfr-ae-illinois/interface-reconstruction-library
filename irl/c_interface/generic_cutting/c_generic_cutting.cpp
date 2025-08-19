@@ -45,18 +45,18 @@ static ReturnType c_RuntimegetNormMoments(
     const ReconstructionType& a_reconstruction,
     const c_RuntimeCuttingMethod& a_cutting_method) {
   switch (a_cutting_method) {
-    case c_RuntimeCuttingMethod::RecursiveSimplexCutting:
-      return IRL::getNormalizedVolumeMoments<ReturnType,
-                                             RecursiveSimplexCutting>(
-          a_encompassing_polytope, a_reconstruction);
+      // case c_RuntimeCuttingMethod::RecursiveSimplexCutting:
+      //   return IRL::getNormalizedVolumeMoments<ReturnType,
+      //                                          RecursiveSimplexCutting>(
+      //       a_encompassing_polytope, a_reconstruction);
 
     case c_RuntimeCuttingMethod::HalfEdgeCutting:
       return IRL::getNormalizedVolumeMoments<ReturnType, HalfEdgeCutting>(
           a_encompassing_polytope, a_reconstruction);
 
-    case c_RuntimeCuttingMethod::SimplexCutting:
-      return IRL::getNormalizedVolumeMoments<ReturnType, SimplexCutting>(
-          a_encompassing_polytope, a_reconstruction);
+    // case c_RuntimeCuttingMethod::SimplexCutting:
+    //   return IRL::getNormalizedVolumeMoments<ReturnType, SimplexCutting>(
+    //       a_encompassing_polytope, a_reconstruction);
     default:
       std::cout << "During call to cutting: Unkown cutting method required for "
                    "getNormalizedVolumeMoments in "
@@ -72,17 +72,17 @@ static ReturnType c_RuntimegetMoments(
     const ReconstructionType& a_reconstruction,
     const c_RuntimeCuttingMethod& a_cutting_method) {
   switch (a_cutting_method) {
-    case c_RuntimeCuttingMethod::RecursiveSimplexCutting:
-      return IRL::getVolumeMoments<ReturnType, RecursiveSimplexCutting>(
-          a_encompassing_polytope, a_reconstruction);
+      // case c_RuntimeCuttingMethod::RecursiveSimplexCutting:
+      //   return IRL::getVolumeMoments<ReturnType, RecursiveSimplexCutting>(
+      //       a_encompassing_polytope, a_reconstruction);
 
     case c_RuntimeCuttingMethod::HalfEdgeCutting:
       return IRL::getVolumeMoments<ReturnType, HalfEdgeCutting>(
           a_encompassing_polytope, a_reconstruction);
 
-    case c_RuntimeCuttingMethod::SimplexCutting:
-      return IRL::getVolumeMoments<ReturnType, SimplexCutting>(
-          a_encompassing_polytope, a_reconstruction);
+    // case c_RuntimeCuttingMethod::SimplexCutting:
+    //   return IRL::getVolumeMoments<ReturnType, SimplexCutting>(
+    //       a_encompassing_polytope, a_reconstruction);
     default:
       std::cout << "During call to cutting: Unkown cutting method required for "
                    "getNormalizedVolumeMoments in "
@@ -224,6 +224,36 @@ void c_getNormMoments_CapDod_LocSepLink_SepVM(
           IRL::C_CUTTING_METHOD);
 }
 
+void c_getNormMoments_CapDod_LocParabLink_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocParabLink* a_localized_paraboloid_link,
+    c_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_paraboloid_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_capped_dodecahedron->obj_ptr,
+          *a_localized_paraboloid_link->obj_ptr, IRL::C_CUTTING_METHOD);
+}
+
+void c_getNormMoments_CapDod_LocVariantLink_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_capped_dodecahedron->obj_ptr, *a_localized_variant_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
 void c_getNormMoments_CapDod_d3_LocSepLink_SepVM_d3(
     const c_CapDod_d3* a_capped_dodecahedron,
     const c_LocSepLink* a_localized_separator_link,
@@ -251,6 +281,21 @@ void c_getNormMoments_Poly24_LocSepLink_SepVM(
   *a_moments_to_return->obj_ptr =
       IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
           *a_polyhedron_24->obj_ptr, *a_localized_separator_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getNormMoments_Poly24_LocVariantLink_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return) {
+  assert(a_polyhedron_24 != nullptr);
+  assert(a_polyhedron_24->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_polyhedron_24->obj_ptr, *a_localized_variant_link->obj_ptr,
           IRL::C_CUTTING_METHOD);
 }
 
@@ -284,6 +329,36 @@ void c_getMoments_CapDod_LocSepLink_SepVM(
           IRL::C_CUTTING_METHOD);
 }
 
+void c_getMoments_CapDod_LocParabLink_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocParabLink* a_localized_paraboloid_link,
+    c_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_paraboloid_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_capped_dodecahedron->obj_ptr,
+          *a_localized_paraboloid_link->obj_ptr, IRL::C_CUTTING_METHOD);
+}
+
+void c_getMoments_CapDod_LocVariantLink_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_capped_dodecahedron->obj_ptr, *a_localized_variant_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
 void c_getMoments_Dod_LocSepLink_SepVM(
     const c_Dod* a_dodecahedron, const c_LocSepLink* a_localized_separator_link,
     c_SepVM* a_moments_to_return) {
@@ -313,6 +388,55 @@ void c_getMoments_Poly24_LocSepLink_SepVM(
           IRL::C_CUTTING_METHOD);
 }
 
+void c_getMoments_Poly24_LocVariantLink_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_SepVM* a_moments_to_return) {
+  assert(a_polyhedron_24 != nullptr);
+  assert(a_polyhedron_24->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_polyhedron_24->obj_ptr, *a_localized_variant_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getMoments_Poly24_LocSepLink_TagAccVM_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_polyhedron_24 != nullptr);
+  assert(a_polyhedron_24->obj_ptr != nullptr);
+  assert(a_localized_separator_link != nullptr);
+  assert(a_localized_separator_link->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_polyhedron_24->obj_ptr, *a_localized_separator_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getMoments_Poly24_LocVariantLink_TagAccVM_SepVM(
+    const c_Poly24* a_polyhedron_24,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_polyhedron_24 != nullptr);
+  assert(a_polyhedron_24->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_localized_variant_link->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_polyhedron_24->obj_ptr, *a_localized_variant_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
 void c_getNormMoments_Tet_LocSepLink_SepVM(
     const c_Tet* a_tet, const c_LocSepLink* a_localized_separator_link,
     c_SepVM* a_moments_to_return) {
@@ -338,6 +462,34 @@ void c_getNormMoments_RectCub_PlanarSep_Vol(
   *a_moments_to_return =
       static_cast<double>(IRL::c_RuntimegetNormMoments<IRL::Volume>(
           *a_rectangular_cuboid->obj_ptr, *a_planar_separator->obj_ptr,
+          IRL::C_CUTTING_METHOD));
+}
+
+void c_getNormMoments_RectCub_Paraboloid_Vol(
+    const c_RectCub* a_rectangular_cuboid, const c_Paraboloid* a_paraboloid,
+    double* a_moments_to_return) {
+  assert(a_rectangular_cuboid != nullptr);
+  assert(a_rectangular_cuboid->obj_ptr != nullptr);
+  assert(a_paraboloid != nullptr);
+  assert(a_paraboloid->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  *a_moments_to_return =
+      static_cast<double>(IRL::c_RuntimegetNormMoments<IRL::Volume>(
+          *a_rectangular_cuboid->obj_ptr, *a_paraboloid->obj_ptr,
+          IRL::C_CUTTING_METHOD));
+}
+
+void c_getNormMoments_RectCub_SeparatorVariant_Vol(
+    const c_RectCub* a_rectangular_cuboid, const c_SeparatorVariant* a_variant,
+    double* a_moments_to_return) {
+  assert(a_rectangular_cuboid != nullptr);
+  assert(a_rectangular_cuboid->obj_ptr != nullptr);
+  assert(a_variant != nullptr);
+  assert(a_variant->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  *a_moments_to_return =
+      static_cast<double>(IRL::c_RuntimegetNormMoments<IRL::Volume>(
+          *a_rectangular_cuboid->obj_ptr, *a_variant->obj_ptr,
           IRL::C_CUTTING_METHOD));
 }
 
@@ -442,6 +594,56 @@ void c_getNormMoments_CapDod_LocSepLink_TagAccVM_SepVM(
           IRL::C_CUTTING_METHOD);
 }
 
+void c_getNormMoments_CapDod_LocVariantLink_TagAccVM_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_capped_dodecahedron->obj_ptr, *a_localized_variant_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getMoments_CapDod_LocSepLink_TagAccVM_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocSepLink* a_localized_separator_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_separator_link != nullptr);
+  assert(a_localized_separator_link->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_capped_dodecahedron->obj_ptr, *a_localized_separator_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getMoments_CapDod_LocVariantLink_TagAccVM_SepVM(
+    const c_CapDod* a_capped_dodecahedron,
+    const c_LocVariantLink* a_localized_variant_link,
+    c_TagAccVM_SepVM* a_moments_to_return) {
+  assert(a_capped_dodecahedron != nullptr);
+  assert(a_capped_dodecahedron->obj_ptr != nullptr);
+  assert(a_localized_variant_link != nullptr);
+  assert(a_localized_variant_link->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetMoments<IRL::TaggedAccumulatedVolumeMoments<
+          IRL::SeparatedMoments<IRL::VolumeMoments>>>(
+          *a_capped_dodecahedron->obj_ptr, *a_localized_variant_link->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
 void c_getNormMoments_Dod_LocSepLink_TagAccVM_SepVM(
     const c_Dod* a_dodecahedron, const c_LocSepLink* a_localized_separator_link,
     c_TagAccVM_SepVM* a_moments_to_return) {
@@ -541,6 +743,36 @@ void c_getNormMoments_RectCub_PlanarSep_SepVM(
   *a_moments_to_return->obj_ptr =
       IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
           *a_rectangular_cuboid->obj_ptr, *a_planar_separator->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getNormMoments_RectCub_Paraboloid_SepVM(
+    const c_RectCub* a_rectangular_cuboid, const c_Paraboloid* a_paraboloid,
+    c_SepVM* a_moments_to_return) {
+  assert(a_rectangular_cuboid != nullptr);
+  assert(a_rectangular_cuboid->obj_ptr != nullptr);
+  assert(a_paraboloid != nullptr);
+  assert(a_paraboloid->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_rectangular_cuboid->obj_ptr, *a_paraboloid->obj_ptr,
+          IRL::C_CUTTING_METHOD);
+}
+
+void c_getNormMoments_RectCub_SeparatorVariant_SepVM(
+    const c_RectCub* a_rectangular_cuboid, const c_SeparatorVariant* a_variant,
+    c_SepVM* a_moments_to_return) {
+  assert(a_rectangular_cuboid != nullptr);
+  assert(a_rectangular_cuboid->obj_ptr != nullptr);
+  assert(a_variant != nullptr);
+  assert(a_variant->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_rectangular_cuboid->obj_ptr, *a_variant->obj_ptr,
           IRL::C_CUTTING_METHOD);
 }
 

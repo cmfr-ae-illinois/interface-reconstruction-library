@@ -29,12 +29,77 @@ auto calculateMoments(const GeometryType& a_geometry,
 
 template <UnsignedIndex_t ORDER>
 template <class SimplexType>
+void GeneralSurfaceMoments3D_Functor<ORDER>::operator()(
+    const SimplexType& a_simplex) {
+  static_assert(ORDER >= 0 && ORDER <= 2,
+                "ONLY ORDER = 0, 1, or 2 supported for polygons");
+
+  // simplex vertices
+  const auto& v0 = a_simplex[0].getPt().toDoublePt();
+  const auto& v1 = a_simplex[1].getPt().toDoublePt();
+  const auto& v2 = a_simplex[2].getPt().toDoublePt();
+
+  const double area = a_simplex.calculateVolume();
+
+  if constexpr (ORDER == 0) {
+    moments_m[0] += area;
+
+  } else if constexpr (ORDER == 1) {
+    auto centroid = (v0 + v1 + v2) * (1.0 / 3.0);
+    moments_m[0] += area;
+    moments_m[1] += centroid[0] * area;
+    moments_m[2] += centroid[1] * area;
+    moments_m[3] += centroid[2] * area;
+
+  } else if constexpr (ORDER == 2) {
+    auto centroid = (v0 + v1 + v2) * (1.0 / 3.0);
+    moments_m[0] += area;
+    moments_m[1] += centroid[0] * area;
+    moments_m[2] += centroid[1] * area;
+    moments_m[3] += centroid[2] * area;
+
+    const auto a = v1 - v0;
+    const auto b = v2 - v0;
+    const double factor = 2.0 * area;
+
+    auto accumulate = [&](const Pt& u, const Pt& v, double scale) {
+      moments_m[4] += scale * u[0] * v[0];  // M00
+      moments_m[5] += scale * u[0] * v[1];  // M01
+      moments_m[6] += scale * u[0] * v[2];  // M02
+      moments_m[7] += scale * u[1] * v[1];  // M11
+      moments_m[8] += scale * u[1] * v[2];  // M12
+      moments_m[9] += scale * u[2] * v[2];  // M22
+    };
+
+    accumulate(v0, v0, factor * 0.5);
+    accumulate(v0, a, factor * (1.0 / 6.0));
+    accumulate(a, v0, factor * (1.0 / 6.0));
+    accumulate(v0, b, factor * (1.0 / 6.0));
+    accumulate(b, v0, factor * (1.0 / 6.0));
+    accumulate(a, a, factor * (1.0 / 12.0));
+    accumulate(b, b, factor * (1.0 / 12.0));
+    accumulate(a, b, factor * (1.0 / 24.0));
+    accumulate(b, a, factor * (1.0 / 24.0));
+  }
+}
+
+template <UnsignedIndex_t ORDER>
+inline typename GeneralSurfaceMoments3D_Functor<ORDER>::ReturnType
+GeneralSurfaceMoments3D_Functor<ORDER>::getMoments(void) const {
+  ReturnType result;
+  for (std::size_t i = 0; i < linear_length; ++i) result[i] = moments_m[i];
+  return result;
+}
+
+template <UnsignedIndex_t ORDER>
+template <class SimplexType>
 void GeneralMoments3D_Functor<ORDER>::operator()(const SimplexType& a_simplex) {
-  const auto& datum = a_simplex[3];
-  datum_m = datum.getPt();
-  const double sixv = scalarTripleProduct(a_simplex[0].getPt() - datum.getPt(),
-                                          a_simplex[1].getPt() - datum.getPt(),
-                                          a_simplex[2].getPt() - datum.getPt());
+  const auto& datum = a_simplex[3].getPt().toDoublePt();
+  datum_m = datum.getPt().toDoublePt();
+  const double sixv = scalarTripleProduct(
+      a_simplex[0].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[1].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum.getPt().toDoublePt());
 
   UnsignedIndex_t prev_layer = 0;
   UnsignedIndex_t curr_layer = 1;
@@ -44,9 +109,9 @@ void GeneralMoments3D_Functor<ORDER>::operator()(const SimplexType& a_simplex) {
   C_m[0][0][prev_layer] = 1.0;
   moments_m[0] += sixv;
 
-  const auto& v0 = a_simplex[0].getPt();
-  const auto& v1 = a_simplex[1].getPt();
-  const auto& v2 = a_simplex[2].getPt();
+  const auto& v0 = a_simplex[0].getPt().toDoublePt();
+  const auto& v1 = a_simplex[1].getPt().toDoublePt();
+  const auto& v2 = a_simplex[2].getPt().toDoublePt();
 
   // build up successive polynomial orders
   for (int corder = 1, m = 1; corder <= ORDER; ++corder) {
@@ -160,9 +225,10 @@ GeneralMoments3D_Functor<ORDER>::getMoments(void) const {
 template <class SimplexType>
 void Volume3D_Functor::operator()(const SimplexType& a_simplex) {
   const auto& datum = a_simplex[3];
-  volume_m += scalarTripleProduct(a_simplex[0].getPt() - datum.getPt(),
-                                  a_simplex[1].getPt() - datum.getPt(),
-                                  a_simplex[2].getPt() - datum.getPt());
+  volume_m += scalarTripleProduct(
+      a_simplex[0].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[1].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum.getPt().toDoublePt());
 }
 
 Volume3D_Functor::ReturnType Volume3D_Functor::getMoments(void) const {
@@ -172,14 +238,15 @@ Volume3D_Functor::ReturnType Volume3D_Functor::getMoments(void) const {
 template <class SimplexType>
 void VolumeMoments3D_Functor::operator()(const SimplexType& a_simplex) {
   const auto& datum = a_simplex[3];
-  auto six_times_tet_volume =
-      scalarTripleProduct(a_simplex[0].getPt() - datum.getPt(),
-                          a_simplex[1].getPt() - datum.getPt(),
-                          a_simplex[2].getPt() - datum.getPt());
+  auto six_times_tet_volume = scalarTripleProduct(
+      a_simplex[0].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[1].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum.getPt().toDoublePt());
   volume_moments_m.volume() += six_times_tet_volume;
   volume_moments_m.centroid() +=
-      six_times_tet_volume * (a_simplex[0].getPt() + a_simplex[1].getPt() +
-                              a_simplex[2].getPt() + datum.getPt());
+      six_times_tet_volume *
+      (a_simplex[0].getPt().toDoublePt() + a_simplex[1].getPt().toDoublePt() +
+       a_simplex[2].getPt().toDoublePt() + datum.getPt().toDoublePt());
 }
 
 VolumeMoments3D_Functor::ReturnType VolumeMoments3D_Functor::getMoments(
@@ -206,14 +273,15 @@ template <class SimplexType>
 void VolumeMomentsAndDoubles3D_Functor<kArrayLength>::operator()(
     const SimplexType& a_simplex) {
   const auto& datum = a_simplex[3];
-  auto six_times_tet_volume =
-      scalarTripleProduct(a_simplex[0].getPt() - datum.getPt(),
-                          a_simplex[1].getPt() - datum.getPt(),
-                          a_simplex[2].getPt() - datum.getPt());
+  auto six_times_tet_volume = scalarTripleProduct(
+      a_simplex[0].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[1].getPt().toDoublePt() - datum.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum.getPt().toDoublePt());
   volume_moments_and_doubles_m.volume() += six_times_tet_volume;
   volume_moments_and_doubles_m.centroid() +=
-      six_times_tet_volume * (a_simplex[0].getPt() + a_simplex[1].getPt() +
-                              a_simplex[2].getPt() + datum.getPt());
+      six_times_tet_volume *
+      (a_simplex[0].getPt().toDoublePt() + a_simplex[1].getPt().toDoublePt() +
+       a_simplex[2].getPt().toDoublePt() + datum.getPt().toDoublePt());
   for (UnsignedIndex_t n = 0; n < volume_moments_and_doubles_m.data().size();
        ++n) {
     volume_moments_and_doubles_m.data()[n] +=
@@ -238,9 +306,9 @@ VolumeMomentsAndDoubles3D_Functor<kArrayLength>::getMoments(void) const {
 template <class SimplexType>
 void Volume2D_Functor::operator()(const SimplexType& a_simplex) {
   const auto& datum_pt = a_simplex[0];
-  Normal edge_cross_product =
-      Normal::fromPt(crossProduct(a_simplex[1].getPt() - datum_pt.getPt(),
-                                  a_simplex[2].getPt() - datum_pt.getPt()));
+  Normal edge_cross_product = Normal::fromPt(crossProduct(
+      a_simplex[1].getPt().toDoublePt() - datum_pt.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum_pt.getPt().toDoublePt()));
 
   // Dot product imparts signed-ness to the polygon area.
   double twice_times_tri_volume = magnitude(edge_cross_product);
@@ -257,9 +325,9 @@ Volume2D_Functor::ReturnType Volume2D_Functor::getMoments(void) const {
 template <class SimplexType>
 void VolumeMoments2D_Functor::operator()(const SimplexType& a_simplex) {
   const auto& datum_pt = a_simplex[0];
-  Normal edge_cross_product =
-      Normal::fromPt(crossProduct(a_simplex[1].getPt() - datum_pt.getPt(),
-                                  a_simplex[2].getPt() - datum_pt.getPt()));
+  Normal edge_cross_product = Normal::fromPt(crossProduct(
+      a_simplex[1].getPt().toDoublePt() - datum_pt.getPt().toDoublePt(),
+      a_simplex[2].getPt().toDoublePt() - datum_pt.getPt().toDoublePt()));
 
   // Dot product imparts signed-ness to the polygon area.
   double twice_times_tri_volume = magnitude(edge_cross_product);
@@ -270,7 +338,8 @@ void VolumeMoments2D_Functor::operator()(const SimplexType& a_simplex) {
   volume_moments_m.volume() += twice_times_tri_volume;
   volume_moments_m.centroid() +=
       twice_times_tri_volume *
-      (datum_pt.getPt() + a_simplex[1].getPt() + a_simplex[2].getPt());
+      (datum_pt.getPt().toDoublePt() + a_simplex[1].getPt().toDoublePt() +
+       a_simplex[2].getPt().toDoublePt());
 }
 
 VolumeMoments2D_Functor::ReturnType VolumeMoments2D_Functor::getMoments(

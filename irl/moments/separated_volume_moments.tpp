@@ -240,21 +240,19 @@ SeparatedMoments<Volume>::fillWithComplementMoments(
                    : SelfType(a_known_moments, unknown_moments);
 }
 
-template <std::size_t ORDER>
 template <class GeometryType>
-inline SeparatedMoments<GeneralMoments3D<ORDER>>
-SeparatedMoments<GeneralMoments3D<ORDER>>::fillWithComplementMoments(
+inline SeparatedMoments<GeneralMoments3D<2>>
+SeparatedMoments<GeneralMoments3D<2>>::fillWithComplementMoments(
     const MomentsType& a_known_moments,
     const GeometryType& a_encompassing_geometry, const bool a_flipped) {
   MomentsType encompassing_moments =
-      a_encompassing_geometry.template calculateGeneralMoments<ORDER>();
+      a_encompassing_geometry.template calculateGeneralMoments<2>();
   return fillWithComplementMoments(a_known_moments, encompassing_moments,
                                    a_flipped);
 }
 
-template <std::size_t ORDER>
-inline SeparatedMoments<GeneralMoments3D<ORDER>>
-SeparatedMoments<GeneralMoments3D<ORDER>>::fillWithComplementMoments(
+inline SeparatedMoments<GeneralMoments3D<2>>
+SeparatedMoments<GeneralMoments3D<2>>::fillWithComplementMoments(
     const MomentsType& a_known_moments,
     const MomentsType& a_encompassing_geometry_volume_moments,
     const bool a_flipped) {

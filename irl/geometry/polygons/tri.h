@@ -107,4 +107,4 @@ using Tri = StoredTri<Pt>;
 
 #include "irl/geometry/polygons/tri.tpp"
 
-#endif // IRL_GEOMETRY_POLYGONS_TRI_H_
+#endif  // IRL_GEOMETRY_POLYGONS_TRI_H_
