@@ -751,6 +751,7 @@ inline MixedPolygonBezierSurface
 CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
     const UnsignedIndex_t a_order) {
     
+  // Initialize bezier surface
   MixedPolygonBezierSurface bezier_surface;
   UnsignedIndex_t master_point_offset = 0;
 
@@ -759,16 +760,20 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
   const int nb_rotation = indexes_of_flip_m.size();
   constexpr double match_tol = 1e-10;
 
+  // Loop over segments
   for (int m = 0; m < nb_rotation; ++m) {
     std::vector<std::vector<UnsignedIndex_t>> list_of_closed_curves(0);
     std::vector<bool> visited(nArcs, false);
     bool valid_curves = true;
+    // Determine the range of arc indices for the current segment.
     int max_it = (m == nb_rotation - 1) ? nArcs : complete_indexes_of_flip[m + 1];
     const unsigned int start_arc_idx = complete_indexes_of_flip[m];
 
+    // Generate list of closed curves
     for (unsigned int t = start_arc_idx; t < max_it; ++t) {
       if (visited[t]) continue;
 
+      // Start with next available arc
       list_of_closed_curves.push_back({t});
       visited[t] = true;
 
@@ -778,13 +783,16 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
       Pt start_pt_ref = arc_list_m[t].start_point();
 
       UnsignedIndex_t counter = 0;
-      double final_distance = 100;
+      // Distance between the current end point and the original start point.
+      double final_distance = std::numeric_limits<double>::infinity();
 
+      // Keep adding arcs to the current curve until it's closed.
       while (end_id != start_id && final_distance > match_tol) {
           bool found_next_arc = false;
           UnsignedIndex_t best_match_idx = arc_list_m.size();
           double best_dist = std::numeric_limits<double>::max();
 
+          // Search for the next arc that connects to the end of the current curve.
           for (UnsignedIndex_t e = start_arc_idx; e < max_it; ++e) {
               if (visited[e]) continue;
 
@@ -796,6 +804,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
               bool id_match = (cand_start_id == end_id);
               bool geom_match = (dist < match_tol);
 
+              // Potential match if start point matches current curve's end point
               if (geom_match || id_match) {
                   if (dist < best_dist) {
                       best_dist = dist;
@@ -803,6 +812,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
                   }
               }
           }
+          // If a valid connecting arc was found add it to the current curve
           if (best_match_idx < arc_list_m.size()) {
               const auto& matched_arc = arc_list_m[best_match_idx];
               visited[best_match_idx] = true;
@@ -817,15 +827,11 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
             break;
         }
       }
-
-      if (!valid_curves) break;
     }
 
-    if (!valid_curves || list_of_closed_curves.empty()) {
-      continue;
-    }
-
+    // Only produce bezier triangle approximation if we have found closed curves
     if (valid_curves && !list_of_closed_curves.empty()) {
+      // Total number of points in all curves
       UnsignedIndex_t total_points = 0;
       for (const auto& c : list_of_closed_curves) total_points += c.size();
       
@@ -838,6 +844,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
       std::vector<UnsignedIndex_t> indices;
 
       UnsignedIndex_t global_point_offset = 0;
+      // Iterate through each identified closed curve
       for (size_t i = 0; i < list_of_closed_curves.size(); ++i) {
         const auto& curve = list_of_closed_curves[i];
         if (curve.empty()) continue;
@@ -845,6 +852,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
         std::vector<std::vector<std::array<double, 2>>> current_polygon(1);
         current_polygon[0].reserve(curve.size());
 
+        // Iterate through arcs of the current closed curve.
         for (size_t j = 0; j < curve.size(); ++j) {
             const UnsignedIndex_t arc_id = curve[j];
             const Pt& pt = arc_list_m[arc_id].start_point();
@@ -857,6 +865,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
             info.emplace_back(next_global_idx, i, j);
         }
 
+        // Compute earcut triangulation of region constrained by closed curves
         std::vector<UnsignedIndex_t> local_indices = mapbox::earcut<UnsignedIndex_t>(current_polygon);
 
         for (const auto& local_idx : local_indices) {
@@ -866,11 +875,8 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
         global_point_offset += curve.size();
       }
 
+      // Convert flat triangles into quadratic rational Bezier triangle
       const UnsignedIndex_t ntriangles = indices.size() / 3;
-      if (ntriangles == 0) {
-          continue;
-      }
-
       if (a_order == 2) {
         std::vector<std::array<UnsignedIndex_t, 6>> bezier_triangles(ntriangles);
         std::vector<std::array<UnsignedIndex_t, 3>> boundaries;
@@ -879,18 +885,20 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
         std::vector<double> new_weights; new_weights.reserve(ntriangles * 3);
         const auto& aligned_p = cylinder_m[m].getAlignedCylinder();
 
+        // Iterate over each flat triangle
         for (UnsignedIndex_t i = 0; i < ntriangles; ++i) {
+          // Vertices of the flat triangle
           for (int j = 0; j < 3; j++) bezier_triangles[i][j] = indices[3 * i + j];
+
+          // Edge control points.
           for (int j = 0; j < 3; j++) {
             const int v0 = indices[3 * i + j]; const int v1 = indices[3 * i + (j + 1) % 3];
             bezier_triangles[i][3 + j] = new_points.size();
             const Pt& pt0 = points[v0];
             const Pt& pt1 = points[v1];
             const Pt& pt0_info = points[std::get<0>(info[v0])];
-            double dx = pt1[0] - pt0_info[0];
-            double dy = pt1[1] - pt0_info[1];
-            double dz = pt1[2] - pt0_info[2];
-            if ((dx * dx + dy * dy + dz * dz) < 1e-12) {
+            double dist = pointDistance(pt1, pt0_info);
+            if (dist < match_tol) {
               const int i_id = std::get<1>(info[v0]); const int j_id = std::get<2>(info[v0]);
               const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
               boundaries.push_back({(UnsignedIndex_t)v0, (UnsignedIndex_t)v1, (UnsignedIndex_t)new_points.size()});
@@ -908,6 +916,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
         points.insert(points.end(), new_points.begin(), new_points.end());
         weights.insert(weights.end(), new_weights.begin(), new_weights.end());
 
+        // Local to global index corrections
         for(auto& tri : bezier_triangles) {
           for(int j = 3; j < 6; ++j) {
             tri[j] += original_points_size;
@@ -1013,7 +1022,7 @@ CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
         bezier_surface.addBoundaries(boundaries);
         bezier_surface.addBezierTriangles(bezier_triangles);
       }
-
+      // Transform to the global coordinate system.
       const auto& datum = cylinder_m[m].getDatum();
       const auto& frame = cylinder_m[m].getReferenceFrame();
       for (size_t i = 0; i < points.size(); i++) {
