@@ -14,6 +14,7 @@
 #include <iostream>
 #include <vector>
 
+#include "Eigen/Dense"
 #include "irl/geometry/general/pt.h"
 
 namespace IRL {
@@ -249,6 +250,78 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeByVolume(void) {
   if (moments_m[0] != ScalarType(0)) {
     for (std::size_t i = 1; i < moments_m.size(); ++i) {
       moments_m[i] /= moments_m[0];
+    }
+  }
+}
+
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+void GeneralMomentsBase<ORDER, DIM, ScalarType>::moveMoments(
+    const PtBase<ScalarType>& datum) {
+  const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
+
+  if constexpr (ORDER != 0) {
+    ScalarType M0 = (*this)[0];
+    const Eigen::Matrix<ScalarType, 3, 1> M1prime{(*this)[1], (*this)[2],
+                                                  (*this)[3]};
+    const Eigen::Matrix<ScalarType, 3, 1> M1 = M1prime + M0 * D;
+    (*this)[1] = M1[0];
+    (*this)[2] = M1[1];
+    (*this)[3] = M1[2];
+
+    if constexpr (ORDER == 2) {
+      const Eigen::Matrix<ScalarType, 3, 3> M2prime{
+          {(*this)[4], (*this)[5], (*this)[6]},
+          {(*this)[5], (*this)[7], (*this)[8]},
+          {(*this)[6], (*this)[8], (*this)[9]}};
+
+      const Eigen::Matrix<ScalarType, 3, 3> M2 =
+          M2prime + (M1prime * D.transpose()) + (D * M1prime.transpose()) +
+          M0 * (D * D.transpose());
+
+      (*this)[4] = M2(0, 0);
+      (*this)[5] = M2(0, 1);
+      (*this)[6] = M2(0, 2);
+      (*this)[7] = M2(1, 1);
+      (*this)[8] = M2(1, 2);
+      (*this)[9] = M2(2, 2);
+    }
+  }
+}
+
+template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
+void GeneralMomentsBase<ORDER, DIM, ScalarType>::moveAndRotateMoments(
+    const PtBase<ScalarType>& datum,
+    const ReferenceFrameBase<ScalarType>& frame) {
+  const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
+  const Eigen::Matrix<double, 3, 3> R{{frame[0][0], frame[1][0], frame[2][0]},
+                                      {frame[0][1], frame[1][1], frame[2][1]},
+                                      {frame[0][2], frame[1][2], frame[2][2]}};
+
+  if constexpr (ORDER != 0) {
+    ScalarType M0 = (*this)[0];
+    const Eigen::Matrix<ScalarType, 3, 1> M1prime{(*this)[1], (*this)[2],
+                                                  (*this)[3]};
+    const Eigen::Matrix<ScalarType, 3, 1> M1 = R * M1prime + M0 * D;
+    (*this)[1] = M1[0];
+    (*this)[2] = M1[1];
+    (*this)[3] = M1[2];
+
+    if constexpr (ORDER == 2) {
+      const Eigen::Matrix<ScalarType, 3, 3> M2prime{
+          {(*this)[4], (*this)[5], (*this)[6]},
+          {(*this)[5], (*this)[7], (*this)[8]},
+          {(*this)[6], (*this)[8], (*this)[9]}};
+
+      const Eigen::Matrix<ScalarType, 3, 3> M2 =
+          R * M2prime * R.transpose() + R * (M1prime * D.transpose()) +
+          (D * M1prime.transpose()) * R.transpose() + M0 * (D * D.transpose());
+
+      (*this)[4] = M2(0, 0);
+      (*this)[5] = M2(0, 1);
+      (*this)[6] = M2(0, 2);
+      (*this)[7] = M2(1, 1);
+      (*this)[8] = M2(1, 2);
+      (*this)[9] = M2(2, 2);
     }
   }
 }

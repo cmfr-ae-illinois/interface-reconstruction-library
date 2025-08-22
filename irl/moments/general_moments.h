@@ -13,6 +13,8 @@
 #include <array>
 #include <ostream>
 
+#include "irl/geometry/general/pt.h"
+#include "irl/geometry/general/reference_frame.h"
 #include "irl/moments/volume.h"
 #include "irl/parameters/defined_types.h"
 
@@ -74,6 +76,13 @@ class GeneralMomentsBase {
 
   /// \brief Divide all moments by the volume (zeroeth moments)
   void normalizeByVolume(void);
+
+  /// \brief change the datum of stored moments
+  void moveMoments(const PtBase<ScalarType>& datum);
+
+  /// \brief change the frame of reference of stored moments
+  void moveAndRotateMoments(const PtBase<ScalarType>& datum,
+                            const ReferenceFrameBase<ScalarType>& frame);
 
   /// \brief Overload += operator to update moments.
   GeneralMomentsBase& operator+=(const GeneralMomentsBase& a_rhs);
