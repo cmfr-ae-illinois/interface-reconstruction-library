@@ -970,8 +970,10 @@ ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
   moments[2] = M1y;
   moments[3] = M1z;
 
-  if constexpr (ORDER == 1)
-    return (moments.moveAndRotateMoments(datum, ref_frame));
+  if constexpr (ORDER == 1) {
+    moments.moveAndRotateMoments(datum, ref_frame);
+    return moments;
+  }
 
   const double Mxx =
       this->getIntegrator([](const Pt& p) { return p[0] * p[0]; });
