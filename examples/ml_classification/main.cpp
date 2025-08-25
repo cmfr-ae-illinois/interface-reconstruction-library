@@ -1,11 +1,11 @@
-#include <torch/torch.h>
+// #include <torch/torch.h>
 #include <iostream>
 #include <vector>
 #include <string>
 
-#include "irl/ml_classification/data_gen.h"
-#include "irl/ml_classification/data_set.h"
-#include "irl/ml_classification/net.h"
+// #include "irl/ml_classification/data_gen.h"
+// #include "irl/ml_classification/data_set.h"
+// #include "irl/ml_classification/net.h"
 
 #include <random> //REMOVE, was just for testing
 
@@ -17,6 +17,9 @@
 #include <vtkMultiBlockDataSet.h>
 #include <vtkInformation.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
+#include <vtkUnstructuredGrid.h>
+#include <vtkAppendFilter.h>
+#include <vtkUnstructuredGridWriter.h>
 
 template <class CellData, class CoordData>
 void WriteField(const CoordData& coordsx, const CoordData& coordsy, const CoordData& coordsz,
@@ -89,33 +92,51 @@ void WriteField(const CoordData& coordsx, const CoordData& coordsy, const CoordD
 
 int main (int argc, char* argv[]) {
 
-    auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
-    reader->SetCaseFileName("/home/quirin/jet/nga.case");  // Adjust the path as needed
-    reader->UpdateInformation();  // Populate meta info like time steps
-    vtkInformation* info = reader->GetOutputInformation(0);
-    if (info->Has(vtkStreamingDemandDrivenPipeline::TIME_STEPS())) {
-        int nSteps = info->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+    auto reader_fields = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
+    reader_fields->SetCaseFileName("/home/quirin/jet/nga.case");  // Adjust the path as needed
+    reader_fields->UpdateInformation();  // Populate meta info like time steps
+    vtkInformation* info_fields = reader_fields->GetOutputInformation(0);
+
+    auto reader_surface = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
+    reader_surface->SetCaseFileName("/home/quirin/jet/plic.case");  // Adjust the path as needed
+    reader_surface->UpdateInformation();  // Populate meta info like time steps
+    vtkInformation* info_surface = reader_surface->GetOutputInformation(0);
+
+    if (info_fields->Has(vtkStreamingDemandDrivenPipeline::TIME_STEPS()) && info_surface->Has(vtkStreamingDemandDrivenPipeline::TIME_STEPS())) {
+        int nSteps = info_fields->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+        if (nSteps != info_surface->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS())) {
+            std::cerr << "PLIC file does not have same number of steps as mesh file." << std::endl;
+            return 1;
+        }
+
         std::vector<double> timeSteps(nSteps);
-        info->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS(), &timeSteps[0]);
+        info_fields->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS(), &timeSteps[0]);
 
 
         std::cout << "Number of timesteps: " << nSteps << std::endl;
         nSteps = 50;
 
         for (int t = 49; t < nSteps; ++t) {
-            reader->SetTimeValue(timeSteps[t]);
-            reader->Update();
+            reader_fields->SetTimeValue(timeSteps[t]);
+            reader_fields->Update();
+            reader_surface->SetTimeValue(timeSteps[t]);
+            reader_surface->Update();
 
-            auto output = vtkMultiBlockDataSet::SafeDownCast(reader->GetOutput());
-            if (!output) {
-                std::cerr << "Reader did not return a vtkMultiBlockDataSet." << std::endl;
+            auto output_fields = vtkMultiBlockDataSet::SafeDownCast(reader_fields->GetOutput());
+            if (!output_fields) {
+                std::cerr << "Mesh reader did not return a vtkMultiBlockDataSet." << std::endl;
                 return 1;
             }
 
-            std::cout << "Number of blocks: " << output->GetNumberOfBlocks() << std::endl;
+            auto output_surface = vtkMultiBlockDataSet::SafeDownCast(reader_surface->GetOutput());
+            if (!output_surface) {
+                std::cerr << "PLIC reader did not return a vtkMultiBlockDataSet." << std::endl;
+                return 1;
+            }
 
-            for (unsigned int i = 0; i < output->GetNumberOfBlocks(); ++i) {
-                auto block = output->GetBlock(i);
+            std::cout << "Number of mesh blocks: " << output_fields->GetNumberOfBlocks() << std::endl;
+            for (unsigned int i = 0; i < output_fields->GetNumberOfBlocks(); ++i) {
+                auto block = output_fields->GetBlock(i);
                 if (block) {
                     std::cout << "Block " << i << " is type: " << block->GetClassName() << std::endl;
                 } else {
@@ -123,22 +144,41 @@ int main (int argc, char* argv[]) {
                 }
             }
 
-            auto block0 = vtkRectilinearGrid::SafeDownCast(reader->GetOutput()->GetBlock(0));
-            if (!block0) {
+            std::cout << "Number of surface blocks: " << output_surface->GetNumberOfBlocks() << std::endl;
+            for (unsigned int i = 0; i < output_surface->GetNumberOfBlocks(); ++i) {
+                auto block = output_surface->GetBlock(i);
+                if (block) {
+                    std::cout << "Block " << i << " is type: " << block->GetClassName() << std::endl;
+                } else {
+                    std::cout << "Block " << i << " is nullptr." << std::endl;
+                }
+            }
+
+            // Merge all PLIC blocks
+            vtkSmartPointer<vtkAppendFilter> appendFilter = vtkSmartPointer<vtkAppendFilter>::New();
+            for (unsigned int i = 0; i < output_surface->GetNumberOfBlocks(); ++i) {
+                appendFilter->AddInputData(output_surface->GetBlock(i));
+            }
+            appendFilter->Update();
+            vtkSmartPointer<vtkUnstructuredGrid> mergedData = vtkSmartPointer<vtkUnstructuredGrid>::New();
+            mergedData->DeepCopy(appendFilter->GetOutput());
+
+            auto mesh = vtkRectilinearGrid::SafeDownCast(reader_fields->GetOutput()->GetBlock(0));
+            if (!mesh) {
                 std::cerr << "Could not access block 0 of the dataset." << std::endl;
                 return 1;
             }
 
-            const auto dimensions = block0->GetDimensions();
+            const auto dimensions = mesh->GetDimensions();
             const int ncellsx = dimensions[0] - 1;
             const int ncellsy = dimensions[1] - 1;
             const int ncellsz = dimensions[2] - 1;
 
             std::cout << "Dimensions of grid are: " << ncellsx << ", " << ncellsy << ", " << ncellsz << std::endl;
 
-            auto px = block0->GetXCoordinates();
-            auto py = block0->GetYCoordinates();
-            auto pz = block0->GetZCoordinates();
+            auto px = mesh->GetXCoordinates();
+            auto py = mesh->GetYCoordinates();
+            auto pz = mesh->GetZCoordinates();
             std::vector<double> coordsx(ncellsx + 1, 0.0);
             std::vector<double> coordsy(ncellsy + 1, 0.0);
             std::vector<double> coordsz(ncellsz + 1, 0.0);
@@ -146,14 +186,14 @@ int main (int argc, char* argv[]) {
             for (int j = 0; j < ncellsy + 1; j++) coordsy[j] = py->GetComponent(j, 0);
             for (int k = 0; k < ncellsz + 1; k++) coordsz[k] = pz->GetComponent(k, 0);
 
-            auto cellData = block0->GetCellData();
+            auto cellData = mesh->GetCellData();
             int numArrays = cellData->GetNumberOfArrays();
             std::cout << "Available cell data arrays: " << numArrays << std::endl;
             for (int i = 0; i < numArrays; ++i) {
                 std::cout << "Array " << i << ": " << cellData->GetArrayName(i) << std::endl;
             }
 
-            vtkDataArray* vofArray = block0->GetCellData()->GetArray("VOF");
+            vtkDataArray* vofArray = mesh->GetCellData()->GetArray("VOF");
             if (!vofArray) {
                 std::cerr << "VOF array not found in the dataset." << std::endl;
                 return 1;
@@ -170,16 +210,20 @@ int main (int argc, char* argv[]) {
             for (int i = 0; i < ncellsx; ++i) {
                 for (int j = 0; j < ncellsy; ++j) {
                     for (int k = 0; k < ncellsz; ++k) {
-                        const int index = k * (ncellsy * ncellsx) + j * ncellsx + i;
-                        vfrac[i][j][k] = static_cast<double>(vofArray->GetComponent(index, 0));
-                        // Each z-slice has ncellsy * ncellsx elements, move forward k slices.
-                        // Each row has ncellsx elements, so this skips over j rows
-                        // Move to the correct column in a row
+                        int ids[3] = {i,j,k};
+                        vfrac[i][j][k] = static_cast<double>(vofArray->GetComponent(mesh->ComputeCellId(ids), 0));
                     }
                 }
             }
 
             WriteField(coordsx, coordsy, coordsz, vfrac, std::string("vfrac_")+std::to_string(t));
+
+            // Writing merged PLIC
+            vtkSmartPointer<vtkUnstructuredGridWriter> writer_surface = vtkSmartPointer<vtkUnstructuredGridWriter>::New();
+            const auto file_name = "plic_" + std::to_string(t) + ".vtk"; 
+            writer_surface->SetFileName(file_name.c_str());
+            writer_surface->SetInputData(mergedData);
+            writer_surface->Write();
         }
     } else {
         std::cerr << "No time steps found in dataset." << std::endl;
