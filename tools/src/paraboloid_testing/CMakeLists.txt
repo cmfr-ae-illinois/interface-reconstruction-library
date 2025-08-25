@@ -78,7 +78,9 @@ target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "${IRL_RO
 target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "${IRL_ROOT_LOCATION}/external/triangle/")
 target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/json/include")
 target_link_libraries(paraboloid_irl_confirm_result INTERFACE PUBLIC Eigen3::Eigen)
-target_link_libraries(paraboloid_irl_confirm_result INTERFACE PUBLIC CGAL)
+if(${IRL_USE_CGAL})
+  target_link_libraries(paraboloid_irl_confirm_result INTERFACE PUBLIC CGAL)
+endif()
 target_include_directories(paraboloid_irl_confirm_result SYSTEM PUBLIC "")
 
 
