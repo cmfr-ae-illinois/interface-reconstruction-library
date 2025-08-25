@@ -84,7 +84,7 @@ target_include_directories(cylinder_test_configuration SYSTEM PUBLIC "${PROJECT_
 target_include_directories(cylinder_test_configuration SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/triangle/")
 target_link_libraries(cylinder_test_configuration INTERFACE PUBLIC Eigen3::Eigen)
 if(${IRL_USE_CGAL})
-  target_link_libraries(cylinder_verification INTERFACE PUBLIC CGAL)
+  target_link_libraries(cylinder_test_configuration INTERFACE PUBLIC CGAL)
 endif()
 target_include_directories(cylinder_test_configuration SYSTEM PUBLIC "")
 
@@ -114,7 +114,7 @@ target_include_directories(cylinder_timing SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/
 target_include_directories(cylinder_timing SYSTEM PUBLIC "${PROJECT_SOURCE_DIR}/external/triangle/")
 target_link_libraries(cylinder_timing INTERFACE PUBLIC Eigen3::Eigen)
 if(${IRL_USE_CGAL})
-  target_link_libraries(cylinder_verification INTERFACE PUBLIC CGAL)
+  target_link_libraries(cylinder_timing INTERFACE PUBLIC CGAL)
 endif()
 target_include_directories(cylinder_timing SYSTEM PUBLIC "")
 
