@@ -1,0 +1,24 @@
+IRLAddExample_cpp(
+  TARGET_NAME
+  pu_analysis
+  HDRS
+  "functions.h"
+  "surfaces.h"
+  "../2d_advector/reconstruction_types.h"
+  "../2d_advector/vtk.h"
+  SRCS
+  "main.cpp"
+  "functions.cpp"
+  "circle.cpp"
+  "ellipse.cpp"
+  "sine.cpp"
+  "output.cpp"
+  "../2d_advector/reconstruction_types.cpp"
+  "../2d_advector/vtk.cpp"
+  "../2d_advector/basic_mesh.cpp"
+  "../2d_advector/irl2d.cpp"
+  OUTPUT_DIR
+  "${IRL_EXAMPLES_OUTPUT_DIR}/pu_analysis"
+  COLLECTION
+  "examples_pu_analysis"
+)
