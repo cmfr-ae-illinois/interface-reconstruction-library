@@ -538,7 +538,7 @@ namespace IRL {
                 case 3:
                     return generate_Sheet(stencil_size);
                 default:
-                    return generate_Paraboloid(stencil_size, datapoint_type, plane_bounds_coefficients);
+                    return generate_Paraboloid(stencil_size, 1, plane_bounds_coefficients);
             }
         }
 
