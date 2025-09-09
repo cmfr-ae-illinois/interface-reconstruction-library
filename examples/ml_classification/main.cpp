@@ -20,6 +20,12 @@
 #include <vtkRectilinearGrid.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkDoubleArray.h>
+#include <vtkXMLUnstructuredGridWriter.h>
+#include <vtkXMLRectilinearGridWriter.h>
+#include <vtkAppendFilter.h>
+#include <vtkCellLocator.h>
+#include <vtkPolygon.h>
+#include <vtkCellCenters.h>
 
 template <class CellData, class CoordData>
 void WriteField(const CoordData& coordsx, const CoordData& coordsy, const CoordData& coordsz,
@@ -266,63 +272,22 @@ int main (int argc, char* argv[]) {
   // vtk reader
 
   auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
-  reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
+//   reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
+  reader->SetCaseFileName("/home/quirin/jet/nga.case");
   reader->UpdateInformation();
 
   vtkInformation* info = reader->GetOutputInformation(0);
-  if (!info->Has(vtkStreamingDemandDrivenPipeline::TIME_STEPS())) {
-      std::cerr << "No time steps found." << std::endl;
-      return 1;
-  }
-
   int nSteps = info->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
   std::vector<double> timeSteps(nSteps);
   info->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS(), timeSteps.data());
-
-  // Set to last time step
   reader->SetTimeValue(timeSteps[nSteps - 1]);
   reader->Update();
-
-  // Get the output as multiblock
   auto mb = vtkMultiBlockDataSet::SafeDownCast(reader->GetOutput());
-  if (!mb) {
-      std::cerr << "Output is not a vtkMultiBlockDataSet." << std::endl;
-      return 1;
-  }
-
-  // Assume data is in the first block (adjust if needed)
   auto block = mb->GetBlock(0);
-  if (!block) {
-      std::cerr << "No block found in multiblock dataset." << std::endl;
-      return 1;
-  }
-
   auto dataSet = vtkDataSet::SafeDownCast(block);
-  if (!dataSet) {
-      std::cerr << "Block is not a vtkDataSet." << std::endl;
-      return 1;
-  }
-
-  // Access cell data (volume fraction is cell-based)
   vtkCellData* cellData = dataSet->GetCellData();
-  if (!cellData) {
-      std::cerr << "No cell data found." << std::endl;
-      return 1;
-  }
-
   vtkDataArray* vofArray = cellData->GetArray("VOF");
-  if (!vofArray) {
-      std::cerr << "VOF array not found in cell data." << std::endl;
-      return 1;
-  }
-
-  // Cast to vtkRectilinearGrid to access dimensions
   auto grid = vtkRectilinearGrid::SafeDownCast(dataSet);
-  if (!grid) {
-      std::cerr << "Data is not a vtkRectilinearGrid." << std::endl;
-      return 1;
-  }
-
   int dims[3];  // point dimensions
   grid->GetDimensions(dims);
 
@@ -336,8 +301,45 @@ int main (int argc, char* argv[]) {
   std::cout << "  ny = " << ny << std::endl;
   std::cout << "  nz = " << nz << std::endl;
 
-  const int stencil_size_reader = 3;
+  // Create new cell data array for interface type
+  auto interface_type = vtkSmartPointer<vtkIntArray>::New();
+  interface_type->SetName("InterfaceType");
+  interface_type->SetNumberOfComponents(1);
+  interface_type->SetNumberOfTuples(grid->GetNumberOfCells());
+  for (int i = 0; i < grid->GetNumberOfCells(); i++) {
+    interface_type->SetValue(i, -1);
+  }
 
+  // Read PLIC file for viz
+  auto plic_reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
+  plic_reader->SetCaseFileName("/home/quirin/jet/plic.case");
+  plic_reader->UpdateInformation();
+
+  vtkInformation* plic_info = plic_reader->GetOutputInformation(0);
+  int plic_nSteps = plic_info->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+  std::vector<double> plic_timeSteps(plic_nSteps);
+  plic_info->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS(), plic_timeSteps.data());
+  plic_reader->SetTimeValue(plic_timeSteps[plic_nSteps - 1]);
+  plic_reader->Update();
+  auto plic_mb = vtkMultiBlockDataSet::SafeDownCast(plic_reader->GetOutput());
+  auto plic_block_merger = vtkSmartPointer<vtkAppendFilter>::New();
+  for (int i = 0; i < plic_mb->GetNumberOfBlocks(); i++) {
+    auto plic_block = plic_mb->GetBlock(i);
+    if (plic_block) { plic_block_merger->AddInputData(plic_block);}
+  }
+  plic_block_merger->Update();
+  auto plic_grid = vtkUnstructuredGrid::SafeDownCast(plic_block_merger->GetOutput());
+
+  // Create new cell data array for interface type on PLIC surface
+  auto plic_interface_type = vtkSmartPointer<vtkIntArray>::New();
+  plic_interface_type->SetName("InterfaceType");
+  plic_interface_type->SetNumberOfComponents(1);
+  plic_interface_type->SetNumberOfTuples(plic_grid->GetNumberOfCells());
+  for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
+    plic_interface_type->SetValue(i, -1);
+  }
+
+  const int stencil_size_reader = 3;
   int no_filled_cells = 0;
   int no_paraboloids = 0;
   int no_cylinders = 0;
@@ -396,15 +398,19 @@ int main (int argc, char* argv[]) {
               switch (predicted_class) {
                 case 0:
                     no_paraboloids++;
+                    interface_type->SetValue(centerCellId, 0);
                     break;
                 case 1:
                     no_cylinders++;
+                    interface_type->SetValue(centerCellId, 1);
                     break;
                 case 2:
                     no_spheres++;
+                    interface_type->SetValue(centerCellId, 2);
                     break;
                 case 3:
                     no_sheets++;
+                    interface_type->SetValue(centerCellId, 3);
                     break;
                 default:
                     std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;
@@ -422,23 +428,38 @@ int main (int argc, char* argv[]) {
   std::cout << "Spheres:              " << no_spheres << std::endl;
   std::cout << "Sheets:               " << no_sheets << std::endl;
 
-  // make a prediction based on a 3x3 vector
-  std::vector<double> fractions1 = data_gen.generate_Cylinder(3);
-  // Whithin generate_Cylinder, it is already compressed into a 1 dimensional vector. Go into that function to find out how
+  // Write Grid file
+  grid->GetCellData()->AddArray(interface_type);
+  auto grid_writer = vtkSmartPointer<vtkXMLRectilinearGridWriter>::New();
+  grid_writer->SetFileName("grid.vtr");
+  grid_writer->SetInputData(grid);
+  grid_writer->Write();
 
-  int predicted_class1 = net.forward(torch::tensor(fractions1)).argmax().item<int>();
-  // Current correct classes: 0=paraboloid, 1=cylinder, 2=sphere, 3=sheet
+  // Convert interface_type to PLIC array
+  auto locator = vtkSmartPointer<vtkCellLocator>::New();
+  locator->SetDataSet(grid);
+  locator->BuildLocator();
+  auto cell_center_filter = vtkSmartPointer<vtkCellCenters>::New();
+  cell_center_filter->SetInputData(plic_grid);
+  cell_center_filter->Update();
+  auto cell_centers = cell_center_filter->GetOutput()->GetPoints();
 
-  std::cout << "Predicted class: " << predicted_class1 << std::endl;
+  for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
+    // double center[3];
+    // auto cell = vtkUnstructuredGrid::SafeDownCast(grid->GetCell(i));
+    // vtkPoints* points = cell->GetPoints();
+    // vtkPolygon::ComputeCentroid(points, center);
+    auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
+    plic_interface_type->SetValue(i, type);
+  }
 
-    // make a prediction based on a 3x3 vector
-  std::vector<double> fractions2 = data_gen.generate_Cylinder(3);
-  // Whithin generate_Cylinder, it is already compressed into a 1 dimensional vector. Go into that function to find out how
+  // Write PLIC file
+  plic_grid->GetCellData()->AddArray(plic_interface_type);
+  auto plic_writer = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
+  plic_writer->SetFileName("plic.vtu");
+  plic_writer->SetInputData(plic_grid);
+  plic_writer->Write();
 
-  int predicted_class2 = net.forward(torch::tensor(fractions1)).argmax().item<int>();
-  // Current correct classes: 0=paraboloid, 1=cylinder, 2=sphere, 3=sheet
-
-  std::cout << "Predicted class: " << predicted_class2 << std::endl;
 
   return 0;
 }
