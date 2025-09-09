@@ -445,10 +445,6 @@ int main (int argc, char* argv[]) {
   auto cell_centers = cell_center_filter->GetOutput()->GetPoints();
 
   for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
-    // double center[3];
-    // auto cell = vtkUnstructuredGrid::SafeDownCast(grid->GetCell(i));
-    // vtkPoints* points = cell->GetPoints();
-    // vtkPolygon::ComputeCentroid(points, center);
     auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
     plic_interface_type->SetValue(i, type);
   }
