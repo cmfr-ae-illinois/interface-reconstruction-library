@@ -8,9 +8,9 @@ IRLAddExample_cpp(
   "reconstruction_types.h"
   "translation.h"
   "vof_advection.h"
-  "vtk.h"
-  "data.h"
-  "basic_mesh.h"
+  "../2d_advector/vtk.h"
+  "../2d_advector/data.h"
+  "../2d_advector/basic_mesh.h"
   SRCS
   "main.cpp"
   "functions.cpp"
@@ -22,8 +22,8 @@ IRLAddExample_cpp(
   "reconstruction_types.cpp"
   "translation.cpp"
   "vof_advection.cpp"
-  "vtk.cpp"
-  "basic_mesh.cpp"
+  "../2d_advector/vtk.cpp"
+  "../2d_advector/basic_mesh.cpp"
   OUTPUT_DIR
   "${IRL_EXAMPLES_OUTPUT_DIR}/pu_analysis"
   COLLECTION

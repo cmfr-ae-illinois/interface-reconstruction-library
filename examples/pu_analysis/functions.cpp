@@ -28,7 +28,7 @@ void selectSurface(const std::string& implicit_surface, ImplicitF& F,
 // setting mesh
 BasicMesh setMesh(const int& Nx, const IRL2D::Vec& lower_domain,
                   const IRL2D::Vec& upper_domain) {
-  const int GC = 3;
+  const int GC = 5;
   BasicMesh mesh(Nx, Nx, GC);
   mesh.setCellBoundaries(lower_domain, upper_domain);
   return mesh;

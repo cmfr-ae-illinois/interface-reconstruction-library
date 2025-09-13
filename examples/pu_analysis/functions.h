@@ -2,9 +2,9 @@
 #include <iostream>
 #include <string>
 
-#include "examples/2d_advector/basic_mesh.h"
-#include "examples/2d_advector/data.h"
-#include "examples/2d_advector/irl2d.h"
+#include "examples/pu_analysis/basic_mesh.h"
+#include "examples/pu_analysis/data.h"
+#include "examples/pu_analysis/irl2d.h"
 #include "examples/pu_analysis/surfaces.h"
 
 #ifndef EXAMPLES_INITIALIZE_VF_FUNCTIONS_H_
@@ -97,4 +97,17 @@ void write_vtr(const std::string& filepath, const Data<double>& vf,
 void write_vtu(const std::string& filepath,
                const std::vector<const Cell*>& cells);
 
+bool writeScatterVTK(const std::vector<IRL2D::Vec>& points,
+                     const std::string& filename);
+
+void writeVTKStructuredPoints_PointData(const std::string& filename, int nx_pts,
+                                        int ny_pts, double xmin, double xmax,
+                                        double ymin, double ymax,
+                                        const std::vector<double>& Fpoints);
+
+void dumpPoUFieldVTK(const std::string& filename,
+                     const Data<IRL2D::Parabola>& interface,
+                     const Data<IRL2D::Moments>& liquid_moments,
+                     const BasicMesh& coarse_mesh, const BasicMesh& fine_mesh,
+                     IRL2D::Vec minPt, IRL2D::Vec maxPt);
 #endif
