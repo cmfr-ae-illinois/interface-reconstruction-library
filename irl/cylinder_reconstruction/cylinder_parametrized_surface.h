@@ -96,6 +96,9 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   inline double getGaussianCurvatureAligned(const Pt a_pt);
   inline double getGaussianCurvatureNonAligned(const Pt a_pt);
 
+  MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
+  MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);
+
   void triangulate_fromPtr(
       const double a_length_scale = -1.0, const UnsignedIndex_t a_nsplit = 5,
       TriangulatedSurfaceOutput* a_surface = nullptr) const;
@@ -109,6 +112,8 @@ class CylinderParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
  private:
   // indexes_of_flip_m[i] stores the index of the first arc that use
   // cylinder_m[i]
+  MixedPolygonBezierSurface getBezierTriangleApprox(
+    const UnsignedIndex_t a_order);
   std::vector<int> indexes_of_flip_m;
   std::vector<Cylinder> cylinder_m;
   double scale_m;

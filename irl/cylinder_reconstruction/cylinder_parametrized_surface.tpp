@@ -26,6 +26,60 @@
 
 namespace IRL {
 
+inline Normal computeNormalizedTangentAtPoint(
+    const AlignedCylinder& a_cylinder, const Normal& a_plane_normal,
+    const Pt& a_pt) {
+  Normal surface_normal = getCylinderSurfaceNormal(a_cylinder, a_pt);
+  surface_normal.approximatelyNormalize();
+  Normal tangent_at_pt = crossProduct(a_plane_normal, surface_normal);
+  if (squaredMagnitude(tangent_at_pt) < DBL_EPSILON * DBL_EPSILON) {
+    return Normal(0.0, 0.0, 0.0);
+  }
+  const double normal_correction = tangent_at_pt * a_plane_normal;
+  tangent_at_pt = tangent_at_pt - normal_correction * a_plane_normal;
+  tangent_at_pt.normalize();
+  return tangent_at_pt;
+}
+
+inline RationalBezierArc computeVerticalRationalBezierArc(
+    const AlignedCylinder& a_cylinder, const Pt& pt_0, const Pt& pt_1) {
+  const double DISTANCE_EPSILON = 1.0e2 * DBL_EPSILON;
+  const double ANGLE_EPSILON = 1.0e6 * DBL_EPSILON;
+
+  // Calculate edge vector and its normalized version
+  const Normal edge_vector = pt_1 - pt_0;
+  Normal edge_vector_normalized = edge_vector;
+  edge_vector_normalized.normalize();
+
+  const Normal plane_normal =
+      crossProduct(edge_vector_normalized, Normal(0.0, 0.0, 1.0));
+  Normal tangent_0 =
+      computeNormalizedTangentAtPoint(a_cylinder, plane_normal, pt_0);
+  Normal tangent_1 =
+      computeNormalizedTangentAtPoint(a_cylinder, plane_normal, pt_1);
+
+  // Compute dot product between normalized edge and end-point tangents
+  double tgt0_dot_edge = tangent_0 * edge_vector_normalized;
+  double tgt1_dot_edge = tangent_1 * edge_vector_normalized;
+  if (tgt0_dot_edge < 0.0) {
+    tgt0_dot_edge = -tgt0_dot_edge;
+    tangent_0 = -tangent_0;
+  }
+  if (tgt1_dot_edge > 0.0) {
+    tgt1_dot_edge = -tgt1_dot_edge;
+    tangent_1 = -tangent_1;
+  }
+
+  if (magnitude(tangent_0) < 0.9 || magnitude(tangent_0) < 0.9 ||
+      (magnitude(edge_vector) < DISTANCE_EPSILON &&
+       fabs(1.0 - tgt0_dot_edge) < ANGLE_EPSILON &&
+       fabs(1.0 + tgt1_dot_edge) < ANGLE_EPSILON)) {
+    return RationalBezierArc(pt_0, 0.5 * (pt_0 + pt_1), pt_1, 0.0);
+  }
+  return RationalBezierArc(pt_0, tangent_0, pt_1, tangent_1, plane_normal,
+                           a_cylinder);
+}
+
 /// @brief project a list of vertices vertically up on the surface of the
 /// cylinder, the projection will put the vertices on the top half of the
 /// cylinder. the vertex is projected at z=0 if |y| > sqrt(r/b)
@@ -674,6 +728,321 @@ inline double CylinderParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
   // return 0.0;
 };
 
+inline double pointDistance(const Pt& a, const Pt& b) {
+  double sum_sq = 0.0;
+  for (int i = 0; i < 3; ++i) {
+    double diff = a[i] - b[i];
+    sum_sq += diff * diff;
+  }
+  return std::sqrt(sum_sq);
+}
+
+inline MixedPolygonBezierSurface
+CylinderParametrizedSurfaceOutput::getQuadraticBezierTriangleApprox(void) {
+  return std::move(this->getBezierTriangleApprox(2));
+}
+
+inline MixedPolygonBezierSurface
+CylinderParametrizedSurfaceOutput::getCubicBezierTriangleApprox(void) {
+  return std::move(this->getBezierTriangleApprox(3));
+}
+
+inline MixedPolygonBezierSurface
+CylinderParametrizedSurfaceOutput::getBezierTriangleApprox(
+    const UnsignedIndex_t a_order) {
+    
+  // Initialize bezier surface
+  MixedPolygonBezierSurface bezier_surface;
+  UnsignedIndex_t master_point_offset = 0;
+
+  const UnsignedIndex_t nArcs = arc_list_m.size();
+  auto complete_indexes_of_flip = indexes_of_flip_m;
+  const int nb_rotation = indexes_of_flip_m.size();
+  constexpr double match_tol = 1e-10;
+
+  // Loop over segments
+  for (int m = 0; m < nb_rotation; ++m) {
+    std::vector<std::vector<UnsignedIndex_t>> list_of_closed_curves(0);
+    std::vector<bool> visited(nArcs, false);
+    bool valid_curves = true;
+    // Determine the range of arc indices for the current segment.
+    int max_it = (m == nb_rotation - 1) ? nArcs : complete_indexes_of_flip[m + 1];
+    const unsigned int start_arc_idx = complete_indexes_of_flip[m];
+
+    // Generate list of closed curves
+    for (unsigned int t = start_arc_idx; t < max_it; ++t) {
+      if (visited[t]) continue;
+
+      // Start with next available arc
+      list_of_closed_curves.push_back({t});
+      visited[t] = true;
+
+      const std::uintptr_t start_id = arc_list_m[t].start_point_id();
+      std::uintptr_t end_id = arc_list_m[t].end_point_id();
+      Pt end_pt_ref = arc_list_m[t].end_point();
+      Pt start_pt_ref = arc_list_m[t].start_point();
+
+      UnsignedIndex_t counter = 0;
+      // Distance between the current end point and the original start point.
+      double final_distance = std::numeric_limits<double>::infinity();
+
+      // Keep adding arcs to the current curve until it's closed.
+      while (end_id != start_id && final_distance > match_tol) {
+          bool found_next_arc = false;
+          UnsignedIndex_t best_match_idx = arc_list_m.size();
+          double best_dist = std::numeric_limits<double>::max();
+
+          // Search for the next arc that connects to the end of the current curve.
+          for (UnsignedIndex_t e = start_arc_idx; e < max_it; ++e) {
+              if (visited[e]) continue;
+
+              const auto& cand_arc = arc_list_m[e];
+              std::uintptr_t cand_start_id = cand_arc.start_point_id();
+              const Pt& cand_start_pt = cand_arc.start_point();
+
+              double dist = pointDistance(cand_start_pt, end_pt_ref);
+              bool id_match = (cand_start_id == end_id);
+              bool geom_match = (dist < match_tol);
+
+              // Potential match if start point matches current curve's end point
+              if (geom_match || id_match) {
+                  if (dist < best_dist) {
+                      best_dist = dist;
+                      best_match_idx = e;
+                  }
+              }
+          }
+          // If a valid connecting arc was found add it to the current curve
+          if (best_match_idx < arc_list_m.size()) {
+              const auto& matched_arc = arc_list_m[best_match_idx];
+              visited[best_match_idx] = true;
+              list_of_closed_curves.back().push_back(best_match_idx);
+              end_pt_ref = matched_arc.end_point();
+              end_id = matched_arc.end_point_id();
+              found_next_arc = true;
+              final_distance = pointDistance(end_pt_ref, start_pt_ref);
+          }
+          if (!found_next_arc || ++counter > nArcs) {
+            valid_curves = false;
+            break;
+        }
+      }
+    }
+
+    // Only produce bezier triangle approximation if we have found closed curves
+    if (valid_curves && !list_of_closed_curves.empty()) {
+      // Total number of points in all curves
+      UnsignedIndex_t total_points = 0;
+      for (const auto& c : list_of_closed_curves) total_points += c.size();
+      
+      std::vector<Pt> points; 
+      points.reserve(total_points);
+      std::vector<double> weights; 
+      weights.reserve(total_points);
+      std::vector<std::tuple<UnsignedIndex_t, UnsignedIndex_t, UnsignedIndex_t>> info; 
+      info.reserve(total_points);
+      std::vector<UnsignedIndex_t> indices;
+
+      UnsignedIndex_t global_point_offset = 0;
+      // Iterate through each identified closed curve
+      for (size_t i = 0; i < list_of_closed_curves.size(); ++i) {
+        const auto& curve = list_of_closed_curves[i];
+        if (curve.empty()) continue;
+
+        std::vector<std::vector<std::array<double, 2>>> current_polygon(1);
+        current_polygon[0].reserve(curve.size());
+
+        // Iterate through arcs of the current closed curve.
+        for (size_t j = 0; j < curve.size(); ++j) {
+            const UnsignedIndex_t arc_id = curve[j];
+            const Pt& pt = arc_list_m[arc_id].start_point();
+            
+            points.push_back(pt);
+            weights.push_back(1.0);
+            current_polygon[0].push_back({pt[0], pt[1]});
+
+            const UnsignedIndex_t next_global_idx = global_point_offset + (j + 1) % curve.size();
+            info.emplace_back(next_global_idx, i, j);
+        }
+
+        // Compute earcut triangulation of region constrained by closed curves
+        std::vector<UnsignedIndex_t> local_indices = mapbox::earcut<UnsignedIndex_t>(current_polygon);
+
+        for (const auto& local_idx : local_indices) {
+            indices.push_back(local_idx + global_point_offset);
+        }
+
+        global_point_offset += curve.size();
+      }
+
+      // Convert flat triangles into quadratic rational Bezier triangle
+      const UnsignedIndex_t ntriangles = indices.size() / 3;
+      if (a_order == 2) {
+        std::vector<std::array<UnsignedIndex_t, 6>> bezier_triangles(ntriangles);
+        std::vector<std::array<UnsignedIndex_t, 3>> boundaries;
+        boundaries.reserve(points.size());
+        std::vector<Pt> new_points; new_points.reserve(ntriangles * 3);
+        std::vector<double> new_weights; new_weights.reserve(ntriangles * 3);
+        const auto& aligned_p = cylinder_m[m].getAlignedCylinder();
+
+        // Iterate over each flat triangle
+        for (UnsignedIndex_t i = 0; i < ntriangles; ++i) {
+          // Vertices of the flat triangle
+          for (int j = 0; j < 3; j++) bezier_triangles[i][j] = indices[3 * i + j];
+
+          // Edge control points.
+          for (int j = 0; j < 3; j++) {
+            const int v0 = indices[3 * i + j]; const int v1 = indices[3 * i + (j + 1) % 3];
+            bezier_triangles[i][3 + j] = new_points.size();
+            const Pt& pt0 = points[v0];
+            const Pt& pt1 = points[v1];
+            const Pt& pt0_info = points[std::get<0>(info[v0])];
+            double dist = pointDistance(pt1, pt0_info);
+            if (dist < match_tol) {
+              const int i_id = std::get<1>(info[v0]); const int j_id = std::get<2>(info[v0]);
+              const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
+              boundaries.push_back({(UnsignedIndex_t)v0, (UnsignedIndex_t)v1, (UnsignedIndex_t)new_points.size()});
+              new_points.push_back(arc_list_m[arc_id].control_point());
+              new_weights.push_back(arc_list_m[arc_id].weight());
+            } else {
+              const auto arc = computeVerticalRationalBezierArc(aligned_p, points[v0], points[v1]);
+              new_points.push_back(arc.control_point());
+              new_weights.push_back(arc.weight());
+            }
+          }
+        }
+        
+        const UnsignedIndex_t original_points_size = points.size();
+        points.insert(points.end(), new_points.begin(), new_points.end());
+        weights.insert(weights.end(), new_weights.begin(), new_weights.end());
+
+        // Local to global index corrections
+        for(auto& tri : bezier_triangles) {
+          for(int j = 3; j < 6; ++j) {
+            tri[j] += original_points_size;
+          }
+        }
+        for(auto& bound : boundaries) {
+          bound[2] += original_points_size;
+        }
+
+        if (master_point_offset > 0) {
+          for (auto& tri : bezier_triangles) {
+            for (size_t j = 0; j < 6; ++j) {
+              tri[j] += master_point_offset;
+            }
+          }
+          for (auto& bound : boundaries) {
+            bound[0] += master_point_offset;
+            bound[1] += master_point_offset;
+            bound[2] += master_point_offset;
+          }
+        }
+        bezier_surface.addBoundaries(boundaries);
+        bezier_surface.addBezierTriangles(bezier_triangles);
+      } 
+      else if (a_order == 3) {
+        std::vector<std::array<UnsignedIndex_t, 10>> bezier_triangles(ntriangles);
+        std::vector<std::array<UnsignedIndex_t, 4>> boundaries;
+        boundaries.reserve(points.size());
+        std::vector<Pt> new_points; new_points.reserve(ntriangles * 7);
+        std::vector<double> new_weights; new_weights.reserve(ntriangles * 7);
+        const auto& aligned_p = cylinder_m[m].getAlignedCylinder();
+        
+        for (UnsignedIndex_t i = 0; i < ntriangles; ++i) {
+          auto V = Pt(0.0, 0.0, 0.0); auto E = Pt(0.0, 0.0, 0.0);
+          for (int j = 0; j < 3; j++) {
+            bezier_triangles[i][j] = indices[3 * i + j]; V += points[indices[3 * i + j]];
+          }
+          V *= 1.0 / 3.0;
+
+          for (int j = 0; j < 3; j++) {
+            const int v0 = indices[3 * i + j]; const int v1 = indices[3 * i + (j + 1) % 3];
+            const Pt& pt_0 = points[v0]; const Pt& pt_2 = points[v1];
+            Pt pt_1; double w;
+            
+            bool is_boundary_edge = (v1 == std::get<0>(info[v0]));
+            if (is_boundary_edge) {
+              const int i_id = std::get<1>(info[v0]); const int j_id = std::get<2>(info[v0]);
+              const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
+              pt_1 = arc_list_m[arc_id].control_point(); w = arc_list_m[arc_id].weight();
+            } else {
+              const auto arc = computeVerticalRationalBezierArc(aligned_p, pt_0, pt_2);
+              pt_1 = arc.control_point(); w = arc.weight();
+            }
+
+            const double w1 = (1.0 + 2.0 * w) / 3.0; const double w1_inv = 1.0 / (3.0 * w1);
+            const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
+            const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
+
+            const UnsignedIndex_t cp1_idx = new_points.size();
+            bezier_triangles[i][3 + 2 * j] = cp1_idx;
+            new_points.push_back(pt_1_n); new_weights.push_back(w1);
+
+            const UnsignedIndex_t cp2_idx = new_points.size();
+            bezier_triangles[i][3 + 2 * j + 1] = cp2_idx;
+            new_points.push_back(pt_2_n); new_weights.push_back(w1);
+            
+            if (is_boundary_edge) {
+                boundaries.push_back({(UnsignedIndex_t)v0, (UnsignedIndex_t)v1, cp1_idx, cp2_idx});
+            }
+            E += pt_1_n + pt_2_n;
+          }
+          E *= 1.0 / 6.0; Pt pt_ctrl = E + 0.5 * (E - V);
+          bezier_triangles[i][9] = new_points.size(); new_points.push_back(pt_ctrl); new_weights.push_back(1.0);
+        }
+
+        const UnsignedIndex_t original_points_size = points.size();
+        points.insert(points.end(), new_points.begin(), new_points.end());
+        weights.insert(weights.end(), new_weights.begin(), new_weights.end());
+
+        for (auto& tri : bezier_triangles) {
+          for (int j = 3; j < 10; ++j) {
+            tri[j] += original_points_size;
+          }
+        }
+        for (auto& bound : boundaries) {
+            bound[2] += original_points_size;
+            bound[3] += original_points_size;
+        }
+        
+        if (master_point_offset > 0) {
+          for (auto& tri : bezier_triangles) {
+            for (size_t j = 0; j < 10; ++j) {
+              tri[j] += master_point_offset;
+            }
+          }
+          for (auto& bound : boundaries) {
+            bound[0] += master_point_offset;
+            bound[1] += master_point_offset;
+            bound[2] += master_point_offset;
+            bound[3] += master_point_offset;
+          }
+        }
+        bezier_surface.addBoundaries(boundaries);
+        bezier_surface.addBezierTriangles(bezier_triangles);
+      }
+      // Transform to the global coordinate system.
+      const auto& datum = cylinder_m[m].getDatum();
+      const auto& frame = cylinder_m[m].getReferenceFrame();
+      for (size_t i = 0; i < points.size(); i++) {
+        const Pt base_pt = points[i]; points[i] = Pt(0.0, 0.0, 0.0);
+        for (int d = 0; d < 3; ++d) {
+          for (int n = 0; n < 3; ++n) {
+            points[i][n] += frame[d][n] * base_pt[d];
+          }
+        }
+        points[i] += datum;
+      }
+      
+      bezier_surface.addPoints(points, weights);
+      master_point_offset += points.size();
+    }
+  }
+
+  return std::move(bezier_surface);
+}
+
 inline TriangulatedSurfaceOutput CylinderParametrizedSurfaceOutput::triangulate(
     const double a_length_scale, const UnsignedIndex_t a_nsplit) const {
   TriangulatedSurfaceOutput returned_surface;
@@ -1260,8 +1629,7 @@ inline void CylinderParametrizedSurfaceOutput::triangulate_fromPtr(
       // vertices.\n"; myfile << "Refining with length-scale " <<
       // length_scale << ".\n"; sleep(1.0e-4);
       CGAL::refine_Delaunay_mesh_2(cdt,
-                                   CGAL::parameters::seeds(list_of_seeds)
-                                       .criteria(Criteria(0.15, length_scale)));
+                                 CGAL::parameters::criteria(Criteria(0.15, length_scale)));
       // , CGAL::parameters::seeds_are_in_domain(false));
       // myfile << "Mesh has " << cdt.number_of_vertices() << "
       // vertices.\n"; myfile << "Mesh has " << cdt.number_of_faces() << "
