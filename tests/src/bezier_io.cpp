@@ -113,10 +113,10 @@ TEST(BezierIO, CylinderInCube) {
   //   triangulated_surface.write("bezier_io_test1_triangulated_surface");
 
   auto bezier_quadratic_surface = surface.getQuadraticBezierTriangleApprox();
-  bezier_quadratic_surface.write("bezier_io_test1_bezier_quadratic_surface");
+  bezier_quadratic_surface.write("bezier_io_test3_bezier_quadratic_surface");
 
   auto bezier_cubic_surface = surface.getCubicBezierTriangleApprox();
-  bezier_cubic_surface.write("bezier_io_test1_bezier_cubic_surface");
+  bezier_cubic_surface.write("bezier_io_test3_bezier_cubic_surface");
 
   SUCCEED();
 }
@@ -155,7 +155,7 @@ TEST(BezierIO, CylinderAndPlaneInCubes) {
   const auto polygon2 = getPlanePolygonFromReconstruction<Polygon>(
       cube2, planar_separator, planar_separator[0]);
   surface_output.addPolygons(std::vector<Polygon>({polygon1, polygon2}));
-  surface_output.write("bezier_io_test2", true);
+  surface_output.write("bezier_io_test4", true);
 
   SUCCEED();
 }
