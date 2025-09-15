@@ -138,9 +138,13 @@ namespace IRL {
 
             Eigen::Vector3d direction = generateRandomPoint(-1.0 , 1.0, eng); // direction in chich the paraboloid will open. Will be used to calc datum offset and z-direction of frame as well.
 
-            std::uniform_real_distribution<double> random_thickness(0.1, 1);
+            std::uniform_real_distribution<double> random_thickness(0.1, 0.5);
             
-            std::uniform_real_distribution<double> random_coeff(0.0, 5.0);
+            // OLD: Uniform distribution for coeffs
+            //std::uniform_real_distribution<double> random_coeff(0.0, 5.0);
+
+            // New: Normal distribution for coeffs, mean 0, stddev 0.75
+            std::normal_distribution<double> random_coeff(0.0, 0.75);
 
             // Define a distribution for picking the sign (either -1 or 1) for coeffs
             std::uniform_int_distribution<int> signPick(0, 1);
@@ -179,8 +183,27 @@ namespace IRL {
             IRL::Pt datum_paraboloid1(datum_paraboloid1_eVec.x(), datum_paraboloid1_eVec.y(), datum_paraboloid1_eVec.z());
             IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
 
-            double coeff1 = random_coeff(eng) * (signPick(eng) == 0 ? -1 : 1);
-            double coeff2 = random_coeff(eng) * (signPick(eng) == 0 ? -1 : 1);
+            // OLD: Uniform distribution for coeffs
+            //double coeff1 = random_coeff(eng) * (signPick(eng) == 0 ? -1 : 1);
+            //double coeff2 = random_coeff(eng) * (signPick(eng) == 0 ? -1 : 1);
+
+            // New: Normal distribution for coeffs, mean 0, stddev 1
+            //double coeff1 = random_coeff(eng);
+            //double coeff2 = random_coeff(eng);
+
+            // now with clamp
+            const double max_abs_coeff = 5.0;
+
+            auto sample_bounded_normal = [&](auto& rng, auto& dist, double bound) -> double {
+                double value;
+                do {
+                    value = dist(rng);
+                } while (std::abs(value) > bound);
+                return value;
+            };
+
+            double coeff1 = sample_bounded_normal(eng, random_coeff, max_abs_coeff);
+            double coeff2 = sample_bounded_normal(eng, random_coeff, max_abs_coeff);
 
             // Create random paraboloid
 

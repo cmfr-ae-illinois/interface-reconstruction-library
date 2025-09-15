@@ -109,7 +109,7 @@ int main (int argc, char* argv[]) {
   int output_size = 4; // 0 = plane (currently not used), 1 = paraboloid, 2 = cylinder, 3 = 
   int batch_size = 64;
   double learning_rate = 0.001; //was 0.01 for SGD optimizer
-  int no_batches = 1024; // Should be divisible by batch size
+  int no_batches = 2048; // Should be divisible by batch size
   int epochs = 20;
   std::vector<double> lossVector;
 
@@ -272,8 +272,8 @@ int main (int argc, char* argv[]) {
   // vtk reader
 
   auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
-//   reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
-  reader->SetCaseFileName("/home/quirin/jet/nga.case");
+  reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
+  //reader->SetCaseFileName("/home/quirin/jet/nga.case");
   reader->UpdateInformation();
 
   vtkInformation* info = reader->GetOutputInformation(0);
@@ -288,15 +288,84 @@ int main (int argc, char* argv[]) {
   vtkCellData* cellData = dataSet->GetCellData();
   vtkDataArray* vofArray = cellData->GetArray("VOF");
   auto grid = vtkRectilinearGrid::SafeDownCast(dataSet);
-  int dims[3];  // point dimensions
-  grid->GetDimensions(dims);
+
+  int dims[3];
+  grid->GetDimensions(dims);  // dims are for points, so cells are dims-1
+  int cellDims[3] = {dims[0] - 1, dims[1] - 1, dims[2] - 1};
+
+  int downsample[3] = {2, 2, 2};
+  int newCellDims[3] = {
+      cellDims[0] / downsample[0],
+      cellDims[1] / downsample[1],
+      cellDims[2] / downsample[2]
+  };
+  int newDims[3] = {
+      newCellDims[0] + 1,
+      newCellDims[1] + 1,
+      newCellDims[2] + 1
+  };
+
+  // Create new coordinate arrays
+  auto newXCoords = vtkSmartPointer<vtkDoubleArray>::New();
+  auto newYCoords = vtkSmartPointer<vtkDoubleArray>::New();
+  auto newZCoords = vtkSmartPointer<vtkDoubleArray>::New();
+
+  auto oldX = grid->GetXCoordinates();
+  auto oldY = grid->GetYCoordinates();
+  auto oldZ = grid->GetZCoordinates();
+
+  for (int i = 0; i < newDims[0]; ++i)
+      newXCoords->InsertNextValue(oldX->GetComponent(i * downsample[0], 0));
+  for (int j = 0; j < newDims[1]; ++j)
+      newYCoords->InsertNextValue(oldY->GetComponent(j * downsample[1], 0));
+  for (int k = 0; k < newDims[2]; ++k)
+      newZCoords->InsertNextValue(oldZ->GetComponent(k * downsample[2], 0));
+
+  // Create new grid
+  auto downsampledGrid = vtkSmartPointer<vtkRectilinearGrid>::New();
+  downsampledGrid->SetDimensions(newDims);
+  downsampledGrid->SetXCoordinates(newXCoords);
+  downsampledGrid->SetYCoordinates(newYCoords);
+  downsampledGrid->SetZCoordinates(newZCoords);
+
+  // Create new VOF array
+  auto newVOF = vtkSmartPointer<vtkDoubleArray>::New();
+  newVOF->SetName("VOF");
+  newVOF->SetNumberOfComponents(1);
+  newVOF->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
+
+  int idx = 0;
+  for (int k = 0; k < newCellDims[2]; ++k) {
+      for (int j = 0; j < newCellDims[1]; ++j) {
+          for (int i = 0; i < newCellDims[0]; ++i) {
+              double sum = 0.0;
+              int count = 0;
+              for (int dk = 0; dk < downsample[2]; ++dk) {
+                  for (int dj = 0; dj < downsample[1]; ++dj) {
+                      for (int di = 0; di < downsample[0]; ++di) {
+                          int oldI = i * downsample[0] + di;
+                          int oldJ = j * downsample[1] + dj;
+                          int oldK = k * downsample[2] + dk;
+
+                          int oldIdx = oldK * (cellDims[0] * cellDims[1]) + oldJ * cellDims[0] + oldI;
+                          sum += vofArray->GetComponent(oldIdx, 0);
+                          ++count;
+                      }
+                  }
+              }
+              newVOF->SetValue(idx++, sum / count);
+          }
+      }
+  }
+
+  downsampledGrid->GetCellData()->AddArray(newVOF);
 
   // Convert point dims to cell dims (cells = points - 1)
-  int nx = dims[0] - 1;
-  int ny = dims[1] - 1;
-  int nz = dims[2] - 1;
+  int nx = newCellDims[0];
+  int ny = newCellDims[1];
+  int nz = newCellDims[2];
 
-  std::cout << "Grid cell dimensions:" << std::endl;
+  std::cout << "Downsampled grid cell dimensions:" << std::endl;
   std::cout << "  nx = " << nx << std::endl;
   std::cout << "  ny = " << ny << std::endl;
   std::cout << "  nz = " << nz << std::endl;
@@ -312,7 +381,8 @@ int main (int argc, char* argv[]) {
 
   // Read PLIC file for viz
   auto plic_reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
-  plic_reader->SetCaseFileName("/home/quirin/jet/plic.case");
+  // plic_reader->SetCaseFileName("/home/quirin/jet/plic.case");
+  plic_reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/plic.case");
   plic_reader->UpdateInformation();
 
   vtkInformation* plic_info = plic_reader->GetOutputInformation(0);
@@ -353,9 +423,10 @@ int main (int argc, char* argv[]) {
 
               vtkIdType centerCellId = i + j * nx + k * nx * ny;
 
-              // Skip this cell if VOF = 0
-              double vof_center = vofArray->GetComponent(centerCellId, 0);
-              if (vof_center == 0) {
+              // Skip this cell if there is no surface
+              double epsilon = 1e-10;
+              double vof_center = newVOF->GetComponent(centerCellId, 0);
+              if (vof_center <= epsilon || vof_center >= 1.0 - epsilon) {
                   continue;
               }
 
@@ -373,12 +444,12 @@ int main (int argc, char* argv[]) {
                           int nk = k + dk;
 
                           vtkIdType cellId = ni + nj * nx + nk * nx * ny;
-                          if (cellId >= vofArray->GetNumberOfTuples()) {
+                          if (cellId >= newVOF->GetNumberOfTuples()) {
                               std::cerr << "Invalid cellId: " << cellId << std::endl;
                               continue;
                           }
 
-                          vfrac[di + 1][dj + 1][dk + 1] = vofArray->GetComponent(cellId, 0);
+                          vfrac[di + 1][dj + 1][dk + 1] = newVOF->GetComponent(cellId, 0);
                       }
                   }
               }
@@ -422,7 +493,7 @@ int main (int argc, char* argv[]) {
   }
 
   std::cout << "\n=== Classification Summary ===" << std::endl;
-  std::cout << "Total filled cells:   " << no_filled_cells << std::endl;
+  std::cout << "Total cells with interface:   " << no_filled_cells << std::endl;
   std::cout << "Paraboloids:          " << no_paraboloids << std::endl;
   std::cout << "Cylinders:            " << no_cylinders << std::endl;
   std::cout << "Spheres:              " << no_spheres << std::endl;
@@ -432,12 +503,12 @@ int main (int argc, char* argv[]) {
   grid->GetCellData()->AddArray(interface_type);
   auto grid_writer = vtkSmartPointer<vtkXMLRectilinearGridWriter>::New();
   grid_writer->SetFileName("grid.vtr");
-  grid_writer->SetInputData(grid);
+  grid_writer->SetInputData(downsampledGrid);
   grid_writer->Write();
 
   // Convert interface_type to PLIC array
   auto locator = vtkSmartPointer<vtkCellLocator>::New();
-  locator->SetDataSet(grid);
+  locator->SetDataSet(downsampledGrid);
   locator->BuildLocator();
   auto cell_center_filter = vtkSmartPointer<vtkCellCenters>::New();
   cell_center_filter->SetInputData(plic_grid);
