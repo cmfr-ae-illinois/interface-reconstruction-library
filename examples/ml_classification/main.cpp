@@ -6,6 +6,7 @@
 #include "irl/ml_classification/data_gen.h"
 #include "irl/ml_classification/data_set.h"
 #include "irl/ml_classification/net.h"
+#include "irl/ml_classification/trainer.h"
 
 #include <random> //REMOVE, was just for testing
 
@@ -26,75 +27,6 @@
 #include <vtkCellLocator.h>
 #include <vtkPolygon.h>
 #include <vtkCellCenters.h>
-
-template <class CellData, class CoordData>
-void WriteField(const CoordData& coordsx, const CoordData& coordsy, const CoordData& coordsz,
-                const CellData& field, const std::string& field_name) {
-  const auto file_name = "./" + field_name + ".vtr"; 
-
-  double start = 0.0;
-  double end = 1.0;
-
-  const int ncellsx = coordsx.size() - 1;
-  const int ncellsy = coordsy.size() - 1;
-  const int ncellsz = coordsz.size() - 1;
-
-  FILE* file;
-  file = fopen(file_name.c_str(), "w");
-
-  fprintf(file, "<VTKFile type=\"RectilinearGrid\">\n");
-  fprintf(file, "<RectilinearGrid WholeExtent=\"%d %d %d %d %d %d\">\n", 0,
-          ncellsx, 0, ncellsy, 0, ncellsz);
-  fprintf(file, "<Piece Extent=\"%d %d %d %d %d %d\">\n", 0, ncellsx, 0, ncellsy,
-          0, ncellsz);
-
-  fprintf(file, "<Coordinates>\n");
-  fprintf(file,
-          "<DataArray type=\"Float64\" NumberOfComponents=\"1\" "
-          "format=\"ascii\">\n");
-  for (int i = 0; i < ncellsx + 1; ++i) {
-    fprintf(file, "%15.8E ", static_cast<double>(coordsx[i]));
-  }
-  fprintf(file, "\n</DataArray>\n");
-  fprintf(file,
-          "<DataArray type=\"Float64\" NumberOfComponents=\"1\" "
-          "format=\"ascii\">\n");
-  for (int i = 0; i < ncellsy + 1; ++i) {
-    fprintf(file, "%15.8E ", static_cast<double>(coordsy[i]));
-  }
-  fprintf(file, "\n</DataArray>\n");
-
-  fprintf(file,
-          "<DataArray type=\"Float64\" NumberOfComponents=\"1\" "
-          "format=\"ascii\">\n");
-  for (int i = 0; i < ncellsz + 1; ++i) {
-    fprintf(file, "%15.8E ", static_cast<double>(coordsz[i]));
-  }
-  fprintf(file, "\n</DataArray>\n");
-
-  fprintf(file, "</Coordinates>\n");
-
-  fprintf(file, "<PointData>\n</PointData>\n");
-
-  fprintf(file, "<CellData Scalars=\"");
-  fprintf(file, "%s ", field_name.c_str());
-  fprintf(file, "\" >\n");
-  fprintf(file,
-          "<DataArray type=\"Float64\" Name=\"%s\" NumberOfComponents=\"1\" "
-          "format=\"ascii\">\n",
-          field_name.c_str());
-  for (int k = 0; k < ncellsz; ++k) {
-    for (int j = 0; j < ncellsy; ++j) {
-      for (int i = 0; i < ncellsx; ++i) {
-        fprintf(file, "%15.8E ", static_cast<double>(field[i][j][k]));
-      }
-    }
-  }
-  fprintf(file, "\n</DataArray>\n");
-  fprintf(file, "</CellData>\n");
-  fprintf(file, "</Piece>\n</RectilinearGrid>\n</VTKFile>\n");
-  fclose(file);
-}
 
 int main (int argc, char* argv[]) {
 
@@ -118,22 +50,7 @@ int main (int argc, char* argv[]) {
   std::vector<int> labelsV;
 
   IRL::Data_gen data_gen;
-  data_gen.generate_Data(&statesV, &labelsV, no_batches*batch_size, stencil_size, output_size); //if include planes = true, dont forget to adjust output size.
-
-  //output:
-  //std::cout << "States:" << std::endl;
-  // Iterate over the outer vector
-  //for (const auto& innerVec : statesV) {
-      // Iterate over the inner vector
-      //for (double val : innerVec) {
-          //std::cout << val << " ";  // Print each element of the inner vector
-      //}
-      //std::cout << std::endl;  // Print a newline after each inner vector
-  //}
-  //std::cout << "Labels:" << std::endl;
-  //for (const int& num : labelsV) {
-      //std::cout << num << " ";
-  //}
+  data_gen.generate_Data(&statesV, &labelsV, no_batches*batch_size, stencil_size, output_size);
 
   // Split the data into training, test, and validation
   int total_samples = statesV.size();
@@ -162,112 +79,12 @@ int main (int argc, char* argv[]) {
   auto val_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
       std::move(val_dataset).map(torch::data::transforms::Stack<>()), batch_size);
 
-  
-  
-  
-  //IRL::MyDataset dataset(&statesV, &labelsV);
-  // Accessing the first sample
-  //auto example = dataset.get(0);  // Get the first sample
-  // Print the state and label for the first sample
-  //std::cout << "State: " << example.data << std::endl;
-  //std::cout << "Label: " << example.target << std::endl;
-
   IRL::Net net(stencil_size*stencil_size*stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
 
-  //auto data_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
-
-  //std::move(dataset).map(torch::data::transforms::Stack<>()), batch_size);
-
-  //torch::optim::SGD optimizer(net.parameters(), learning_rate);
+  // Create Trainer and run
   torch::optim::Adam optimizer(net.parameters(), torch::optim::AdamOptions(learning_rate));
-
-  for (int epoch=1; epoch<=epochs; ++epoch) {
-    int batch_index = 0;
-    double total_loss = 0.0;
-    int correct_predictions = 0;  // To count the number of correct predictions
-    int total_samples = 0;        // To count the total number of samples processed
-
-    // Iterate data loader to yield batches from the dataset
-
-    for (auto& batch: *train_loader) {
-      // Reset gradients
-			optimizer.zero_grad();
-
-      // Time measurement before
-      //auto start_time = std::chrono::high_resolution_clock::now();
-
-      // Execute model
-      torch::Tensor prediction = net.forward(batch.data);
-
-      // Time measurement after
-      //auto current_time = std::chrono::high_resolution_clock::now();
-      //std::cout << "Program has been running for " << std::chrono::duration_cast<std::chrono::microseconds>(current_time - start_time).count() << " milliseconds" << std::endl;
-      
-      // Compute loss value
-      torch::Tensor loss = torch::cross_entropy_loss(prediction, batch.target);
-
-      // To use negative log likelyhood loss, implement softmax layer. Alternatively above use cross entropy loss, has softmax built in
-      //torch::Tensor loss = torch::nll_loss(prediction, batch.target);
-
-      // Backward pass: Compute gradients and update the parameters
-			loss.backward();
-			optimizer.step();
-      total_loss += loss.item<double>();
-
-      // Calculate accuracy for the current batch
-      // Get predicted class by taking the index of the max logit (log probability)
-      auto predicted_classes = prediction.argmax(1); // For multi-class classification
-      auto correct = predicted_classes.eq(batch.target); // Check if predictions match the true labels
-      correct_predictions += correct.sum().item().toInt();  // Sum of correct predictions in the batch
-      total_samples += batch.target.size(0);  // Total number of samples in the batch
-    }
-    
-    lossVector.push_back(total_loss);
-
-    //double accuracy = static_cast<double>(correct_predictions) / total_samples;
-    //std::cout << "Epoch " << epoch << " - Loss: " << total_loss 
-    //          << " - Accuracy: " << accuracy * 100 << "%" << std::endl;
-    //std::cout << "Loss:" << std::endl;
-
-    // Training metrics
-    std::cout << "Epoch [" << epoch << "/" << epochs << "] , Accuracy: "
-              << static_cast<double>(correct_predictions) / total_samples << std::endl;
-
-    // --- Test Accuracy Evaluation ---
-    int test_correct = 0;
-    int test_total = 0;
-
-    for (auto& batch : *test_loader) {
-      auto prediction = net.forward(batch.data);
-      auto predicted = prediction.argmax(1);
-      test_correct += predicted.eq(batch.target).sum().item<int>();
-      test_total += batch.target.size(0);
-    }
-
-    double test_accuracy = static_cast<double>(test_correct) / test_total;
-    std::cout << "Test Accuracy: " << test_accuracy << std::endl;
-  }
-
-  std::cout << "Loss vector: " << std::endl;
-  for (const int& num : lossVector) {
-    std::cout << num << std::endl;
-  }
-
-  // --- Final Validation Accuracy ---
-  int val_correct = 0;
-  int val_total = 0;
-
-  for (auto& batch : *val_loader) {
-      auto prediction = net.forward(batch.data);
-      auto predicted = prediction.argmax(1);
-      val_correct += predicted.eq(batch.target).sum().item<int>();
-      val_total += batch.target.size(0);
-  }
-
-  double val_accuracy = static_cast<double>(val_correct) / val_total;
-  std::cout << "Final Validation Accuracy: " << val_accuracy << std::endl;
-
-
+  IRL::Trainer<IRL::Net> trainer(net, optimizer, train_loader.get(), test_loader.get(), val_loader.get(), epochs);
+  trainer.train();
 
   // vtk reader
 
