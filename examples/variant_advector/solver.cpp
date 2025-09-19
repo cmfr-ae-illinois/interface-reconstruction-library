@@ -66,10 +66,10 @@ void setPhaseQuantities(const Data<IRL::SeparatorVariant>& a_interface,
 }
 
 void writeDiagnosticsHeader(void) {
-  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s\n", "Iteration",
-         "Time", "CFL", "liquidVFSum", "liquidVolSum", "ChangeLiquidVFSum",
-         "ChangeLiquidVolSum", "AdvectionDuration", "ReconDuration",
-         "OutputDuration", "InterfaceCells");
+  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s %20s\n",
+         "Iteration", "Time", "CFL", "liquidVFSum", "liquidVolSum",
+         "ChangeLiquidVFSum", "ChangeLiquidVolSum", "AdvectionDuration",
+         "ReconDuration", "OutputDuration", "InterfaceCells");
 }
 
 void writeOutDiagnostics(const int a_iteration, const double a_dt,
