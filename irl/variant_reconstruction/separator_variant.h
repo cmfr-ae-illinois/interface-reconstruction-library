@@ -11,6 +11,8 @@
 #define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
 
 #include <variant>
+#include <tuple>
+
 
 #include "irl/generic_cutting/general/class_classifications.h"
 
