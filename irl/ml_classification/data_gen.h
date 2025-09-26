@@ -22,10 +22,45 @@ namespace IRL {
             std::cout << "I'm a data generator!" << std::endl;
         }
 
-        std::vector<double> generate_Paraboloid (int stencil_size, int datapoint_type, int plane_bounds_coefficients, bool visualize = false) {
+        Eigen::Vector3d computeCentroidFromFirstMoment(const Eigen::Vector3d& firstMoment, double volume){
+            if (volume == 0.0) {
+                return Eigen::Vector3d::Zero();  // safe fallback
+            }
+            return firstMoment / volume;
+        }
+
+        // Print a 3D field of Eigen::Vector3d centroids, used if visualize=true for data generation
+        void printCentroids(const std::vector<std::vector<std::vector<Eigen::Vector3d>>>& centroid)
+        {
+            std::cout << "Centroid:" << std::endl;
+
+            for (int i = 0; i < centroid.size(); ++i) {
+                for (int j = 0; j < centroid[i].size(); ++j) {
+                    for (int k = 0; k < centroid[i][j].size(); ++k) {
+                        const auto& c = centroid[i][j][k];
+                        std::cout << "[" << i << "," << j << "," << k << "] "
+                                << std::fixed << std::setprecision(3)
+                                << c.x() << ", " << c.y() << ", " << c.z() << "   ";
+                    }
+                    std::cout << std::endl;
+                }
+            }
+        }
+
+        std::vector<double> generate_Paraboloid (
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, bool visualize = false) 
+            {
+            // make centroid, only used for visualization
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(
+                    stencil_size,
+                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                )
+            );
             
-            std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-  
             // Defining cell coordinates
             auto coords = std::vector<double>(stencil_size+1);
             for (int i = 0; i < stencil_size+1; i++) {
@@ -36,21 +71,9 @@ namespace IRL {
             std::uniform_real_distribution<double> random_rotation(-0.5 * M_PI, 0.5 * M_PI);
 
             std::uniform_real_distribution<double> random_translation(-0.5, 0.5);
-            
-            // Bounds of paraboloid parameters, 0=plane, 1=paraboloid from int plane_bounds_coefficients
-            // Declare random_coeff outside of the if-else block so it's accessible in both branches
-            std::uniform_real_distribution<double> random_coeff(0.0, 0.0); // Declare default (0, 0) range
 
-            // Can be used to differantiate planes and paraboloids:
+            std::uniform_real_distribution<double> random_coeff = std::uniform_real_distribution<double>(0, 5.0); // Modify range
             
-            if (datapoint_type == 0) {
-                random_coeff = std::uniform_real_distribution<double>(0, plane_bounds_coefficients); // Modify range
-            } else {
-                random_coeff = std::uniform_real_distribution<double>(plane_bounds_coefficients, 5.0); // Modify range
-            }
-            
-
-
             // Define a distribution for picking the sign (either -1 or 1)
             std::uniform_int_distribution<int> signPick(0, 1);
 
@@ -85,12 +108,19 @@ namespace IRL {
                         //std::cout << "VFRAC(" << i << ", " << j << ", " << k
                                 //<< ") = " << volume_fraction << std::endl;
                         auto volume_and_surface = getVolumeMoments<
-                            AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>>(
+                            //AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>>(
+                            AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
                             cell, paraboloid);
                         // Store surface and volume (fraction)
                         surfaces.push_back(volume_and_surface.getSurface());
                         vfrac[i][j][k] = volume_and_surface.getMoments().volume() / cell_volume;
-                        //std::cout<<vfrac[i][j][k]<<"\n";
+                        firstMoment[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                             volume_and_surface.getMoments().centroid().y(),
+                                             volume_and_surface.getMoments().centroid().z();
+
+                        if (visualize) {
+                            centroid[i][j][k] = computeCentroidFromFirstMoment(firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
+                        }
                     }
                 }
             }
@@ -99,15 +129,7 @@ namespace IRL {
             if (visualize) {
                 WriteField(stencil_size, coords, vfrac, "vfrac");
                 WriteSurface(surfaces, "surface");
-                std::cout << "VFRAC:" << std::endl;
-                for (int i = 0; i < vfrac.size(); i++) {
-                    for (int j = 0; j < vfrac[i].size(); j++) {
-                        for (int k = 0; k < vfrac[i][j].size(); k++) {
-                            std::cout << "[" << i << "," << j << "," << k << "] " << std::fixed << std::setprecision(3) << vfrac [i][j][k] << "   ";
-                        }   
-                    std::cout << std::endl;
-                    }
-                }
+                printCentroids(centroid);
             }
 
             // Flatten the 3D vector vfrac into a 1D vector
@@ -123,10 +145,20 @@ namespace IRL {
             return flattened_vfrac;
         }
 
-        std::vector<double> generate_Sheet (int stencil_size, bool visualize = false) {
-            
-            std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-  
+        std::vector<double> generate_Sheet (
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, bool visualize = false) {
+
+            // make centroid, only used for visualization
+                        std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(
+                    stencil_size,
+                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                )
+            );
+
             // Defining cell coordinates
             auto coords = std::vector<double>(stencil_size+1);
             for (int i = 0; i < stencil_size+1; i++) {
@@ -227,23 +259,42 @@ namespace IRL {
                         auto volume_fraction2 = getVolumeFraction(cell, paraboloid2);
 
                         auto volume_and_surface1 = getVolumeMoments<
-                            AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>>(
+                            AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
                             cell, paraboloid1);
                         auto volume_and_surface2 = getVolumeMoments<
-                            AddSurfaceOutput<Volume, ParametrizedSurfaceOutput>>(
+                            AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
                             cell, paraboloid2);
 
                         // Store surface and volume (fraction)
                         surfaces.push_back(volume_and_surface1.getSurface());
                         surfaces.push_back(volume_and_surface2.getSurface());
 
-                        vfrac[i][j][k] = (volume_and_surface2.getMoments().volume() - volume_and_surface1.getMoments().volume()) / cell_volume;
+                        double V1 = volume_and_surface1.getMoments().volume();
+                        double V2 = volume_and_surface2.getMoments().volume();
+                        double Vdiff = V2 - V1;
+
+                        //vfrac[i][j][k] = (volume_and_surface2.getMoments().volume() - volume_and_surface1.getMoments().volume()) / cell_volume;
 
                         // Exclude negative machine zero volumes so that machine learning does not train on them
-                        if (vfrac[i][j][k] < 0.0) {
-                            vfrac[i][j][k] = 0.0;
+                        if (Vdiff < 0.0) {
+                            Vdiff = 0.0;
                         }
-                        //vfrac[i][j][k] -= volume_and_surface1.getMoments().volume() / cell_volume;
+
+                        vfrac[i][j][k] = Vdiff / cell_volume;
+                        
+                        Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
+                                        volume_and_surface1.getMoments().centroid().y(),
+                                        volume_and_surface1.getMoments().centroid().z());
+
+                        Eigen::Vector3d M2(volume_and_surface2.getMoments().centroid().x(),
+                                        volume_and_surface2.getMoments().centroid().y(),
+                                        volume_and_surface2.getMoments().centroid().z());
+
+                        firstMoment[i][j][k] = M2 - M1;
+
+                        if (visualize) {
+                            centroid[i][j][k] = computeCentroidFromFirstMoment(firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
+                        }
                     }
                 }
             }
@@ -252,16 +303,7 @@ namespace IRL {
             if (visualize) {
                 WriteField(stencil_size, coords, vfrac, "vfrac");
                 WriteSurface(surfaces, "surface");
-                std::cout << "VFRAC:" << std::endl;
-                for (int i = 0; i < vfrac.size(); i++) {
-                    for (int j = 0; j < vfrac[i].size(); j++) {
-                        for (int k = 0; k < vfrac[i][j].size(); k++) {
-                            std::cout << "[" << i << "," << j << "," << k << "] " << std::fixed << std::setprecision(3) << vfrac [i][j][k] << "   ";
-                        }   
-                    std::cout << std::endl;
-                    std::cout << thickness << std::endl;
-                    }
-                }
+                printCentroids(centroid);
             }
 
             // Flatten the 3D vector vfrac into a 1D vector
@@ -283,13 +325,74 @@ namespace IRL {
             return Eigen::Vector3d(dist(eng), dist(eng), dist(eng));  // Random point in 3D space
         }
 
-        std::vector<double> generate_Cylinder (int stencil_size, bool visualize = false) {
+        void compressStencilRefinedToCoarse(
+            const std::vector<std::vector<std::vector<double>>>& volumes_refined,
+            const std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoments_refined,
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size,
+            int refinement_factor,
+            double compressed_cell_volume,
+            bool visualize,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>* centroid = nullptr)
+        {
+            double refinement_factor_double = static_cast<double>(refinement_factor);
+
+            for (int i = 0; i < stencil_size; i++) {
+                for (int j = 0; j < stencil_size; j++) {
+                    for (int k = 0; k < stencil_size; k++) {
+                        double vol_sum = 0.0;
+                        Eigen::Vector3d firstMoment_sum = Eigen::Vector3d::Zero();
+
+                        for (int m = i * refinement_factor; m < (i + 1) * refinement_factor; m++) {
+                            for (int n = j * refinement_factor; n < (j + 1) * refinement_factor; n++) {
+                                for (int o = k * refinement_factor; o < (k + 1) * refinement_factor; o++) {
+                                    double v = volumes_refined[m][n][o];
+                                    vol_sum += v;
+                                    firstMoment_sum += firstMoments_refined[m][n][o];
+                                }
+                            }
+                        }
+
+                        // Store normalized volume fraction
+                        vfrac[i][j][k] = vol_sum / compressed_cell_volume;
+
+                        if (vol_sum > 1e-14) {
+                            firstMoment[i][j][k] = firstMoment_sum;
+                        } else {
+                            firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                        }
+
+                        if (visualize && centroid) {
+                            (*centroid)[i][j][k] = computeCentroidFromFirstMoment(
+                                firstMoment[i][j][k],
+                                vol_sum
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        std::vector<double> generate_Cylinder (
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, bool visualize = false) {
+
+            // make centroid, only used for visualization
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(
+                    stencil_size,
+                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                )
+            );
 
             // for visualization option:
             std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
 
             // define parameters
-            std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
+            //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
             const double cell_volume = 1.0;
             int refinement_factor = 3;
             double refinement_factor_double = static_cast<double>(refinement_factor);
@@ -308,11 +411,19 @@ namespace IRL {
 
             // Create refined cells
             int refined_stencil_size = refinement_factor*stencil_size;
-            std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
+            std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                std::vector<std::vector<double>>(refined_stencil_size,
+                std::vector<double>(refined_stencil_size)));
+
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+            //std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
+            
             // Defining cell coordinates
             auto coords = std::vector<double>(refined_stencil_size+1);
-            for (int i = 0; i < refined_stencil_size+1; i++) {
-                coords[i] = -0.5*refined_stencil_size + static_cast<double>(i);
+            for (int i = 0; i <= refined_stencil_size; i++) {
+                coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
             }
 
             for (int i = 0; i < refined_stencil_size; i++) {
@@ -360,8 +471,13 @@ namespace IRL {
                         // Store surface and volume (fraction)
                         
                         // use volumes directly instead of fractions
-                        volumes[i][j][k] = volume_and_surface.getMoments().volume();
+                        volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
                                          //volume_and_surface.getMoments().centroid() / vol
+
+                        firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                        volume_and_surface.getMoments().centroid().y(),
+                                                        volume_and_surface.getMoments().centroid().z();
+
                         if (visualize) {
                             surfaces.push_back(volume_and_surface.getSurface());
                         }
@@ -370,37 +486,23 @@ namespace IRL {
             }
 
             // Compress refined mesh into original stencil size
-            for (int i = 0; i < stencil_size; i++) {
-                for (int j = 0; j < stencil_size; j++) {
-                    for (int k = 0; k < stencil_size; k++) {
-                        double sum = 0.0;
-
-                        for (int m = i*refinement_factor; m < (i+1)*refinement_factor; m++) {
-                            for (int n = j*refinement_factor; n < (j+1)*refinement_factor; n++) {
-                                for (int o = k*refinement_factor; o < (k+1)*refinement_factor; o++) {
-                                    sum += volumes[m][n][o]; // Volumes are between 0 and 1
-                                    
-                                }
-                            }
-                        }
-                        vfrac [i][j][k] = sum / (cell_volume*(refinement_factor_double*refinement_factor_double*refinement_factor_double));
-                    }
-                }
-            }
+            compressStencilRefinedToCoarse(
+                volumes_refined,
+                firstMoments_refined,
+                vfrac,
+                firstMoment,
+                stencil_size,
+                refinement_factor,
+                cell_volume,
+                visualize,
+                &centroid
+            );
 
             // Generate vtk output
             if (visualize) {
                 WriteField(stencil_size, coords, vfrac, "vfrac");
                 WriteSurface(surfaces, "surface");
-                std::cout << "VFRAC:" << std::endl;
-                for (int i = 0; i < vfrac.size(); i++) {
-                    for (int j = 0; j < vfrac[i].size(); j++) {
-                        for (int k = 0; k < vfrac[i][j].size(); k++) {
-                            std::cout << "[" << i << "," << j << "," << k << "] " << std::fixed << std::setprecision(3) << vfrac [i][j][k] << "   ";
-                        }   
-                    std::cout << std::endl;
-                    }
-                }
+                printCentroids(centroid);
             }
             
 
@@ -416,13 +518,25 @@ namespace IRL {
             return flattened_vfrac;
         }
 
-        std::vector<double> generate_Sphere (int stencil_size, bool visualize = false) {
+        std::vector<double> generate_Sphere (
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, bool visualize = false) {
+
+            // make centroid, only used for visualization
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(
+                    stencil_size,
+                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                )
+            );
 
             // for visualization option:
             std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
 
             // define parameters
-            std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
+            //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
             const double cell_volume = 1.0;
             int refinement_factor = 3;
             double refinement_factor_double = static_cast<double>(refinement_factor);
@@ -434,7 +548,15 @@ namespace IRL {
 
             // Create refined cells
             int refined_stencil_size = refinement_factor*stencil_size;
-            std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
+            std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                std::vector<std::vector<double>>(refined_stencil_size,
+                std::vector<double>(refined_stencil_size)));
+
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+
+            //std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
 
             // Use refinement factor on parameters -> the grid is parted, so the parameters have to be scaled to be the same
             radius = radius * refinement_factor_double;
@@ -442,8 +564,8 @@ namespace IRL {
 
             // Defining cell coordinates
             auto coords = std::vector<double>(refined_stencil_size+1);
-            for (int i = 0; i < refined_stencil_size+1; i++) {
-                coords[i] = -0.5*refined_stencil_size + static_cast<double>(i);
+            for (int i = 0; i <= refined_stencil_size; i++) {
+                coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
             }
 
             for (int i = 0; i < refined_stencil_size; i++) {
@@ -489,8 +611,17 @@ namespace IRL {
                             cell, paraboloid);
                         // Store surface and volume (fraction)
                         
-                        volumes[i][j][k] = volume_and_surface.getMoments().volume();
+                        volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
                                          //volume_and_surface.getMoments().centroid() / vol
+
+                        Eigen::Vector3d m1(volume_and_surface.getMoments().centroid().x(),
+                                        volume_and_surface.getMoments().centroid().y(),
+                                        volume_and_surface.getMoments().centroid().z());
+
+                        firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                        volume_and_surface.getMoments().centroid().y(),
+                                                        volume_and_surface.getMoments().centroid().z();
+
                         if (visualize) {
                             surfaces.push_back(volume_and_surface.getSurface());
                         }
@@ -499,36 +630,23 @@ namespace IRL {
             }
 
             // Compress refined mesh into original stencil size
-            for (int i = 0; i < stencil_size; i++) {
-                for (int j = 0; j < stencil_size; j++) {
-                    for (int k = 0; k < stencil_size; k++) {
-                        double sum = 0.0;
-
-                        for (int m = i*refinement_factor; m < (i+1)*refinement_factor; m++) {
-                            for (int n = j*refinement_factor; n < (j+1)*refinement_factor; n++) {
-                                for (int o = k*refinement_factor; o < (k+1)*refinement_factor; o++) {
-                                    sum += volumes[m][n][o];
-                                }
-                            }
-                        }
-                        vfrac [i][j][k] = sum / (cell_volume*(refinement_factor_double*refinement_factor_double*refinement_factor_double));
-                    }
-                }
-            }
+            compressStencilRefinedToCoarse(
+                volumes_refined,
+                firstMoments_refined,
+                vfrac,
+                firstMoment,
+                stencil_size,
+                refinement_factor,
+                cell_volume,
+                visualize,
+                &centroid
+            );
 
             // Generate vtk output
             if (visualize) {
                 WriteField(stencil_size, coords, vfrac, "vfrac");
                 WriteSurface(surfaces, "surface");
-                std::cout << "VFRAC:" << std::endl;
-                for (int i = 0; i < vfrac.size(); i++) {
-                    for (int j = 0; j < vfrac[i].size(); j++) {
-                        for (int k = 0; k < vfrac[i][j].size(); k++) {
-                            std::cout << "[" << i << "," << j << "," << k << "] " << std::fixed << std::setprecision(3) << vfrac [i][j][k] << "   ";
-                        }   
-                    std::cout << std::endl;
-                    }
-                }
+                printCentroids(centroid);
             }
             
 
@@ -545,47 +663,82 @@ namespace IRL {
         }
 
 
-        std::vector<double> generate_State(int datapoint_type, int stencil_size, bool include_planes, double plane_bounds_coefficients){
-            // Create a vector of volume fractions and surfaces
-            // OLD std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
+        std::vector<double> generate_State(int datapoint_type, int stencil_size, bool include_firstMoment, bool visualize = false) {
+            // Create a vector of volume fractions and first moments
+            std::vector<std::vector<std::vector<double>>> vfrac(
+                stencil_size, 
+                std::vector<std::vector<double>>(
+                    stencil_size, 
+                    std::vector<double>(
+                        stencil_size
+                    )
+                )
+            );
+            /*
+            std::vector<std::vector<std::vector<std::vector<double>>>> firstMoment(
+                stencil_size,
+                std::vector<std::vector<std::vector<double>>>(
+                    stencil_size,
+                    std::vector<std::vector<double>>(
+                        stencil_size,
+                        std::vector<double>(3)  // each first moment has 3 components
+                    )
+                )
+            );
+            */
 
-            if (! include_planes) {
-                plane_bounds_coefficients = 0.0;
-            }
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoment(
+                stencil_size,
+                std::vector<std::vector<Eigen::Vector3d>>(
+                    stencil_size,
+                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                )
+            );
 
             switch (datapoint_type) {
                 case 1:
-                    return generate_Cylinder(stencil_size);
+                    generate_Cylinder(vfrac, firstMoment, stencil_size, visualize);
+                    break;
                 case 2:
-                    return generate_Sphere(stencil_size);
+                    generate_Sphere(vfrac, firstMoment, stencil_size, visualize);
+                    break;
                 case 3:
-                    return generate_Sheet(stencil_size);
+                    generate_Sheet(vfrac, firstMoment, stencil_size, visualize);
+                    break;
                 default:
-                    return generate_Paraboloid(stencil_size, 1, plane_bounds_coefficients);
+                    generate_Paraboloid(vfrac, firstMoment, stencil_size, visualize);
+                    break;
             }
+
+            // Flatten the 3D vectors into one 1D vector
+            std::vector<double> flattened_state;
+            for (int i = 0; i < stencil_size; ++i) {
+                for (int j = 0; j < stencil_size; ++j) {
+                    for (int k = 0; k < stencil_size; ++k) {
+                        flattened_state.push_back(vfrac[i][j][k]);
+                        if (include_firstMoment) {
+                            flattened_state.push_back(firstMoment[i][j][k].x());
+                            flattened_state.push_back(firstMoment[i][j][k].y());
+                            flattened_state.push_back(firstMoment[i][j][k].z());
+                        }
+                    }
+                }
+            }
+            return flattened_state;
         }
 
-        void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int datapoint_types_in = 4, bool include_planes = false, double plane_bounds_coefficients = 0.5){
+        void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, bool include_centroid = false){
             std::cout << no_datapoints << std::endl;
             // Initialize random number generator with a seed from current time
             std::srand(std::time(0));
 
-            //int datapoint_types = datapoint_types_in;
-            //    if (include_planes) {
-            //        datapoint_types += 1;
-            //    }
-
             for (int i=0; i<no_datapoints; i++) {
-                // Generate the data, init with a random number 0 or 1, 0=plane, 1=paraboloid, 2=cylinder, 3=sphere, 4=sheet, decide if to include plane
+                // Generate the data, init with a random number 0 or 1, 0=paraboloid, 1=cylinder, 2=sphere, 3=sheet
 
-                //int datapoint_type = std::rand() % datapoint_types;
-                int datapoint_type = std::rand() % 4;
-                //if (! include_planes) {
-                //datapoint_type += 1;
-                //}
+                int datapoint_type = std::rand() % no_datapoint_types_in;
 
                 labelsV->push_back(datapoint_type);
-                statesV->push_back(generate_State(datapoint_type, stencil_size, include_planes, plane_bounds_coefficients));
+                statesV->push_back(generate_State(datapoint_type, stencil_size, include_centroid));
             }
         }
     };
