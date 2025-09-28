@@ -11,6 +11,7 @@ namespace IRL {
 
         public:
         std::mt19937_64 eng;
+        double machineZero = 10e-14;
         //int stencil_size = 3;
         //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
 
@@ -64,7 +65,7 @@ namespace IRL {
         std::vector<double> generate_Paraboloid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false) 
+            int stencil_size, bool visualize = false, double stddev = 0.1) 
         {
             // repeat until center cell is cut by surface
             while (true) {
@@ -110,7 +111,7 @@ namespace IRL {
 
                 IRL::Pt datum(datumVec.x(), datumVec.y(), datumVec.z());
 
-                std::normal_distribution<double> random_coeff(0.0, 0.1);
+                std::normal_distribution<double> random_coeff(0.0, stddev);
                 double coeff1 = random_coeff(eng);
                 double coeff2 = random_coeff(eng);
 
@@ -146,7 +147,7 @@ namespace IRL {
                 // --- check central cell ---
                 int mid = stencil_size / 2;
                 double center_vfrac = vfrac[mid][mid][mid];
-                if (center_vfrac > 0.0 && center_vfrac < 1.0) {
+                if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
                     // Accept this sample
                     if (visualize) {
                         WriteField(stencil_size, coords, vfrac, "vfrac");
@@ -174,7 +175,7 @@ namespace IRL {
         std::vector<double> generate_Sheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false) 
+            int stencil_size, bool visualize = false, double stddev = 0.1) 
         {
             while (true) { // keep trying until center cell has surface crossing
                 // make centroid, only used for visualization
@@ -202,7 +203,7 @@ namespace IRL {
                 Eigen::Vector3d direction = generateRandomDirection(eng);
 
                 // Random sheet thickness
-                std::uniform_real_distribution<double> random_thickness(1.0e-10, 0.5);
+                std::uniform_real_distribution<double> random_thickness(machineZero, 0.5);
                 double thickness = random_thickness(eng);
 
                 // Two paraboloid datums offset along the direction
@@ -229,7 +230,7 @@ namespace IRL {
                 IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
 
                 // Random coefficients
-                std::normal_distribution<double> random_coeff(0.0, 0.1);
+                std::normal_distribution<double> random_coeff(0.0, stddev);
                 double coeff1 = random_coeff(eng);
                 double coeff2 = random_coeff(eng);
 
@@ -284,7 +285,7 @@ namespace IRL {
                 // --- check central cell ---
                 int mid = stencil_size / 2;
                 double center_vfrac = vfrac[mid][mid][mid];
-                if (center_vfrac > 0.0 && center_vfrac < 1.0) {
+                if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
                     if (visualize) {
                         WriteField(stencil_size, coords, vfrac, "vfrac");
                         WriteSurface(surfaces, "surface");
@@ -342,13 +343,13 @@ namespace IRL {
                             }
                         }
 
-                        // Store normalized volume fraction
-                        vfrac[i][j][k] = vol_sum / compressed_cell_volume;
 
-                        if (vol_sum > 1e-14) {
+                        if (vol_sum > machineZero) {
                             firstMoment[i][j][k] = firstMoment_sum;
+                            vfrac[i][j][k] = vol_sum / compressed_cell_volume;
                         } else {
                             firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                            vfrac[i][j][k] = 0.0;
                         }
 
                         if (visualize && centroid) {
@@ -362,292 +363,294 @@ namespace IRL {
             }
         }
 
-        std::vector<double> generate_Cylinder (
+        std::vector<double> generate_Cylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false) {
-
-            // make centroid, only used for visualization
-            std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
-                stencil_size,
-                std::vector<std::vector<Eigen::Vector3d>>(
+            int stencil_size, bool visualize = false) 
+        {
+            while (true) { // keep trying until center cell has surface crossing
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
                     stencil_size,
-                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
-                )
-            );
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
 
-            // for visualization option:
-            std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
+                // for visualization option
+                std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
 
-            // define parameters
-            //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-            const double cell_volume = 1.0;
-            int refinement_factor = 3;
-            double refinement_factor_double = static_cast<double>(refinement_factor);
+                const double cell_volume = 1.0;
+                int refinement_factor = 3;
+                double refinement_factor_double = static_cast<double>(refinement_factor);
 
-            // Define bounds for the random points (you can change these values)
-            double min_bound = -1;  // Minimum bound for each coordinate
-            double max_bound = 1;   // Maximum bound for each coordinate
+                Eigen::Vector3d axis_origin = generateRandomPoint(
+                    -0.5 * stencil_size, 0.5 * stencil_size, eng);
+                Eigen::Vector3d axis_direction = generateRandomDirection(eng);
 
-            Eigen::Vector3d axis_point1 = generateRandomPoint(min_bound, max_bound, eng);
-            Eigen::Vector3d axis_point2 = generateRandomPoint(min_bound, max_bound, eng);
+                // Random radius
+                std::uniform_real_distribution<double> dist(machineZero, 0.5);
+                double radius = dist(eng);
 
-            Eigen::Vector3d axis_direction = axis_point2-axis_point1;
+                // Refined mesh
+                int refined_stencil_size = refinement_factor*stencil_size;
+                std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                    std::vector<std::vector<double>>(refined_stencil_size,
+                    std::vector<double>(refined_stencil_size)));
 
-            std::uniform_real_distribution<double> dist(0.5, stencil_size/2);
-            double radius =  dist(eng);
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                    std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
 
-            // Create refined cells
-            int refined_stencil_size = refinement_factor*stencil_size;
-            std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
-                std::vector<std::vector<double>>(refined_stencil_size,
-                std::vector<double>(refined_stencil_size)));
+                // Refined cell coordinates
+                auto coords = std::vector<double>(refined_stencil_size+1);
+                for (int i = 0; i <= refined_stencil_size; i++) {
+                    coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
+                }
 
-            std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
-                std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
-                std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
-            //std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
-            
-            // Defining cell coordinates
-            auto coords = std::vector<double>(refined_stencil_size+1);
-            for (int i = 0; i <= refined_stencil_size; i++) {
-                coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
-            }
+                // Fill refined stencil
+                for (int i = 0; i < refined_stencil_size; i++) {
+                    for (int j = 0; j < refined_stencil_size; j++) {
+                        for (int k = 0; k < refined_stencil_size; k++) {
+                            auto cell = IRL::RectangularCuboid::fromBoundingPts(
+                                IRL::Pt(coords[i], coords[j], coords[k]),
+                                IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
 
-            for (int i = 0; i < refined_stencil_size; i++) {
-                for (int j = 0; j < refined_stencil_size; j++) {
-                    for (int k = 0; k < refined_stencil_size; k++) {
-                        // Create cell
-                        auto cell = IRL::RectangularCuboid::fromBoundingPts(
-                            IRL::Pt(coords[i], coords[j], coords[k]),
-                            IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+                            // Find center of cell
+                            Eigen::Vector3d cell_center((coords[i+1]+coords[i])/2.0,
+                                                        (coords[j+1]+coords[j])/2.0,
+                                                        (coords[k+1]+coords[k])/2.0);
 
-                        // Create paraboloid for this cell in the steps below
-                        // Find center point of cell
-                        Eigen::Vector3d cell_center((coords[i+1]+coords[i])/2.0,
-                                    (coords[j+1]+coords[j])/2.0,
-                                    (coords[k+1]+coords[k])/2.0);
-                        Eigen::Vector3d axis_point1_to_cell_center = cell_center - axis_point1;
-                        Eigen::Vector3d axis_point2_to_cell_center = cell_center - axis_point2;
-                        // Calculate the projection of the cell center onto the cylinder axis
-                        double projection_factor = axis_point1_to_cell_center.dot(axis_direction) / axis_direction.squaredNorm();
-                        Eigen::Vector3d closest_point_on_axis = axis_point1 + projection_factor * axis_direction;
-                        // Find datum of paraboloid
-                        Eigen::Vector3d datum_paraboloid_eVec = closest_point_on_axis + radius * (cell_center - closest_point_on_axis).normalized();
-                        IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(), datum_paraboloid_eVec.y(), datum_paraboloid_eVec.z());
+                            // Projection of cell center onto cylinder axis
+                            Eigen::Vector3d axis_to_cell = cell_center - axis_origin;
+                            double projection_factor = axis_to_cell.dot(axis_direction) / axis_direction.squaredNorm();
+                            Eigen::Vector3d closest_point_on_axis = axis_origin + projection_factor * axis_direction;
 
-                        // Create frame
-                        Eigen::Vector3d paraboloid_x = axis_direction.normalized();
-                        Eigen::Vector3d paraboloid_z = cell_center-closest_point_on_axis;
-                        paraboloid_z.normalize();
-                        Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
-                        paraboloid_y.normalize();
-                        //frame[1] = IRL::crossProduct(frame[2],frame[0]); frame2 is normal, frame0 is axis
-                        //frame[1].normalize();
+                            // Datum on paraboloid representation of cylinder
+                            Eigen::Vector3d datum_paraboloid_eVec =
+                                closest_point_on_axis + radius * (cell_center - closest_point_on_axis).normalized();
+                            IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(), datum_paraboloid_eVec.y(), datum_paraboloid_eVec.z());
 
-                        const auto frame = IRL::ReferenceFrame(IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
-                                              IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
-                                              IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
-                        // Create paraboloid
-                        const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1/(2*radius));
+                            // Frame aligned with axis
+                            Eigen::Vector3d paraboloid_x = axis_direction.normalized();
+                            Eigen::Vector3d paraboloid_z = (cell_center - closest_point_on_axis).normalized();
+                            Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
+                            paraboloid_y.normalize();
 
-                        // Intersect cell with paraboloid -- return volume and surface
-                        auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
-                        auto volume_and_surface = IRL::getVolumeMoments<
-                            IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
-                            cell, paraboloid);
-                        // Store surface and volume (fraction)
-                        
-                        // use volumes directly instead of fractions
-                        volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
-                                         //volume_and_surface.getMoments().centroid() / vol
+                            const auto frame = IRL::ReferenceFrame(
+                                IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
+                                IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
+                                IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
 
-                        firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
-                                                        volume_and_surface.getMoments().centroid().y(),
-                                                        volume_and_surface.getMoments().centroid().z();
+                            // Cylinder = paraboloid with coeffs (0, 1/(2R))
+                            const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1/(2*radius));
 
-                        if (visualize) {
-                            surfaces.push_back(volume_and_surface.getSurface());
+                            auto volume_and_surface = IRL::getVolumeMoments<
+                                IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
+                                cell, paraboloid);
+
+                            volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
+                            firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                            volume_and_surface.getMoments().centroid().y(),
+                                                            volume_and_surface.getMoments().centroid().z();
+
+                            if (visualize) {
+                                surfaces.push_back(volume_and_surface.getSurface());
+                            }
                         }
                     }
                 }
-            }
 
-            // Compress refined mesh into original stencil size
-            compressStencilRefinedToCoarse(
-                volumes_refined,
-                firstMoments_refined,
-                vfrac,
-                firstMoment,
-                stencil_size,
-                refinement_factor,
-                cell_volume,
-                visualize,
-                &centroid
-            );
+                // Compress refined → coarse stencil
+                compressStencilRefinedToCoarse(
+                    volumes_refined,
+                    firstMoments_refined,
+                    vfrac,
+                    firstMoment,
+                    stencil_size,
+                    refinement_factor,
+                    cell_volume,
+                    visualize,
+                    &centroid
+                );
 
-            // Generate vtk output
-            if (visualize) {
-                WriteField(stencil_size, coords, vfrac, "vfrac");
-                WriteSurface(surfaces, "surface");
-                printCentroids(centroid);
-            }
-            
-
-            // Flatten the 3D vector vfrac into a 1D vector
-            std::vector<double> flattened_vfrac;
-            for (int i = 0; i < stencil_size; ++i) {
-                for (int j = 0; j < stencil_size; ++j) {
-                    for (int k = 0; k < stencil_size; ++k) {
-                        flattened_vfrac.push_back(vfrac[i][j][k]);
+                // --- check central cell ---
+                int mid = stencil_size / 2;
+                double center_vfrac = vfrac[mid][mid][mid];
+                if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                        printCentroids(centroid);
                     }
+
+                    std::vector<double> flattened_vfrac;
+                    for (int i = 0; i < stencil_size; ++i) {
+                        for (int j = 0; j < stencil_size; ++j) {
+                            for (int k = 0; k < stencil_size; ++k) {
+                                flattened_vfrac.push_back(vfrac[i][j][k]);
+                            }
+                        }
+                    }
+                    return flattened_vfrac; // accept this sample
                 }
+                // else: reject and regenerate
             }
-            return flattened_vfrac;
+                
         }
+
 
         std::vector<double> generate_Sphere (
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false) {
+            int stencil_size, bool visualize = false) 
+            {
+                while (true) { // keep trying until center cell has surface crossing
+                
 
-            // make centroid, only used for visualization
-            std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
-                stencil_size,
-                std::vector<std::vector<Eigen::Vector3d>>(
-                    stencil_size,
-                    std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
-                )
-            );
+                    // make centroid, only used for visualization
+                    std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                        stencil_size,
+                        std::vector<std::vector<Eigen::Vector3d>>(
+                            stencil_size,
+                            std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                        )
+                    );
 
-            // for visualization option:
-            std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
+                    // for visualization option:
+                    std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
 
-            // define parameters
-            //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-            const double cell_volume = 1.0;
-            int refinement_factor = 3;
-            double refinement_factor_double = static_cast<double>(refinement_factor);
-            std::uniform_real_distribution<double> dist(0.1, 1); //The minimum size of the sphere is set here
+                    // define parameters
+                    //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
+                    const double cell_volume = 1.0;
+                    int refinement_factor = 3;
+                    double refinement_factor_double = static_cast<double>(refinement_factor);
+                    std::uniform_real_distribution<double> dist(machineZero, 0.5); //Thes size of the sphere is set here
 
-            double radius =  dist(eng);
+                    double radius =  dist(eng);
 
-            Eigen::Vector3d origin = generateRandomPoint(-1.0 , 1.0, eng);
+                    Eigen::Vector3d origin = generateRandomPoint(
+                    -0.5 * stencil_size, 0.5 * stencil_size, eng);
 
-            // Create refined cells
-            int refined_stencil_size = refinement_factor*stencil_size;
-            std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
-                std::vector<std::vector<double>>(refined_stencil_size,
-                std::vector<double>(refined_stencil_size)));
+                    // Create refined cells
+                    int refined_stencil_size = refinement_factor*stencil_size;
+                    std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                        std::vector<std::vector<double>>(refined_stencil_size,
+                        std::vector<double>(refined_stencil_size)));
 
-            std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
-                std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
-                std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+                    std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                        std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                        std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
 
-            //std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
+                    //std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
 
-            // Use refinement factor on parameters -> the grid is parted, so the parameters have to be scaled to be the same
-            radius = radius * refinement_factor_double;
-            origin = origin * refinement_factor_double;
+                    // Use refinement factor on parameters -> the grid is parted, so the parameters have to be scaled to be the same
+                    radius = radius * refinement_factor_double;
+                    origin = origin * refinement_factor_double;
 
-            // Defining cell coordinates
-            auto coords = std::vector<double>(refined_stencil_size+1);
-            for (int i = 0; i <= refined_stencil_size; i++) {
-                coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
-            }
+                    // Defining cell coordinates
+                    auto coords = std::vector<double>(refined_stencil_size+1);
+                    for (int i = 0; i <= refined_stencil_size; i++) {
+                        coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
+                    }
 
-            for (int i = 0; i < refined_stencil_size; i++) {
-                for (int j = 0; j < refined_stencil_size; j++) {
-                    for (int k = 0; k < refined_stencil_size; k++) {
-                        // Create cell
-                        auto cell = IRL::RectangularCuboid::fromBoundingPts(
-                            IRL::Pt(coords[i], coords[j], coords[k]),
-                            IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+                    for (int i = 0; i < refined_stencil_size; i++) {
+                        for (int j = 0; j < refined_stencil_size; j++) {
+                            for (int k = 0; k < refined_stencil_size; k++) {
+                                // Create cell
+                                auto cell = IRL::RectangularCuboid::fromBoundingPts(
+                                    IRL::Pt(coords[i], coords[j], coords[k]),
+                                    IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
 
-                        // Create paraboloid for this cell in the steps below
-                        // Find center point of cell
-                        Eigen::Vector3d cell_center((coords[i+1]+coords[i])/2.0,
-                                    (coords[j+1]+coords[j])/2.0,
-                                    (coords[k+1]+coords[k])/2.0);
+                                // Create paraboloid for this cell in the steps below
+                                // Find center point of cell
+                                Eigen::Vector3d cell_center((coords[i+1]+coords[i])/2.0,
+                                            (coords[j+1]+coords[j])/2.0,
+                                            (coords[k+1]+coords[k])/2.0);
 
-                        // Find datum of paraboloid
-                        Eigen::Vector3d origin_to_cell_center = cell_center - origin;
-                        Eigen::Vector3d datum_paraboloid_eVec = origin + radius * (cell_center - origin).normalized();
-                        IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(), datum_paraboloid_eVec.y(), datum_paraboloid_eVec.z());
+                                // Find datum of paraboloid
+                                Eigen::Vector3d origin_to_cell_center = cell_center - origin;
+                                Eigen::Vector3d datum_paraboloid_eVec = origin + radius * (cell_center - origin).normalized();
+                                IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(), datum_paraboloid_eVec.y(), datum_paraboloid_eVec.z());
 
-                        // Create frame
-                        Eigen::Vector3d paraboloid_z = cell_center-origin;
-                        paraboloid_z.normalize();
-                        Eigen::Vector3d helper (paraboloid_z.x(), paraboloid_z.y()+1, paraboloid_z.z());
-                        Eigen::Vector3d paraboloid_x = paraboloid_z.cross(helper);
-                        paraboloid_x.normalize();
-                        Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
-                        paraboloid_y.normalize();
-                        //frame[1] = IRL::crossProduct(frame[2],frame[0]); frame2 is normal, frame0 is axis
-                        //frame[1].normalize();
+                                // Create frame
+                                Eigen::Vector3d paraboloid_z = cell_center-origin;
+                                paraboloid_z.normalize();
+                                Eigen::Vector3d helper (paraboloid_z.x(), paraboloid_z.y()+1, paraboloid_z.z());
+                                Eigen::Vector3d paraboloid_x = paraboloid_z.cross(helper);
+                                paraboloid_x.normalize();
+                                Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
+                                paraboloid_y.normalize();
+                                //frame[1] = IRL::crossProduct(frame[2],frame[0]); frame2 is normal, frame0 is axis
+                                //frame[1].normalize();
 
-                        const auto frame = IRL::ReferenceFrame(IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
-                                              IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
-                                              IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
-                        // Create paraboloid
-                        const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 1/(2*radius), 1/(2*radius));
+                                const auto frame = IRL::ReferenceFrame(IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
+                                                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
+                                                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+                                // Create paraboloid
+                                const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 1/(2*radius), 1/(2*radius));
 
-                        // Intersect cell with paraboloid -- return volume and surface
-                        auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
-                        auto volume_and_surface = IRL::getVolumeMoments<
-                            IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
-                            cell, paraboloid);
-                        // Store surface and volume (fraction)
-                        
-                        volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
-                                         //volume_and_surface.getMoments().centroid() / vol
+                                // Intersect cell with paraboloid -- return volume and surface
+                                auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
+                                auto volume_and_surface = IRL::getVolumeMoments<
+                                    IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
+                                    cell, paraboloid);
+                                // Store surface and volume (fraction)
+                                
+                                volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
+                                                //volume_and_surface.getMoments().centroid() / vol
 
-                        Eigen::Vector3d m1(volume_and_surface.getMoments().centroid().x(),
-                                        volume_and_surface.getMoments().centroid().y(),
-                                        volume_and_surface.getMoments().centroid().z());
+                                Eigen::Vector3d m1(volume_and_surface.getMoments().centroid().x(),
+                                                volume_and_surface.getMoments().centroid().y(),
+                                                volume_and_surface.getMoments().centroid().z());
 
-                        firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
-                                                        volume_and_surface.getMoments().centroid().y(),
-                                                        volume_and_surface.getMoments().centroid().z();
+                                firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                                volume_and_surface.getMoments().centroid().y(),
+                                                                volume_and_surface.getMoments().centroid().z();
 
-                        if (visualize) {
-                            surfaces.push_back(volume_and_surface.getSurface());
+                                if (visualize) {
+                                    surfaces.push_back(volume_and_surface.getSurface());
+                                }
+                            }
                         }
                     }
-                }
-            }
 
-            // Compress refined mesh into original stencil size
-            compressStencilRefinedToCoarse(
-                volumes_refined,
-                firstMoments_refined,
-                vfrac,
-                firstMoment,
-                stencil_size,
-                refinement_factor,
-                cell_volume,
-                visualize,
-                &centroid
-            );
+                    // Compress refined mesh into original stencil size
+                    compressStencilRefinedToCoarse(
+                        volumes_refined,
+                        firstMoments_refined,
+                        vfrac,
+                        firstMoment,
+                        stencil_size,
+                        refinement_factor,
+                        cell_volume,
+                        visualize,
+                        &centroid
+                    );
 
-            // Generate vtk output
-            if (visualize) {
-                WriteField(stencil_size, coords, vfrac, "vfrac");
-                WriteSurface(surfaces, "surface");
-                printCentroids(centroid);
-            }
-            
+                    // --- check central cell ---
+                    int mid = stencil_size / 2;
+                    double center_vfrac = vfrac[mid][mid][mid];
+                    if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
+                        if (visualize) {
+                            WriteField(stencil_size, coords, vfrac, "vfrac");
+                            WriteSurface(surfaces, "surface");
+                            printCentroids(centroid);
+                        }
 
-            // Flatten the 3D vector vfrac into a 1D vector
-            std::vector<double> flattened_vfrac;
-            for (int i = 0; i < stencil_size; ++i) {
-                for (int j = 0; j < stencil_size; ++j) {
-                    for (int k = 0; k < stencil_size; ++k) {
-                        flattened_vfrac.push_back(vfrac[i][j][k]);
+                        std::vector<double> flattened_vfrac;
+                        for (int i = 0; i < stencil_size; ++i) {
+                            for (int j = 0; j < stencil_size; ++j) {
+                                for (int k = 0; k < stencil_size; ++k) {
+                                    flattened_vfrac.push_back(vfrac[i][j][k]);
+                                }
+                            }
+                        }
+                        return flattened_vfrac; // accept this sample
                     }
+                    // else: reject and regenerate
                 }
-            }
-            return flattened_vfrac;
         }
 
 
