@@ -116,6 +116,7 @@ int classifyCellViaInertia(const Eigen::Vector3d& evals_unsorted, double gap = 1
 int main(int argc, char* argv[]) {
     int stencil_size = 3;
     IRL::Data_gen data_gen;
+    /*
 
     // Map integers to class names
     std::map<int, std::string> classNames = {
@@ -147,7 +148,7 @@ int main(int argc, char* argv[]) {
     std::cout << "--------------------------------------\n";
 
     // ---- Part 2: 10 random examples per class without visualize ----
-    int numSamples = 10;
+    int numSamples = 100;
     for (int trueClass = 0; trueClass < 4; ++trueClass) {
         // Counters
         std::map<int, int> counts = { {0,0}, {1,0}, {2,0}, {3,0} };
@@ -171,6 +172,9 @@ int main(int argc, char* argv[]) {
                   << counts[2] << " spheres, "
                   << counts[3] << " sheets.\n";
     }
+                  */
+    data_gen.generate_State(0, stencil_size, true, true);
+    std::cout << "Done!" << std::endl;
 
     return 0;
 }
