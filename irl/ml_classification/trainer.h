@@ -6,14 +6,14 @@
 
 namespace IRL {
 
-template<typename NetType>
+template<typename NetType, typename Loader>
 class Trainer {
 public:
     Trainer(NetType& net,
             torch::optim::Optimizer& optimizer,
-            torch::data::DataLoader<torch::data::Example<>>* train_loader,
-            torch::data::DataLoader<torch::data::Example<>>* test_loader,
-            torch::data::DataLoader<torch::data::Example<>>* val_loader,
+            Loader* train_loader,
+            Loader* test_loader,
+            Loader* val_loader,
             int epochs)
         : net_(net),
           optimizer_(optimizer),
@@ -41,7 +41,7 @@ public:
                 total_loss += loss.item<double>();
                 auto predicted_classes = prediction.argmax(1);
                 auto correct = predicted_classes.eq(batch.target);
-                correct_predictions += correct.sum().item<int>();
+                correct_predictions += correct.sum().template item<int>();
                 total_samples += batch.target.size(0);
             }
 
@@ -61,12 +61,12 @@ public:
 private:
     NetType& net_;
     torch::optim::Optimizer& optimizer_;
-    torch::data::DataLoader<torch::data::Example<>>* train_loader_;
-    torch::data::DataLoader<torch::data::Example<>>* test_loader_;
-    torch::data::DataLoader<torch::data::Example<>>* val_loader_;
+    Loader* train_loader_;
+    Loader* test_loader_;
+    Loader* val_loader_;
     int epochs_;
 
-    double evaluate(torch::data::DataLoader<torch::data::Example<>>& loader) {
+    double evaluate(Loader& loader) {
         net_.eval();
         int correct = 0;
         int total = 0;
@@ -74,7 +74,7 @@ private:
         for (auto& batch : loader) {
             auto prediction = net_.forward(batch.data);
             auto predicted = prediction.argmax(1);
-            correct += predicted.eq(batch.target).sum().item<int>();
+            correct += predicted.eq(batch.target).sum().template item<int>();
             total += batch.target.size(0);
         }
 

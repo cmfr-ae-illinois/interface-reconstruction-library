@@ -1,7 +1,7 @@
-// #include <torch/torch.h>
 #include <iostream>
 #include <vector>
 #include <string>
+#include <torch/torch.h>
 
 #include "irl/ml_classification/data_gen.h"
 #include "irl/ml_classification/data_set.h"
@@ -41,7 +41,7 @@ int main (int argc, char* argv[]) {
   int output_size = 4; // 0 = plane (currently not used), 1 = paraboloid, 2 = cylinder, 3 = 
   int batch_size = 64;
   double learning_rate = 0.001; //was 0.01 for SGD optimizer
-  int no_batches = 2048; // Should be divisible by batch size
+  int no_batches = 128; // Should be divisible by batch size
   int epochs = 20;
   std::vector<double> lossVector;
 
@@ -83,7 +83,8 @@ int main (int argc, char* argv[]) {
 
   // Create Trainer and run
   torch::optim::Adam optimizer(net.parameters(), torch::optim::AdamOptions(learning_rate));
-  IRL::Trainer<IRL::Net> trainer(net, optimizer, train_loader.get(), test_loader.get(), val_loader.get(), epochs);
+  using Loader = std::remove_reference_t<decltype(*train_loader)>;
+  IRL::Trainer<IRL::Net, Loader> trainer(net, optimizer, train_loader.get(), test_loader.get(), val_loader.get(), epochs);
   trainer.train();
 
   // vtk reader

@@ -718,7 +718,7 @@ namespace IRL {
             return flattened_state;
         }
 
-        void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, bool include_centroid = false){
+        void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, bool include_firstMoment = false){
             std::cout << no_datapoints << std::endl;
             // Initialize random number generator with a seed from current time
             std::srand(std::time(0));
@@ -729,7 +729,7 @@ namespace IRL {
                 int datapoint_type = std::rand() % no_datapoint_types_in;
 
                 labelsV->push_back(datapoint_type);
-                statesV->push_back(generate_State(datapoint_type, stencil_size, include_centroid));
+                statesV->push_back(generate_State(datapoint_type, stencil_size, include_firstMoment));
             }
         }
     };
