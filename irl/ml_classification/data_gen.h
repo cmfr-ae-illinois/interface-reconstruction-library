@@ -531,7 +531,7 @@ namespace IRL {
                     double radius =  dist(eng);
 
                     Eigen::Vector3d origin = generateRandomPoint(
-                    -0.5 * stencil_size, 0.5 * stencil_size, eng);
+                    -0.5 - radius , 0.5 + radius, eng);
 
                     // Create refined cells
                     int refined_stencil_size = refinement_factor*stencil_size;
@@ -597,6 +597,7 @@ namespace IRL {
                                     IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
                                     cell, paraboloid);
                                 // Store surface and volume (fraction)
+                                //auto allMoments = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
                                 
                                 volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
                                                 //volume_and_surface.getMoments().centroid() / vol

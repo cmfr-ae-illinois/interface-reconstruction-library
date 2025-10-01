@@ -34,14 +34,14 @@ int main (int argc, char* argv[]) {
   torch::Tensor tensor = torch::eye(3);
   std::cout << tensor << std::endl;
 
-  int stencil_size = 3;
+  int stencil_size = 5;
   int hidden_size1 = 128;
   int hidden_size2 = 64;
   int hidden_size3 = 32;
   int output_size = 4; // 0 = plane (currently not used), 1 = paraboloid, 2 = cylinder, 3 = 
   int batch_size = 64;
   double learning_rate = 0.001; //was 0.01 for SGD optimizer
-  int no_batches = 128; // Should be divisible by batch size
+  int no_batches = 1024; // Should be divisible by batch size
   int epochs = 20;
   std::vector<double> lossVector;
 
@@ -227,88 +227,85 @@ int main (int argc, char* argv[]) {
     plic_interface_type->SetValue(i, -1);
   }
 
-  const int stencil_size_reader = 3;
+  int stencil_size_reader = 5; // now configurable, must match training
+  int half = stencil_size_reader / 2;
+
   int no_filled_cells = 0;
   int no_paraboloids = 0;
   int no_cylinders = 0;
   int no_spheres = 0;
   int no_sheets = 0;
 
-  // Loop through interior cells (excluding 1-cell boundary)
-  for (int i = 1; i < nx - 1; ++i) {
-      for (int j = 1; j < ny - 1; ++j) {
-          for (int k = 1; k < nz - 1; ++k) {
+    // Loop through interior cells (excluding half-cell boundary)
+    for (int i = half; i < nx - half; ++i) {
+        for (int j = half; j < ny - half; ++j) {
+            for (int k = half; k < nz - half; ++k) {
 
-              vtkIdType centerCellId = i + j * nx + k * nx * ny;
+                vtkIdType centerCellId = i + j * nx + k * nx * ny;
 
-              // Skip this cell if there is no surface
-              double epsilon = 1e-10;
-              double vof_center = newVOF->GetComponent(centerCellId, 0);
-              if (vof_center <= epsilon || vof_center >= 1.0 - epsilon) {
-                  continue;
-              }
+                // Skip if no interface
+                double epsilon = 1e-10;
+                double vof_center = newVOF->GetComponent(centerCellId, 0);
+                if (vof_center <= epsilon || vof_center >= 1.0 - epsilon) {
+                    continue;
+                }
 
-              no_filled_cells ++;
+                no_filled_cells++;
 
-              // 3D array to store VOF values in the 3x3x3 neighborhood
-              double vfrac[stencil_size_reader][stencil_size_reader][stencil_size_reader];
+                // Allocate vector for stencil
+                std::vector<double> vfrac(stencil_size_reader * stencil_size_reader * stencil_size_reader, 0.0);
 
-              // Fill the 3x3x3 neighborhood
-              for (int di = -1; di <= 1; ++di) {
-                  for (int dj = -1; dj <= 1; ++dj) {
-                      for (int dk = -1; dk <= 1; ++dk) {
-                          int ni = i + di;
-                          int nj = j + dj;
-                          int nk = k + dk;
+                // Fill stencil neighborhood
+                for (int di = -half; di <= half; ++di) {
+                    for (int dj = -half; dj <= half; ++dj) {
+                        for (int dk = -half; dk <= half; ++dk) {
+                            int ni = i + di;
+                            int nj = j + dj;
+                            int nk = k + dk;
 
-                          vtkIdType cellId = ni + nj * nx + nk * nx * ny;
-                          if (cellId >= newVOF->GetNumberOfTuples()) {
-                              std::cerr << "Invalid cellId: " << cellId << std::endl;
-                              continue;
-                          }
+                            vtkIdType cellId = ni + nj * nx + nk * nx * ny;
+                            if (cellId >= newVOF->GetNumberOfTuples()) {
+                                std::cerr << "Invalid cellId: " << cellId << std::endl;
+                                continue;
+                            }
 
-                          vfrac[di + 1][dj + 1][dk + 1] = newVOF->GetComponent(cellId, 0);
-                      }
-                  }
-              }
+                            int idx = (di + half) * stencil_size_reader * stencil_size_reader
+                                    + (dj + half) * stencil_size_reader
+                                    + (dk + half);
+                            vfrac[idx] = newVOF->GetComponent(cellId, 0);
+                        }
+                    }
+                }
 
-              // Flatten the 3D vector into a 1D vector
-              std::vector<double> flattened_vfrac;
-              for (int ii = 0; ii < stencil_size_reader; ++ii) {
-                  for (int jj = 0; jj < stencil_size_reader; ++jj) {
-                      for (int kk = 0; kk < stencil_size_reader; ++kk) {
-                          flattened_vfrac.push_back(vfrac[ii][jj][kk]);
-                      }
-                  }
-              }
+                // Classify directly on vfrac
+                int predicted_class = net.forward(torch::tensor(vfrac)).argmax().item<int>();
 
-              // Classify flattened vfrac vector
-              int predicted_class = net.forward(torch::tensor(flattened_vfrac)).argmax().item<int>();
-              switch (predicted_class) {
-                case 0:
-                    no_paraboloids++;
-                    interface_type->SetValue(centerCellId, 0);
-                    break;
-                case 1:
-                    no_cylinders++;
-                    interface_type->SetValue(centerCellId, 1);
-                    break;
-                case 2:
-                    no_spheres++;
-                    interface_type->SetValue(centerCellId, 2);
-                    break;
-                case 3:
-                    no_sheets++;
-                    interface_type->SetValue(centerCellId, 3);
-                    break;
-                default:
-                    std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;
-                    break;
+                switch (predicted_class) {
+                    case 0:
+                        no_paraboloids++;
+                        interface_type->SetValue(centerCellId, 0);
+                        break;
+                    case 1:
+                        no_cylinders++;
+                        interface_type->SetValue(centerCellId, 1);
+                        break;
+                    case 2:
+                        no_spheres++;
+                        interface_type->SetValue(centerCellId, 2);
+                        break;
+                    case 3:
+                        no_sheets++;
+                        interface_type->SetValue(centerCellId, 3);
+                        break;
+                    default:
+                        std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;
+                        break;
+                }
             }
+        }
+    }
 
-          }
-      }
-  }
+  
 
   std::cout << "\n=== Classification Summary ===" << std::endl;
   std::cout << "Total cells with interface:   " << no_filled_cells << std::endl;
