@@ -65,7 +65,7 @@ namespace IRL {
         std::vector<double> generate_Paraboloid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false, double stddev = 0.1) 
+            int stencil_size, double stddev = 0.1, bool visualize = false) 
         {
             // repeat until center cell is cut by surface
             while (true) {
@@ -175,7 +175,7 @@ namespace IRL {
         std::vector<double> generate_Sheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false, double stddev = 0.1) 
+            int stencil_size, double stddev = 0.1, bool visualize = false) 
         {
             while (true) { // keep trying until center cell has surface crossing
                 // make centroid, only used for visualization

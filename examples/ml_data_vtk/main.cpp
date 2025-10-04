@@ -88,10 +88,6 @@ int classifyCellViaInertia(const Eigen::Vector3d& evals_unsorted, double gap = 1
     // Avoid divide-by-zero
     if (I1 <= 1e-14) return 0;
 
-    // Ratios
-    double R21 = I2 / I1;
-    double R31 = I3 / I1;
-
     // --- Classification rules ---
     // Sheet: gap between I1 and I2
     if (I1 > gap * I2 && I2 > I3) {
@@ -102,7 +98,7 @@ int classifyCellViaInertia(const Eigen::Vector3d& evals_unsorted, double gap = 1
         return 1; // ligament
     }
     // Sphere: nearly isotropic
-    else if (R21 > sphere_tol && R31 > sphere_tol) {
+    else if ((I3 / I1) > sphere_tol) {
         return 2; // sphere
     }
     // Else: paraboloid / well-resolved interface
