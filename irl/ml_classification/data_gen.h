@@ -65,7 +65,7 @@ namespace IRL {
         std::vector<double> generate_Paraboloid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double stddev = 0.1, bool visualize = false) 
+            int stencil_size, double coeff_stddev = 0.1, bool visualize = false) 
         {
             // repeat until center cell is cut by surface
             while (true) {
@@ -111,7 +111,7 @@ namespace IRL {
 
                 IRL::Pt datum(datumVec.x(), datumVec.y(), datumVec.z());
 
-                std::normal_distribution<double> random_coeff(0.0, stddev);
+                std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
                 double coeff1 = random_coeff(eng);
                 double coeff2 = random_coeff(eng);
 
@@ -171,11 +171,22 @@ namespace IRL {
             }
         }
 
+        double sample_truncated_normal(double mean, double stddev,
+                               double lower, double upper)
+        {
+            std::normal_distribution<double> normal(mean, stddev);
+            double x;
+            do {
+                x = normal(eng);
+            } while (x < lower || x > upper);
+            return x;
+        }
+
 
         std::vector<double> generate_Sheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double stddev = 0.1, bool visualize = false) 
+            int stencil_size, double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false) 
         {
             while (true) { // keep trying until center cell has surface crossing
                 // make centroid, only used for visualization
@@ -203,8 +214,13 @@ namespace IRL {
                 Eigen::Vector3d direction = generateRandomDirection(eng);
 
                 // Random sheet thickness
-                std::uniform_real_distribution<double> random_thickness(machineZero, 0.5);
-                double thickness = random_thickness(eng);
+                double thickness = max_thickness;
+                if (thickness_stddev > 0.0) {
+                    thickness = sample_truncated_normal(0, thickness_stddev, machineZero, max_thickness);
+                }else{
+                    std::uniform_real_distribution<double> random_thickness(machineZero, max_thickness);
+                    thickness = random_thickness(eng);
+                }
 
                 // Two paraboloid datums offset along the direction
                 Eigen::Vector3d datum_paraboloid1_eVec = datum - direction.normalized() * (thickness/2.0);
@@ -230,7 +246,7 @@ namespace IRL {
                 IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
 
                 // Random coefficients
-                std::normal_distribution<double> random_coeff(0.0, stddev);
+                std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
                 double coeff1 = random_coeff(eng);
                 double coeff2 = random_coeff(eng);
 
@@ -366,7 +382,7 @@ namespace IRL {
         std::vector<double> generate_Cylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false) 
+            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false) 
         {
             while (true) { // keep trying until center cell has surface crossing
                 // make centroid, only used for visualization
@@ -390,8 +406,13 @@ namespace IRL {
                 Eigen::Vector3d axis_direction = generateRandomDirection(eng);
 
                 // Random radius
-                std::uniform_real_distribution<double> dist(machineZero, 0.5);
-                double radius = dist(eng);
+                double radius = max_radius;
+                if (radius_stddev > 0.0) {
+                    radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                }else{
+                    std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
+                    radius = random_thickness(eng);
+                }
 
                 // Refined mesh
                 int refined_stencil_size = refinement_factor*stencil_size;
@@ -504,7 +525,7 @@ namespace IRL {
         std::vector<double> generate_Sphere (
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool visualize = false) 
+            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false) 
             {
                 while (true) { // keep trying until center cell has surface crossing
                 
@@ -526,12 +547,17 @@ namespace IRL {
                     const double cell_volume = 1.0;
                     int refinement_factor = 3;
                     double refinement_factor_double = static_cast<double>(refinement_factor);
-                    std::uniform_real_distribution<double> dist(machineZero, 0.5); //Thes size of the sphere is set here
 
-                    double radius =  dist(eng);
+                    // Random radius
+                    double radius = max_radius;
+                    if (radius_stddev > 0.0) {
+                        radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                    }else{
+                        std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
+                        radius = random_thickness(eng);
+                    }
 
-                    Eigen::Vector3d origin = generateRandomPoint(
-                    -0.5 - radius , 0.5 + radius, eng);
+                    Eigen::Vector3d origin = generateRandomPoint(-0.5 - radius , 0.5 + radius, eng);
 
                     // Create refined cells
                     int refined_stencil_size = refinement_factor*stencil_size;
@@ -655,7 +681,13 @@ namespace IRL {
         }
 
 
-        std::vector<double> generate_State(int datapoint_type, int stencil_size, bool include_firstMoment, bool visualize = false) {
+        std::vector<double> generate_State(int datapoint_type, int stencil_size, int include_Moments = 0,
+                                        double paraboloid_coeff_stddev = 0.1,
+                                        double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
+                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
+                                        double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0,
+                                        bool visualize = false)
+        {
             // Create a vector of volume fractions and first moments
             std::vector<std::vector<std::vector<double>>> vfrac(
                 stencil_size, 
@@ -666,18 +698,6 @@ namespace IRL {
                     )
                 )
             );
-            /*
-            std::vector<std::vector<std::vector<std::vector<double>>>> firstMoment(
-                stencil_size,
-                std::vector<std::vector<std::vector<double>>>(
-                    stencil_size,
-                    std::vector<std::vector<double>>(
-                        stencil_size,
-                        std::vector<double>(3)  // each first moment has 3 components
-                    )
-                )
-            );
-            */
 
             std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoment(
                 stencil_size,
@@ -689,16 +709,16 @@ namespace IRL {
 
             switch (datapoint_type) {
                 case 1:
-                    generate_Cylinder(vfrac, firstMoment, stencil_size, visualize);
+                    generate_Cylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize);
                     break;
                 case 2:
-                    generate_Sphere(vfrac, firstMoment, stencil_size, visualize);
+                    generate_Sphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize);
                     break;
                 case 3:
-                    generate_Sheet(vfrac, firstMoment, stencil_size, visualize);
+                    generate_Sheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize);
                     break;
                 default:
-                    generate_Paraboloid(vfrac, firstMoment, stencil_size, visualize);
+                    generate_Paraboloid(vfrac, firstMoment, stencil_size, paraboloid_coeff_stddev, visualize);
                     break;
             }
 
@@ -708,7 +728,7 @@ namespace IRL {
                 for (int j = 0; j < stencil_size; ++j) {
                     for (int k = 0; k < stencil_size; ++k) {
                         flattened_state.push_back(vfrac[i][j][k]);
-                        if (include_firstMoment) {
+                        if (include_Moments >= 1) {
                             flattened_state.push_back(firstMoment[i][j][k].x());
                             flattened_state.push_back(firstMoment[i][j][k].y());
                             flattened_state.push_back(firstMoment[i][j][k].z());
@@ -719,7 +739,13 @@ namespace IRL {
             return flattened_state;
         }
 
-        void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, bool include_firstMoment = false){
+        void generate_Data (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
+                                        double paraboloid_coeff_stddev = 0.1,
+                                        double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
+                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
+                                        double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0)
+        
+        {
             std::cout << no_datapoints << std::endl;
             // Initialize random number generator with a seed from current time
             std::srand(std::time(0));
@@ -730,7 +756,11 @@ namespace IRL {
                 int datapoint_type = std::rand() % no_datapoint_types_in;
 
                 labelsV->push_back(datapoint_type);
-                statesV->push_back(generate_State(datapoint_type, stencil_size, include_firstMoment));
+                statesV->push_back(generate_State(datapoint_type, stencil_size, include_Moments,
+                                        paraboloid_coeff_stddev,
+                                        sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
+                                        max_cylinder_radius, cylinder_radius_stddev, 
+                                        max_sphere_radius, sphere_radius_stddev));
             }
         }
     };

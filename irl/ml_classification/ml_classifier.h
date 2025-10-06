@@ -30,10 +30,21 @@ public:
           net(input_size, h1, h2, h3, out_size) {
     }
 
-    void generateDataset(int no_batches, int batch_size=64) {
+    void generateDataset(int no_batches, int batch_size=64,
+                            int include_Moments = 0,
+                            double paraboloid_coeff_stddev = 0.1,
+                            double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
+                            double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
+                            double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0)
+    {
         IRL::Data_gen data_gen;
         data_gen.generate_Data(&statesV, &labelsV, no_batches * batch_size,
-                               stencil_size, output_size);
+                                stencil_size, output_size,
+                                include_Moments,
+                                paraboloid_coeff_stddev,
+                                sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
+                                max_cylinder_radius, cylinder_radius_stddev, 
+                                max_sphere_radius, sphere_radius_stddev);
     }
 
     void trainModel(int epochs=20, double learning_rate=0.001, int batch_size=64) {
