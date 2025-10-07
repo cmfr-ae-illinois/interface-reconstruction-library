@@ -103,7 +103,7 @@ inline std::ostream& operator<<(std::ostream& out,
     out << a_volume.volume().value() << "\nAuto-gradient = \n"
         << a_volume.volume().gradient().getGrad();
   } else {
-    out << static_cast<ScalarType>(a_volume);
+    out << static_cast<double>(a_volume);
   }
   return out;
 }

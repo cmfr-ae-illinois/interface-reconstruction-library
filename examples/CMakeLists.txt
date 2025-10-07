@@ -8,6 +8,7 @@ add_custom_target(examples_vtk_output)
 add_custom_target(examples_ml_classification)
 add_custom_target(examples_ml_data_vtk)
 add_custom_target(examples_vtk_reader)
+add_custom_target(examples_variant_advector)
 
 include(${PROJECT_SOURCE_DIR}/cmake/Utils/IRLAddExample.cmake)
 
@@ -21,3 +22,4 @@ add_subdirectory("./vtk_output")
 add_subdirectory("./ml_classification")
 add_subdirectory("./ml_data_vtk")
 add_subdirectory("./vtk_reader")
+add_subdirectory("./variant_advector")

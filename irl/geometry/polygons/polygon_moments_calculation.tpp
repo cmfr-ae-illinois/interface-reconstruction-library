@@ -37,8 +37,8 @@ SimplexType PolygonMomentsCalculationCommon<Derived, VertexType, SimplexType>::
 
 template <class Derived, class VertexType, class SimplexType>
 const VertexType&
-    PolygonMomentsCalculationCommon<Derived, VertexType, SimplexType>::
-    operator[](const UnsignedIndex_t a_index) const {
+PolygonMomentsCalculationCommon<Derived, VertexType, SimplexType>::operator[](
+    const UnsignedIndex_t a_index) const {
   return this->getDerived().access(a_index);
 }
 
@@ -65,6 +65,14 @@ inline VolumeMomentsAndNormal PolygonMomentsCalculationCommon<
     Derived, VertexType, SimplexType>::calculateVolumeMomentsAndNormal(void)
     const {
   return IRL::calculateMoments((*this), VolumeMomentsAndNormal2D_Functor());
+}
+
+template <class Derived, class VertexType, class SimplexType>
+template <std::size_t ORDER>
+inline GeneralMoments3D<ORDER> PolygonMomentsCalculationCommon<
+    Derived, VertexType, SimplexType>::calculateGeneralMoments(void) const {
+  return IRL::calculateMoments((*this),
+                               GeneralSurfaceMoments3D_Functor<ORDER>());
 }
 
 template <class Derived, class VertexType, class SimplexType>
@@ -135,4 +143,4 @@ PolygonMomentsCalculationCommon<Derived, VertexType, SimplexType>::
 
 }  // namespace IRL
 
-#endif // IRL_GEOMETRY_POLYGONS_POLYGON_MOMENTS_CALCULATION_TPP_
+#endif  // IRL_GEOMETRY_POLYGONS_POLYGON_MOMENTS_CALCULATION_TPP_

@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <cstdio>
 #include <string>
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/geometry/general/pt.h"
@@ -154,7 +154,7 @@ void writeInterfaceToFile(
     VTKOutput* a_output, const bool print) {
   const BasicMesh& mesh = a_liquid_moments.getMesh();
 
-  std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
+  std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
   double radius = 0.25;
   double total_surface = 0.0, avg_mean_curv = 0.0;
   double exact_curv = 2.0 / radius;
@@ -214,7 +214,7 @@ void writeInterfaceToFile(
           const auto cell = IRL::RectangularCuboid::fromBoundingPts(
               lower_cell_pt, upper_cell_pt);
           auto volume_and_surface = IRL::getVolumeMoments<IRL::AddSurfaceOutput<
-              IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
+              IRL::Volume, IRL::ParaboloidParametrizedSurfaceOutput>>(
               cell, a_liquid_gas_interface(i, j, k));
           if (volume_and_surface.getMoments() > -DBL_MAX) {
             auto surface = volume_and_surface.getSurface();

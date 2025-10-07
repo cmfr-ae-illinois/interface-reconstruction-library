@@ -14,6 +14,7 @@
 #include <functional>
 #include <vector>
 
+#include "irl/geometry/polygons/polygon.h"
 #include "irl/geometry/polygons/tri.h"
 #include "irl/parameters/defined_types.h"
 
@@ -74,6 +75,83 @@ class TriangulatedSurfaceOutput {
   PointStorage vertices_m;
   EdgeStorage bdy_edges_m;
   TriangleStorage triangles_m;
+};
+
+class MixedPolygonBezierSurface {
+ public:
+  using PointStorage = std::vector<std::pair<Pt, double>>;
+  using PolygonStorage =
+      std::pair<std::vector<UnsignedIndex_t>, std::vector<UnsignedIndex_t>>;
+  using BezierTriangle = std::vector<UnsignedIndex_t>;
+  using BezierTriangleWeights = std::vector<double>;
+  using BezierTriangleStorage = std::vector<BezierTriangle>;
+  using BoundaryStorage =
+      std::pair<std::vector<UnsignedIndex_t>, std::vector<UnsignedIndex_t>>;
+
+  /// \brief Default constructor.
+  MixedPolygonBezierSurface(void) = default;
+  ~MixedPolygonBezierSurface(void) = default;
+
+  MixedPolygonBezierSurface(const MixedPolygonBezierSurface& a_rhs);
+  MixedPolygonBezierSurface(MixedPolygonBezierSurface&& a_rhs);
+
+  MixedPolygonBezierSurface& operator=(const MixedPolygonBezierSurface& a_rhs);
+  MixedPolygonBezierSurface& operator=(MixedPolygonBezierSurface&& a_rhs);
+
+  void addSurface(const MixedPolygonBezierSurface& a_rhs);
+  void addPoint(const Pt& a_pt, const double& weight = 1.0);
+  void addPoints(const std::vector<Pt>& a_pts,
+                 const std::vector<double>& a_weights = std::vector<double>(0));
+  void addPolygon(const Polygon& a_polygon);
+  void addPolygons(const std::vector<Polygon>& a_polygons);
+
+  template <class ContainerPoints>
+  void addBezierTriangle(const ContainerPoints& a_points);
+  template <class ContainerPoints, class ContainerWeights>
+  void addBezierTriangle(
+      const ContainerPoints& a_points,
+      const ContainerWeights& a_weights = ContainerWeights(1.0));
+
+  template <class ContainerPoints>
+  void addBezierTriangles(const std::vector<ContainerPoints>& a_points);
+  template <class ContainerPoints, class ContainerWeights>
+  void addBezierTriangles(const std::vector<ContainerPoints>& a_points,
+                          const std::vector<ContainerWeights>& a_weights);
+
+  template <class ContainerPoints>
+  void addBoundary(const ContainerPoints& a_points);
+  template <class ContainerPoints>
+  void addBoundaries(const std::vector<ContainerPoints>& a_points);
+
+  PointStorage& getPointList(void);
+  const PointStorage& getPointList(void) const;
+
+  PolygonStorage& getPolygonList(void);
+  const PolygonStorage& getPolygonList(void) const;
+
+  BezierTriangleStorage& getBezierTriangleList(void);
+  const BezierTriangleStorage& getBezierTriangleList(void) const;
+
+  BoundaryStorage& getBoundaryList(void);
+  const BoundaryStorage& getBoundaryList(void) const;
+
+  UnsignedIndex_t nPoints(void) const;
+  UnsignedIndex_t nPolygons(void) const;
+  UnsignedIndex_t nBezierTriangles(void) const;
+  UnsignedIndex_t nBoundaries(void) const;
+
+  void clearPoints(void);
+  void clearPolygons(void);
+  void clearBezierTriangles(void);
+  void clearBoundaries(void);
+  void clearAll(void);
+  void write(const std::string& filename, const bool a_write_boundary = false);
+
+ private:
+  PointStorage points_m;
+  PolygonStorage polygons_m;
+  BezierTriangleStorage bezier_triangles_m;
+  BoundaryStorage boundary_m;
 };
 
 inline std::ostream& operator<<(

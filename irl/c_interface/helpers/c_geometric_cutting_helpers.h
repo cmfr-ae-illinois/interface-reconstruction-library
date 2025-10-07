@@ -10,24 +10,30 @@
 #ifndef IRL_C_INTERFACE_HELPERS_C_GEOMETRIC_CUTTING_HELPERS_H_
 #define IRL_C_INTERFACE_HELPERS_C_GEOMETRIC_CUTTING_HELPERS_H_
 
+#include "irl/c_interface/planar_reconstruction/c_localized_separator_group_link.h"
+#include "irl/c_interface/planar_reconstruction/c_localized_separator_link.h"
 #include "irl/c_interface/planar_reconstruction/c_localizers.h"
 #include "irl/c_interface/planar_reconstruction/c_separators.h"
-#include "irl/c_interface/planar_reconstruction/c_localized_separator_link.h"
-#include "irl/c_interface/planar_reconstruction/c_localized_separator_group_link.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/helpers/geometric_cutting_helpers.h"
 #include "irl/planar_reconstruction/planar_localizer.h"
 #include "irl/planar_reconstruction/planar_separator.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {
 
 bool c_isPtInt_PlanarSep(const double* a_pt, const c_PlanarSep* a_separator);
 
+bool c_isPtInt_Variant(const double* a_pt,
+                       const c_SeparatorVariant* a_separator);
+
 bool c_isPtInt_PlanarLoc(const double* a_pt, const c_PlanarLoc* a_localizer);
 
 int c_locatePt_LocSepLink(const double* a_pt, const c_LocSepLink* a_locseplink);
 
-int c_locatePt_LocSepGroupLink(const double* a_pt, const c_LocSepGroupLink* a_locsepgrouplink);
+int c_locatePt_LocSepGroupLink(const double* a_pt,
+                               const c_LocSepGroupLink* a_locsepgrouplink);
 
 }  // end extern C
 
-#endif // IRL_C_INTERFACE_HELPERS_C_GEOMETRIC_CUTTING_HELPERS_H_
+#endif  // IRL_C_INTERFACE_HELPERS_C_GEOMETRIC_CUTTING_HELPERS_H_

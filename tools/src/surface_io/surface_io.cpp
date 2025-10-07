@@ -22,6 +22,8 @@
 
 std::vector<std::string> split(const std::string& s, char c);
 
+// TODO : Fix it to make it cylinder compatible?
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     simpleErrorHandler("Program expects name of file(s).");
@@ -112,7 +114,7 @@ int main(int argc, char* argv[]) {
       }
       vec.clear();
 
-      std::vector<IRL::ParametrizedSurfaceOutput> surface_patches;
+      std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surface_patches;
       surface_patches.resize(number_of_patches);
       for (IRL::UnsignedIndex_t j = 0; j < number_of_patches; j++) {
         /*********** Number of arcs */
@@ -235,7 +237,7 @@ int main(int argc, char* argv[]) {
         vec.clear();
 
         /*********** Arcs */
-        surface_patches[j] = IRL::ParametrizedSurfaceOutput(
+        surface_patches[j] = IRL::ParaboloidParametrizedSurfaceOutput(
             IRL::Paraboloid(datum, frame, coeff_a, coeff_b));
         for (IRL::UnsignedIndex_t k = 0; k < number_of_arcs; k++) {
           getline(stream_input_file, line);

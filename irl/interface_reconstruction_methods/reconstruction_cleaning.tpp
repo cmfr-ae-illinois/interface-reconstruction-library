@@ -56,12 +56,38 @@ inline void cleanReconstructionSameNormal(
 template <class ReconstructionType>
 void setToPurePhaseReconstruction(const double a_internal_volume_fraction,
                                   ReconstructionType* a_reconstruction) {
-  *a_reconstruction = ReconstructionType::fromOnePlane(
-      Plane(Normal(0.0, 0.0, 0.0),
-            std::copysign(global_constants::ARBITRARILY_LARGE_DISTANCE,
-                          a_internal_volume_fraction - 0.5)));
+  if constexpr (std::is_same_v<ReconstructionType, SeparatorVariant>) {
+    if (PlanarSeparator* separator =
+            std::get_if<PlanarSeparator>(a_reconstruction)) {
+      *a_reconstruction = PlanarSeparator::fromOnePlane(
+          Plane(Normal(0.0, 0.0, 0.0),
+                std::copysign(global_constants::ARBITRARILY_LARGE_DISTANCE,
+                              a_internal_volume_fraction - 0.5)));
+    } else if (Paraboloid* paraboloid =
+                   std::get_if<Paraboloid>(a_reconstruction)) {
+      if (wantPurelyInternal(a_internal_volume_fraction)) {
+        paraboloid->markAsAlwaysAbove();
+      } else {
+        paraboloid->markAsAlwaysBelow();
+      }
+    } else if (Cylinder* cylinder = std::get_if<Cylinder>(a_reconstruction)) {
+      if (wantPurelyInternal(a_internal_volume_fraction)) {
+        cylinder->markAsAlwaysAbove();
+      } else {
+        cylinder->markAsAlwaysBelow();
+      }
+    } else {
+      throw std::runtime_error(
+          "Unknown SeparatorVariant type in setToPurePhaseReconstruction");
+    }
+  } else {
+    *a_reconstruction = ReconstructionType::fromOnePlane(
+        Plane(Normal(0.0, 0.0, 0.0),
+              std::copysign(global_constants::ARBITRARILY_LARGE_DISTANCE,
+                            a_internal_volume_fraction - 0.5)));
+  }
 }
 
 }  // namespace IRL
 
-#endif // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_CLEANING_TPP_
+#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_CLEANING_TPP_

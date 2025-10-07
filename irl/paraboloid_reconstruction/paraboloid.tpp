@@ -1,3 +1,12 @@
+// This file is part of the Interface Reconstruction Library (IRL),
+// a library for interface reconstruction and computational geometry operations.
+//
+// Copyright (C) 2020 Robert Chiodi  <robert.chiodi@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 #ifndef IRL_PARABOLOID_RECONSTRUCTIONS_PARABOLOID_TPP_
 #define IRL_PARABOLOID_RECONSTRUCTIONS_PARABOLOID_TPP_
 
@@ -20,6 +29,52 @@ inline ParaboloidBase<ScalarType>::ParaboloidBase(
       paraboloid_m(std::array<ScalarType, 2>({a_coef_a, a_coef_b})),
       place_infinite_shortcut_m({false, false}) {
   // assert(frame_m.isOrthonormalBasis());
+}
+
+template <class ScalarType>
+inline ParaboloidBase<ScalarType> ParaboloidBase<ScalarType>::fromDerivatives(
+    const PtBase<ScalarType>& a_datum,
+    const Eigen::Vector<ScalarType, 3>& a_gradF,
+    const Eigen::Matrix<ScalarType, 3, 3>& a_hessF) {
+  using Vector2Type = Eigen::Vector<ScalarType, 2>;
+  using Vector3Type = Eigen::Vector<ScalarType, 3>;
+  using Matrix22Type = Eigen::Matrix<ScalarType, 2, 2>;
+  using Matrix33Type = Eigen::Matrix<ScalarType, 3, 3>;
+  using Matrix32Type = Eigen::Matrix<ScalarType, 3, 2>;
+  using NormalType = NormalBase<ScalarType>;
+  using ReferenceFrameType = ReferenceFrameBase<ScalarType>;
+  const ScalarType ZERO = static_cast<ScalarType>(0);
+  const ScalarType ONE = static_cast<ScalarType>(1);
+  const ScalarType TWO = static_cast<ScalarType>(2);
+  const ScalarType HALF = ONE / TWO;
+  const Matrix33Type hessF = 0.5 * (a_hessF + a_hessF.transpose());
+
+  // This uses the method described in
+  // https://www.geometrictools.com/Documentation/PrincipalCurvature.pdf
+  const ScalarType inv_gradF_norm = ONE / a_gradF.norm();
+  const NormalType normal =
+      NormalType(a_gradF(0), a_gradF(1), a_gradF(2)) * inv_gradF_norm;
+  ReferenceFrameType frame = ReferenceFrameType::fromNormal(normal);
+  Matrix32Type J;
+  for (UnsignedIndex_t i = 0; i < 3; i++) {
+    for (UnsignedIndex_t j = 0; j < 2; j++) {
+      J(i, j) = frame[j][i];
+    }
+  }
+  const Matrix22Type A = (J.transpose() * hessF * J) * inv_gradF_norm;
+  ////////// TODO: compute eigenvalues and eigenvectors "by hand"
+  Eigen::EigenSolver<Matrix22Type> eigensolver(A);
+  const ScalarType eval1 = eigensolver.eigenvalues()(0).real();
+  const ScalarType eval2 = eigensolver.eigenvalues()(1).real();
+  const Vector2Type evec1 =
+      Vector2Type(eigensolver.eigenvectors()(0, 0).real(),
+                  eigensolver.eigenvectors()(1, 0).real());
+  //////////
+  const Vector3Type T1 = J * evec1;
+  frame[0] = NormalType(T1(0), T1(1), T1(2));
+  frame[0].normalize();
+  frame[1] = crossProduct(frame[2], frame[0]);
+  return ParaboloidBase<ScalarType>(a_datum, frame, HALF * eval1, HALF * eval2);
 }
 
 template <class ScalarType>
@@ -104,6 +159,92 @@ inline bool ParaboloidBase<ScalarType>::isAlwaysBelow(void) const {
 }
 
 template <class ScalarType>
+inline void ParaboloidBase<ScalarType>::regenerateAtLocation(
+    const PtBase<ScalarType>& a_pt) {
+  const ScalarType ZERO = static_cast<ScalarType>(0);
+  const ScalarType ONE = static_cast<ScalarType>(1);
+  const ScalarType TWO = static_cast<ScalarType>(2);
+  const ScalarType HALF = ONE / TWO;
+
+  // Get paraboloid information
+  const ScalarType a = paraboloid_m.a();
+  const ScalarType b = paraboloid_m.b();
+
+  // Bring point in local frame of reference
+  const Pt pt_tmp = a_pt - datum_m;
+  PtBase<ScalarType> local_pt;
+  for (UnsignedIndex_t n = 0; n < 3; ++n) {
+    local_pt[n] = frame_m[n] * pt_tmp;
+  }
+  local_pt[2] = -a * local_pt[0] * local_pt[0] - b * local_pt[1] * local_pt[1];
+
+  // Compute local derivatives
+  const Eigen::Vector<ScalarType, 3> gradF(TWO * a * local_pt[0],
+                                           TWO * b * local_pt[1], ONE);
+  Eigen::Matrix<ScalarType, 3, 3> hessF =
+      Eigen::Matrix<ScalarType, 3, 3>::Zero();
+  hessF(0, 0) = TWO * a;
+  hessF(1, 1) = TWO * b;
+  Eigen::Matrix<ScalarType, 3, 3> adjHessF =
+      Eigen::Matrix<ScalarType, 3, 3>::Zero();
+  adjHessF(2, 2) = TWO * TWO * a * b;
+  auto new_normal = NormalBase<ScalarType>(gradF(0), gradF(1), gradF(2));
+  new_normal.normalize();
+
+  // Based on Goldman 2005
+  ScalarType H = gradF.transpose() * (hessF * gradF);
+  H -= gradF.squaredNorm() * hessF.trace();
+  H /= TWO * gradF.squaredNorm() * gradF.norm();
+  ScalarType K = gradF.transpose() * (adjHessF * gradF);
+  K /= gradF.squaredNorm() * gradF.squaredNorm();
+  const ScalarType k1 = -H + sqrt(maximum(H * H - K, ZERO));
+  const ScalarType k2 = -H - sqrt(maximum(H * H - K, ZERO));
+
+  // Compute principal directions
+  const ScalarType B = a - b, C = -gradF(1) * a, E = gradF(0) * b;
+  const ScalarType U = TWO * gradF(0) * gradF(1) * a;
+  const ScalarType V = TWO * (B - C * gradF(1) - E * gradF(0));
+  const ScalarType W = -TWO * gradF(1) * gradF(0) * b;
+  const ScalarType delta = V * V - TWO * TWO * U * W;
+  const ScalarType X1 = -V - sqrt(maximum(0., delta));
+  auto T1 =
+      NormalBase<ScalarType>(X1, TWO * U, -X1 * gradF(0) - TWO * U * gradF(1));
+  const ScalarType normT1 = magnitude(T1);
+  ReferenceFrame new_local_frame;
+  if (normT1 > DBL_EPSILON) {
+    T1 *= ONE / normT1;
+    new_local_frame[2] = new_normal;
+    new_local_frame[0] = T1;
+    new_local_frame[1] = crossProduct(new_local_frame[2], new_local_frame[0]);
+  } else {  /// The point is umbilical
+    new_local_frame = ReferenceFrameBase<ScalarType>::fromNormal(new_normal);
+  }
+
+  // Now move frame back to canonical frame and return paraboloid
+  ReferenceFrame new_frame;
+  for (int n = 0; n < 3; n++) {
+    new_frame[n] = NormalBase<ScalarType>(ZERO, ZERO, ZERO);
+    for (int d = 0; d < 3; d++) {
+      new_frame[n] += new_local_frame[n][d] * frame_m[d];
+    }
+    new_frame[n].normalize();
+  }
+
+  // Bring point back to canonical frame of reference
+  PtBase<ScalarType> projection(ZERO, ZERO, ZERO);
+  for (UnsignedIndex_t n = 0; n < 3; ++n) {
+    for (UnsignedIndex_t d = 0; d < 3; ++d) {
+      projection[n] += frame_m[d][n] * local_pt[d];
+    }
+  }
+
+  datum_m += projection;
+  frame_m = new_frame;
+  paraboloid_m.a() = HALF * k1;
+  paraboloid_m.b() = HALF * k2;
+}
+
+template <class ScalarType>
 inline void ParaboloidBase<ScalarType>::serialize(ByteBuffer* a_buffer) const {
   datum_m.serialize(a_buffer);
   for (std::size_t d = 0; d < 3; ++d) {
@@ -182,146 +323,6 @@ inline PtTypeWithGradient getParaboloidSurfaceNormalWithGradient(
   // surface_normal_grad[2] = 0.0;
   return surface_normal_withgrad;
 };
-
-// Returns solution to quadratic equation solve.
-// The smallest solution will always be first.
-template <class ScalarType>
-inline StackVector<ScalarType, 2> solveQuadraticBetween0And1(
-    const ScalarType a, const ScalarType b, const ScalarType c) {
-  ScalarType discriminant = b * b - static_cast<ScalarType>(4) * a * c;
-
-  if (discriminant > static_cast<ScalarType>(0)) {
-    if (a != static_cast<ScalarType>(0)) {
-      /* First fast try in 32-bit precision */
-      const ScalarType approx_discriminant = approxsqrt(discriminant);
-      const ScalarType approx_q = -static_cast<ScalarType>(0.5) *
-                                  (b + copysign(approx_discriminant, b));
-      const ScalarType approx_sol1 = approx_q / safelyTiny(a);
-      const ScalarType approx_sol2 = c / safelyTiny(approx_q);
-      if ((approx_sol1 < -0.01 || approx_sol1 > 1.01) &&
-          (approx_sol2 < -0.01 || approx_sol2 > 1.01)) {
-        return StackVector<ScalarType, 2>();
-      }
-
-      /* Real calculation */
-      discriminant = sqrt(discriminant);
-      const ScalarType q =
-          -static_cast<ScalarType>(0.5) * (b + copysign(discriminant, b));
-      const ScalarType sol1 = q / safelyTiny(a);
-      const ScalarType sol2 = c / safelyTiny(q);
-      return sol1 < sol2 ? StackVector<ScalarType, 2>({sol1, sol2})
-                         : StackVector<ScalarType, 2>({sol2, sol1});
-
-    } else {
-      return StackVector<ScalarType, 2>({-c / b});
-    }
-  }
-  return StackVector<ScalarType, 2>();
-};
-
-// Returns solution to quadratic equation solve.
-// The smallest solution will always be first.
-template <class ScalarType>
-inline StackVector<ScalarType, 2> solveQuadratic(const ScalarType a,
-                                                 const ScalarType b,
-                                                 const ScalarType c) {
-  ScalarType discriminant = b * b - static_cast<ScalarType>(4) * a * c;
-  // if (discriminant > static_cast<ScalarType>(0)) {
-  //   discriminant = sqrt(discriminant);
-  //   const ScalarType q =
-  //       -(b + copysign(discriminant, b)) / static_cast<ScalarType>(2);
-  //   const ScalarType sol1 = q / safelyTiny(a);
-  //   const ScalarType sol2 = c / safelyTiny(q);
-  //   // if (!isnan(sol1) && !isnan(sol2) &&
-  //   //     !(fabs(q) < machine_epsilon<ScalarType>() &&
-  //   //       fabs(a) < machine_epsilon<ScalarType>()) &&
-  //   //     !(fabs(c) < machine_epsilon<ScalarType>() &&
-  //   //       fabs(q) < machine_epsilon<ScalarType>())) {
-  //   return sol1 < sol2 ? StackVector<ScalarType, 2>({sol1, sol2})
-  //                      : StackVector<ScalarType, 2>({sol2, sol1});
-  //   // }
-  // }
-
-  if (discriminant > static_cast<ScalarType>(0)) {
-    if (a != static_cast<ScalarType>(0)) {
-      discriminant = sqrt(discriminant);
-      const ScalarType q =
-          -static_cast<ScalarType>(0.5) * (b + copysign(discriminant, b));
-      // if (b == static_cast<ScalarType>(0) && c ==
-      // static_cast<ScalarType>(0))
-      // {
-      //   return StackVector<ScalarType, 2>(
-      //       {static_cast<ScalarType>(0), static_cast<ScalarType>(0)});
-      // } else if (q == static_cast<ScalarType>(0)) {
-      //   return StackVector<ScalarType, 2>({static_cast<ScalarType>(0)});
-      // }
-      const ScalarType sol1 = q / safelyTiny(a);
-      const ScalarType sol2 = c / safelyTiny(q);
-      return sol1 < sol2 ? StackVector<ScalarType, 2>({sol1, sol2})
-                         : StackVector<ScalarType, 2>({sol2, sol1});
-
-    } else {
-      return StackVector<ScalarType, 2>({-c / b});
-    }
-  }
-  return StackVector<ScalarType, 2>();
-};
-
-// Returns solution to quadratic equation solve.
-// The smallest solution will always be first.
-template <class GradientType, class ScalarType>
-inline StackVector<std::pair<ScalarType, GradientType>, 2>
-solveQuadraticWithGradient(const ScalarType a, const ScalarType b,
-                           const ScalarType c, const GradientType& a_grad,
-                           const GradientType& b_grad,
-                           const GradientType& c_grad) {
-  using return_type = typename std::pair<ScalarType, GradientType>;
-  const ScalarType discriminant = b * b - static_cast<ScalarType>(4) * a * c;
-  if (discriminant > static_cast<ScalarType>(0)) {
-    const auto d_grad = static_cast<ScalarType>(2) * b_grad * b -
-                        static_cast<ScalarType>(4) * (a_grad * c + a * c_grad);
-    if (a != static_cast<ScalarType>(0)) {
-      const ScalarType sqrtd = sqrt(discriminant);
-      const auto sqrtd_grad =
-          d_grad / safelyEpsilon(sqrtd) / static_cast<ScalarType>(2);
-      const ScalarType q =
-          -(b + copysign(sqrtd, b)) / static_cast<ScalarType>(2);
-      const auto q_grad =
-          -(b_grad + sqrtd_grad * copysign(static_cast<ScalarType>(1), b)) /
-          static_cast<ScalarType>(2);
-      if (b == static_cast<ScalarType>(0) && c == static_cast<ScalarType>(0)) {
-        const auto zero_return = std::pair<ScalarType, GradientType>(
-            {static_cast<ScalarType>(0),
-             GradientType(static_cast<ScalarType>(0))});
-        return StackVector<return_type, 2>({zero_return, zero_return});
-      } else if (q == static_cast<ScalarType>(0)) {
-        const auto zero_return = std::pair<ScalarType, GradientType>(
-            {static_cast<ScalarType>(0),
-             GradientType(static_cast<ScalarType>(0))});
-        return StackVector<return_type, 2>({zero_return});
-      }
-      const ScalarType sol1 = q / a;
-      const ScalarType sol2 = c / q;
-      const auto sol1_grad = (q_grad * a - q * a_grad) / safelyEpsilon(a * a);
-      const auto sol2_grad = (c_grad * q - c * q_grad) / safelyEpsilon(q * q);
-      const auto return_sol1 =
-          std::pair<ScalarType, GradientType>({sol1, sol1_grad});
-      const auto return_sol2 =
-          std::pair<ScalarType, GradientType>({sol2, sol2_grad});
-      return sol1 < sol2
-                 ? StackVector<return_type, 2>({return_sol1, return_sol2})
-                 : StackVector<return_type, 2>({return_sol2, return_sol1});
-
-    } else {
-      const ScalarType sol = -c / b;
-      const auto sol_grad = (-c_grad * b + c * b_grad) / safelyEpsilon(b * b);
-      const auto return_sol =
-          std::pair<ScalarType, GradientType>({sol, sol_grad});
-      return StackVector<return_type, 2>({return_sol});
-    }
-  }
-  return StackVector<return_type, 2>();
-};  // namespace IRL
 
 template <class ScalarType>
 inline PtBase<ScalarType> projectPtAlongLineOntoParaboloid(

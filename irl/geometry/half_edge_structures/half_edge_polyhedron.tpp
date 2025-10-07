@@ -29,26 +29,22 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 template <class SegmentedType>
 void HalfEdgePolyhedron<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
-    kMaxFaces>::setSegmentedPolyhedron(SegmentedType *a_polytope) {
+    kMaxFaces>::setSegmentedPolyhedron(SegmentedType* a_polytope) {
   a_polytope->setNumberOfFaces(this->getNumberOfInitialFaces());
   auto begin_segmented_face_iter = &(a_polytope->getFacePointer(0));
-  auto base_face_iter = &(this->getFace(0));
-  auto base_face_iter_end =
-      &(this->getFace(this->getNumberOfInitialFaces() - 1)) + 1;
-  while (base_face_iter != base_face_iter_end) {
-    *(begin_segmented_face_iter++) = (base_face_iter++);
+  for (UnsignedIndex_t n = 0; n < this->getNumberOfInitialFaces(); ++n) {
+    *begin_segmented_face_iter = &(this->getFace(n));
+    ++begin_segmented_face_iter;
   }
 
   a_polytope->setNumberOfVertices(this->getNumberOfInitialVertices());
   auto begin_segmented_vertex_iter = &(a_polytope->getVertexPointer(0));
-  auto base_vertex_iter = &(this->getVertex(0));
-  auto base_vertex_iter_end =
-      &(this->getVertex(this->getNumberOfInitialVertices() - 1)) + 1;
-  while (base_vertex_iter != base_vertex_iter_end) {
-    *(begin_segmented_vertex_iter++) = (base_vertex_iter++);
+  for (UnsignedIndex_t n = 0; n < this->getNumberOfInitialVertices(); ++n) {
+    *begin_segmented_vertex_iter = &(this->getVertex(n));
+    ++begin_segmented_vertex_iter;
   }
 }
 
-} // namespace IRL
+}  // namespace IRL
 
-#endif // SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_TPP_
+#endif  // SRC_GEOMETRY_HALF_EDGE_STRUCTURES_HALF_EDGE_POLYHEDRON_TPP_

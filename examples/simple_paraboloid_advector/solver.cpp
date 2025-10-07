@@ -18,7 +18,7 @@
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/elvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
 #include "examples/simple_paraboloid_advector/diagnostics.h"
@@ -419,7 +419,7 @@ void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
                           const double a_time, VTKOutput* a_output) {
   const BasicMesh& mesh = a_liquid_volume_fraction.getMesh();
 
-  std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
+  std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
@@ -433,7 +433,7 @@ void writeInterfaceToFile(const Data<double>& a_liquid_volume_fraction,
           const auto cell = IRL::RectangularCuboid::fromBoundingPts(
               lower_cell_pt, upper_cell_pt);
           auto volume_and_surface = IRL::getVolumeMoments<IRL::AddSurfaceOutput<
-              IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
+              IRL::Volume, IRL::ParaboloidParametrizedSurfaceOutput>>(
               cell, a_liquid_gas_interface(i, j, k));
           auto& surface = volume_and_surface.getSurface();
           surface.setLengthScale(std::pow(cell.calculateVolume(), 1.0 / 3.0) /

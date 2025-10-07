@@ -38,6 +38,9 @@ void HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
   this->resize(0, 0, 0);
 }
 
+
+/// @brief resize the memory allocation to allow for the give polyhedron.
+/// this function does create the request number of face, point or edge.
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
@@ -47,23 +50,69 @@ void HalfEdgePolytope<
                        const UnsignedIndex_t a_number_of_vertices,
                        const UnsignedIndex_t a_number_of_faces) {
   initial_half_edge_storage_size_m =
-      a_number_of_half_edges * sizeof(HalfEdgeType);
-  initial_vertex_storage_size_m = a_number_of_vertices * sizeof(VertexType);
-  initial_face_storage_size_m = a_number_of_faces * sizeof(FaceType);
-  storage_m.resize(initial_half_edge_storage_size_m +
+      a_number_of_half_edges * sizeof_round<HalfEdgeType>();
+  initial_vertex_storage_size_m = a_number_of_vertices * sizeof_round<VertexType>();
+  initial_face_storage_size_m = a_number_of_faces * sizeof_round<FaceType>();
+  #ifdef DEBUG_MEMORY
+  std::cout << "resizing a polytop to : \n" <<
+               a_number_of_half_edges << " half edges (taking " << initial_half_edge_storage_size_m << "bytes)\n" <<
+               a_number_of_vertices << " vertices (taking " << initial_vertex_storage_size_m << "bytes)\n" <<
+               a_number_of_faces << " faces (taking " << initial_face_storage_size_m << "bytes)" << std::endl;
+  #endif
+  storage_m.resizeFor(initial_half_edge_storage_size_m +
                    initial_vertex_storage_size_m + initial_face_storage_size_m);
-  for (std::size_t i = 0; i < initial_half_edge_storage_size_m;
-       i += sizeof(HalfEdgeType)) {
-    *reinterpret_cast<HalfEdgeType*>(storage_m[i]) = HalfEdgeType();
+  vertex_storage_m.resize(0);
+  half_edge_storage_m.resize(0);
+  face_storage_m.resize(0);
+  for (UnsignedIndex_t i = 0; i < a_number_of_half_edges; i++) {
+    #ifdef DEBUG_MEMORY
+    std::cout << "allocating HE # " << i << std::endl;
+    #endif
+        this->getNewHalfEdge();
   }
-  for (std::size_t i = initial_half_edge_storage_size_m;
-       i < initial_vertex_storage_size_m; i += sizeof(VertexType)) {
-    *reinterpret_cast<VertexType*>(storage_m[i]) = VertexType();
+  for (UnsignedIndex_t i = 0; i < a_number_of_vertices; i++) {
+    #ifdef DEBUG_MEMORY
+    std::cout << "allocating vertex # " << i << std::endl;
+    #endif
+    this->getNewVertex();
   }
-  for (std::size_t i = initial_vertex_storage_size_m;
-       i < initial_face_storage_size_m; i += sizeof(FaceType)) {
-    *reinterpret_cast<FaceType*>(storage_m[i]) = FaceType();
+  for (UnsignedIndex_t i = 0; i < a_number_of_faces; i++) {
+    #ifdef DEBUG_MEMORY
+    std::cout << "allocating face # " << i << std::endl;
+    #endif
+    this->getNewFace();
   }
+  #ifdef DEBUG_MEMORY
+  std::cout << "done resize " << std::endl;
+  #endif
+}
+
+/// @brief resize the memory allocation to allow for the give polyhedron.
+/// this function does not create any face, point or edge. only prepare the memory to
+/// have enough space
+template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
+          UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
+          UnsignedIndex_t kMaxFaces>
+void HalfEdgePolytope<
+    PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
+    kMaxFaces>::resizeFor(const UnsignedIndex_t a_number_of_half_edges,
+                       const UnsignedIndex_t a_number_of_vertices,
+                       const UnsignedIndex_t a_number_of_faces) {
+  initial_half_edge_storage_size_m =
+      a_number_of_half_edges * sizeof_round<HalfEdgeType>();
+  initial_vertex_storage_size_m = a_number_of_vertices * sizeof_round<VertexType>();
+  initial_face_storage_size_m = a_number_of_faces * sizeof_round<FaceType>();
+  #ifdef DEBUG_MEMORY
+  std::cout << "resizing a polytop for : \n" <<
+               a_number_of_half_edges << " half edges (taking " << initial_half_edge_storage_size_m << "bytes)\n" <<
+               a_number_of_vertices << " vertices (taking " << initial_vertex_storage_size_m << "bytes)\n" <<
+               a_number_of_faces << " faces (taking " << initial_face_storage_size_m << "bytes)" << std::endl;
+  #endif
+  storage_m.resizeFor(initial_half_edge_storage_size_m +
+                   initial_vertex_storage_size_m + initial_face_storage_size_m);
+  vertex_storage_m.resize(0);
+  half_edge_storage_m.resize(0);
+  face_storage_m.resize(0);
 }
 
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
@@ -73,7 +122,7 @@ UnsignedIndex_t
 HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
                  kMaxVertices, kMaxFaces>::getNumberOfInitialFaces(void) const {
   return static_cast<UnsignedIndex_t>(initial_face_storage_size_m /
-                                      sizeof(FaceType));
+                                      sizeof_round<FaceType>());
 }
 
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
@@ -83,53 +132,51 @@ UnsignedIndex_t HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getNumberOfInitialVertices(void) const {
   return static_cast<UnsignedIndex_t>(initial_vertex_storage_size_m /
-                                      sizeof(VertexType));
+                                      sizeof_round<VertexType>());
 }
 
-// INDEXING FROM ASSUMED STORAGE ORDER OF [HALF EDGES, VERTICES, FACES]
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
 HalfEdgeType& HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getHalfEdge(const UnsignedIndex_t a_index) {
-  return *reinterpret_cast<HalfEdgeType*>(
-      storage_m[a_index * sizeof(HalfEdgeType)]);
+  assert(a_index < half_edge_storage_m.size());
+  HalfEdgeType* p_HalfEdge = half_edge_storage_m[a_index];
+  return *p_HalfEdge;
 }
 
-// INDEXING FROM ASSUMED STORAGE ORDER OF [HALF EDGES, VERTICES, FACES]
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
 const HalfEdgeType& HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getHalfEdge(const UnsignedIndex_t a_index) const {
-  return *reinterpret_cast<const HalfEdgeType*>(
-      storage_m[a_index * sizeof(HalfEdgeType)]);
+  assert(a_index < half_edge_storage_m.size());
+  HalfEdgeType* p_HalfEdge = half_edge_storage_m[a_index];
+  return *p_HalfEdge;
 }
 
-// INDEXING FROM ASSUMED STORAGE ORDER OF [HALF EDGES, VERTICES, FACES]
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
 VertexType& HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getVertex(const UnsignedIndex_t a_index) {
-  return *reinterpret_cast<VertexType*>(
-      storage_m[initial_half_edge_storage_size_m +
-                a_index * sizeof(VertexType)]);
+  assert(a_index < vertex_storage_m.size());
+  VertexType* p_Vertex = vertex_storage_m[a_index];
+  return *p_Vertex;
 }
 
-// INDEXING FROM ASSUMED STORAGE ORDER OF [HALF EDGES, VERTICES, FACES]
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
 const VertexType& HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getVertex(const UnsignedIndex_t a_index) const {
-  return *reinterpret_cast<const VertexType*>(
-      storage_m[initial_half_edge_storage_size_m +
-                a_index * sizeof(VertexType)]);
+  assert(a_index < vertex_storage_m.size());
+  VertexType* p_Vertex = vertex_storage_m[a_index];
+  return *p_Vertex;
 }
 
 // INDEXING FROM ASSUMED STORAGE ORDER OF [HALF EDGES, VERTICES, FACES]
@@ -139,20 +186,20 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 FaceType& HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType,
                            kMaxHalfEdges, kMaxVertices,
                            kMaxFaces>::getFace(const UnsignedIndex_t a_index) {
-  return *reinterpret_cast<FaceType*>(
-      storage_m[initial_half_edge_storage_size_m +
-                initial_vertex_storage_size_m + a_index * sizeof(FaceType)]);
+  assert(a_index < face_storage_m.size());
+  FaceType* p_Face = face_storage_m[a_index];
+  return *p_Face;
 }
-// INDEXING FROM ASSUMED STORAGE ORDER OF [HALF EDGES, VERTICES, FACES]
+
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
           UnsignedIndex_t kMaxHalfEdges, UnsignedIndex_t kMaxVertices,
           UnsignedIndex_t kMaxFaces>
 const FaceType& HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getFace(const UnsignedIndex_t a_index) const {
-  return *reinterpret_cast<const FaceType*>(
-      storage_m[initial_half_edge_storage_size_m +
-                initial_vertex_storage_size_m + a_index * sizeof(FaceType)]);
+  assert(a_index < face_storage_m.size());
+  FaceType* p_Face = face_storage_m[a_index];
+  return *p_Face;
 }
 
 template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
@@ -161,8 +208,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 HalfEdgeType*
 HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
                  kMaxVertices, kMaxFaces>::getNewHalfEdge(void) {
-  auto new_object = storage_m.template getNewObject<HalfEdgeType>();
+  HalfEdgeType* new_object = storage_m.template getNewObject<HalfEdgeType>();
   *new_object = HalfEdgeType();
+  half_edge_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -172,8 +220,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 HalfEdgeType* HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getNewHalfEdge(const HalfEdgeType& a_half_edge) {
-  auto new_object = storage_m.template getNewObject<HalfEdgeType>();
+  HalfEdgeType* new_object = storage_m.template getNewObject<HalfEdgeType>();
   *new_object = a_half_edge;
+  half_edge_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -183,8 +232,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 HalfEdgeType* HalfEdgePolytope<
     PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges, kMaxVertices,
     kMaxFaces>::getNewHalfEdge(HalfEdgeType&& a_half_edge) {
-  auto new_object = storage_m.template getNewObject<HalfEdgeType>();
+  HalfEdgeType* new_object = storage_m.template getNewObject<HalfEdgeType>();
   *new_object = std::move(a_half_edge);
+  half_edge_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -194,8 +244,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 VertexType*
 HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
                  kMaxVertices, kMaxFaces>::getNewVertex(void) {
-  auto new_object = storage_m.template getNewObject<VertexType>();
+  VertexType* new_object = storage_m.template getNewObject<VertexType>();
   *new_object = VertexType();
+  vertex_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -205,8 +256,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 VertexType*
 HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
                  kMaxVertices, kMaxFaces>::getNewVertex(VertexType&& a_vertex) {
-  auto new_object = storage_m.template getNewObject<VertexType>();
+  VertexType* new_object = storage_m.template getNewObject<VertexType>();
   *new_object = std::move(a_vertex);
+  vertex_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -216,8 +268,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 FaceType*
 HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
                  kMaxVertices, kMaxFaces>::getNewFace(void) {
-  auto new_object = storage_m.template getNewObject<FaceType>();
+  FaceType* new_object = storage_m.template getNewObject<FaceType>();
   *new_object = FaceType();
+  face_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -227,8 +280,9 @@ template <class PtType, class VertexType, class HalfEdgeType, class FaceType,
 FaceType*
 HalfEdgePolytope<PtType, VertexType, HalfEdgeType, FaceType, kMaxHalfEdges,
                  kMaxVertices, kMaxFaces>::getNewFace(FaceType&& a_face) {
-  auto new_object = storage_m.template getNewObject<FaceType>();
+  FaceType* new_object = storage_m.template getNewObject<FaceType>();
   *new_object = std::move(a_face);
+  face_storage_m.push_back(new_object);
   return new_object;
 }
 
@@ -244,7 +298,7 @@ void HalfEdgePolytope<
   auto vertex = reinterpret_cast<VertexType*>(
       storage_m[initial_half_edge_storage_size_m]);
   for (UnsignedIndex_t v = 0; v < a_geometry.getNumberOfVertices(); ++v) {
-    (vertex++)->setLocation(a_geometry[v]);
+    (vertex_storage_m[v])->setLocation(a_geometry[v]);
   }
 }
 

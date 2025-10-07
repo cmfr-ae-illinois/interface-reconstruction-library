@@ -13,38 +13,14 @@
 #include <float.h>
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
-#include "irl/generic_cutting/paraboloid_intersection/moment_contributions.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/geometry/general/geometry_type_traits.h"
 #include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
-#include "irl/paraboloid_reconstruction/ellipse.h"
+#include "irl/quadratic_reconstruction/ellipse.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 
 namespace IRL {
-
-const double AMR_DBL_EPSILON = 10.0 * DBL_EPSILON;
-
-#define ONE_AMR_STRATEGY
-
-#ifdef ONE_AMR_STRATEGY
-static constexpr UnsignedIndex_t N_AMR_STRATEGIES = 1;
-#elif defined(TWO_AMR_STRATEGY)
-static constexpr UnsignedIndex_t N_AMR_STRATEGIES = 2;
-#elif defined(THREE_AMR_STRATEGY)
-static constexpr UnsignedIndex_t N_AMR_STRATEGIES = 3;
-#else
-static constexpr UnsignedIndex_t N_AMR_STRATEGIES = 1;
-#endif
-
-std::vector<double> amr_triangles_clipped;
-std::vector<double> amr_triangles_unclipped;
-
-template <class ReturnType>
-void kahanSummationMoments(
-    std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
-        a_full_moments,
-    std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
-        a_full_moments_ref,
-    std::array<ReturnType, N_AMR_STRATEGIES>& a_moments_to_add);
 
 template <class ReturnType, UnsignedIndex_t strategyID>
 ReturnType computeMomentContributionClippedTriangle(
@@ -81,9 +57,7 @@ void computeMomentContributionAMR(
     std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
         a_full_moments,
     const bool a_print);
-
-std::string no_amr_output = "";
-
+    
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>

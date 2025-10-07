@@ -360,9 +360,9 @@ void c_Paraboloid_setParaboloidJibben(c_Paraboloid* a_self,
 
         paraboloid = IRL::Paraboloid(datum, new_frame, A, B);
 
-        auto moments_and_surface = IRL::getVolumeMoments<
-            IRL::AddSurfaceOutput<IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
-            cube, paraboloid);
+        auto moments_and_surface = IRL::getVolumeMoments<IRL::AddSurfaceOutput<
+            IRL::Volume, IRL::ParaboloidParametrizedSurfaceOutput>>(cube,
+                                                                    paraboloid);
         auto surface = moments_and_surface.getSurface();
         auto surf_area = surface.getSurfaceArea();
         if (fabs(surf_area) > DBL_EPSILON) {
@@ -556,9 +556,8 @@ void c_Paraboloid_triangulateInsideCuboid(c_Paraboloid* a_self,
   assert(a_surface->obj_ptr != nullptr);
   IRL::RectangularCuboid cube = (*a_cell->obj_ptr);
   IRL::Paraboloid paraboloid = (*a_self->obj_ptr);
-  auto moments = IRL::getVolumeMoments<
-      IRL::AddSurfaceOutput<IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
-      cube, paraboloid);
+  auto moments = IRL::getVolumeMoments<IRL::AddSurfaceOutput<
+      IRL::Volume, IRL::ParaboloidParametrizedSurfaceOutput>>(cube, paraboloid);
   double length_scale = std::cbrt(cube.calculateVolume()) / 3.0;
   moments.getSurface().triangulate_fromPtr(length_scale, 3, a_surface->obj_ptr);
   // auto surface = moments.getSurface().triangulate(length_scale, 3);
@@ -573,9 +572,8 @@ double c_Paraboloid_getMeanCurvature(c_Paraboloid* a_self, c_RectCub* a_cell) {
   assert(a_cell->obj_ptr != nullptr);
   IRL::RectangularCuboid cube = (*a_cell->obj_ptr);
   IRL::Paraboloid paraboloid = (*a_self->obj_ptr);
-  auto moments = IRL::getVolumeMoments<
-      IRL::AddSurfaceOutput<IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
-      cube, paraboloid);
+  auto moments = IRL::getVolumeMoments<IRL::AddSurfaceOutput<
+      IRL::Volume, IRL::ParaboloidParametrizedSurfaceOutput>>(cube, paraboloid);
   return moments.getSurface().getAverageMeanCurvature();
 }
 
@@ -586,9 +584,8 @@ double c_Paraboloid_getSurfaceArea(c_Paraboloid* a_self, c_RectCub* a_cell) {
   assert(a_cell->obj_ptr != nullptr);
   IRL::RectangularCuboid cube = (*a_cell->obj_ptr);
   IRL::Paraboloid paraboloid = (*a_self->obj_ptr);
-  auto moments = IRL::getVolumeMoments<
-      IRL::AddSurfaceOutput<IRL::Volume, IRL::ParametrizedSurfaceOutput>>(
-      cube, paraboloid);
+  auto moments = IRL::getVolumeMoments<IRL::AddSurfaceOutput<
+      IRL::Volume, IRL::ParaboloidParametrizedSurfaceOutput>>(cube, paraboloid);
   return moments.getSurface().getSurfaceArea();
 }
 

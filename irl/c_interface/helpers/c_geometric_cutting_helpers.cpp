@@ -20,6 +20,29 @@ bool c_isPtInt_PlanarSep(const double* a_pt, const c_PlanarSep* a_separator) {
                            *a_separator->obj_ptr);
 }
 
+bool c_isPtInt_Variant(const double* a_pt,
+                       const c_SeparatorVariant* a_separator) {
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  if (IRL::PlanarSeparator* separator =
+          std::get_if<IRL::PlanarSeparator>(a_separator->obj_ptr)) {
+    return IRL::isPtInternal(IRL::Pt::fromRawDoublePointer(a_pt), *separator);
+  } else if (IRL::Paraboloid* paraboloid =
+                 std::get_if<IRL::Paraboloid>(a_separator->obj_ptr)) {
+    throw std::runtime_error(
+        "Function \"isPtInt\" not yet implemented for paraboloids");
+  } else if (IRL::Cylinder* paraboloid =
+                 std::get_if<IRL::Cylinder>(a_separator->obj_ptr)) {
+    throw std::runtime_error(
+        "Function \"isPtInt\" not yet implemented for cylinders");
+  } else {
+    throw std::runtime_error(
+        "Function  \"isPtInt\" not yet implemented for unknown "
+        "SeparatorVariant "
+        "type");
+  }
+}
+
 bool c_isPtInt_PlanarLoc(const double* a_pt, const c_PlanarLoc* a_localizer) {
   assert(a_localizer != nullptr);
   assert(a_localizer->obj_ptr != nullptr);

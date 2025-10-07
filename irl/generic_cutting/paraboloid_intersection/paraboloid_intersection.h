@@ -17,7 +17,7 @@
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
-#include "irl/generic_cutting/paraboloid_intersection/surface_output.h"
+#include "irl/generic_cutting/quadratic_intersection/surface_output.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/general/reference_frame.h"
@@ -25,8 +25,7 @@
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/paraboloid_reconstruction/parametrized_surface.h"
-#include "irl/paraboloid_reconstruction/rational_bezier_arc.h"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {
 
@@ -106,21 +105,6 @@ ReturnType computeNewEdgeSegmentContribution(
     const bool a_ignore_type3, bool* a_requires_nudge,
     SurfaceOutputType* a_surface = nullptr);
 
-template <class PtType, class HalfEdgeType, class SegmentedHalfEdgePolytopeType,
-          class HalfEdgePolytopeType>
-void placeSingleIntercept(const PtType& a_intersection_location,
-                          HalfEdgeType* a_half_edge_with_intersection,
-                          SegmentedHalfEdgePolytopeType* a_polytope,
-                          HalfEdgePolytopeType* a_complete_polytope);
-
-template <class HalfEdgeType, class SegmentedHalfEdgePolytopeType,
-          class HalfEdgePolytopeType, class VertexType>
-void placeDoubleIntercept(
-    const StackVector<VertexType, 2>& a_intersection_location,
-    HalfEdgeType* a_half_edge_with_intersection,
-    SegmentedHalfEdgePolytopeType* a_polytope,
-    HalfEdgePolytopeType* a_complete_polytope);
-
 template <class PtType, class ScalarType>
 void checkAndFindIntercepts(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid, const PtType& a_pt_0,
@@ -131,16 +115,6 @@ template <class VertexType>
 bool vertexBelow(
     const VertexType& a_pt,
     const AlignedParaboloidBase<typename VertexType::value_type>& a_paraboloid);
-
-template <class ScalarType>
-inline bool isPtBeforeIntersectionWithEdge(
-    const std::array<ScalarType, 2>& a_test_pt,
-    const PtBase<ScalarType>& a_vertex_0, const PtBase<ScalarType>& a_vertex_1);
-
-template <class ScalarType>
-inline bool isPtBeforeIntersectionWithEdgeWithComponent(
-    const PtBase<ScalarType>& a_test_pt, const PtBase<ScalarType>& a_vertex_0,
-    const PtBase<ScalarType>& a_vertex_1, const UnsignedIndex_t a_index);
 
 template <class ScalarType, class HalfEdgeType>
 bool ellipseContainedInFace(
@@ -165,22 +139,10 @@ Normal determineNudgeDirection(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     HalfEdgeType* a_current_edge, const PtType& a_inter_pt);
 
-template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType>
-enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, void>
-resetPolyhedron(SegmentedHalfEdgePolyhedronType* a_polytope,
-                HalfEdgePolytopeType* a_complete_polytope);
-
 template <class ScalarType>
 AlignedParaboloidBase<Quad_t> nudgeParaboloid(
     AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const UnsignedIndex_t a_nudge_iter);
-
-template <class ScalarType, class SegmentedHalfEdgePolyhedronType,
-          class HalfEdgePolytopeType, class SurfaceOutputType>
-void nudgePolyhedron(SegmentedHalfEdgePolyhedronType* a_polytope,
-                     HalfEdgePolytopeType* a_complete_polytope,
-                     const UnsignedIndex_t a_nudge_iter,
-                     SurfaceOutputType* a_surface);
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneParaboloidType,

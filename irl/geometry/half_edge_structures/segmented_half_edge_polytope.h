@@ -77,7 +77,8 @@ class SegmentedHalfEdgePolytope {
   /// respectively)
   std::array<Pt, 2> getBoundingBox(void) const;
 
-  int calculateAndStoreDistanceToVertices(const Plane& a_plane);
+  template<class ScalarType>
+  int calculateAndStoreDistanceToVertices(const PlaneBase<ScalarType>& a_plane);
   void removeFace(const UnsignedIndex_t a_index);
   void removeVertex(const UnsignedIndex_t a_index);
 

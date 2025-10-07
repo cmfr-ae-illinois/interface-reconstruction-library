@@ -52,6 +52,10 @@ class PolygonMomentsCalculationCommon {
   /// \brief Calculate and return volume weighted VolumeMoments.
   inline VolumeMomentsAndNormal calculateVolumeMomentsAndNormal() const;
 
+  /// \brief Calculate general moments of polygon
+  template <std::size_t ORDER>
+  inline GeneralMoments3D<ORDER> calculateGeneralMoments(void) const;
+
  private:
   double calculate2DArea(const UnsignedIndex_t a_index_0,
                          const UnsignedIndex_t a_index_1) const;
@@ -69,4 +73,4 @@ class PolygonMomentsCalculation
 
 #include "irl/geometry/polygons/polygon_moments_calculation.tpp"
 
-#endif // IRL_GEOMETRY_POLYGONS_POLYGON_MOMENTS_CALCULATION_H_
+#endif  // IRL_GEOMETRY_POLYGONS_POLYGON_MOMENTS_CALCULATION_H_

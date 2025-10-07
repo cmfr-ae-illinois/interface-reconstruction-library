@@ -34,6 +34,10 @@ class ReferenceFrameBase {
                      const NormalBase<ScalarType>& a_axis_1,
                      const NormalBase<ScalarType>& a_axis_2);
 
+  // \brief Construct orthonormal frame from 1 normal
+  static ReferenceFrameBase<ScalarType> fromNormal(
+      const NormalBase<ScalarType>& a_normal);
+
   /// \brief Overload `operator[]` for access.
   NormalBase<ScalarType>& operator[](const UnsignedIndex_t a_axis);
 

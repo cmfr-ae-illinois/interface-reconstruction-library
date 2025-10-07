@@ -19,7 +19,7 @@
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
-#include "irl/generic_cutting/paraboloid_intersection/moment_contributions.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/plane.h"
