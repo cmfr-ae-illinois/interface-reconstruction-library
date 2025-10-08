@@ -12,8 +12,8 @@
 
 
 int main (int argc, char* argv[]) {
-    /*
-    int stencil_size = 3;
+    
+    int stencil_size = 5;
 
     // Net Parameters
     int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
@@ -25,7 +25,7 @@ int main (int argc, char* argv[]) {
 
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
-    int no_batches = 512;
+    int no_batches = 256;
     int epochs = 20;
 
     //Data parameters
@@ -85,7 +85,8 @@ int main (int argc, char* argv[]) {
     file << "sphere_radius_stddev = " << sphere_radius_stddev << "\n";
 
     file.close();
-    */
+    
+    /*
     int stencil_size = 3;
 
     IRL::InertiaClassifier inCl(stencil_size, 0, 0.85, 1.5);
@@ -93,6 +94,7 @@ int main (int argc, char* argv[]) {
     // vtk reader
     std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
     IRL::classify_simulation(inCl, filename);
+    */
 
     return 0;
 }

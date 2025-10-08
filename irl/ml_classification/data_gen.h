@@ -5,6 +5,7 @@
 
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/ml_classification/vtk_out.h"
+#include "irl/quadratic_reconstruction/parametrized_surface.h"
 
 namespace IRL {
     class Data_gen {
@@ -118,7 +119,8 @@ namespace IRL {
                 const auto paraboloid = Paraboloid(datum, frame, coeff1, coeff2);
 
                 // Initialize field
-                std::vector<ParametrizedSurfaceOutput> surfaces;
+                std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
                 for (int i = 0; i < stencil_size; i++) {
                     for (int j = 0; j < stencil_size; j++) {
                         for (int k = 0; k < stencil_size; k++) {
@@ -126,11 +128,18 @@ namespace IRL {
                                 Pt(coords[i], coords[j], coords[k]),
                                 Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
 
-                            auto volume_and_surface = getVolumeMoments<
-                                AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
-                                cell, paraboloid);
+                            // auto volume_and_surface = getVolumeMoments<
+                             //   AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
+                              //  cell, paraboloid);
 
-                            surfaces.push_back(volume_and_surface.getSurface());
+                            auto volume_and_surface = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid);
+
+                            auto surface = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+
+                            //surfaces.push_back(volume_and_surface.getSurface());
+                            surfaces.push_back(surface);
                             vfrac[i][j][k] = volume_and_surface.getMoments().volume() / cell_volume;
                             firstMoment[i][j][k] << volume_and_surface.getMoments().centroid().x(),
                                                     volume_and_surface.getMoments().centroid().y(),
@@ -254,7 +263,8 @@ namespace IRL {
                 const auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1, coeff2);
 
                 // Initialize field
-                std::vector<ParametrizedSurfaceOutput> surfaces;
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
                 for (int i = 0; i < stencil_size; i++) {
                     for (int j = 0; j < stencil_size; j++) {
                         for (int k = 0; k < stencil_size; k++) {
@@ -262,15 +272,31 @@ namespace IRL {
                                 Pt(coords[i], coords[j], coords[k]),
                                 Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
 
+                            /*
                             auto volume_and_surface1 = getVolumeMoments<
                                 AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
                                 cell, paraboloid1);
                             auto volume_and_surface2 = getVolumeMoments<
                                 AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
                                 cell, paraboloid2);
+                            */
 
-                            surfaces.push_back(volume_and_surface1.getSurface());
-                            surfaces.push_back(volume_and_surface2.getSurface());
+                            auto volume_and_surface1 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid1);
+
+                            auto surface1 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+
+                            auto volume_and_surface2 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid2);
+
+                            auto surface2 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+
+                            //surfaces.push_back(volume_and_surface1.getSurface());
+                            //surfaces.push_back(volume_and_surface2.getSurface());
+                            surfaces.push_back(surface1);
+                            surfaces.push_back(surface2);
 
                             double V1 = volume_and_surface1.getMoments().volume();
                             double V2 = volume_and_surface2.getMoments().volume();
@@ -395,7 +421,7 @@ namespace IRL {
                 );
 
                 // for visualization option
-                std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
 
                 const double cell_volume = 1.0;
                 int refinement_factor = 3;
@@ -431,6 +457,7 @@ namespace IRL {
                 }
 
                 // Fill refined stencil
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
                 for (int i = 0; i < refined_stencil_size; i++) {
                     for (int j = 0; j < refined_stencil_size; j++) {
                         for (int k = 0; k < refined_stencil_size; k++) {
@@ -467,9 +494,13 @@ namespace IRL {
                             // Cylinder = paraboloid with coeffs (0, 1/(2R))
                             const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1/(2*radius));
 
+                            /*
                             auto volume_and_surface = IRL::getVolumeMoments<
                                 IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
                                 cell, paraboloid);
+                            */
+                            auto volume_and_surface = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid);
 
                             volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
                             firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
@@ -477,7 +508,9 @@ namespace IRL {
                                                             volume_and_surface.getMoments().centroid().z();
 
                             if (visualize) {
-                                surfaces.push_back(volume_and_surface.getSurface());
+                                auto surface = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+                                surfaces.push_back(surface);
                             }
                         }
                     }
@@ -540,7 +573,7 @@ namespace IRL {
                     );
 
                     // for visualization option:
-                    std::vector<IRL::ParametrizedSurfaceOutput> surfaces;
+                    std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
 
                     // define parameters
                     //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
@@ -581,6 +614,8 @@ namespace IRL {
                         coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
                     }
 
+                    using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+
                     for (int i = 0; i < refined_stencil_size; i++) {
                         for (int j = 0; j < refined_stencil_size; j++) {
                             for (int k = 0; k < refined_stencil_size; k++) {
@@ -618,11 +653,16 @@ namespace IRL {
                                 const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 1/(2*radius), 1/(2*radius));
 
                                 // Intersect cell with paraboloid -- return volume and surface
-                                auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
+                                //auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
+                                /*
                                 auto volume_and_surface = IRL::getVolumeMoments<
                                     IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
                                     cell, paraboloid);
-                                // Store surface and volume (fraction)
+                                */
+                                auto volume_and_surface = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid);
+
+                                
                                 //auto allMoments = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
                                 
                                 volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
@@ -637,7 +677,10 @@ namespace IRL {
                                                                 volume_and_surface.getMoments().centroid().z();
 
                                 if (visualize) {
-                                    surfaces.push_back(volume_and_surface.getSurface());
+                                    auto surface = getVolumeMoments<
+                                        VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+
+                                    surfaces.push_back(surface);
                                 }
                             }
                         }
