@@ -81,18 +81,38 @@ public:
         trainer.train();
     }
 
-    int classify(const std::vector<double>& flattened_state) override {
-        
-        torch::Tensor input = torch::from_blob(
-            const_cast<double*>(flattened_state.data()),
-            {1, (long)(flattened_state.size())},
-            torch::kFloat32);
+    int classify(const std::vector<double>& flattened_state,
+                std::vector<float>* out_probs = nullptr) override {
+        // disable gradient tracking for inference
+        torch::NoGradGuard no_grad;
 
-        torch::Tensor output = net.forward(input);
-        int predicted_class = output.argmax(1).item<int>();
-        
-        //int predicted_class = net.forward(torch::tensor(flattened_state)).argmax().item<int>();
-        return predicted_class;
+        // create float tensor and add batch dimension [1, N]
+        auto input = torch::tensor(flattened_state, torch::TensorOptions().dtype(torch::kFloat32)).unsqueeze(0);
+
+        // move input to same device as model parameters
+        auto device = net.fc1->weight.device();
+        input = input.to(device);
+
+        // forward -> logits
+        torch::Tensor logits = net.forward(input);
+
+        // optional temperature
+        float temperature = 1.0f;
+        if (temperature != 1.0f) logits = logits / temperature;
+
+        // logits -> probabilities
+        torch::Tensor probs = torch::softmax(logits, /*dim=*/1).to(torch::kCPU).squeeze(0);
+
+        // optionally store probabilities
+        if (out_probs) {
+            out_probs->resize(probs.size(0));
+            for (int i = 0; i < probs.size(0); ++i) {
+                (*out_probs)[i] = probs[i].item<float>();
+            }
+        }
+
+        // return most probable class index
+        return probs.argmax().item<int>();
     }
 };
 

@@ -22,7 +22,7 @@ public:
           sphere_tol(sphere_tol_),
           gap(gap_) {}
 
-    int classify(const std::vector<double>& flattened_state) override {
+    int classify(const std::vector<double>& flattened_state, std::vector<float>* out_probs = nullptr) override {
         // Compute inertia tensor
         Eigen::Matrix3d I = computeInertiaTensor(flattened_state,
                                                  stencil_size,

@@ -15,7 +15,7 @@ public:
     int getStencilSize() const { return stencil_size; }
 
     // Every classifier must implement classify
-    virtual int classify(const std::vector<double>& flattened_state) = 0;
+    virtual int classify(const std::vector<double>& flattened_state, std::vector<float>* out_probs = nullptr) = 0;
 };
 
 } // namespace IRL

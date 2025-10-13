@@ -9,11 +9,13 @@
 #include "irl/ml_classification/vtk_in.h"
 #include "irl/ml_classification/inertia_classifier.h"
 
+#include "irl/ml_classification/data_gen.h"
+
 
 
 int main (int argc, char* argv[]) {
     
-    int stencil_size = 5;
+    int stencil_size = 3;
 
     // Net Parameters
     int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
@@ -48,8 +50,15 @@ int main (int argc, char* argv[]) {
     ml.trainModel(epochs, learning_rate, batch_size);
 
     // vtk reader
-    std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    IRL::classify_simulation(ml, filename);
+    //std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
+    //IRL::classify_simulation(ml, filename);
+
+    IRL::Data_gen data_gen;
+    for (int i=0; i<10; i++) {
+        std::vector<double> flattened_state = data_gen.generate_State(i%4, stencil_size, false);
+        int detectedClass = ml.classify(flattened_state);
+        std::cout << "True class: " << i%4 << ", Detected class: " << detectedClass << std::endl;
+    }
 
     // Creata a text file to store parameters
     std::ofstream file("Parameters.txt");
