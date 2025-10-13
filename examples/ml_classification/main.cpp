@@ -42,12 +42,17 @@ int main (int argc, char* argv[]) {
     double sphere_radius_stddev = 0.0;
 
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
+    /*
     ml.generateDataset(no_batches, batch_size, include_Moments,
                         paraboloid_coeff_stddev,
                         sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
                         max_cylinder_radius, cylinder_radius_stddev, 
                         max_sphere_radius, sphere_radius_stddev);
+    */
+
+    ml.loadDataset("/home/quirin/mlcfd/Datasets/Defaults16k/data.bin");
     ml.trainModel(epochs, learning_rate, batch_size);
+    ml.saveModel("model/ml_model.pt");
 
     // vtk reader
     //std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
