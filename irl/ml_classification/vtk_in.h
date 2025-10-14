@@ -13,6 +13,8 @@
 #include <vtkRectilinearGrid.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkDoubleArray.h>
+#include <vtkFloatArray.h>
+#include <vtkIntArray.h>
 #include <vtkXMLUnstructuredGridWriter.h>
 #include <vtkXMLRectilinearGridWriter.h>
 #include <vtkAppendFilter.h>
@@ -131,6 +133,14 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     for (int i = 0; i < grid->GetNumberOfCells(); i++) {
         interface_type->SetValue(i, -1);
     }
+    // Create certainty array
+    auto certainty = vtkSmartPointer<vtkFloatArray>::New();
+    certainty->SetName("Certainty");
+    certainty->SetNumberOfComponents(1);
+    certainty->SetNumberOfTuples(grid->GetNumberOfCells());
+    for (int i = 0; i < grid->GetNumberOfCells(); i++) {
+        certainty->SetValue(i, 0.0);
+    }
 
     // Read PLIC file for viz
     auto plic_reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
@@ -160,6 +170,14 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     plic_interface_type->SetNumberOfTuples(plic_grid->GetNumberOfCells());
     for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
         plic_interface_type->SetValue(i, -1);
+    }
+    // Create certainty array on PLIC surface
+    auto plic_certainty = vtkSmartPointer<vtkFloatArray>::New();
+    plic_certainty->SetName("Certainty");
+    plic_certainty->SetNumberOfComponents(1);
+    plic_certainty->SetNumberOfTuples(plic_grid->GetNumberOfCells());
+    for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
+        plic_certainty->SetValue(i, 0.0);
     }
 
     int stencil_size_reader = classifier.getStencilSize(); // now configurable, must match training
@@ -213,8 +231,10 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 }
 
                 // Classify directly on vfrac
-                //int predicted_class = net.forward(torch::tensor(vfrac)).argmax().item<int>();
-                int predicted_class = classifier.classify(vfrac);
+                std::vector<float> out_probs;
+                int predicted_class = classifier.classify(vfrac, &out_probs);
+                float max_prob = *std::max_element(out_probs.begin(), out_probs.end());
+                certainty->SetValue(centerCellId, max_prob);
 
                 switch (predicted_class) {
                     case 0:
@@ -252,6 +272,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     // Write Grid file
     grid->GetCellData()->AddArray(interface_type);
+    grid->GetCellData()->AddArray(certainty);
     auto grid_writer = vtkSmartPointer<vtkXMLRectilinearGridWriter>::New();
     grid_writer->SetFileName("grid.vtr");
     grid_writer->SetInputData(downsampledGrid);
@@ -269,10 +290,13 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
         auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
         plic_interface_type->SetValue(i, type);
+        auto cert = certainty->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
+        plic_certainty->SetValue(i, cert);
     }
 
     // Write PLIC file
     plic_grid->GetCellData()->AddArray(plic_interface_type);
+    plic_grid->GetCellData()->AddArray(plic_certainty);
     auto plic_writer = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
     plic_writer->SetFileName("plic.vtu");
     plic_writer->SetInputData(plic_grid);

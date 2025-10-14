@@ -15,7 +15,7 @@
 
 int main (int argc, char* argv[]) {
     
-    int stencil_size = 3;
+    int stencil_size = 5;
 
     // Net Parameters
     int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
@@ -48,22 +48,24 @@ int main (int argc, char* argv[]) {
                         sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
                         max_cylinder_radius, cylinder_radius_stddev, 
                         max_sphere_radius, sphere_radius_stddev);
-    */
+    */    
 
-    ml.loadDataset("/home/quirin/mlcfd/Datasets/Defaults16k/data.bin");
-    ml.trainModel(epochs, learning_rate, batch_size);
-    ml.saveModel("model/ml_model.pt");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/s5_260k/data.bin");
+    //ml.trainModel(epochs, learning_rate, batch_size);
+    //ml.saveModel("model/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/s5_260k/model1/ml_model.pt");
 
     // vtk reader
-    //std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    //IRL::classify_simulation(ml, filename);
-
+    std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
+    IRL::classify_simulation(ml, filename);
+    /*
     IRL::Data_gen data_gen;
     for (int i=0; i<10; i++) {
         std::vector<double> flattened_state = data_gen.generate_State(i%4, stencil_size, false);
         int detectedClass = ml.classify(flattened_state);
         std::cout << "True class: " << i%4 << ", Detected class: " << detectedClass << std::endl;
     }
+    */
 
     // Creata a text file to store parameters
     std::ofstream file("Parameters.txt");
