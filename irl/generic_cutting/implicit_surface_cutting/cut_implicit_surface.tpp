@@ -199,19 +199,30 @@ ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
 template <class ImplicitSurfaceType, class ReturnType, class CellType>
 ReturnType ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
                                  CellType>::computeVolumeMoments() const {
-  ReturnType volume_moments;
+  ReturnType sum{};  // accumulator
+  ReturnType c{};    // compensation
+
+  auto kahan_add = [&](const ReturnType& x) {
+    const ReturnType y = x - c;
+    const ReturnType t = sum + y;
+    c = (t - sum) - y;
+    sum = t;
+  };
 
   // mixed contribution
   for (std::size_t i = 0; i < mixed_leaves_.size(); i++) {
-    volume_moments +=
+    const ReturnType moment_contribution =
         getVolumeMoments<ReturnType>(mixed_leaves_[i]->cell, m_paraboloids[i]);
+    kahan_add(moment_contribution);
   }
   // below contribution
   for (std::size_t i = 0; i < below_leaves_.size(); i++) {
-    volume_moments += getVolumeMoments<ReturnType>(below_leaves_[i]->cell);
+    const ReturnType moment_contribution =
+        getVolumeMoments<ReturnType>(below_leaves_[i]->cell);
+    kahan_add(moment_contribution);
   }
 
-  return volume_moments;
+  return sum;
 }
 
 // accumulate surface moments
@@ -222,16 +233,25 @@ GeneralSurfaceMoments3D<ORDER> ImplicitSurfaceCutter<
   using VolumeMomentsAndSurface =
       AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
 
-  GeneralSurfaceMoments3D<ORDER> surface_moments;
+  GeneralSurfaceMoments3D<ORDER> sum{};  // accumulator
+  GeneralSurfaceMoments3D<ORDER> c{};    // compensation
+
+  auto kahan_add = [&](const GeneralSurfaceMoments3D<ORDER>& x) {
+    const auto y = x - c;
+    const auto t = sum + y;
+    c = (t - sum) - y;
+    sum = t;
+  };
 
   for (std::size_t i = 0; i < mixed_leaves_.size(); i++) {
     auto surface = getVolumeMoments<VolumeMomentsAndSurface>(
                        mixed_leaves_[i]->cell, m_paraboloids[i])
                        .getSurface();
-    surface_moments += surface.template getSurfaceMoments<ORDER>();
+    const auto term = surface.template getSurfaceMoments<ORDER>();
+    kahan_add(term);
   }
 
-  return surface_moments;
+  return sum;
 }
 
 }  // namespace IRL
