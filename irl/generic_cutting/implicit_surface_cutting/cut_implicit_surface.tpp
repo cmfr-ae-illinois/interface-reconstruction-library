@@ -254,6 +254,21 @@ GeneralSurfaceMoments3D<ORDER> ImplicitSurfaceCutter<
   return sum;
 }
 
+// -1: below, 0: mixed, 1: above
+template <class ImplicitSurfaceType, class ReturnType, class CellType>
+int ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
+                          CellType>::getBaseCellStatus() const {
+  // auto cell = root_.get();
+  root_->status = getCellStatusFor(root_->cell);
+  if (root_->status == CellStatus::Above) {
+    return 1;
+  } else if (root_->status == CellStatus::Below) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
 }  // namespace IRL
 
 #endif  // IRL_GENERIC_CUTTING_IMPLICIT_SURFACE_CUTTING_CUT_IMPLICIT_SURFACE_TPP_

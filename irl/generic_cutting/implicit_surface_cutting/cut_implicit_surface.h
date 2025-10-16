@@ -17,7 +17,6 @@
 #include <memory>
 #include <vector>
 
-#include "examples/variant_advector/basic_mesh.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
@@ -56,6 +55,8 @@ class ImplicitSurfaceCutter {
 
   template <std::size_t ORDER>
   GeneralSurfaceMoments3D<ORDER> computeSurfaceMoments() const;
+
+  int getBaseCellStatus() const;
 
  private:
   enum class CellStatus { Above, Below, Mixed };
