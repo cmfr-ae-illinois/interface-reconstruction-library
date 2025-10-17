@@ -228,8 +228,12 @@ ReturnType ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
 // accumulate surface moments
 template <class ImplicitSurfaceType, class ReturnType, class CellType>
 template <std::size_t ORDER>
-GeneralSurfaceMoments3D<ORDER> ImplicitSurfaceCutter<
-    ImplicitSurfaceType, ReturnType, CellType>::computeSurfaceMoments() const {
+GeneralSurfaceMoments3D<ORDER>
+ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType, CellType>::
+    computeSurfaceMoments(
+        const bool useAdaptive,
+        const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
+        const int npts) const {
   using VolumeMomentsAndSurface =
       AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
 
@@ -247,7 +251,8 @@ GeneralSurfaceMoments3D<ORDER> ImplicitSurfaceCutter<
     auto surface = getVolumeMoments<VolumeMomentsAndSurface>(
                        mixed_leaves_[i]->cell, m_paraboloids[i])
                        .getSurface();
-    const auto term = surface.template getSurfaceMoments<ORDER>();
+    const auto term = surface.template getSurfaceMoments<ORDER>(
+        useAdaptive, quadratureRule, npts);
     kahan_add(term);
   }
 

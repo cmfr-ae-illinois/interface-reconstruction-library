@@ -54,7 +54,11 @@ class ImplicitSurfaceCutter {
   ReturnType computeVolumeMoments() const;
 
   template <std::size_t ORDER>
-  GeneralSurfaceMoments3D<ORDER> computeSurfaceMoments() const;
+  GeneralSurfaceMoments3D<ORDER> computeSurfaceMoments(
+      const bool useAdaptive = true,
+      const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
+          Eigen::Integrator<double, 2>::GaussKronrod15,
+      const int npts = 50) const;
 
   int getBaseCellStatus() const;
 
