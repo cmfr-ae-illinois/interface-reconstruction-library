@@ -94,7 +94,7 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const F a_F, const bool useAdaptive = true,
       const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
           Eigen::Integrator<double, 2>::GaussKronrod15,
-      const int npts = 75);
+      const int npts = 50);
 
   template <std::size_t ORDER>
   inline GeneralSurfaceMoments3D<ORDER> getSurfaceMoments(void);
