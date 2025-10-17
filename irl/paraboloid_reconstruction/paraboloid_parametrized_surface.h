@@ -97,7 +97,11 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const int npts = 50);
 
   template <std::size_t ORDER>
-  inline GeneralSurfaceMoments3D<ORDER> getSurfaceMoments(void);
+  inline GeneralSurfaceMoments3D<ORDER> getSurfaceMoments(
+      const bool useAdaptive = true,
+      const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
+          Eigen::Integrator<double, 2>::GaussKronrod15,
+      const int npts = 50);
 
   MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
   MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);

@@ -946,7 +946,10 @@ inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
 
 template <std::size_t ORDER>
 inline GeneralSurfaceMoments3D<ORDER>
-ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
+ParaboloidParametrizedSurfaceOutput::getSurfaceMoments(
+    const bool useAdaptive,
+    const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
+    const int npts) {
   static_assert(ORDER >= 0 && ORDER <= 2,
                 "ONLY ORDER = 0, 1, or 2 supported for paraboloids");
   GeneralSurfaceMoments3D<ORDER> moments;
@@ -958,14 +961,18 @@ ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
 
   auto z = [a, b](const Pt& p) { return -a * p[0] * p[0] - b * p[1] * p[1]; };
 
-  const double M0 = this->getIntegrator([](const Pt&) { return 1.0; });
+  const double M0 = this->getIntegrator([](const Pt&) { return 1.0; },
+                                        useAdaptive, quadratureRule, npts);
   moments[0] = M0;
 
   if constexpr (ORDER == 0) return moments;
 
-  const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; });
-  const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; });
-  const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); });
+  const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; },
+                                         useAdaptive, quadratureRule, npts);
+  const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; },
+                                         useAdaptive, quadratureRule, npts);
+  const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); },
+                                         useAdaptive, quadratureRule, npts);
   moments[1] = M1x;
   moments[2] = M1y;
   moments[3] = M1z;
@@ -976,17 +983,23 @@ ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
   }
 
   const double Mxx =
-      this->getIntegrator([](const Pt& p) { return p[0] * p[0]; });
+      this->getIntegrator([](const Pt& p) { return p[0] * p[0]; }, useAdaptive,
+                          quadratureRule, npts);
   const double Mxy =
-      this->getIntegrator([](const Pt& p) { return p[0] * p[1]; });
+      this->getIntegrator([](const Pt& p) { return p[0] * p[1]; }, useAdaptive,
+                          quadratureRule, npts);
   const double Mxz =
-      this->getIntegrator([&](const Pt& p) { return p[0] * z(p); });
+      this->getIntegrator([&](const Pt& p) { return p[0] * z(p); }, useAdaptive,
+                          quadratureRule, npts);
   const double Myy =
-      this->getIntegrator([](const Pt& p) { return p[1] * p[1]; });
+      this->getIntegrator([](const Pt& p) { return p[1] * p[1]; }, useAdaptive,
+                          quadratureRule, npts);
   const double Myz =
-      this->getIntegrator([&](const Pt& p) { return p[1] * z(p); });
+      this->getIntegrator([&](const Pt& p) { return p[1] * z(p); }, useAdaptive,
+                          quadratureRule, npts);
   const double Mzz =
-      this->getIntegrator([&](const Pt& p) { return z(p) * z(p); });
+      this->getIntegrator([&](const Pt& p) { return z(p) * z(p); }, useAdaptive,
+                          quadratureRule, npts);
   moments[4] = Mxx;
   moments[5] = Mxy;
   moments[6] = Mxz;
