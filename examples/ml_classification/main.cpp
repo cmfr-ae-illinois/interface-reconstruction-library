@@ -23,14 +23,14 @@ int main (int argc, char* argv[]) {
     int hidden_size2 = 64;
     int hidden_size3 = 32;
     int output_size = 4;
-    int batch_size = 64;
 
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
-    int no_batches = 256;
+    int batch_size = 64;
     int epochs = 20;
 
     //Data parameters
+    int no_batches = 128;
     int include_Moments = 0;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -42,18 +42,21 @@ int main (int argc, char* argv[]) {
     double sphere_radius_stddev = 0.0;
 
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
-    /*
-    ml.generateDataset(no_batches, batch_size, include_Moments,
-                        paraboloid_coeff_stddev,
-                        sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                        max_cylinder_radius, cylinder_radius_stddev, 
-                        max_sphere_radius, sphere_radius_stddev);
-    */    
 
+    ml.updateDataParameters(no_batches, include_Moments,
+                            paraboloid_coeff_stddev,
+                            sheet_coeff_stddev,
+                            max_sheet_thickness, sheet_thickness_stddev,
+                            max_cylinder_radius, cylinder_radius_stddev,
+                            max_sphere_radius, sphere_radius_stddev);                    
+    
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/s5_260k/data.bin");
-    //ml.trainModel(epochs, learning_rate, batch_size);
-    //ml.saveModel("model/ml_model.pt");
-    ml.loadModel("/home/quirin/mlcfd/Datasets/s5_260k/model1/ml_model.pt");
+    ml.appendDataset("/home/quirin/mlcfd/Datasets/s5_260k/data.bin", true);
+
+    ml.updateTrainingParameters(learning_rate, batch_size, epochs);
+    ml.trainModel();
+    ml.saveModel("model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/s5_260k/model1/ml_model.pt");
 
     // vtk reader
     std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
@@ -67,6 +70,7 @@ int main (int argc, char* argv[]) {
     }
     */
 
+    /*
     // Creata a text file to store parameters
     std::ofstream file("Parameters.txt");
     if (!file.is_open()) {
@@ -101,6 +105,7 @@ int main (int argc, char* argv[]) {
     file << "sphere_radius_stddev = " << sphere_radius_stddev << "\n";
 
     file.close();
+    */
     
     /*
     int stencil_size = 3;
