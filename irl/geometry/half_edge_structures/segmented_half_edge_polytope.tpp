@@ -351,9 +351,12 @@ inline std::ostream& operator<<(
   out << "<DataArray type=\"Float32\" NumberOfComponents=\"3\">\n";
   for (UnsignedIndex_t n = 0; n < a_polytope.getNumberOfVertices(); ++n) {
     const auto& vert_pt = a_polytope.getVertex(n)->getLocation();
-    if constexpr (std::is_same<typename VertexType::value_type, __float128>::value) {
-      out << std::scientific << std::setprecision(20) << static_cast<double>(vert_pt[0]) << " "
-          << static_cast<double>(vert_pt[1]) << " " << static_cast<double>(vert_pt[2]) << '\n';
+    if constexpr (std::is_same<typename VertexType::value_type,
+                               __float128>::value) {
+      out << std::scientific << std::setprecision(20)
+          << static_cast<double>(vert_pt[0]) << " "
+          << static_cast<double>(vert_pt[1]) << " "
+          << static_cast<double>(vert_pt[2]) << '\n';
     } else {
       out << std::scientific << std::setprecision(20) << vert_pt[0] << " "
           << vert_pt[1] << " " << vert_pt[2] << '\n';
