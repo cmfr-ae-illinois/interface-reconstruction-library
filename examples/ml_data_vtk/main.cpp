@@ -22,7 +22,7 @@ void evaluateMLClassifier(int stencil_size, int n_samples_per_class, IRL::MLClas
 
         for (int i = 0; i < n_samples_per_class; ++i) {
             // generate a synthetic state
-            std::vector<double> flattened_state = data_gen.generate_State(true_class, stencil_size, false);
+            std::vector<double> flattened_state = data_gen.generateState(true_class, stencil_size, false);
 
             // classify and get full probability vector
             std::vector<float> probs;
@@ -159,5 +159,5 @@ int main(int argc, char* argv[]) {
 
     file.close();
 
-    return 0;
+    
 }

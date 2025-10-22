@@ -8,6 +8,7 @@
 #include "irl/ml_classification/ml_classifier.h"
 #include "irl/ml_classification/vtk_in.h"
 #include "irl/ml_classification/inertia_classifier.h"
+#include "irl/ml_classification/hybid_classifier.h"
 
 #include "irl/ml_classification/data_gen.h"
 
@@ -19,9 +20,9 @@ int main (int argc, char* argv[]) {
 
     // Net Parameters
     int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
-    int hidden_size1 = 128;
-    int hidden_size2 = 64;
-    int hidden_size3 = 32;
+    int hidden_size1 = 64;
+    int hidden_size2 = 32;
+    int hidden_size3 = 16;
     int output_size = 4;
 
     //Training parameters
@@ -30,7 +31,7 @@ int main (int argc, char* argv[]) {
     int epochs = 20;
 
     //Data parameters
-    int no_batches = 128;
+    int no_batches = 4096*4;
     int include_Moments = 0;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -38,6 +39,7 @@ int main (int argc, char* argv[]) {
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
+    bool include_truncated_cylinder = true;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
 
@@ -47,11 +49,13 @@ int main (int argc, char* argv[]) {
                             paraboloid_coeff_stddev,
                             sheet_coeff_stddev,
                             max_sheet_thickness, sheet_thickness_stddev,
-                            max_cylinder_radius, cylinder_radius_stddev,
+                            max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
                             max_sphere_radius, sphere_radius_stddev);                    
     
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/s5_260k/data.bin");
-    ml.appendDataset("/home/quirin/mlcfd/Datasets/s5_260k/data.bin", true);
+    //ml.generateDataset();
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/truncCylTests/s5_2097k/data/data.bin");
+    ml.appendDataset("/home/quirin/mlcfd/Datasets/truncCylTests/s5_1048k/data/data.bin", true);
+    
 
     ml.updateTrainingParameters(learning_rate, batch_size, epochs);
     ml.trainModel();

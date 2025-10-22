@@ -13,7 +13,7 @@
 namespace IRL {
 
 class MLClassifier : public Classifier {
-private:
+protected:
     //Network Parameters
     int stencil_size = 3;
     int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
@@ -36,6 +36,7 @@ private:
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
+    bool include_truncated_cylinder = false;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
 
@@ -45,6 +46,8 @@ private:
     std::string dataset_path = "";
     std::vector<std::vector<double>> statesV;
     std::vector<int> labelsV;
+    size_t no_samples = batch_size * no_batches;
+    double generation_time = 0.0;
 
 public:
     MLClassifier(int stencil = 3, int input = 27,
@@ -65,7 +68,7 @@ public:
     void updateDataParameters(int nb, int incMoments,
                               double parab_std, double sheet_std,
                               double max_sheet_th, double sheet_th_std,
-                              double max_cyl_r, double cyl_r_std,
+                              double max_cyl_r, double cyl_r_std, bool incl_trunc_cyl,
                               double max_sph_r, double sph_r_std) {
         no_batches = nb;
         include_Moments = incMoments;
@@ -75,40 +78,68 @@ public:
         sheet_thickness_stddev = sheet_th_std;
         max_cylinder_radius = max_cyl_r;
         cylinder_radius_stddev = cyl_r_std;
+        include_truncated_cylinder = incl_trunc_cyl;
         max_sphere_radius = max_sph_r;
         sphere_radius_stddev = sph_r_std;
     }
 
     void generateDataset() {
         IRL::Data_gen data_gen;
-        data_gen.generate_Data(&statesV, &labelsV,
-                               no_batches * batch_size,
-                               stencil_size, output_size,
-                               include_Moments,
-                               paraboloid_coeff_stddev,
-                               sheet_coeff_stddev,
-                               max_sheet_thickness, sheet_thickness_stddev,
-                               max_cylinder_radius, cylinder_radius_stddev,
-                               max_sphere_radius, sphere_radius_stddev);
-        saveDataset("data");
-    }
-
-    void appendDataset(const std::string& existing_path, bool save_combined = false) {
-        loadDataset(existing_path);
-        //size_t old_count = statesV.size();
-
-        std::vector<std::vector<double>> new_states;
-        std::vector<int> new_labels;
-
-        IRL::Data_gen data_gen;
-        data_gen.generate_Data(&new_states, &new_labels,
+        using namespace std::chrono;
+        // Record start time
+        auto start_time = high_resolution_clock::now();
+        
+        data_gen.generateData(&statesV, &labelsV,
                                no_batches * batch_size,
                                stencil_size, output_size,
                                include_Moments,
                                paraboloid_coeff_stddev,
                                sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                               max_cylinder_radius, cylinder_radius_stddev,
+                               max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
                                max_sphere_radius, sphere_radius_stddev);
+        /*
+        void generateData (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
+                                        double paraboloid_coeff_stddev = 0.1,
+                                        double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
+                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, bool include_truncated_cylinder = false,
+                                        double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0)
+
+        */
+        /*
+        data_gen.generateData(&statesV, &labelsV,
+                               no_batches * batch_size,
+                               stencil_size);
+        */
+        // Record end time
+        auto end_time = high_resolution_clock::now();
+        generation_time = duration_cast<seconds>(end_time - start_time).count();
+
+        saveDataset("data");
+    }
+
+    void appendDataset(const std::string& existing_path, bool save_combined = false) {
+        loadDataset(existing_path);
+
+        std::vector<std::vector<double>> new_states;
+        std::vector<int> new_labels;
+
+        IRL::Data_gen data_gen;
+
+        using namespace std::chrono;
+        // Record start time
+        auto start_time = high_resolution_clock::now();
+
+        data_gen.generateData(&statesV, &labelsV,
+                               no_batches * batch_size,
+                               stencil_size, output_size,
+                               include_Moments,
+                               paraboloid_coeff_stddev,
+                               sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
+                               max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
+                               max_sphere_radius, sphere_radius_stddev);
+        // Record end time
+        auto end_time = high_resolution_clock::now();
+        generation_time = duration_cast<seconds>(end_time - start_time).count();
 
         statesV.insert(statesV.end(), new_states.begin(), new_states.end());
         labelsV.insert(labelsV.end(), new_labels.begin(), new_labels.end());
@@ -120,7 +151,7 @@ public:
             saveDataset("data");
     }
 
-    void saveDataset(const std::string& dir_path) const {
+    void saveDataset(const std::string& dir_path, double time=0.0) const {
         namespace fs = std::filesystem;
         fs::create_directories(dir_path);
 
@@ -141,8 +172,12 @@ public:
         std::ofstream meta(dir_path + "/Data_Parameters.txt");
         meta << "stencil_size " << stencil_size << "\n";
         meta << "output_size " << output_size << "\n";
-        meta << "no_batches " << no_batches << "\n";
+        meta << "no_batches generated " << no_batches << "\n";
         meta << "batch_size " << batch_size << "\n";
+        meta << "no_samples generated " << no_batches*batch_size << "\n";
+        meta << "generation_time " << generation_time << "\n";
+        meta << "no_batches loaded " << (no_batches - num_samples/batch_size) << "\n";
+        meta << "total samples " << num_samples << "\n";
         meta << "include_Moments " << include_Moments << "\n";
         meta << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
         meta << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";
@@ -150,6 +185,7 @@ public:
         meta << "sheet_thickness_stddev " << sheet_thickness_stddev << "\n";
         meta << "max_cylinder_radius " << max_cylinder_radius << "\n";
         meta << "cylinder_radius_stddev " << cylinder_radius_stddev << "\n";
+        meta << "include_truncated_cylinder " << include_truncated_cylinder << "\n";
         meta << "max_sphere_radius " << max_sphere_radius << "\n";
         meta << "sphere_radius_stddev " << sphere_radius_stddev << "\n";
         meta.close();
