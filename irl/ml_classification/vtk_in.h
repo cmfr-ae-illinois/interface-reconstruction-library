@@ -60,6 +60,87 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
         newCellDims[2] + 1
     };
 
+    // Read PLIC file
+    auto plic_reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
+    // plic_reader->SetCaseFileName("/home/quirin/jet/plic.case");
+    plic_reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/plic.case");
+    plic_reader->UpdateInformation();
+
+    vtkInformation* plic_info = plic_reader->GetOutputInformation(0);
+    int plic_nSteps = plic_info->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+    std::vector<double> plic_timeSteps(plic_nSteps);
+    plic_info->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS(), plic_timeSteps.data());
+    plic_reader->SetTimeValue(plic_timeSteps[plic_nSteps - 1]);
+    plic_reader->Update();
+    auto plic_mb = vtkMultiBlockDataSet::SafeDownCast(plic_reader->GetOutput());
+    auto plic_block_merger = vtkSmartPointer<vtkAppendFilter>::New();
+    for (int i = 0; i < plic_mb->GetNumberOfBlocks(); i++) {
+        auto plic_block = plic_mb->GetBlock(i);
+        if (plic_block) { plic_block_merger->AddInputData(plic_block);}
+    }
+    plic_block_merger->Update();
+    auto plic_grid = vtkUnstructuredGrid::SafeDownCast(plic_block_merger->GetOutput());
+    
+    // Cell cell locator and plic centroids
+    auto locator_finegrid = vtkSmartPointer<vtkCellLocator>::New();
+    locator_finegrid->SetDataSet(grid);
+    locator_finegrid->BuildLocator();
+    auto grid_cell_center_filter = vtkSmartPointer<vtkCellCenters>::New();
+    grid_cell_center_filter->SetInputData(grid);
+    grid_cell_center_filter->Update();
+    auto grid_cell_centers = grid_cell_center_filter->GetOutput()->GetPoints();
+    auto cell_center_filter = vtkSmartPointer<vtkCellCenters>::New();
+    cell_center_filter->SetInputData(plic_grid);
+    cell_center_filter->Update();
+    auto cell_centers = cell_center_filter->GetOutput()->GetPoints();
+    
+    // Regenerate first moments from PLIC
+    auto liquid_barycenter = vtkSmartPointer<vtkDoubleArray>::New();
+    liquid_barycenter->SetName("M1");
+    liquid_barycenter->SetNumberOfComponents(3);
+    liquid_barycenter->SetNumberOfTuples(grid->GetNumberOfCells());
+    for (int i = 0; i < grid->GetNumberOfCells(); i++) {
+        double center[3];
+        grid_cell_centers->GetPoint(i, center);
+        liquid_barycenter->SetTuple3(i, center[0], center[1], center[2]);
+    }
+    double max_vfrac_error = 0.0, rms_vfrac_error = 0.0;
+    for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
+        auto plic_cell = plic_grid->GetCell(i);
+        if (plic_cell->GetCellType() == VTK_POLYGON) {
+            // Cast PLIC cell into vtkPolygon
+            auto polygon = vtkPolygon::SafeDownCast(plic_cell);
+            // Compute PLIC normal and first point coordinates from polygon
+            double normal[3], firstpoint[3];
+            polygon->ComputeNormal(polygon->GetPoints(), normal);
+            polygon->GetPoints()->GetPoint(0, firstpoint);
+            // Convert to IRL normal
+            const auto irl_normal = IRL::Normal(normal[0], normal[1], normal[2]);
+            // Compute plane distance
+            const double irl_distance = normal[0] * firstpoint[0] + normal[1] * firstpoint[1] + normal[2] * firstpoint[2];
+            // Construct IRL plane matching PLIC
+            const auto irl_separator = IRL::PlanarSeparator::fromOnePlane(IRL::Plane(irl_normal, irl_distance));
+            // Get local cell ID
+            auto cell_id = locator_finegrid->FindCell(cell_centers->GetPoint(i));
+            // Construct IRL rectangular cuboid matching local cell
+            double bds[6];
+            grid->GetCellBounds(cell_id, bds);
+            const auto irl_cell = IRL::RectangularCuboid::fromBoundingPts(IRL::Pt(bds[0], bds[2], bds[4]), IRL::Pt(bds[1], bds[3], bds[5]));
+            // Get volume moments for that cell
+            auto moments = IRL::getVolumeMoments<IRL::VolumeMoments>(irl_cell, irl_separator);
+            moments.centroid() /= IRL::safelyEpsilon(moments.volume());
+            liquid_barycenter->SetTuple3(i, moments.centroid()[0], moments.centroid()[1], moments.centroid()[2]);
+            // Compute vfrac to monitor error
+            const double vfrac = moments.volume() / irl_cell.calculateVolume();
+            const double vfrac_error = std::fabs(vfrac - vofArray->GetComponent(cell_id, 0));
+            max_vfrac_error = std::max(max_vfrac_error, vfrac_error);
+            rms_vfrac_error += vfrac_error * vfrac_error;
+        }
+    }
+    rms_vfrac_error = std::sqrt(rms_vfrac_error / static_cast<double>(plic_grid->GetNumberOfCells()));
+    std::cout << "MAX reconstruted vfrac error = " << max_vfrac_error << std::endl;
+    std::cout << "RMS reconstruted vfrac error = " << rms_vfrac_error << " (should be O(FLOAT_EPSILON) = 1.2e-7)" << std::endl;
+
     // Create new coordinate arrays
     auto newXCoords = vtkSmartPointer<vtkDoubleArray>::New();
     auto newYCoords = vtkSmartPointer<vtkDoubleArray>::New();
@@ -141,27 +222,6 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     for (int i = 0; i < grid->GetNumberOfCells(); i++) {
         certainty->SetValue(i, 0.0);
     }
-
-    // Read PLIC file for viz
-    auto plic_reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
-    // plic_reader->SetCaseFileName("/home/quirin/jet/plic.case");
-    plic_reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/plic.case");
-    plic_reader->UpdateInformation();
-
-    vtkInformation* plic_info = plic_reader->GetOutputInformation(0);
-    int plic_nSteps = plic_info->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
-    std::vector<double> plic_timeSteps(plic_nSteps);
-    plic_info->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS(), plic_timeSteps.data());
-    plic_reader->SetTimeValue(plic_timeSteps[plic_nSteps - 1]);
-    plic_reader->Update();
-    auto plic_mb = vtkMultiBlockDataSet::SafeDownCast(plic_reader->GetOutput());
-    auto plic_block_merger = vtkSmartPointer<vtkAppendFilter>::New();
-    for (int i = 0; i < plic_mb->GetNumberOfBlocks(); i++) {
-        auto plic_block = plic_mb->GetBlock(i);
-        if (plic_block) { plic_block_merger->AddInputData(plic_block);}
-    }
-    plic_block_merger->Update();
-    auto plic_grid = vtkUnstructuredGrid::SafeDownCast(plic_block_merger->GetOutput());
 
     // Create new cell data array for interface type on PLIC surface
     auto plic_interface_type = vtkSmartPointer<vtkIntArray>::New();
@@ -278,15 +338,12 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     grid_writer->SetInputData(downsampledGrid);
     grid_writer->Write();
 
-    // Convert interface_type to PLIC array
+    // Cell locator
     auto locator = vtkSmartPointer<vtkCellLocator>::New();
     locator->SetDataSet(downsampledGrid);
     locator->BuildLocator();
-    auto cell_center_filter = vtkSmartPointer<vtkCellCenters>::New();
-    cell_center_filter->SetInputData(plic_grid);
-    cell_center_filter->Update();
-    auto cell_centers = cell_center_filter->GetOutput()->GetPoints();
-
+    
+    // Convert interface_type to PLIC array
     for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
         auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
         plic_interface_type->SetValue(i, type);
