@@ -10,6 +10,8 @@ IRLAddExample_cpp(
   "solver.h"
   "vtk.h"
   "initialization.h"
+  "binary.h"
+  "reconstruction_metrics.h"
   SRCS
   "main.cpp"
   "basic_mesh.cpp"

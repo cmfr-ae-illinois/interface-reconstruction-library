@@ -86,6 +86,73 @@ struct SlicesParabola {
                                 const bool a_plic_already_built = false);
 };
 
+struct Taubin {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+struct SlicesTaubin {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+struct PLICAligned {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+struct SlicesParticle {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+const IRL::ReferenceFrame referenceFrameFromNormal(const IRL::Normal a_normal);
+
+// temporary particle method function declarations
+std::vector<Eigen::Vector2d> ComputeParticlePositions(const int& N,
+                                                      const Eigen::Vector2d& p,
+                                                      const double& phi,
+                                                      const double& theta,
+                                                      const double& hp);
+
+Eigen::Vector2d ComputeParticleForce(
+    const Eigen::Vector2d& x,
+    const std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>>& segs,
+    const double& eta);
+
+std::vector<Eigen::Vector2d> InitializeParticlePositions(
+    const std::pair<Eigen::Vector2d, Eigen::Vector2d>& target_endpoints,
+    const double& hp, const int& N);
+
+double ComputeParticleForceProjection(
+    const int& N, const double& phi, const double& theta, const double& hp,
+    const bool& iswrtPhi, const std::vector<Eigen::Vector2d> particle_forces);
+
+double getParticleMethodCurvature(
+    const std::pair<Eigen::Vector2d, Eigen::Vector2d>& target_endpoints,
+    const std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>>& endpoints,
+    const int& N, const double& Hp, const double& h, const double& eta);
+
 void recenterMoments(IRL::VolumeMoments* moments, const IRL::Pt& center);
 
 void correctInterfaceBorders(Data<IRL::SeparatorVariant>* a_interface);

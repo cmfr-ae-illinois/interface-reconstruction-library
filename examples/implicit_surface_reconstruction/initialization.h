@@ -28,6 +28,19 @@
 
 std::vector<std::tuple<int, int, int>> getCellStatus(Data<int>* cell_status);
 
+struct Range {
+  int begin;
+  int end;
+};
+
+inline Range block_partition(int N, int rank, int size) {
+  const int q = N / size;
+  const int r = N % size;
+  const int start = rank * q + std::min(rank, r);
+  const int count = q + (rank < r ? 1 : 0);
+  return {start, start + count};
+}
+
 template <std::size_t MAX_REFINE, std::size_t VM_ORDER, std::size_t SM_ORDER>
 void getInitializedField(
     const Data<int>& cell_status,
