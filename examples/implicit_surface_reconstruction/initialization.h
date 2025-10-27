@@ -25,14 +25,13 @@
 
 #include "examples/implicit_surface_reconstruction/basic_mesh.h"
 #include "examples/implicit_surface_reconstruction/data.h"
+#include "examples/implicit_surface_reconstruction/surface_select.h"
 
-std::vector<std::tuple<int, int, int>> getCellStatus(Data<int>* cell_status);
-
+// for parallelization
 struct Range {
   int begin;
   int end;
 };
-
 inline Range block_partition(int N, int rank, int size) {
   const int q = N / size;
   const int r = N % size;
@@ -41,12 +40,27 @@ inline Range block_partition(int N, int rank, int size) {
   return {start, start + count};
 }
 
-template <std::size_t MAX_REFINE, std::size_t VM_ORDER, std::size_t SM_ORDER>
+template <class SurfaceType>
+std::vector<std::tuple<int, int, int>> getCellStatus(
+    Data<int>* cell_status, const SurfaceType& surface);
+
+template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
 void getInitializedField(
     const Data<int>& cell_status,
     std::vector<std::tuple<int, int, int>> mixed_cells_list_root,
     Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>* moments);
+                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>* moments,
+    const SurfaceType& surface);
+
+template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
+Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+               IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+initializeMomentsAndWriteBin(const BasicMesh& mesh, const SurfaceType& surface,
+                             const std::string& bin_path);
+
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+void run_initialization(const std::string& shape, int Nx,
+                        const std::string& output_dir);
 
 #include "examples/implicit_surface_reconstruction/initialization.tpp"
 

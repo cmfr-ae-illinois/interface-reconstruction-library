@@ -12,12 +12,52 @@
 
 #include "examples/implicit_surface_reconstruction/initialization.h"
 
-template <std::size_t MAX_REFINE, std::size_t VM_ORDER, std::size_t SM_ORDER>
+// wrapper to set refine level to be 0 for a surface
+template <class S>
+struct ZeroRefineSurface : S {
+  using S::S;
+  ZeroRefineSurface(const S& s) : S(s) {}
+  static constexpr std::size_t getMaxRefineLevel() { return 0; }
+};
+
+// finding mixed cells ----------------------------------------------
+template <class SurfaceType>
+std::vector<std::tuple<int, int, int>> getCellStatus(
+    Data<int>* cell_status, const SurfaceType& surface) {
+  using S0 = ZeroRefineSurface<std::decay_t<SurfaceType>>;
+  S0 surface0(surface);
+
+  std::vector<std::tuple<int, int, int>> mixed_cells_list;
+  const BasicMesh& mesh = cell_status->getMesh();
+
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
+        IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
+        IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+        IRL::ImplicitSurfaceCutter<S0, IRL::Volume> cutter(surface0, cell);
+
+        const int status = cutter.getBaseCellStatus();
+        (*cell_status)(i, j, k) = status;
+        if (status == 0) mixed_cells_list.emplace_back(i, j, k);
+      }
+    }
+  }
+
+  return mixed_cells_list;
+}
+
+// finding implicit surface moments -----------------------------------
+template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
 void getInitializedField(
     const Data<int>& cell_status,
     std::vector<std::tuple<int, int, int>> mixed_cells_list_root,
     Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>* moments) {
+                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>* moments,
+    const SurfaceType& surface) {
   int rank = 0, size = 1;
   (void)MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   (void)MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -48,7 +88,6 @@ void getInitializedField(
   }
 
   const BasicMesh& mesh = cell_status.getMesh();
-  IRL::Sphere<double, MAX_REFINE> sphere(0., 0., 0., 0.15);
 
   // partition mixed cells across ranks
   const int N = static_cast<int>(mixed_cells_list.size());
@@ -75,9 +114,8 @@ void getInitializedField(
     IRL::RectangularCuboid cell =
         IRL::RectangularCuboid::fromBoundingPts(x0, x1);
 
-    IRL::ImplicitSurfaceCutter<IRL::Sphere<double, MAX_REFINE>,
-                               IRL::GeneralMoments3D<VM_ORDER>>
-        cutter(sphere, cell);
+    IRL::ImplicitSurfaceCutter<SurfaceType, IRL::GeneralMoments3D<VM_ORDER>>
+        cutter(surface, cell);
 
     auto vol = cutter.computeVolumeMoments();
     auto surf = cutter.template computeSurfaceMoments<SM_ORDER>(
@@ -97,8 +135,8 @@ void getInitializedField(
   int local_n = static_cast<int>(local.size());
 
   std::vector<int> counts(size, 0);
-  MPI_Gather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT,
-             /*root=*/0, MPI_COMM_WORLD);
+  MPI_Gather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT, 0,
+             MPI_COMM_WORLD);
 
   std::vector<int> displs, counts_bytes, displs_bytes;
   int total_n = 0;
@@ -156,6 +194,64 @@ void getInitializedField(
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
+}
+
+// initializing moments and writing to binary ------------------------------
+template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
+Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+               IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+initializeMomentsAndWriteBin(const BasicMesh& mesh, const SurfaceType& surface,
+                             const std::string& bin_path) {
+  int rank = 0, size = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  Data<int> cell_status(&mesh);
+  std::vector<std::tuple<int, int, int>> mixed_cells_list;
+  if (rank == 0) {
+    mixed_cells_list = getCellStatus(&cell_status, surface);
+  }
+
+  Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+                 IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+      moments(&mesh);
+  getInitializedField<SurfaceType, VM_ORDER, SM_ORDER>(
+      cell_status, mixed_cells_list, &moments, surface);
+
+  // writing moments to binary
+  if (rank == 0) {
+    writeMomentsToBinary<VM_ORDER, SM_ORDER>(moments, bin_path);
+  }
+
+  return moments;
+}
+
+// running initialization for generic shape ---------------------------
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+void run_initialization(const std::string& shape, int Nx,
+                        const std::string& output_dir) {
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  BasicMesh mesh(Nx, Nx, Nx, 1);
+  SurfaceVariant surf = makeSurface(shape, mesh);
+  std::string bin_path = binary_filename(output_dir, shape, Nx);
+
+  std::visit(
+      [&](const auto& surface) {
+        using S = std::decay_t<decltype(surface)>;
+
+        auto t0 = std::chrono::steady_clock::now();
+        auto data = initializeMomentsAndWriteBin<S, VM_ORDER, SM_ORDER>(
+            mesh, surface, bin_path);
+        auto t1 = std::chrono::steady_clock::now();
+        if (rank == 0) {
+          const double dt = std::chrono::duration<double>(t1 - t0).count();
+          std::cout << "✅ Initialization complete for " << shape << " in "
+                    << dt << " s\n";
+        }
+      },
+      surf);
 }
 
 #endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_INITIALIZATION_TPP_
