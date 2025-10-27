@@ -10,9 +10,10 @@
 #ifndef EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_BINARY_H_
 #define EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_BINARY_H_
 
+#include "irl/generic_cutting/implicit_surface_cutting/cut_implicit_surface.h"
+
 #include "examples/implicit_surface_reconstruction/basic_mesh.h"
 #include "examples/implicit_surface_reconstruction/data.h"
-#include "examples/implicit_surface_reconstruction/initialization.h"
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void writeMomentsToBinary(
