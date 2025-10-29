@@ -864,6 +864,25 @@ ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
   return this->getGaussianCurvatureAligned(aligned_pt);
 }
 
+inline double ParaboloidParametrizedSurfaceOutput::getCurvednessAligned(
+    const Pt a_pt) {
+  const double H = this->getMeanCurvatureAligned(a_pt);
+  const double K = this->getGaussianCurvatureAligned(a_pt);
+  return std::sqrt(2.0 * H * H - K);
+}
+
+inline double ParaboloidParametrizedSurfaceOutput::getCurvednessNonAligned(
+    const Pt a_pt) {
+  const auto& datum = this->getParaboloid().getDatum();
+  const auto& ref_frame = this->getParaboloid().getReferenceFrame();
+  const Pt original_pt = a_pt - datum;
+  auto aligned_pt = a_pt;
+  for (std::size_t n = 0; n < 3; ++n) {
+    aligned_pt[n] = ref_frame[n] * original_pt;
+  }
+  return this->getCurvednessAligned(aligned_pt);
+}
+
 inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
     const F a_F, const bool useAdaptive,
     const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,

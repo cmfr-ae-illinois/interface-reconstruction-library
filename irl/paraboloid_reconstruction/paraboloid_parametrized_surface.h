@@ -87,6 +87,8 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   inline double getMeanCurvatureNonAligned(const Pt a_pt);
   inline double getGaussianCurvatureAligned(const Pt a_pt);
   inline double getGaussianCurvatureNonAligned(const Pt a_pt);
+  inline double getCurvednessAligned(const Pt a_pt);
+  inline double getCurvednessNonAligned(const Pt a_pt);
 
   // general integrator
   using F = std::function<double(Pt)>;
