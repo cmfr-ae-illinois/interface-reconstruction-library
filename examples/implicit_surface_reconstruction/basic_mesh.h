@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "irl/geometry/general/pt.h"
+#define USE_MPI
 
 /// \brief This is a basic mesh class that stores
 /// the number of cells in the mesh, the number of
