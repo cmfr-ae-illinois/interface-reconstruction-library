@@ -96,7 +96,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     
     // Regenerate first moments from PLIC
     auto liquid_barycenter = vtkSmartPointer<vtkDoubleArray>::New();
-    liquid_barycenter->SetName("M1");
+    liquid_barycenter->SetName("M1"); //WRONG? "Liquid_Barycenter"
     liquid_barycenter->SetNumberOfComponents(3);
     liquid_barycenter->SetNumberOfTuples(grid->GetNumberOfCells());
     for (int i = 0; i < grid->GetNumberOfCells(); i++) {
@@ -122,6 +122,10 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
             const auto irl_separator = IRL::PlanarSeparator::fromOnePlane(IRL::Plane(irl_normal, irl_distance));
             // Get local cell ID
             auto cell_id = locator_finegrid->FindCell(cell_centers->GetPoint(i));
+            if (cell_id < 0 || cell_id >= grid->GetNumberOfCells()) {
+                std::cerr << "Warning: could not find valid cell for PLIC polygon " << i << ", skipping..." << std::endl;
+                continue; // skip invalid polygons (outside grid)
+            }
             // Construct IRL rectangular cuboid matching local cell
             double bds[6];
             grid->GetCellBounds(cell_id, bds);
@@ -129,7 +133,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
             // Get volume moments for that cell
             auto moments = IRL::getVolumeMoments<IRL::VolumeMoments>(irl_cell, irl_separator);
             moments.centroid() /= IRL::safelyEpsilon(moments.volume());
-            liquid_barycenter->SetTuple3(i, moments.centroid()[0], moments.centroid()[1], moments.centroid()[2]);
+            liquid_barycenter->SetTuple3(cell_id, moments.centroid()[0], moments.centroid()[1], moments.centroid()[2]); // was i instead of cell_id
             // Compute vfrac to monitor error
             const double vfrac = moments.volume() / irl_cell.calculateVolume();
             const double vfrac_error = std::fabs(vfrac - vofArray->GetComponent(cell_id, 0));
@@ -170,31 +174,68 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     newVOF->SetNumberOfComponents(1);
     newVOF->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
 
+    // Create new Liquid_Barycenter array
+    auto newLiquidBarycenter = vtkSmartPointer<vtkDoubleArray>::New();
+    newLiquidBarycenter->SetName("LiquidBarycenter");
+    newLiquidBarycenter->SetNumberOfComponents(3);
+    newLiquidBarycenter->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
+
+    // Downsample cell data
     int idx = 0;
-    for (int k = 0; k < newCellDims[2]; ++k) {
-        for (int j = 0; j < newCellDims[1]; ++j) {
-            for (int i = 0; i < newCellDims[0]; ++i) {
-                double sum = 0.0;
+    for (int K = 0; K < newCellDims[2]; ++K) {
+        for (int J = 0; J < newCellDims[1]; ++J) {
+            for (int I = 0; I < newCellDims[0]; ++I) {
+
+                double sum_alpha = 0.0;
+                double sum_m1x = 0.0, sum_m1y = 0.0, sum_m1z = 0.0;
                 int count = 0;
-                for (int dk = 0; dk < downsample[2]; ++dk) {
-                    for (int dj = 0; dj < downsample[1]; ++dj) {
-                        for (int di = 0; di < downsample[0]; ++di) {
-                            int oldI = i * downsample[0] + di;
-                            int oldJ = j * downsample[1] + dj;
-                            int oldK = k * downsample[2] + dk;
+
+                // Aggregate fine cells within this coarse block
+                for (int dK = 0; dK < downsample[2]; ++dK) {
+                    for (int dJ = 0; dJ < downsample[1]; ++dJ) {
+                        for (int dI = 0; dI < downsample[0]; ++dI) {
+                            int oldI = I * downsample[0] + dI;
+                            int oldJ = J * downsample[1] + dJ;
+                            int oldK = K * downsample[2] + dK;
 
                             int oldIdx = oldK * (cellDims[0] * cellDims[1]) + oldJ * cellDims[0] + oldI;
-                            sum += vofArray->GetComponent(oldIdx, 0);
+
+                            // Fine-grid volume fraction and barycenter
+                            double alpha = vofArray->GetComponent(oldIdx, 0);
+                            double bary[3];
+                            liquid_barycenter->GetTuple(oldIdx, bary);
+
+                            // Accumulate weighted first moments
+                            sum_alpha += alpha;
+                            sum_m1x += alpha * bary[0];
+                            sum_m1y += alpha * bary[1];
+                            sum_m1z += alpha * bary[2];
+
                             ++count;
                         }
                     }
                 }
-                newVOF->SetValue(idx++, sum / count);
+
+                // Compute coarse cell barycenter (physical coordinates)
+                double cx = 0.0, cy = 0.0, cz = 0.0;
+                if (sum_alpha > 1e-16) {
+                    cx = sum_m1x / sum_alpha;
+                    cy = sum_m1y / sum_alpha;
+                    cz = sum_m1z / sum_alpha;
+                }
+
+                newVOF->SetValue(idx, sum_alpha / count);
+                newLiquidBarycenter->SetTuple3(idx, cx, cy, cz);
+
+                ++idx;
             }
         }
     }
 
+    // Add arrays to grid
     downsampledGrid->GetCellData()->AddArray(newVOF);
+    downsampledGrid->GetCellData()->AddArray(newLiquidBarycenter);
+
 
     // Convert point dims to cell dims (cells = points - 1)
     int nx = newCellDims[0];
@@ -240,14 +281,17 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
         plic_certainty->SetValue(i, 0.0);
     }
 
-    int stencil_size_reader = classifier.getStencilSize(); // now configurable, must match training
+    int stencil_size_reader = classifier.getStencilSize();
     int half = stencil_size_reader / 2;
+    int from_Moments = 1; //classifier.getFromMoments(); or something similar later
 
     int no_filled_cells = 0;
     int no_paraboloids = 0;
     int no_cylinders = 0;
     int no_spheres = 0;
     int no_sheets = 0;
+
+    std::cout << "Starting classification loop over cells..." << std::endl;
 
     // Loop through interior cells (excluding half-cell boundary)
     for (int i = half; i < nx - half; ++i) {
@@ -265,34 +309,117 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
                 no_filled_cells++;
 
-                // Allocate vector for stencil
-                std::vector<double> vfrac(stencil_size_reader * stencil_size_reader * stencil_size_reader, 0.0);
+                // Compute physical center and size of central cell
+                double x0_c = newXCoords->GetValue(i);
+                double x1_c = newXCoords->GetValue(i + 1);
+                double y0_c = newYCoords->GetValue(j);
+                double y1_c = newYCoords->GetValue(j + 1);
+                double z0_c = newZCoords->GetValue(k);
+                double z1_c = newZCoords->GetValue(k + 1);
 
-                // Fill stencil neighborhood
+                double dx_c = x1_c - x0_c;
+                double dy_c = y1_c - y0_c;
+                double dz_c = z1_c - z0_c;
+                double cx_c = 0.5 * (x0_c + x1_c);
+                double cy_c = 0.5 * (y0_c + y1_c);
+                double cz_c = 0.5 * (z0_c + z1_c);
+
+                // Allocate stencil containers
+                std::vector<std::vector<std::vector<double>>> vfrac(
+                    stencil_size_reader,
+                    std::vector<std::vector<double>>(
+                        stencil_size_reader,
+                        std::vector<double>(stencil_size_reader, 0.0)));
+
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoment(
+                    stencil_size_reader,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size_reader,
+                        std::vector<Eigen::Vector3d>(stencil_size_reader, Eigen::Vector3d::Zero())));
+
+                // Loop over neighborhood cells in stencil
                 for (int di = -half; di <= half; ++di) {
                     for (int dj = -half; dj <= half; ++dj) {
                         for (int dk = -half; dk <= half; ++dk) {
+
                             int ni = i + di;
                             int nj = j + dj;
                             int nk = k + dk;
 
                             vtkIdType cellId = ni + nj * nx + nk * nx * ny;
-                            if (cellId >= newVOF->GetNumberOfTuples()) {
-                                std::cerr << "Invalid cellId: " << cellId << std::endl;
+                            if (cellId < 0 || cellId >= newVOF->GetNumberOfTuples())
                                 continue;
-                            }
 
-                            int idx = (di + half) * stencil_size_reader * stencil_size_reader
-                                    + (dj + half) * stencil_size_reader
-                                    + (dk + half);
-                            vfrac[idx] = newVOF->GetComponent(cellId, 0);
+                            // Get local cell size and center
+                            double x0 = newXCoords->GetValue(ni);
+                            double x1 = newXCoords->GetValue(ni + 1);
+                            double y0 = newYCoords->GetValue(nj);
+                            double y1 = newYCoords->GetValue(nj + 1);
+                            double z0 = newZCoords->GetValue(nk);
+                            double z1 = newZCoords->GetValue(nk + 1);
+
+                            double dx = x1 - x0;
+                            double dy = y1 - y0;
+                            double dz = z1 - z0;
+                            double cx = 0.5 * (x0 + x1);
+                            double cy = 0.5 * (y0 + y1);
+                            double cz = 0.5 * (z0 + z1);
+
+                            // Retrieve data
+                            double alpha = newVOF->GetComponent(cellId, 0);
+                            double bary[3];
+                            newLiquidBarycenter->GetTuple(cellId, bary);
+
+                            // Step 1: normalize position of cell center relative to central cell
+                            // The cell centers form a grid in the training coordinate system
+                            double center_rel_x = (cx - cx_c) / dx_c;
+                            double center_rel_y = (cy - cy_c) / dy_c;
+                            double center_rel_z = (cz - cz_c) / dz_c;
+
+                            // Step 2: normalize barycenter relative to its own cell center
+                            double local_rel_x = (bary[0] - cx) / dx;
+                            double local_rel_y = (bary[1] - cy) / dy;
+                            double local_rel_z = (bary[2] - cz) / dz;
+
+                            // Step 3: combine both transforms
+                            // The total normalized barycenter position (in training coordinate frame)
+                            double bx_unit = center_rel_x + local_rel_x;
+                            double by_unit = center_rel_y + local_rel_y;
+                            double bz_unit = center_rel_z + local_rel_z;
+
+                            // --- Compute first moment in this normalized unit frame ---
+                            Eigen::Vector3d m1(alpha * bx_unit, alpha * by_unit, alpha * bz_unit);
+
+                            int si = di + half;
+                            int sj = dj + half;
+                            int sk = dk + half;
+
+                            vfrac[si][sj][sk] = alpha;
+                            firstMoment[si][sj][sk] = m1;
                         }
                     }
                 }
 
-                // Classify directly on vfrac
+                // Flatten stencil into 1D vector
+                std::vector<double> flattened_state;
+                for (int si = 0; si < stencil_size_reader; ++si) {
+                    for (int sj = 0; sj < stencil_size_reader; ++sj) {
+                        for (int sk = 0; sk < stencil_size_reader; ++sk) {
+                            if (from_Moments >= 0) {
+                                flattened_state.push_back(vfrac[si][sj][sk]);
+                            }
+                            if (from_Moments >= 1) {
+                                flattened_state.push_back(firstMoment[si][sj][sk].x());
+                                flattened_state.push_back(firstMoment[si][sj][sk].y());
+                                flattened_state.push_back(firstMoment[si][sj][sk].z());
+                            }
+                        }
+                    }
+                }
+
+                // Classify
                 std::vector<float> out_probs;
-                int predicted_class = classifier.classify(vfrac, &out_probs);
+                int predicted_class = classifier.classify(flattened_state, &out_probs);
                 float max_prob = *std::max_element(out_probs.begin(), out_probs.end());
                 certainty->SetValue(centerCellId, max_prob);
 

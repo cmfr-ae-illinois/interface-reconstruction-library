@@ -24,6 +24,7 @@ public:
 
     int classify(const std::vector<double>& flattened_state, std::vector<float>* out_probs = nullptr) override {
         // Compute inertia tensor
+
         Eigen::Matrix3d I = computeInertiaTensor(flattened_state,
                                                  stencil_size,
                                                  from_ith_moment);
@@ -35,6 +36,10 @@ public:
         // Sort eigenvalues descending: I1 >= I2 >= I3
         std::sort(evals.data(), evals.data() + 3, std::greater<double>());
         double I1 = evals[0], I2 = evals[1], I3 = evals[2];
+
+        if (out_probs) {
+            out_probs->resize(4, 1.0f);
+        }
 
         // Avoid divide-by-zero
         if (I1 <= 1e-14) return 0;
