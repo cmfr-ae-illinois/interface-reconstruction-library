@@ -28,18 +28,9 @@
 #include "irl/variant_reconstruction/separator_variant.h"
 
 #include "examples/implicit_surface_reconstruction/basic_mesh.h"
-#include "examples/implicit_surface_reconstruction/binary.h"
 #include "examples/implicit_surface_reconstruction/data.h"
-#include "examples/implicit_surface_reconstruction/initialization.h"
-#include "examples/implicit_surface_reconstruction/reconstruction_metrics.h"
 #include "examples/implicit_surface_reconstruction/reconstruction_types.h"
 #include "examples/implicit_surface_reconstruction/vtk.h"
-
-template <class ReturnType>
-ReturnType recenterMoments(const ReturnType& moments, const IRL::Pt& xc);
-
-void reconstructSurface(const std::string& a_reconstruction_method,
-                        const int a_nx);
 
 // \brief Convert and store the mesh cells into localizers.
 void initializeLocalizers(Data<IRL::PlanarLocalizer>* a_localizers);
@@ -64,17 +55,5 @@ void writeInterfaceToFile(
 void connectMesh(
     const BasicMesh& a_mesh,
     Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface);
-
-template <std::size_t MAX_REFINE, std::size_t VM_ORDER, std::size_t SM_ORDER>
-Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-               IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-initializeMoments(const BasicMesh& mesh);
-
-template <std::size_t MAX_REFINE, std::size_t VM_ORDER, std::size_t SM_ORDER>
-void computeReconstructionMetrics(const int& factor,
-                                  const std::string& reconstruction_method,
-                                  const BasicMesh& mesh);
-
-#include "examples/implicit_surface_reconstruction/solver.tpp"
 
 #endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_SOLVER_H_
