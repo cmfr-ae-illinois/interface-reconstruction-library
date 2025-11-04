@@ -61,3 +61,4 @@ target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/gauss_legendre_integrator
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/arc_split_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/coons_patch_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/paraboloid_curvature_sampling_test.cpp)
+target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/nudging_error_test.cpp)
