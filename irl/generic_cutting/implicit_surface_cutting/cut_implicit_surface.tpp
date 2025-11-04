@@ -214,7 +214,51 @@ ReturnType ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
     const ReturnType moment_contribution =
         getVolumeMoments<ReturnType>(mixed_leaves_[i]->cell, m_paraboloids[i]);
     kahan_add(moment_contribution);
+
+    if constexpr (std::is_same_v<ReturnType, GeneralMoments3D<2>>) {
+      if (std::abs(moment_contribution[0]) > 1.0e200) {
+        std::cout << std::scientific << std::setprecision(30);
+
+        // --- Paraboloid data ---
+        const auto& parab = m_paraboloids[i];
+        const auto& datum = parab.getDatum();
+        const auto& frame = parab.getReferenceFrame();
+        const auto& aligned = parab.getAlignedParaboloid();
+
+        std::cout << "\n==== PARABOLOID INFO ====\n";
+        std::cout << "Datum:\n";
+        std::cout << "  x = " << datum[0] << "\n";
+        std::cout << "  y = " << datum[1] << "\n";
+        std::cout << "  z = " << datum[2] << "\n";
+
+        std::cout << "Frame rows:\n";
+        for (int r = 0; r < 3; ++r) {
+          std::cout << "  Frame[" << r << "] = (" << frame[r][0] << ", "
+                    << frame[r][1] << ", " << frame[r][2] << ")\n";
+        }
+
+        std::cout << "Aligned paraboloid parameters:\n";
+        std::cout << "  a = " << aligned.a() << "\n";
+        std::cout << "  b = " << aligned.b() << "\n";
+
+        // --- Cell data ---
+        const auto& cell = mixed_leaves_[i]->cell;
+        const int nvert = cell.getNumberOfVertices();
+
+        std::cout << "\n==== CELL INFO ====\n";
+        std::cout << "Number of vertices = " << nvert << "\n";
+
+        for (int v = 0; v < nvert; ++v) {
+          const auto& pt = cell[v];
+          std::cout << "  Vertex " << v << " : (" << pt[0] << ", " << pt[1]
+                    << ", " << pt[2] << ")\n";
+        }
+
+        std::cout << "====================\n\n";
+      }
+    }
   }
+
   // below contribution
   for (std::size_t i = 0; i < below_leaves_.size(); i++) {
     const ReturnType moment_contribution =
