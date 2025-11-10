@@ -193,7 +193,7 @@ ReturnType computeType3ContributionWithSplit(
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     } else {
-      if (*a_split_counter > 10) {
+      if (*a_split_counter > 100) {
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
