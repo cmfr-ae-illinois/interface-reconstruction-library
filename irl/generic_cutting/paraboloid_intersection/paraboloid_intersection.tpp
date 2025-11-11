@@ -19,6 +19,7 @@
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_initializer.tpp"
+#include "irl/generic_cutting/paraboloid_intersection/paraboloid_intersection_amr.h"
 #include "irl/generic_cutting/paraboloid_intersection/paraboloid_moment_contributions.h"
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/generic_cutting/quadratic_intersection/quadratic_intersection.h"
@@ -193,7 +194,7 @@ ReturnType computeType3ContributionWithSplit(
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
     } else {
-      if (*a_split_counter > 10) {
+      if (*a_split_counter > 100) {
         *a_requires_nudge = true;
         return ReturnType::fromScalarConstant(ReturnScalarType(ZERO));
       }
@@ -456,6 +457,13 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
     moments = intersectPolyhedronWithAlignedParaboloid<ReturnType>(
         a_polytope, a_complete_polytope, scaled_aligned_paraboloid,
         inv_volume_scale, surf);
+    if constexpr (std::is_same_v<ReturnType, Volume> ||
+                  std::is_same_v<ReturnType, VolumeMoments>) {
+      if (moments.volume() == std::numeric_limits<double>::lowest()) {
+        moments = intersectPolyhedronWithParaboloidAMR<ReturnType>(
+            a_polytope, a_complete_polytope, scaled_aligned_paraboloid, 17);
+      }
+    }
   }
 
   // Un-normalized moments
@@ -1043,7 +1051,8 @@ formParaboloidIntersectionBases(
         myfile << *a_polytope;
         myfile.close();
       }
-      return ReturnType::fromScalarConstant(-ReturnScalarType(DBL_MAX));
+      return ReturnType::fromScalarConstant(
+          ReturnScalarType(std::numeric_limits<double>::lowest()));
     }
   }
   // Identify elliptic case
