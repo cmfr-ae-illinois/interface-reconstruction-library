@@ -46,9 +46,28 @@ TEST(NudgingErrorTest, Nudging) {
   RectangularCuboid cell = RectangularCuboid::fromBoundingPts(x0, x1);
 
   // computing moments
-  GeneralMoments3D<2> moments =
-      getVolumeMoments<GeneralMoments3D<2>>(cell, interface);
+  auto moments = getVolumeMoments<VolumeMoments>(cell, interface);
   std::cout << moments << std::endl;
+
+  // viz
+  {
+    using VolumeAndSuface =
+        AddSurfaceOutput<Volume, ParaboloidParametrizedSurfaceOutput>;
+
+    AlignedParaboloid aligned_paraboloid(
+        {2.42933958821834e-09, 0.00163583973427797});
+    Pt datum(0, 0, 0);
+    ReferenceFrame frame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+    Paraboloid paraboloid(datum, frame, aligned_paraboloid.a(),
+                          aligned_paraboloid.b());
+    RectangularCuboid viz_cell = RectangularCuboid::fromBoundingPts(
+        -Pt(0.5, 0.5, 0.5), Pt(0.5, 0.5, 0.5));
+    auto temp_surface_and_moments =
+        getVolumeMoments<VolumeAndSuface>(viz_cell, paraboloid);
+    auto temp_param_surface = temp_surface_and_moments.getSurface();
+    auto temp_tri_surface = temp_param_surface.triangulate(0.01);
+    temp_tri_surface.write("nudging-debug-surface");
+  }
 }
 
 }  // namespace
