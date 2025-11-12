@@ -12,6 +12,9 @@
 
 #include "irl/ml_classification/data_gen.h"
 
+#include "irl/ml_classification/ml_classifier_e3nn.h"
+
+
 
 
 int main (int argc, char* argv[]) {
@@ -20,7 +23,7 @@ int main (int argc, char* argv[]) {
 
     // Net Parameters
     int input_size = 4 * stencil_size * stencil_size * stencil_size; // For vof only stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
-    int hidden_size1 = 128;
+    int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
     int output_size = 4;
@@ -28,10 +31,10 @@ int main (int argc, char* argv[]) {
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int epochs = 20;
+    int epochs = 2;
 
     //Data parameters
-    int no_batches = 2048;
+    int no_batches = 256;
     int include_Moments = 1;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -44,7 +47,7 @@ int main (int argc, char* argv[]) {
     double sphere_radius_stddev = 0.0;
 
     //IRL::InertiaClassifier inertia_classifier(stencil_size, 1, 0.85, 1.5);
-    IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
+    IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
 
     
     ml.updateDataParameters(no_batches, include_Moments,
@@ -54,13 +57,14 @@ int main (int argc, char* argv[]) {
                             max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
                             max_sphere_radius, sphere_radius_stddev);                    
     
-    ml.generateDataset();
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/truncCylTests/s5_2097k/data/data.bin");
+    //ml.generateDataset();
+    ml.loadDataset("/home/quirin/mlcfd/Datasets/From1/NN/s5_131k/data/data.bin");
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/truncCylTests/s5_1048k/data/data.bin", true);
-    ml.saveDataset("data");
+    //ml.saveDataset("data");
     
 
     ml.updateTrainingParameters(learning_rate, batch_size, epochs);
+    std::cout << "Starting training..." << std::endl;
     ml.trainModel();
     ml.saveModel("model/ml_model.pt");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/s5_260k/model1/ml_model.pt");
@@ -68,61 +72,6 @@ int main (int argc, char* argv[]) {
     // vtk reader
     std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
     IRL::classify_simulation(ml, filename);
-    /*
-    IRL::Data_gen data_gen;
-    for (int i=0; i<10; i++) {
-        std::vector<double> flattened_state = data_gen.generate_State(i%4, stencil_size, false);
-        int detectedClass = ml.classify(flattened_state);
-        std::cout << "True class: " << i%4 << ", Detected class: " << detectedClass << std::endl;
-    }
-    */
-
-    /*
-    // Creata a text file to store parameters
-    std::ofstream file("Parameters.txt");
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not create Parameters.txt\n";
-        return 1;
-    }
-
-    // Write parameters
-    file << "=== Network Parameters ===\n";
-    file << "stencil_size = " << stencil_size << "\n";
-    file << "input_size = " << input_size << "\n";
-    file << "hidden_size1 = " << hidden_size1 << "\n";
-    file << "hidden_size2 = " << hidden_size2 << "\n";
-    file << "hidden_size3 = " << hidden_size3 << "\n";
-    file << "output_size = " << output_size << "\n";
-    file << "batch_size = " << batch_size << "\n\n";
-
-    file << "=== Training Parameters ===\n";
-    file << "learning_rate = " << learning_rate << "\n";
-    file << "no_batches = " << no_batches << "\n";
-    file << "epochs = " << epochs << "\n\n";
-
-    file << "=== Data Parameters ===\n";
-    file << "include_Moments = " << include_Moments << "\n";
-    file << "paraboloid_coeff_stddev = " << paraboloid_coeff_stddev << "\n";
-    file << "sheet_coeff_stddev = " << sheet_coeff_stddev << "\n";
-    file << "max_sheet_thickness = " << max_sheet_thickness << "\n";
-    file << "sheet_thickness_stddev = " << sheet_thickness_stddev << "\n";
-    file << "max_cylinder_radius = " << max_cylinder_radius << "\n";
-    file << "cylinder_radius_stddev = " << cylinder_radius_stddev << "\n";
-    file << "max_sphere_radius = " << max_sphere_radius << "\n";
-    file << "sphere_radius_stddev = " << sphere_radius_stddev << "\n";
-
-    file.close();
-    */
-    
-    /*
-    int stencil_size = 3;
-
-    IRL::InertiaClassifier inCl(stencil_size, 0, 0.85, 1.5);
-
-    // vtk reader
-    std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    IRL::classify_simulation(inCl, filename);
-    */
 
     return 0;
 }

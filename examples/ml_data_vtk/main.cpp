@@ -12,6 +12,49 @@
 #include "irl/ml_classification/inertia_classifier.h"
 #include "irl/ml_classification/vtk_in.h"
 #include "irl/ml_classification/ml_classifier.h"
+#include "irl/ml_classification/e3nn.h"
+
+// Utility: apply 90° rotation about Z axis to barycenter vectors and positions
+torch::Tensor rotate90_z(const torch::Tensor& v) {
+    // v: [B, N, 1, 3] or [N, 1, 3]
+    auto R = torch::tensor({
+        {0.0f, -1.0f, 0.0f},
+        {1.0f,  0.0f, 0.0f},
+        {0.0f,  0.0f, 1.0f}
+    }, v.options());
+    if (v.dim() == 4)
+        return torch::einsum("bnvc,cd->bnvd", {v, R});
+    else
+        return torch::einsum("nvc,cd->nvd", {v, R});
+}
+
+// Helper: print full stencil data
+void print_stencil(const torch::Tensor& vof, const torch::Tensor& bary, int stencil_size) {
+    int64_t N = int64_t(stencil_size) * stencil_size * stencil_size;
+
+    // Create local lvalue tensors before accessing
+    torch::Tensor vof_flat  = vof.squeeze(0).squeeze(-1).contiguous();   // [N]
+    torch::Tensor bary_flat = bary.squeeze(0).squeeze(1).contiguous();   // [N,3]
+
+    auto vof_acc  = vof_flat.accessor<float, 1>();
+    auto bary_acc = bary_flat.accessor<float, 2>();
+
+    std::cout << std::fixed << std::setprecision(4);
+    for (int i = 0; i < stencil_size; ++i) {
+        for (int j = 0; j < stencil_size; ++j) {
+            for (int k = 0; k < stencil_size; ++k) {
+                int n = (i * stencil_size + j) * stencil_size + k;
+                std::cout << "[" << i << ", " << j << ", " << k << "] "
+                          << vof_acc[n] << ", "
+                          << bary_acc[n][0] << ", "
+                          << bary_acc[n][1] << ", "
+                          << bary_acc[n][2] << "\n";
+            }
+        }
+    }
+}
+
+/*
 
 void evaluateMLClassifier(int stencil_size, int n_samples_per_class, IRL::MLClassifier& ml, IRL::Data_gen& data_gen) {
     const std::vector<std::string> classNames = {"Paraboloid", "Ligaments", "Spheres", "Sheets"};
@@ -44,120 +87,66 @@ void evaluateMLClassifier(int stencil_size, int n_samples_per_class, IRL::MLClas
     }
 }
 
+*/
+
 
 int main(int argc, char* argv[]) {
-    /*
-    int stencil_size = 5;
+// Test e3nn
 
-    IRL::InertiaClassifier inCl(stencil_size, 0, 0.85, 1.5);
+    torch::manual_seed(42);
 
+    // ---- Parameters ----
+    int stencil_size = 5;                // try 3, 5, or 7
+    int hidden1 = 64, hidden2 = 32, hidden3 = 32, output = 4;
+    int64_t N = int64_t(stencil_size) * stencil_size * stencil_size;
+    torch::Device device(torch::kCPU);
 
-    IRL::Data_gen data_gen;
+    // ---- Create model ----
+    IRL::e3nn model(stencil_size, hidden1, hidden2, hidden3, output, device);
+    model->eval(); // inference mode
 
-    // Map integers to class names
-    std::map<int, std::string> classNames = {
-        {0, "paraboloid"},
-        {1, "ligament"},
-        {2, "sphere"},
-        {3, "sheet"}
+    // ---- Generate random stencil ----
+    int B = 1;
+    auto vof = torch::rand({B, N, 1});              // volume fractions [0,1]
+    auto bary = torch::randn({B, N, 1, 3}) * 10.0;  // barycenters (random coords)
+
+    std::cout << "Original stencil (before rotation):\n";
+    print_stencil(vof, bary, stencil_size);
+    std::cout << "----------------------------------------\n";
+
+    // ---- Create rotated copy (90° around z) ----
+    auto bary_rot = rotate90_z(bary).clone();
+
+    std::cout << "Rotated stencil (90° about Z):\n";
+    print_stencil(vof, bary_rot, stencil_size);
+    std::cout << "----------------------------------------\n";
+
+    // ---- Flatten to model input [B, 4*N] ----
+    auto flatten_stencil = [&](const torch::Tensor& vof_, const torch::Tensor& mom_){
+        auto vflat = vof_.reshape({B, N, 1});
+        auto mflat = mom_.reshape({B, N, 3});
+        auto combo = torch::cat({vflat, mflat}, -1);   // [B,N,4]
+        return combo.reshape({B, 4*N});                // [B,4N]
     };
 
-    // 100 random examples per class without visualize
-    int numSamples = 100;
-    for (int trueClass = 0; trueClass < 4; ++trueClass) {
-        // Counters
-        std::map<int, int> counts = { {0,0}, {1,0}, {2,0}, {3,0} };
+    auto x1 = flatten_stencil(vof, bary);
+    auto x2 = flatten_stencil(vof, bary_rot);
 
-        for (int s = 0; s < numSamples; ++s) {
-            std::vector<double> flattened_state = data_gen.generate_State(trueClass, stencil_size, true, false);
-            int detectedClass = inCl.classify(flattened_state);
-            counts[detectedClass]++;
-        }
+    // ---- Forward both through model ----
+    auto y1 = model->forward(x1);
+    auto y2 = model->forward(x2);
 
-        std::cout << "True Class: " << classNames[trueClass] << ", Detected classes: "
-                  << counts[0] << " paraboloids, "
-                  << counts[1] << " ligaments, "
-                  << counts[2] << " spheres, "
-                  << counts[3] << " sheets.\n";
-    }
-    */
+    // ---- Print results ----
+    std::cout << std::setprecision(6);
+    std::cout << "Input 1 logits:\n" << y1 << "\n";
+    std::cout << "Input 2 (rotated) logits:\n" << y2 << "\n";
+    std::cout << "Absolute difference:\n" << (y1 - y2).abs() << "\n";
+    std::cout << "Mean abs diff: " << (y1 - y2).abs().mean().item<double>() << std::endl;
+
+
+
     
-    int stencil_size = 3;
 
-    // Net Parameters
-    int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
-    int hidden_size1 = 128;
-    int hidden_size2 = 64;
-    int hidden_size3 = 32;
-    int output_size = 4;
-    int batch_size = 64;
-
-    //Training parameters
-    double learning_rate = 0.001; //was 0.01 for SGD optimizer
-    int no_batches = 256;
-    int epochs = 20;
-
-    //Data parameters
-    int include_Moments = 0;
-    double paraboloid_coeff_stddev = 0.1;
-    double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 0.5;
-    double sheet_thickness_stddev = 0.0;
-    double max_cylinder_radius = 0.5;
-    double cylinder_radius_stddev = 0.0;
-    double max_sphere_radius = 0.5;
-    double sphere_radius_stddev = 0.0;
-
-    IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
-    ml.generateDataset(no_batches, batch_size, include_Moments,
-                        paraboloid_coeff_stddev,
-                        sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                        max_cylinder_radius, cylinder_radius_stddev, 
-                        max_sphere_radius, sphere_radius_stddev);
-    ml.trainModel(epochs, learning_rate, batch_size);
-
-    // vtk reader
-    //std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    //IRL::classify_simulation(ml, filename);
-
-    IRL::Data_gen data_gen;
-    int samples_per_class = 100;
-    evaluateMLClassifier(stencil_size, samples_per_class, ml, data_gen);
-
-    // Creata a text file to store parameters
-    std::ofstream file("Parameters.txt");
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not create Parameters.txt\n";
-        return 1;
-    }
-
-    // Write parameters
-    file << "=== Network Parameters ===\n";
-    file << "stencil_size = " << stencil_size << "\n";
-    file << "input_size = " << input_size << "\n";
-    file << "hidden_size1 = " << hidden_size1 << "\n";
-    file << "hidden_size2 = " << hidden_size2 << "\n";
-    file << "hidden_size3 = " << hidden_size3 << "\n";
-    file << "output_size = " << output_size << "\n";
-    file << "batch_size = " << batch_size << "\n\n";
-
-    file << "=== Training Parameters ===\n";
-    file << "learning_rate = " << learning_rate << "\n";
-    file << "no_batches = " << no_batches << "\n";
-    file << "epochs = " << epochs << "\n\n";
-
-    file << "=== Data Parameters ===\n";
-    file << "include_Moments = " << include_Moments << "\n";
-    file << "paraboloid_coeff_stddev = " << paraboloid_coeff_stddev << "\n";
-    file << "sheet_coeff_stddev = " << sheet_coeff_stddev << "\n";
-    file << "max_sheet_thickness = " << max_sheet_thickness << "\n";
-    file << "sheet_thickness_stddev = " << sheet_thickness_stddev << "\n";
-    file << "max_cylinder_radius = " << max_cylinder_radius << "\n";
-    file << "cylinder_radius_stddev = " << cylinder_radius_stddev << "\n";
-    file << "max_sphere_radius = " << max_sphere_radius << "\n";
-    file << "sphere_radius_stddev = " << sphere_radius_stddev << "\n";
-
-    file.close();
-
+    return 0;
     
 }

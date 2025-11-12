@@ -22,7 +22,7 @@ public:
           val_loader_(val_loader),
           epochs_(epochs) {}
 
-    void train() {
+    double train() {
         std::vector<double> lossVector;
         for (int epoch = 1; epoch <= epochs_; ++epoch) {
             net_.train();
@@ -34,6 +34,7 @@ public:
                 optimizer_.zero_grad();
 
                 torch::Tensor prediction = net_.forward(batch.data);
+
                 torch::Tensor loss = torch::nn::functional::cross_entropy(prediction, batch.target);
                 loss.backward();
                 optimizer_.step();
@@ -56,6 +57,7 @@ public:
 
         double val_accuracy = evaluate(*val_loader_);
         std::cout << "Final Validation Accuracy: " << val_accuracy << std::endl;
+        return val_accuracy;
     }
 
 private:
