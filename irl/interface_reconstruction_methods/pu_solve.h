@@ -39,10 +39,15 @@ class PUImplicitSurface {
   // Get Value, Grad, Hessian
   void evaluate(Pt& x,
                 std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
-
+  // Get Value
+  void getTotalWeight(Pt& x, double* retVal);
   // Find intersection between the implicit curve and a provided line.
   std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
-                                const int& Npartitions);
+                                const int& Npartitions, const double& tresh);
+
+  std::vector<Pt> intersectEdgeCylinder(const Pt& x0, const Pt& x1,
+                                        double radius, Pt& center,
+                                        const int& Npartitions);
   // Signed Distance of Separator
   static void implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
                                 const SeparatorVariant* a_sepPtr,
@@ -56,10 +61,22 @@ class PUImplicitSurface {
       const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
 
+  void evaluateCylinder(
+      Pt& x, double radius, Pt& center,
+      std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
+
+  void evaluateCylinder(Pt& x, double radius, Pt& center,
+                        std::pair<double, Eigen::Vector3d>* retVal);
+
+  void evaluateCylinder(Pt& x, double radius, Pt& center, double* retVal);
+
   //
   // Find the Tangent and Curvature at the point
   Normal getTangent(Pt& x);
+  Normal getTangentCylinder(Pt& x, double radius, Pt& center);
   double getCurvature(Pt& x);
+  // Print the Implicit Surface Properties
+  void printSurface();
 };
 
 template <class CellType>
@@ -67,6 +84,7 @@ class PUST {
  private:
   PUSTNeighborhood<CellType> stencil_m;
   // PUImplicitSurface surface_m;
+  double intersection_threshold_m;
 
  public:
   // Constructor
@@ -75,11 +93,31 @@ class PUST {
   PUST(void);
   // Neighborhood Setter
   void setNeighborhood(PUSTNeighborhood<CellType> stencil_);
+  // Threshold Setter
+  void setThreshold(double tresh);
   // Takes Neighborhood and Returns the Implicit Surface
   PUImplicitSurface neighborhoodToImplicitSurface(double delta);
   // Edge Solve Method - Returns the surface tension force vector
   // for edge
-  Normal solveEdge(double STCoeff, Pt& P0, Pt& P1);
+  Normal solveEdge(double STCoeff, Pt& P0, Pt& P1, double delta,
+                   double Pressure, Normal& Marangoni);
+
+  Normal solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1, double radius,
+                           Pt& center, double delta);
+  // Get value function for neighborhood
+  double getValue(double x, double y, double z, double delta);
+  double getValueCylinder(double x, double y, double z, double radius,
+                          Pt center);
+  // Get Tangent for Neighborhood
+  Normal getTangent(double x, double y, double z, double delta);
+  Normal getTangentCylinder(double x, double y, double z, double radius,
+                            Pt center);
+  // Get Total weight
+  double getWeight(double x, double y, double z, double delta);
+  double getWeightCylinder(double x, double y, double z, double radius,
+                           Pt center);
+  // Print
+  void printSolver();
 };
 
 }  // End Namespace IRL

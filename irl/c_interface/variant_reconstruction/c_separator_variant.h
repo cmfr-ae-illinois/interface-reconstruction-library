@@ -40,6 +40,14 @@ void c_SeparatorVariant_setPlane(c_SeparatorVariant* a_self,
                                  const double* a_normal,
                                  const double* a_distance);
 
+void c_SeparatorVariant_getParaboloid(c_SeparatorVariant* a_self,
+                                      double* a_paraboloid_listed);
+
+void c_SeparatorVariant_setParaboloid(
+    c_SeparatorVariant* a_self, const double* a_datum, const double* a_normal1,
+    const double* a_normal2, const double* a_normal3, const double* a_coeff_a,
+    const double* a_coeff_b);
+
 void c_SeparatorVariant_copy(
     c_SeparatorVariant* a_self,
     const c_SeparatorVariant* a_other_planar_separator);

@@ -19,6 +19,7 @@ module f_SeparatorVariant_class
   use, intrinsic :: iso_c_binding
   use f_DefinedTypes
   use f_ObjServer_SeparatorVariant_class
+  use f_Paraboloid_class
   implicit none
 
   type, public, bind(C) :: c_SeparatorVariant
@@ -42,6 +43,9 @@ module f_SeparatorVariant_class
   interface setPlane
     module procedure SeparatorVariant_class_setPlane
   end interface
+  interface setParaboloid
+    module procedure SeparatorVariant_class_setParaboloid
+  end interface
   interface copy
     module procedure SeparatorVariant_class_copy
   end interface
@@ -50,6 +54,9 @@ module f_SeparatorVariant_class
   end interface
   interface getPlane
     module procedure SeparatorVariant_class_getPlane
+  end interface
+  interface getParaboloid
+    module procedure SeparatorVariant_class_getParaboloid,SeparatorVariant_class_getParaboloidObject
   end interface
   interface isFlipped
     module procedure SeparatorVariant_class_isFlipped
@@ -103,6 +110,19 @@ module f_SeparatorVariant_class
       real(C_DOUBLE), intent(in) :: a_distance ! scalar
     end subroutine F_SeparatorVariant_setPlane
 
+    subroutine F_SeparatorVariant_setParaboloid(this,a_datum,a_normal1,a_normal2,a_normal3,a_coeff_a,a_coeff_b) &
+      bind(C, name="c_SeparatorVariant_setParaboloid")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      real(C_DOUBLE), dimension(*), intent(in) :: a_datum !  dimension(1:3)
+      real(C_DOUBLE), dimension(*), intent(in) :: a_normal1 !  dimension(1:3)
+      real(C_DOUBLE), dimension(*), intent(in) :: a_normal2 !  dimension(1:3)
+      real(C_DOUBLE), dimension(*), intent(in) :: a_normal3 !  dimension(1:3)
+      real(C_DOUBLE), intent(in) :: a_coeff_a ! scalar
+      real(C_DOUBLE), intent(in) :: a_coeff_b ! scalar
+    end subroutine F_SeparatorVariant_setParaboloid
+
     subroutine F_SeparatorVariant_copy(this, a_other_SeparatorVariant) &
       bind(C, name="c_SeparatorVariant_copy")
       import
@@ -127,6 +147,22 @@ module f_SeparatorVariant_class
       integer(C_INT) :: a_index
       real(C_DOUBLE), dimension(*), intent(out) :: a_plane_listed
     end subroutine F_SeparatorVariant_getPlane
+
+    subroutine F_SeparatorVariant_getParaboloid(this, a_paraboloid_listed) &
+      bind(C, name="c_SeparatorVariant_getParaboloid")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      real(C_DOUBLE), dimension(*), intent(out) :: a_paraboloid_listed
+    end subroutine F_SeparatorVariant_getParaboloid
+
+    subroutine F_SeparatorVariant_getParaboloidObject(this, a_paraboloid) &
+      bind(C, name="c_SeparatorVariant_getParaboloidObject")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      type(c_Paraboloid) :: a_paraboloid
+    end subroutine F_SeparatorVariant_getParaboloidObject
 
     function F_SeparatorVariant_isFlipped(this) result(a_flipped) &
       bind(C, name="c_SeparatorVariant_isFlipped")
@@ -190,6 +226,18 @@ module f_SeparatorVariant_class
       call F_SeparatorVariant_setPlane(this%c_object, a_plane_index_to_set, a_normal, a_distance)
     end subroutine SeparatorVariant_class_setPlane
 
+    subroutine SeparatorVariant_class_setParaboloid(this,a_datum,a_normal1,a_normal2,a_normal3,a_coeff_a,a_coeff_b)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      real(IRL_double), dimension(1:3), intent(in) :: a_datum
+      real(IRL_double), dimension(1:3), intent(in) :: a_normal1
+      real(IRL_double), dimension(1:3), intent(in) :: a_normal2
+      real(IRL_double), dimension(1:3), intent(in) :: a_normal3
+      real(IRL_double), intent(in) :: a_coeff_a
+      real(IRL_double), intent(in) :: a_coeff_b
+      call F_SeparatorVariant_setParaboloid(this%c_object,a_datum,a_normal1,a_normal2,a_normal3,a_coeff_a,a_coeff_b)
+    end subroutine SeparatorVariant_class_setParaboloid
+
     subroutine SeparatorVariant_class_copy(this, a_other_SeparatorVariant)
       implicit none
       type(SeparatorVariant_type), intent(inout) :: this
@@ -211,6 +259,20 @@ module f_SeparatorVariant_class
       real(IRL_double), dimension(4) :: a_plane_listed
       call F_SeparatorVariant_getPlane(this%c_object, a_index, a_plane_listed)
     end function SeparatorVariant_class_getPlane
+
+    subroutine SeparatorVariant_class_getParaboloid(this,a_paraboloid_listed)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      real(IRL_double), dimension(14) :: a_paraboloid_listed
+      call F_SeparatorVariant_getParaboloid(this%c_object, a_paraboloid_listed)
+    end subroutine SeparatorVariant_class_getParaboloid
+
+    subroutine SeparatorVariant_class_getParaboloidObject(this,a_paraboloid)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      type(Paraboloid_type):: a_paraboloid
+      call F_SeparatorVariant_getParaboloidObject(this%c_object, a_paraboloid%c_object)
+    end subroutine SeparatorVariant_class_getParaboloidObject
 
     function SeparatorVariant_class_isFlipped(this) result(a_flipped)
       implicit none

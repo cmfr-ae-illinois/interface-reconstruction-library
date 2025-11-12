@@ -8,8 +8,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
-
 #include <iostream>
+#include "irl/c_interface/paraboloid_reconstruction/c_paraboloid.h"
 
 #include "irl/interface_reconstruction_methods/volume_fraction_matching.h"
 #include "irl/parameters/constants.h"
@@ -108,6 +108,67 @@ void c_SeparatorVariant_getPlane(c_SeparatorVariant* a_self, const int* a_index,
         (*separator)[static_cast<IRL::UnsignedIndex_t>(*a_index)].normal()[2];
     a_plane_listed[3] =
         (*separator)[static_cast<IRL::UnsignedIndex_t>(*a_index)].distance();
+  }
+}
+
+void c_SeparatorVariant_getParaboloid(c_SeparatorVariant* a_self,
+                                      double* a_paraboloid_listed) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(*a_index >= 0);
+  assert(static_cast<IRL::UnsignedIndex_t>(*a_index) <
+         a_self->obj_ptr->getNumberOfPlanes());
+  if (IRL::Paraboloid* separator =
+          std::get_if<IRL::Paraboloid>(a_self->obj_ptr)) {
+    // Datum
+    a_paraboloid_listed[0] = (*separator).getDatum()[0];
+    a_paraboloid_listed[1] = (*separator).getDatum()[1];
+    a_paraboloid_listed[2] = (*separator).getDatum()[2];
+    // std::cout << "Datum Z\n" << (*separator).getDatum()[2] << "\n";
+    // Reference Frame
+    a_paraboloid_listed[3] = (*separator).getReferenceFrame()[0][0];
+    a_paraboloid_listed[4] = (*separator).getReferenceFrame()[0][1];
+    a_paraboloid_listed[5] = (*separator).getReferenceFrame()[0][2];
+    a_paraboloid_listed[6] = (*separator).getReferenceFrame()[1][0];
+    a_paraboloid_listed[7] = (*separator).getReferenceFrame()[1][1];
+    a_paraboloid_listed[8] = (*separator).getReferenceFrame()[1][2];
+    a_paraboloid_listed[9] = (*separator).getReferenceFrame()[2][0];
+    a_paraboloid_listed[10] = (*separator).getReferenceFrame()[2][1];
+    a_paraboloid_listed[11] = (*separator).getReferenceFrame()[2][2];
+    // Aligned Paraboloid
+    a_paraboloid_listed[12] = (*separator).getAlignedParaboloid().a();
+    a_paraboloid_listed[13] = (*separator).getAlignedParaboloid().b();
+  }
+}
+
+void c_SeparatorVariant_getParaboloidObject(c_SeparatorVariant* a_self,
+                                            c_Paraboloid* a_para) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  if (IRL::Paraboloid* separator =
+          std::get_if<IRL::Paraboloid>(a_self->obj_ptr)) {
+    a_para->obj_ptr = separator;
+  }
+}
+
+void c_SeparatorVariant_setParaboloid(
+    c_SeparatorVariant* a_self, const double* a_datum, const double* a_normal1,
+    const double* a_normal2, const double* a_normal3, const double* a_coeff_a,
+    const double* a_coeff_b) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(*a_plane_index_to_set >= 0);
+  a_self->obj_ptr->setToParaboloid();
+  IRL::Pt datum = IRL::Pt::fromRawDoublePointer(a_datum);
+
+  IRL::Normal n1 = IRL::Normal::fromRawDoublePointer(a_normal1);
+  IRL::Normal n2 = IRL::Normal::fromRawDoublePointer(a_normal2);
+  IRL::Normal n3 = IRL::Normal::fromRawDoublePointer(a_normal3);
+  IRL::ReferenceFrame RF = IRL::ReferenceFrame(n1, n2, n3);
+
+  if (IRL::Paraboloid* separator =
+          std::get_if<IRL::Paraboloid>(a_self->obj_ptr)) {
+    (*separator) = IRL::Paraboloid(datum, RF, *a_coeff_a, *a_coeff_b);
   }
 }
 
