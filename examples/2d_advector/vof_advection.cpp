@@ -992,7 +992,7 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
 
 #ifdef USE_MPI
   int nmixed_global = 0;
-  int n_simplices = 8;
+  int n_simplices = 1;
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
@@ -1022,6 +1022,8 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
 
   // Compute fluxes
   Data<IRL2D::BezierList> pre_images(&mesh);
+  Data<IRL2D::Moments> liq_mom_final(&mesh);
+  Data<IRL2D::Moments> gas_mom_final(&mesh);
   Data<std::vector<IRL2D::Moments>> tri_liq_mom_update(&mesh);
   Data<std::vector<IRL2D::Moments>> tri_gas_mom_update(&mesh);
   Data<std::vector<IRL2D::Mat>> mapping_A(&mesh);
@@ -1036,6 +1038,8 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
       // initializing
       tri_liq_mom_update(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
       tri_gas_mom_update(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
+      liq_mom_final(i,j) = IRL2D::Moments();
+      gas_mom_final(i,j) = IRL2D::Moments();
       mapping_A(i,j) = std::vector<IRL2D::Mat>(num_triangles, IRL2D::Mat());
       mapping_b(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
       mapped_m1_triangle(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
@@ -1064,57 +1068,43 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
           std::vector<IRL2D::BezierList> triangulated_cell = IRL2D::TriangulateCell(cell, false);
           std::vector<IRL2D::BezierList> triangulated_preimage = IRL2D::TriangulateCell(preimage, true);
 
-          // mapping from preimage to cell
           for (int t = 0; t < num_triangles; ++t){
+            // mapping from preimage to cell
             std::pair<IRL2D::Mat, IRL2D::Vec> mapping_MatVec 
             = IRL2D::MappingMatVec(triangulated_preimage[t], triangulated_cell[t]);
-            mapping_A(i,j)[t] = mapping_MatVec.first;
-            mapping_b(i,j)[t] = mapping_MatVec.second;
-          }
-
-          for (int ii = i - nlayers; ii <= i + nlayers; ii++) {
-            for (int jj = j - nlayers; jj <= j + nlayers; jj++) {
-              const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
-              const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));              
-              // moments for each triangle
-              for (int t = 0; t < num_triangles; ++t){
-                tri_liq_mom_update(i,j)[t] += IRL2D::ComputeMoments(
-                  triangulated_preimage[t], xn0, xn1, (*a_interface)(ii, jj));
+            mapping_A(i,j)[t] = mapping_MatVec.first; mapping_b(i,j)[t] = mapping_MatVec.second;
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii){
+              for (int jj = j - nlayers; jj <= j + nlayers; ++jj){
+                const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
+                const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
+                tri_liq_mom_update(i,j)[t] += IRL2D::ComputeMoments(triangulated_preimage[t], 
+                                              xn0, xn1, (*a_interface)(ii, jj));
               }
             }
+            tri_gas_mom_update(i,j)[t] = IRL2D::ComputeMoments(triangulated_preimage[t])
+                                         - (tri_liq_mom_update)(i, j)[t];
+            liq_mom_final(i,j) += IRL2D::ComputeMappedTriangleMoments(tri_liq_mom_update(i,j)[t],
+                                  mapping_A(i,j)[t], mapping_b(i,j)[t]);
+            gas_mom_final(i,j) += IRL2D::ComputeMappedTriangleMoments(tri_gas_mom_update(i,j)[t],
+                                  mapping_A(i,j)[t], mapping_b(i,j)[t]);
           }
 
-#ifndef USE_MPI
-          // Update gas fluxes
-          for (int t = 0; t < num_triangles; ++t){
-           (tri_gas_mom_update)(i, j)[t] +=
-               IRL2D::ComputeMoments(triangulated_preimage[t]) - (tri_liq_mom_update)(i, j)[t];
-          }
-#else
-          for (int t = 0; t < num_triangles; ++t){
-            const auto fm = IRL2D::ComputeMoments(triangulated_preimage[t]);
-            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m0();
-            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m1()[0];
-            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m1()[1];
-            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m2()[0][0];
-            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m2()[1][0];
-            mom_update_local[count_local++] = tri_liq_mom_update(i, j)[t].m2()[1][1];
-            mom_update_local[count_local++] = fm.m0() - tri_liq_mom_update(i, j)[t].m0();
-            mom_update_local[count_local++] =
-                fm.m1()[0] - tri_liq_mom_update(i, j)[t].m1()[0];
-            mom_update_local[count_local++] =
-                fm.m1()[1] - tri_liq_mom_update(i, j)[t].m1()[1];
-            mom_update_local[count_local++] =
-                fm.m2()[0][0] - tri_liq_mom_update(i, j)[t].m2()[0][0];
-            mom_update_local[count_local++] =
-                fm.m2()[1][0] - tri_liq_mom_update(i, j)[t].m2()[1][0];
-            mom_update_local[count_local++] =
-                fm.m2()[1][1] - tri_liq_mom_update(i, j)[t].m2()[1][1];            
-  #endif
-  #ifdef USE_MPI
-          }
+#ifdef USE_MPI
+          const auto fm = IRL2D::ComputeMoments(preimage);
+          mom_update_local[count_local++] = liq_mom_final(i,j).m0();
+          mom_update_local[count_local++] = liq_mom_final(i,j).m1()[0];
+          mom_update_local[count_local++] = liq_mom_final(i,j).m1()[1];
+          mom_update_local[count_local++] = liq_mom_final(i,j).m2()[0][0];
+          mom_update_local[count_local++] = liq_mom_final(i,j).m2()[1][0];
+          mom_update_local[count_local++] = liq_mom_final(i,j).m2()[1][1];
+          mom_update_local[count_local++] = gas_mom_final(i,j).m0();
+          mom_update_local[count_local++] = gas_mom_final(i,j).m1()[0];
+          mom_update_local[count_local++] = gas_mom_final(i,j).m1()[1];
+          mom_update_local[count_local++] = gas_mom_final(i,j).m2()[0][0];
+          mom_update_local[count_local++] = gas_mom_final(i,j).m2()[1][0];
+          mom_update_local[count_local++] = gas_mom_final(i,j).m2()[1][1];
         }
-        count+=8;
+        count++;
 #endif
       }
     }
@@ -1134,22 +1124,20 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
   for (int i = mesh.imin(); i <= mesh.imax() + 1; ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
-        for (int t = 0; t < num_triangles; ++t){
-          (tri_liq_mom_update)(i, j)[t].m0() = mom_update_global[count_local++];
-          (tri_liq_mom_update)(i, j)[t].m1()[0] = mom_update_global[count_local++];
-          (tri_liq_mom_update)(i, j)[t].m1()[1] = mom_update_global[count_local++];
-          (tri_liq_mom_update)(i, j)[t].m2()[0][0] = mom_update_global[count_local++];
-          (tri_liq_mom_update)(i, j)[t].m2()[1][0] = mom_update_global[count_local++];
-          (tri_liq_mom_update)(i, j)[t].m2()[1][1] = mom_update_global[count_local++];
-          (tri_liq_mom_update)(i, j)[t].m2()[0][1] = (tri_liq_mom_update)(i, j)[t].m2()[1][0];
-          (tri_gas_mom_update)(i, j)[t].m0() = mom_update_global[count_local++];
-          (tri_gas_mom_update)(i, j)[t].m1()[0] = mom_update_global[count_local++];
-          (tri_gas_mom_update)(i, j)[t].m1()[1] = mom_update_global[count_local++];
-          (tri_gas_mom_update)(i, j)[t].m2()[0][0] = mom_update_global[count_local++];
-          (tri_gas_mom_update)(i, j)[t].m2()[1][0] = mom_update_global[count_local++];
-          (tri_gas_mom_update)(i, j)[t].m2()[1][1] = mom_update_global[count_local++];
-          (tri_gas_mom_update)(i, j)[t].m2()[0][1] = (tri_gas_mom_update)(i, j)[t].m2()[1][0];
-        }
+        (liq_mom_final)(i, j).m0() = mom_update_global[count_local++];
+        (liq_mom_final)(i, j).m1()[0] = mom_update_global[count_local++];
+        (liq_mom_final)(i, j).m1()[1] = mom_update_global[count_local++];
+        (liq_mom_final)(i, j).m2()[0][0] = mom_update_global[count_local++];
+        (liq_mom_final)(i, j).m2()[1][0] = mom_update_global[count_local++];
+        (liq_mom_final)(i, j).m2()[1][1] = mom_update_global[count_local++];
+        (liq_mom_final)(i, j).m2()[0][1] = (liq_mom_final)(i, j).m2()[1][0];
+        (gas_mom_final)(i, j).m0() = mom_update_global[count_local++];
+        (gas_mom_final)(i, j).m1()[0] = mom_update_global[count_local++];
+        (gas_mom_final)(i, j).m1()[1] = mom_update_global[count_local++];
+        (gas_mom_final)(i, j).m2()[0][0] = mom_update_global[count_local++];
+        (gas_mom_final)(i, j).m2()[1][0] = mom_update_global[count_local++];
+        (gas_mom_final)(i, j).m2()[1][1] = mom_update_global[count_local++];
+        (gas_mom_final)(i, j).m2()[0][1] = (gas_mom_final)(i, j).m2()[1][0];
       }
     }
   }
@@ -1157,40 +1145,15 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
   MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
-  tri_liq_mom_update.updateBorder();
-  tri_gas_mom_update.updateBorder();
-  mapping_A.updateBorder();
-  mapping_b.updateBorder();
-  mapped_m1_triangle.updateBorder();
+  liq_mom_final.updateBorder();
+  gas_mom_final.updateBorder();
 
-  // Transporting moments
-  // Now calculate VOF from the face fluxes.
+  // Updating moments in the narrow band
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       if (band(i, j) > 0) {
-        const auto x0 = IRL2D::Vec(mesh.x(i), mesh.y(j));
-        const auto x1 = IRL2D::Vec(mesh.x(i + 1), mesh.y(j + 1));
-        const auto cell_moment = IRL2D::ComputeMoments(IRL2D::RectangleFromBounds(x0, x1));
-
-        double M0_final = 0;
-        IRL2D::Vec M1_final = IRL2D::Vec();
-        IRL2D::Mat M2_final = IRL2D::Mat();
-
-        for (int t = 0; t < num_triangles; ++t){
-          M0_final += tri_liq_mom_update(i,j)[t].m0();
-          M1_final += IRL2D::MappingPoint(mapping_A(i,j)[t], 
-                                          mapping_b(i,j)[t]*tri_liq_mom_update(i,j)[t].m0(),
-                                          tri_liq_mom_update(i,j)[t].m1());
-          M2_final += IRL2D::MappingM2(mapping_A(i,j)[t], mapping_b(i,j)[t], 
-                                       tri_liq_mom_update(i,j)[t]);
-        }
-
-        (*a_liquid_moments)(i,j).m0() = M0_final;
-        (*a_liquid_moments)(i,j).m1() = M1_final;
-        (*a_liquid_moments)(i,j).m2() = M2_final;
-        (*a_gas_moments)(i,j).m0() = cell_moment.m0() - (*a_liquid_moments)(i,j).m0();
-        (*a_gas_moments)(i,j).m1() = cell_moment.m1() - (*a_liquid_moments)(i,j).m1();
-        (*a_gas_moments)(i,j).m2() = cell_moment.m2() - (*a_liquid_moments)(i,j).m2();
+        (*a_liquid_moments)(i,j) = liq_mom_final(i,j);
+        (*a_gas_moments)(i,j) = gas_mom_final(i,j);
       }
     }
   }
