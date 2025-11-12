@@ -47,7 +47,7 @@ TEST(NudgingErrorTest, Nudging) {
 
   // computing moments
   auto moments = getVolumeMoments<VolumeMoments>(cell, interface);
-  std::cout << moments << std::endl;
+  std::cout << "Moments = " << moments << std::endl;
 
   // viz
   {

@@ -1034,22 +1034,29 @@ formParaboloidIntersectionBases(
     // We only check this in QP for performance purposes
     // (i.e. when a_nudge_iter > 0)
     if (a_nudge_iter >= 100) {
-      if constexpr (std::is_same_v<ScalarType, Quad_t>) {
-        std::cout << "ERROR: Nudged more than 100 times. Moments returned "
-                     "are wrong -> Context: a = "
-                  << static_cast<double>(a_aligned_paraboloid.a())
-                  << ", b = " << static_cast<double>(a_aligned_paraboloid.b())
+      if constexpr (std::is_same_v<ReturnType, Volume> ||
+                    std::is_same_v<ReturnType, VolumeMoments>) {
+        std::cout << "WARNING: Nudged more than 100 times. Switching over to "
+                     "AMR estimation"
                   << std::endl;
       } else {
-        std::cout << "ERROR: Nudged more than 100 times. Moments returned "
-                     "are wrong -> Context: a = "
-                  << a_aligned_paraboloid.a()
-                  << ", b = " << a_aligned_paraboloid.b() << std::endl;
-      }
-      std::ofstream myfile("failed_nudge_comparison_cell.vtu");
-      if (myfile.is_open()) {
-        myfile << *a_polytope;
-        myfile.close();
+        if constexpr (std::is_same_v<ScalarType, Quad_t>) {
+          std::cout << "ERROR: Nudged more than 100 times. Moments returned "
+                       "are wrong -> Context: a = "
+                    << static_cast<double>(a_aligned_paraboloid.a())
+                    << ", b = " << static_cast<double>(a_aligned_paraboloid.b())
+                    << std::endl;
+        } else {
+          std::cout << "ERROR: Nudged more than 100 times. Moments returned "
+                       "are wrong -> Context: a = "
+                    << a_aligned_paraboloid.a()
+                    << ", b = " << a_aligned_paraboloid.b() << std::endl;
+        }
+        std::ofstream myfile("failed_nudge_comparison_cell.vtu");
+        if (myfile.is_open()) {
+          myfile << *a_polytope;
+          myfile.close();
+        }
       }
       return ReturnType::fromScalarConstant(
           ReturnScalarType(std::numeric_limits<double>::lowest()));
