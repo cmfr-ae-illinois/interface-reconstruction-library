@@ -30,36 +30,44 @@ class PUImplicitSurface {
  public:
   // Constructor
   PUImplicitSurface(const std::vector<Pt>& centroids_,
-                    const std::vector<SeparatorVariant>& separators,
-                    const double& kernel_size_);
+                    const std::vector<SeparatorVariant>& separators_,
+                    const double& kernel_size_)
+      : centroids(centroids_),
+        separators(separators_),
+        kernel_size(kernel_size_) {}
+
   // Get Value
-  void evaluate(Pt& x, double* retVal);
+  inline void evaluate(const Pt& x, double* retVal);
   // Get Value, Grad
-  void evaluate(Pt& x, std::pair<double, Eigen::Vector3d>* retVal);
+  inline void evaluate(const Pt& x, std::pair<double, Eigen::Vector3d>* retVal);
   // Get Value, Grad, Hessian
-  void evaluate(Pt& x,
-                std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
+  inline void evaluate(
+      const Pt& x,
+      std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
 
   // Find intersection between the implicit curve and a provided line.
-  std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
-                                const int& Npartitions);
+  inline std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
+                                       const int& Npartitions);
   // Signed Distance of Separator
-  static void implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                const SeparatorVariant* a_sepPtr,
-                                double* retVal);
+  static inline void implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
+                                       const SeparatorVariant* a_sepPtr,
+                                       double* retVal);
   // Signed Distance and Gradient of Separator
-  static void implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                const SeparatorVariant* a_sepPtr,
-                                std::pair<double, Eigen::Vector3d>* retVal);
+  static inline void implicitSeparator(
+      const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
+      std::pair<double, Eigen::Vector3d>* retVal);
   // Signed Distance, Gradient, and Hessian of Separator
-  static void implicitSeparator(
+  static inline void implicitSeparator(
       const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
 
   //
   // Find the Tangent and Curvature at the point
-  Normal getTangent(Pt& x);
-  double getCurvature(Pt& x);
+  inline Normal getTangent(Pt& x);
+  inline double getCurvature(Pt& x);
+
+  // Project point onto implicit surface
+  inline const Pt projectOntoPU(const Pt& a_pt);
 };
 
 template <class CellType>
@@ -80,6 +88,9 @@ class PUST {
   // Edge Solve Method - Returns the surface tension force vector
   // for edge
   Normal solveEdge(double STCoeff, Pt& P0, Pt& P1);
+  /// \brief Solve the system for the reconstruction
+  Paraboloid solve(const PUSTNeighborhood<CellType>* a_neighborhood_pointer,
+                   const Pt& a_centroid, const double a_delta = -1.0);
 };
 
 }  // End Namespace IRL

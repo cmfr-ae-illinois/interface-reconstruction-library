@@ -25,6 +25,9 @@ module f_PUSTNeigh_RectCub_class
     interface setSize
         module procedure PUSTNeigh_RectCub_class_setSize
     end interface
+    interface reserve
+        module procedure PUSTNeigh_RectCub_class_reserve
+    end interface
     interface setMember
         module procedure PUSTNeigh_RectCub_class_setMember
     end interface
@@ -58,6 +61,14 @@ module f_PUSTNeigh_RectCub_class
         type(c_PUSTNeigh_RectCub) :: this
         integer(C_INT) :: a_size
     end subroutine F_PUSTNeigh_RectCub_setSize
+
+    subroutine F_PUSTNeigh_RectCub_reserve(this,a_size) &
+        bind(C, name="c_PUSTNeigh_RectCub_reserve")
+        import
+        implicit none
+        type(c_PUSTNeigh_RectCub) :: this
+        integer(C_INT) :: a_size
+    end subroutine F_PUSTNeigh_RectCub_reserve
 
     subroutine F_PUSTNeigh_RectCub_setMember(this,a_index, a_centroid, &
             a_separator) &
@@ -110,6 +121,13 @@ module f_PUSTNeigh_RectCub_class
         integer(IRL_UnsignedIndex_t), intent(in) :: a_size
         call F_PUSTNeigh_RectCub_setSize(this%c_object,a_size)
     end subroutine PUSTNeigh_RectCub_class_setSize
+
+    subroutine PUSTNeigh_RectCub_class_reserve(this, a_size)
+        implicit none
+        type(PUSTNeigh_RectCub_type), intent(in) :: this
+        integer(IRL_UnsignedIndex_t), intent(in) :: a_size
+        call F_PUSTNeigh_RectCub_reserve(this%c_object,a_size)
+    end subroutine PUSTNeigh_RectCub_class_reserve
 
     subroutine PUSTNeigh_RectCub_class_setMember(this,a_index, a_centroid, &
             a_separator)

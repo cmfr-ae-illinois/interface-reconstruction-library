@@ -20,19 +20,19 @@ namespace IRL {
 
 // =================== Implicit Surface Class Functions
 // template <class SeparatorType>
-PUImplicitSurface::PUImplicitSurface(
-    const std::vector<Pt>& centroids_,
-    const std::vector<SeparatorVariant>& separators_,
-    const double& kernel_size_)
-    : centroids(centroids_),
-      separators(separators_),
-      kernel_size(kernel_size_) {}
+// PUImplicitSurface::PUImplicitSurface(
+//     const std::vector<Pt>& centroids_,
+//     const std::vector<SeparatorVariant>& separators_,
+//     const double& kernel_size_)
+//     : centroids(centroids_),
+//       separators(separators_),
+//       kernel_size(kernel_size_) {}
 
 // Separator Stuff
 // Signed Distance of Separator
-void PUImplicitSurface::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                          const SeparatorVariant* a_sepPtr,
-                                          double* retVal) {
+inline void PUImplicitSurface::implicitSeparator(
+    const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
+    double* retVal) {
   const Pt x = a_pt - a_centroid;
   double F;
   if (const auto sepPtr = std::get_if<PlanarSeparator>(a_sepPtr)) {
@@ -71,7 +71,7 @@ void PUImplicitSurface::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
   *retVal = F;
 }
 // Signed Distance and Gradient of Separator
-void PUImplicitSurface::implicitSeparator(
+inline void PUImplicitSurface::implicitSeparator(
     const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
     std::pair<double, Eigen::Vector3d>* retVal) {
   const Pt x = a_pt - a_centroid;
@@ -123,7 +123,7 @@ void PUImplicitSurface::implicitSeparator(
   *retVal = std::make_pair(F, gradF);
 }
 // Signed Distance, Gradient, and Hessian of Separator
-void PUImplicitSurface::implicitSeparator(
+inline void PUImplicitSurface::implicitSeparator(
     const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
   const Pt x = a_pt - a_centroid;
@@ -194,8 +194,8 @@ void PUImplicitSurface::implicitSeparator(
 }
 
 // Evaluate Function Hess =====================================
-void PUImplicitSurface::evaluate(
-    Pt& x, std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
+inline void PUImplicitSurface::evaluate(
+    const Pt& x, std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
   double weight_sum = 0.0;
   double F_sum = 0.0;
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
@@ -252,8 +252,8 @@ void PUImplicitSurface::evaluate(
 }
 
 // Evaluate Function Grad =================================
-void PUImplicitSurface::evaluate(Pt& x,
-                                 std::pair<double, Eigen::Vector3d>* retVal) {
+inline void PUImplicitSurface::evaluate(
+    const Pt& x, std::pair<double, Eigen::Vector3d>* retVal) {
   double weight_sum = 0.0;
   double F_sum = 0.0;
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
@@ -294,7 +294,7 @@ void PUImplicitSurface::evaluate(Pt& x,
 }
 
 // Evaluate Function Value ======================
-void PUImplicitSurface::evaluate(Pt& x, double* retVal) {
+inline void PUImplicitSurface::evaluate(const Pt& x, double* retVal) {
   double weight_sum = 0.0;
   double F_sum = 0.0;
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
@@ -317,8 +317,8 @@ void PUImplicitSurface::evaluate(Pt& x, double* retVal) {
 }
 
 // template <class SeparatorType>
-std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
-                                                 const int& Npartitions) {
+inline std::vector<Pt> PUImplicitSurface::intersectEdge(
+    const Pt& x0, const Pt& x1, const int& Npartitions) {
   // Split the domain into segments
   std::vector<Pt> sampleLocations = {};
   // At these locations, calculate the function value
@@ -396,7 +396,7 @@ std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
   return intersections;
 }
 
-Normal PUImplicitSurface::getTangent(Pt& x) {
+inline Normal PUImplicitSurface::getTangent(Pt& x) {
   std::pair<double, Eigen::Vector3d> holdsGrad;
   this->evaluate(x, &holdsGrad);
   auto gradF = std::get<1>(holdsGrad);
@@ -406,7 +406,7 @@ Normal PUImplicitSurface::getTangent(Pt& x) {
   return Normal(-Fy, Fx, 0.0);
 }
 
-double PUImplicitSurface::getCurvature(Pt& x) {
+inline double PUImplicitSurface::getCurvature(Pt& x) {
   std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
   this->evaluate(x, &holdsGradAndHessian);
   auto gradF = std::get<1>(holdsGradAndHessian);
@@ -425,6 +425,22 @@ double PUImplicitSurface::getCurvature(Pt& x) {
   double kz = -numer / denom;
 
   return kz;
+}
+
+inline const Pt PUImplicitSurface::projectOntoPU(const Pt& a_pt) {
+  std::pair<double, Eigen::Vector3d> holdsGrad;
+  Pt projected_pt = a_pt;
+  const int itmax = 5;
+  for (int i = 0; i < itmax; i++) {
+    this->evaluate(a_pt, &holdsGrad);
+    const auto F = std::get<0>(holdsGrad);
+    const auto gradF = std::get<1>(holdsGrad);
+    const double grad_norm_inv = 1.0 / safelyEpsilon(gradF.squaredNorm());
+    for (int d = 0; d < 3; d++) {
+      projected_pt[d] -= F * gradF(d) * grad_norm_inv;
+    }
+  }
+  return projected_pt;
 }
 
 // ============== Solver Methods
@@ -475,6 +491,33 @@ template <class CellType>
 void PUST<CellType>::setNeighborhood(PUSTNeighborhood<CellType> stencil_) {
   stencil_m = stencil_;
 }
+
+template <class CellType>
+Paraboloid PUST<CellType>::solve(
+    const PUSTNeighborhood<CellType>* a_neighborhood_pointer,
+    const Pt& a_centroid, const double a_delta) {
+  double delta = a_delta;
+  if (delta < 0.0) {
+    const auto cell = a_neighborhood_pointer->getCenterCell();
+    delta = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
+  }
+
+  this->setNeighborhood(*a_neighborhood_pointer);
+  auto PUSurface = this->neighborhoodToImplicitSurface(delta);
+
+  // Project provided point onto the PU surface
+  const auto pt_on_PU = PUSurface.projectOntoPU(a_centroid);
+
+  // Compute local gradient and hessian of PU approximation
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
+  PUSurface.evaluate(pt_on_PU, &holdsGradAndHessian);
+  const auto gradF = std::get<1>(holdsGradAndHessian);
+  const auto hessF = std::get<2>(holdsGradAndHessian);
+
+  // Return paraboloid computed from derivatives
+  return IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
+}
+
 }  // End Namespace IRL
 
 #endif
