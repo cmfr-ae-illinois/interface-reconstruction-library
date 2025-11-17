@@ -10,7 +10,6 @@
 #ifndef IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_TPP_
 #define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_TPP_
 
-
 namespace IRL {
 
 inline void SeparatorVariant::setToPlanarSeparator(void) {
@@ -79,7 +78,6 @@ inline std::ostream& operator<<(std::ostream& out,
   }
   return out;
 }
-
 
 }  // namespace IRL
 

@@ -28,12 +28,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/el
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/advected_plane_reconstruction.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/plane_distance.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/reconstruction_interface.h)
-
-
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_neighborhood.h)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_solve.h)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_neighborhood.tpp)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_solve.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben_neighborhood.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben_neighborhood.cpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/jibben.h)

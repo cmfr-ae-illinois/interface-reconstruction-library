@@ -10,4 +10,3 @@ add_subdirectory(parameters)
 add_subdirectory(planar_reconstruction)
 add_subdirectory(paraboloid_reconstruction)
 add_subdirectory(variant_reconstruction)
-

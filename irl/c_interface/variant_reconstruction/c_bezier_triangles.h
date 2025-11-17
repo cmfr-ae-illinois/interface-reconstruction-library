@@ -17,7 +17,6 @@
 #include "irl/generic_cutting/cut_polygon.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
-#include "irl/cylinder_reconstruction/cylinder_parametrized_surface.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
 extern "C" {

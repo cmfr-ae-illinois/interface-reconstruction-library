@@ -64,13 +64,3 @@ IRLAddExample_fortran(
     "examples_fortran"
 )
 
-IRLAddExample_fortran(
-  TARGET_NAME
-    f_partition_of_unity
-  SRCS
-    "partition_of_unity.f90"
-  OUTPUT_DIR
-    "${IRL_EXAMPLES_OUTPUT_DIR}/fortran"
-  COLLECTION
-    "examples_fortran"
-)

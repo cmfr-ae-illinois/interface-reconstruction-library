@@ -16,7 +16,6 @@
 #include <fstream>
 #include "external/NumericalIntegration/NumericalIntegration.h"
 
-#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting.h"
@@ -26,6 +25,7 @@
 #include "irl/geometry/general/reference_frame.h"
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
+#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 
 namespace IRL {
 
@@ -63,8 +63,7 @@ template <>
 inline Volume computeMomentContributionClippedTriangle<Volume>(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_clipped.insert(
         amr_triangles_clipped.end(),
@@ -92,8 +91,8 @@ inline Volume computeMomentContributionClippedTriangle<Volume>(
 class ClippedTriangleCylinderXCentroid_Functor {
  public:
   ClippedTriangleCylinderXCentroid_Functor(const Pt& p0, const Pt& p1,
-                                           const Pt& p2,
-                                           const AlignedCylinder& cylinder)
+                                        const Pt& p2,
+                                        const AlignedCylinder& cylinder)
       : x0(p0[0]),
         y0(p0[1]),
         x1(p1[0]),
@@ -126,8 +125,8 @@ class ClippedTriangleCylinderXCentroid_Functor {
 class ClippedTriangleCylinderYCentroid_Functor {
  public:
   ClippedTriangleCylinderYCentroid_Functor(const Pt& p0, const Pt& p1,
-                                           const Pt& p2,
-                                           const AlignedCylinder& cylinder)
+                                        const Pt& p2,
+                                        const AlignedCylinder& cylinder)
       : x0(p0[0]),
         y0(p0[1]),
         x1(p1[0]),
@@ -162,8 +161,8 @@ class ClippedTriangleCylinderYCentroid_Functor {
 class ClippedTriangleCylinderZCentroid_Functor {
  public:
   ClippedTriangleCylinderZCentroid_Functor(const Pt& p0, const Pt& p1,
-                                           const Pt& p2,
-                                           const AlignedCylinder& cylinder)
+                                        const Pt& p2,
+                                        const AlignedCylinder& cylinder)
       : x0(p0[0]),
         y0(p0[1]),
         x1(p1[0]),
@@ -194,8 +193,7 @@ template <>
 inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments>(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_clipped.insert(
         amr_triangles_clipped.end(),
@@ -226,13 +224,14 @@ inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments>(
 
   // Define the functor
   ClippedTriangleCylinderXCentroid_Functor functorX(a_pt_0, a_pt_1, a_pt_2,
-                                                    a_aligned_cylinder);
+                                                a_aligned_cylinder);
 
   ClippedTriangleCylinderYCentroid_Functor functorY(a_pt_0, a_pt_1, a_pt_2,
-                                                    a_aligned_cylinder);
+                                                a_aligned_cylinder);
 
   // ClippedTriangleCylinderZCentroid_Functor functorZ(a_pt_0, a_pt_1, a_pt_2,
   //                                               a_aligned_cylinder);
+
 
   // Integrate.
   moments.centroid()[0] =
@@ -243,13 +242,11 @@ inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments>(
                                     Eigen::Integrator<double>::GaussKronrod41);
 
   // Z component has an simple analitic expression
-  moments.centroid()[2] =
-      a_signed_area *
-      (6.0 * a_aligned_cylinder.r() -
-       (a_pt_0[1] * a_pt_0[1] + a_pt_1[1] * a_pt_1[1] + a_pt_2[1] * a_pt_2[1] +
-        a_pt_0[1] * a_pt_1[1] + a_pt_1[1] * a_pt_2[1] + a_pt_2[1] * a_pt_0[1]) *
-           a_aligned_cylinder.b()) /
-      12.0;
+  moments.centroid()[2] = a_signed_area *
+        (6.0 * a_aligned_cylinder.r() -
+          (a_pt_0[1] * a_pt_0[1] + a_pt_1[1] * a_pt_1[1] + a_pt_2[1] * a_pt_2[1] +
+           a_pt_0[1] * a_pt_1[1] + a_pt_1[1] * a_pt_2[1] + a_pt_2[1] * a_pt_0[1]) *
+          a_aligned_cylinder.b()) / 12.0;
 
   return moments;
 }
@@ -258,8 +255,7 @@ template <>
 inline Volume computeMomentContributionUnclippedTriangle<Volume>(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_unclipped.insert(
         amr_triangles_unclipped.end(),
@@ -270,11 +266,11 @@ inline Volume computeMomentContributionUnclippedTriangle<Volume>(
 }
 
 template <>
-inline VolumeMoments computeMomentContributionUnclippedTriangle<VolumeMoments>(
+inline VolumeMoments
+computeMomentContributionUnclippedTriangle<VolumeMoments>(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_unclipped.insert(
         amr_triangles_unclipped.end(),
@@ -313,8 +309,7 @@ void computeMomentContributionMixedTriangle(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
     const double a_signed_area, std::array<ReturnType, 1>& a_moments_to_add,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   auto below = StackVector<bool, 3>(
       {vertexBelowCylinderAMR(a_pt_0, a_aligned_cylinder),
        vertexBelowCylinderAMR(a_pt_1, a_aligned_cylinder),
@@ -323,12 +318,10 @@ void computeMomentContributionMixedTriangle(
   if (below[0] && below[1] && below[2]) {
     a_moments_to_add[0] =
         computeMomentContributionUnclippedTriangle<ReturnType>(
-            a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-            amr_triangles_clipped, amr_triangles_unclipped, a_print);
+            a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
   } else if (!below[0] && !below[1] && !below[2]) {
     a_moments_to_add[0] = computeMomentContributionClippedTriangle<ReturnType>(
-        a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-        amr_triangles_clipped, amr_triangles_unclipped, a_print);
+        a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
   } else {
     const double d = a_normal * a_pt_0;
     auto tris =
@@ -357,12 +350,12 @@ void computeMomentContributionMixedTriangle(
             a_moments_to_add[0] =
                 computeMomentContributionUnclippedTriangle<ReturnType>(
                     a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-                    amr_triangles_clipped, amr_triangles_unclipped, a_print);
+                    a_print);
           } else {
             a_moments_to_add[0] =
                 computeMomentContributionClippedTriangle<ReturnType>(
                     a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-                    amr_triangles_clipped, amr_triangles_unclipped, a_print);
+                    a_print);
           }
           break;
         } else {
@@ -413,30 +406,24 @@ void computeMomentContributionMixedTriangle(
             a_moments_to_add[0] =
                 computeMomentContributionUnclippedTriangle<ReturnType>(
                     a_aligned_cylinder, tris[3 + ids[0]], new_pt_1, new_pt_2,
-                    signed_area_1, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    signed_area_1, a_print) +
                 computeMomentContributionClippedTriangle<ReturnType>(
                     a_aligned_cylinder, new_pt_1, tris[3 + ids[1]],
-                    tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    tris[3 + ids[2]], signed_area_2, a_print) +
                 computeMomentContributionClippedTriangle<ReturnType>(
                     a_aligned_cylinder, tris[3 + ids[2]], new_pt_2, new_pt_1,
-                    signed_area_3, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print);
+                    signed_area_3, a_print);
           } else {
             a_moments_to_add[0] =
                 computeMomentContributionClippedTriangle<ReturnType>(
                     a_aligned_cylinder, tris[3 + ids[0]], new_pt_1, new_pt_2,
-                    signed_area_1, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    signed_area_1, a_print) +
                 computeMomentContributionUnclippedTriangle<ReturnType>(
                     a_aligned_cylinder, new_pt_1, tris[3 + ids[1]],
-                    tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    tris[3 + ids[2]], signed_area_2, a_print) +
                 computeMomentContributionUnclippedTriangle<ReturnType>(
                     a_aligned_cylinder, tris[3 + ids[2]], new_pt_2, new_pt_1,
-                    signed_area_3, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print);
+                    signed_area_3, a_print);
           }
           break;
         }
@@ -463,8 +450,8 @@ std::pair<bool, bool> computeZBounds(const AlignedCylinder& a_aligned_cylinder,
   z1 = std::sqrt(std::max(0.0, z1));
   if (a_aligned_cylinder.b() >= 0) {
     const double cyl_max = tri_bounds[2] * tri_bounds[3] <= 0.0
-                               ? std::sqrt(a_aligned_cylinder.r())
-                               : std::max({z0, z1});
+                              ? std::sqrt(a_aligned_cylinder.r())
+                              : std::max({z0, z1});
     const double cyl_min = std::min({z0, z1});
     // Return min/max of z height of triangle and cylinder
     return std::pair<bool, bool>({cyl_min > tri_bounds[5] + AMR_DBL_EPSILON,
@@ -472,8 +459,8 @@ std::pair<bool, bool> computeZBounds(const AlignedCylinder& a_aligned_cylinder,
   } else {
     const double cyl_max = std::max({z0, z1});
     const double cyl_min = tri_bounds[2] * tri_bounds[3] <= 0.0
-                               ? std::sqrt(a_aligned_cylinder.r())
-                               : std::min({z0, z1});
+                              ? std::sqrt(a_aligned_cylinder.r())
+                              : std::min({z0, z1});
     // Return min/max of z height of triangle and cylinder
     return std::pair<bool, bool>({cyl_min > tri_bounds[5] + AMR_DBL_EPSILON,
                                   tri_bounds[4] > cyl_max + AMR_DBL_EPSILON});
@@ -488,42 +475,36 @@ void computeMomentContributionAMR(
     const UnsignedIndex_t a_max_amr_level, const double max_length,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments_ref,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   std::array<ReturnType, 1> moments_to_add;
 
   // Compute z-bounds of triangle and cylinder
   auto z_limits = computeZBounds(a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2);
 
   // // quick end if we are looking at the top of that was cut.
-  // if (abs(a_normal[0]) <= DBL_EPSILON * 10 && abs(a_normal[1]) <= DBL_EPSILON
-  // * 10
-  //     && abs(a_normal[2] - 1.0) <= DBL_EPSILON * 10 && abs(a_pt_0[2] -
-  //     sqrt(a_aligned_cylinder.r())) <= DBL_EPSILON * 10) {
+  // if (abs(a_normal[0]) <= DBL_EPSILON * 10 && abs(a_normal[1]) <= DBL_EPSILON * 10 
+  //     && abs(a_normal[2] - 1.0) <= DBL_EPSILON * 10 && abs(a_pt_0[2] - sqrt(a_aligned_cylinder.r())) <= DBL_EPSILON * 10) {
   //       z_limits.second = true;
   //     }
 
   if (z_limits.first) {
     // Max of triangle is smaller than min of cylinder
     moments_to_add[0] = computeMomentContributionUnclippedTriangle<ReturnType>(
-        a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-        amr_triangles_clipped, amr_triangles_unclipped, a_print);
+        a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
     return;
   } else if (z_limits.second && abs(a_signed_area) <= max_length) {
     // Max of triangle is smaller than min of cylinder
     moments_to_add[0] = computeMomentContributionClippedTriangle<ReturnType>(
-        a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-        amr_triangles_clipped, amr_triangles_unclipped, a_print);
+        a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
     return;
   } else if (a_amr_level == a_max_amr_level) {
     computeMomentContributionMixedTriangle<ReturnType>(
         a_aligned_cylinder, a_pt_0, a_pt_1, a_pt_2, a_normal, a_signed_area,
-        moments_to_add, amr_triangles_clipped, amr_triangles_unclipped,
-        a_print);
+        moments_to_add, a_print);
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
     return;
@@ -534,25 +515,24 @@ void computeMomentContributionAMR(
   const Pt c2 = 0.5 * (a_pt_2 + a_pt_0);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, a_pt_0, c0, c2, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref,
-      a_full_moments, amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
+      a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, a_pt_1, c1, c0, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref,
-      a_full_moments, amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
+      a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, a_pt_2, c2, c1, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref,
-      a_full_moments, amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
+      a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_cylinder, c0, c1, c2, a_normal, 0.25 * a_signed_area,
-      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref,
-      a_full_moments, amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_amr_level + 1, a_max_amr_level, max_length, a_full_moments_ref, a_full_moments,
+      a_print);
 }
 
 template <class SegmentedHalfEdgePolyhedronType>
-void printClippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope,
-                          std::vector<double>& amr_triangles_clipped) {
+void printClippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope) {
   const auto number_of_faces = a_polytope->getNumberOfFaces();
   for (UnsignedIndex_t f = 0; f < number_of_faces; ++f) {
     const auto& face = *(*a_polytope)[f];
@@ -576,8 +556,7 @@ void printClippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope,
 }
 
 template <class SegmentedHalfEdgePolyhedronType>
-void printUnclippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope,
-                            std::vector<double>& amr_triangles_unclipped) {
+void printUnclippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope) {
   const auto number_of_faces = a_polytope->getNumberOfFaces();
   for (UnsignedIndex_t f = 0; f < number_of_faces; ++f) {
     const auto& face = *(*a_polytope)[f];
@@ -610,8 +589,6 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
                                    const std::string& a_filename) {
   using ReturnScalarType = typename ReturnType::value_type;
   const bool print = !a_filename.empty();
-  std::vector<double> amr_triangles_clipped;
-  std::vector<double> amr_triangles_unclipped;
 
   // We have 1 strategies for computing the moments (and will later on choose
   // the best of those)
@@ -631,29 +608,25 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
   // If elliptic cylinder, clip region outside cylinder
   if (elliptic) {
     const double norm = sqrt(1.0 + a_cylinder.b());
-    const double distance = 1.01 * sqrt(2.0 * a_cylinder.r()) / norm;
+    const double distance = 1.01*sqrt(2.0 * a_cylinder.r()) / norm;
     const double b1 = sqrt(a_cylinder.b()) / norm;
     SegmentedHalfEdgePolyhedronType dummy_clipped_polytope;
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
                           Plane(Normal(0.0, b1, 1.0 / norm), distance));
-    if (print)
-      printClippedPolytope(&dummy_clipped_polytope, amr_triangles_clipped);
+    if (print) printClippedPolytope(&dummy_clipped_polytope);
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
                           Plane(Normal(0.0, -b1, 1.0 / norm), distance));
-    if (print)
-      printClippedPolytope(&dummy_clipped_polytope, amr_triangles_clipped);
+    if (print) printClippedPolytope(&dummy_clipped_polytope);
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
-                          Plane(Normal(0.0, b1, -1.0 / norm), distance));
-    if (print)
-      printClippedPolytope(&dummy_clipped_polytope, amr_triangles_clipped);
+                          Plane(Normal(0.0, b1, - 1.0 / norm), distance));
+    if (print) printClippedPolytope(&dummy_clipped_polytope);
     splitHalfEdgePolytope(a_polytope, &dummy_clipped_polytope,
                           a_complete_polytope,
-                          Plane(Normal(0.0, -b1, -1.0 / norm), distance));
-    if (print)
-      printClippedPolytope(&dummy_clipped_polytope, amr_triangles_clipped);
+                          Plane(Normal(0.0, -b1, - 1.0 / norm), distance));
+    if (print) printClippedPolytope(&dummy_clipped_polytope);
   }
 
   // Split polytope into Z+ and Z- contributions
@@ -667,7 +640,8 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
   const UnsignedIndex_t original_number_of_vertices =
       a_polytope->getNumberOfVertices();
   for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
-    const Pt original_pt = a_polytope->getVertex(v)->getLocation().getPt();
+    const Pt original_pt =
+        a_polytope->getVertex(v)->getLocation().getPt();
     if (v > 0) {
       max_dist_sq =
           maximum(max_dist_sq, squaredMagnitude(original_pt - start_pt));
@@ -691,15 +665,17 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
   double length_threadshold = max_dist_sq / 1000;
 
   if (elliptic) {
-    const auto rotated_cylinder = AlignedCylinder(
-        {1.0 / a_cylinder.b(), a_cylinder.r() / a_cylinder.b()});
+    const auto rotated_cylinder =
+        AlignedCylinder({1.0 / a_cylinder.b(), a_cylinder.r() / a_cylinder.b()});
 
     double vector_norm = std::sqrt(1.0 + a_cylinder.b());
     const double b1 = sqrt(a_cylinder.b()) / vector_norm;
-    splitHalfEdgePolytope(a_polytope, &p1, a_complete_polytope,
-                          Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
-    splitHalfEdgePolytope(a_polytope, &p2, a_complete_polytope,
-                          Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(
+        a_polytope, &p1, a_complete_polytope,
+        Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(
+        a_polytope, &p2, a_complete_polytope,
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     polytope_list.push_back(a_polytope);
     cylinder_list.push_back(a_cylinder);
     rotation_list.push_back(0.0);
@@ -708,8 +684,9 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     cylinder_list.push_back(rotated_cylinder);
     rotation_list.push_back(3.0 * M_PI / 2.0);
     // SegmentedHalfEdgePolyhedronType* W_polytope = &p2;
-    splitHalfEdgePolytope(&p1, &p3, a_complete_polytope,
-                          Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(
+        &p1, &p3, a_complete_polytope,
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     polytope_list.push_back(&p1);
     cylinder_list.push_back(rotated_cylinder);
     rotation_list.push_back(M_PI / 2.0);
@@ -721,22 +698,24 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
 
     // std::array<SegmentedHalfEdgePolyhedronType*, 4> polytope_list = {
     //     N_polytope, E_polytope, S_polytope, W_polytope};
-    // std::array<AlignedCylinder, 4> cylinder_list = {a_cylinder,
-    // rotated_cylinder,
-    //                                                 a_cylinder,
-    //                                                 rotated_cylinder};
+    // std::array<AlignedCylinder, 4> cylinder_list = {a_cylinder, rotated_cylinder,
+    //                                                 a_cylinder, rotated_cylinder};
     // std::array<double, 4> rotation_list = {0.0, M_PI / 2.0, M_PI,
     //                                       3.0 * M_PI / 2.0};
   } else {
+
     double vector_norm = std::sqrt(1.0 - a_cylinder.b());
-    const double b1 = sqrt(-a_cylinder.b()) / vector_norm;
-    splitHalfEdgePolytope(a_polytope, &p1, a_complete_polytope,
-                          Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
-    splitHalfEdgePolytope(a_polytope, &p2, a_complete_polytope,
-                          Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    const double b1 = sqrt(- a_cylinder.b()) / vector_norm;
+    splitHalfEdgePolytope(
+        a_polytope, &p1, a_complete_polytope,
+        Plane(Normal(0.0, b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(
+        a_polytope, &p2, a_complete_polytope,
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     // SegmentedHalfEdgePolyhedronType* W_polytope = &p2;
-    splitHalfEdgePolytope(&p1, &p3, a_complete_polytope,
-                          Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
+    splitHalfEdgePolytope(
+        &p1, &p3, a_complete_polytope,
+        Plane(Normal(0.0, -b1, -1.0 / vector_norm), 0.0));
     polytope_list.push_back(a_polytope);
     cylinder_list.push_back(a_cylinder);
     rotation_list.push_back(0.0);
@@ -747,8 +726,8 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
     std::array<ReturnType, 1> right_moment;
     left_moment[0] = ReturnType::calculateMoments(&p1);
     right_moment[0] = ReturnType::calculateMoments(&p2);
-    if (print) printUnclippedPolytope(&p1, amr_triangles_unclipped);
-    if (print) printUnclippedPolytope(&p2, amr_triangles_unclipped);
+    if (print) printUnclippedPolytope(&p1);
+    if (print) printUnclippedPolytope(&p2);
     kahanSummationMoments<ReturnType>(full_moments, full_moments_ref,
                                       left_moment);
     kahanSummationMoments<ReturnType>(full_moments, full_moments_ref,
@@ -766,20 +745,16 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
       frame = x_rotation * frame;
       // also need to rotate the centroid
       if constexpr (std::is_same_v<ReturnType,
-                                   VolumeMomentsBase<ReturnScalarType>>) {
+                                      VolumeMomentsBase<ReturnScalarType>>) {
         // std::cout << "hmm " << full_moments[0].first.centroid() << std::endl;
-        Pt centroid01(full_moments[0].first.centroid()[0],
-                      full_moments[0].first.centroid()[1],
-                      full_moments[0].first.centroid()[2]);
+        Pt centroid01(full_moments[0].first.centroid()[0], 
+          full_moments[0].first.centroid()[1], full_moments[0].first.centroid()[2]);
         Pt centroid02(full_moments[0].second.centroid()[0],
-                      full_moments[0].second.centroid()[1],
-                      full_moments[0].second.centroid()[2]);
+          full_moments[0].second.centroid()[1], full_moments[0].second.centroid()[2]);
         Pt centroid11(full_moments[1].first.centroid()[0],
-                      full_moments[1].first.centroid()[1],
-                      full_moments[1].first.centroid()[2]);
+          full_moments[1].first.centroid()[1], full_moments[1].first.centroid()[2]);
         Pt centroid12(full_moments[1].second.centroid()[0],
-                      full_moments[1].second.centroid()[1],
-                      full_moments[1].second.centroid()[2]);
+          full_moments[1].second.centroid()[1], full_moments[1].second.centroid()[2]);
         for (UnsignedIndex_t n = 0; n < 3; ++n) {
           full_moments[0].first.centroid()[n] = frame[n] * centroid01;
           full_moments[0].second.centroid()[n] = frame[n] * centroid02;
@@ -839,9 +814,7 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
               triangleSignedArea(ref_pt, prev_pt, curr_pt);
           computeMomentContributionAMR<ReturnType>(
               cylinder, ref_pt, prev_pt, curr_pt, face_normal, signed_area, 0,
-              real_max_amr_level, length_threadshold, full_moments_ref,
-              full_moments, amr_triangles_clipped, amr_triangles_unclipped,
-              print);
+              real_max_amr_level, length_threadshold, full_moments_ref, full_moments, print);
           prev_pt = curr_pt;
           current_half_edge = current_half_edge->getNextHalfEdge();
         } while (current_half_edge != starting_half_edge);
@@ -853,19 +826,15 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
       x_rotation.normalize();
       frame = x_rotation * frame;
       if constexpr (std::is_same_v<ReturnType,
-                                   VolumeMomentsBase<ReturnScalarType>>) {
-        Pt centroid01(full_moments[0].first.centroid()[0],
-                      full_moments[0].first.centroid()[1],
-                      full_moments[0].first.centroid()[2]);
+                                      VolumeMomentsBase<ReturnScalarType>>) {
+        Pt centroid01(full_moments[0].first.centroid()[0], 
+          full_moments[0].first.centroid()[1], full_moments[0].first.centroid()[2]);
         Pt centroid02(full_moments[0].second.centroid()[0],
-                      full_moments[0].second.centroid()[1],
-                      full_moments[0].second.centroid()[2]);
+          full_moments[0].second.centroid()[1], full_moments[0].second.centroid()[2]);
         Pt centroid11(full_moments[1].first.centroid()[0],
-                      full_moments[1].first.centroid()[1],
-                      full_moments[1].first.centroid()[2]);
+          full_moments[1].first.centroid()[1], full_moments[1].first.centroid()[2]);
         Pt centroid12(full_moments[1].second.centroid()[0],
-                      full_moments[1].second.centroid()[1],
-                      full_moments[1].second.centroid()[2]);
+          full_moments[1].second.centroid()[1], full_moments[1].second.centroid()[2]);
         for (UnsignedIndex_t n = 0; n < 3; ++n) {
           full_moments[0].first.centroid()[n] = frame[n] * centroid01;
           full_moments[0].second.centroid()[n] = frame[n] * centroid02;
@@ -921,7 +890,7 @@ intersectPolyhedronWithCylinderAMR(SegmentedHalfEdgePolyhedronType* a_polytope,
       std::strncpy(head, a_header.c_str(), a_header.size() - 1);
       char attribute[2] = "0";
       char dummy[4] = "0";
-      const auto nTriLong = a_triangle_list.size() / 3;
+      const auto nTriLong = amr_triangles_clipped.size() / 3;
 
       std::ofstream myfile;
 
