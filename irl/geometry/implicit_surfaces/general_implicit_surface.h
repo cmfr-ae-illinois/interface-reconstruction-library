@@ -13,6 +13,7 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -54,8 +55,27 @@ class GeneralImplicitSurface {
   virtual ScalarType surfaceArea() const {
     throw std::runtime_error("surfaceArea() not implemented for this shape.");
   }
+
+  // curvature related quantities
+  ScalarType meanCurvature(const ScalarType& x, const ScalarType& y,
+                           const ScalarType& z) const;
+
+  ScalarType gaussianCurvature(const ScalarType& x, const ScalarType& y,
+                               const ScalarType& z) const;
+
+  ScalarType curvedness(const ScalarType& x, const ScalarType& y,
+                        const ScalarType& z) const;
+
+  std::pair<ScalarType, ScalarType> principalCurvatures(
+      const ScalarType& x, const ScalarType& y, const ScalarType& z) const;
+
+  // projecting point on implicit surface along normal
+  Vec3 projectPointOnSurface(const Vec3& p, int max_iter = 200,
+                             ScalarType tol = ScalarType(1e-10)) const;
 };
 
 }  // namespace IRL
+
+#include "irl/geometry/implicit_surfaces/general_implicit_surface.tpp"
 
 #endif  // IRL_GEOMETRY_IMPLICIT_SURFACES_GENERAL_IMPLICIT_SURFACE_H_

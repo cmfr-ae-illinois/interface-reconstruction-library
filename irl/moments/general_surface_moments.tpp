@@ -1,33 +1,35 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2023 Robert Chiodi <robert.chiodi@gmail.com>
+// Copyright (C) 2025 Parin Trivedi <parin.trivedi@hotmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_MOMENTS_GENERAL_MOMENTS_TPP_
-#define IRL_MOMENTS_GENERAL_MOMENTS_TPP_
+#ifndef IRL_MOMENTS_GENERAL_SURFACE_MOMENTS_TPP_
+#define IRL_MOMENTS_GENERAL_SURFACE_MOMENTS_TPP_
 
 #include <cassert>
 #include <iostream>
 #include <vector>
 
 #include "Eigen/Dense"
+#include "irl/geometry/general/geometry_type_traits.h"
 #include "irl/geometry/general/pt.h"
 
 namespace IRL {
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>::GeneralMomentsBase(void)
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::GeneralSurfaceMomentsBase(
+    void)
     : moments_m() {
   static_assert(DIM == 2 || DIM == 3,
                 "Dimension argument of GeneralMoments template must be 2 or 3");
 }
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>::GeneralMomentsBase(
-    const GeneralMomentsBase<ORDER, DIM, double>& a_moments) {
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::GeneralSurfaceMomentsBase(
+    const GeneralSurfaceMomentsBase<ORDER, DIM, double>& a_moments) {
   for (UnsignedIndex_t i = 0; i < a_moments.size(); ++i) {
     moments_m[i] = ScalarType(a_moments[i]);
   }
@@ -35,26 +37,29 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::GeneralMomentsBase(
                 "Dimension argument of GeneralMoments template must be 2 or 3");
 }
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>::fromScalarConstant(
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::fromScalarConstant(
     const ScalarType a_value) {
-  GeneralMomentsBase<ORDER, DIM, ScalarType> mom;
+  GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> mom;
   std::fill(mom.moments_m.begin(), mom.moments_m.end(), a_value);
   return mom;
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
 template <class GeometryType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateMoments(
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::calculateMoments(
     GeometryType* a_geometry) {
-  return GeneralMomentsBase<ORDER, DIM, ScalarType>(
+  static_assert(
+      !is_polyhedron<std::remove_cv_t<GeometryType>>::value,
+      "Polyhedrons are currently not supported to compute surface moments.");
+  return GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>(
       a_geometry->template calculateGeneralMoments<ORDER>());
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-typename GeneralMomentsBase<ORDER, DIM, ScalarType>::storage
-GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateCentralMoments(
+typename GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::storage
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::calculateCentralMoments(
     void) const {
   // Implementation of factorial requires this assertion
   static_assert(ORDER < 10,
@@ -157,8 +162,8 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateCentralMoments(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-typename GeneralMomentsBase<ORDER, DIM, ScalarType>::storage
-GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateInvariantMoments(
+typename GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::storage
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::calculateInvariantMoments(
     void) const {
   auto central = this->calculateCentralMoments();
   storage invariants;
@@ -167,10 +172,8 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateInvariantMoments(
     for (int corder = 2, m = 1 + DIM; corder <= ORDER; ++corder) {
       for (int i = corder; i >= 0; --i, ++m) {
         const auto j = corder - i;
-        invariants[m] =
-            central[m] /
-            std::pow(central[0],
-                     ScalarType(1) + ScalarType(0.5) * ScalarType(i + j));
+        invariants[m] = central[m] /
+                        std::pow(central[0], ScalarType(1) + ScalarType(i + j));
       }
     }
   } else {
@@ -182,7 +185,7 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateInvariantMoments(
           invariants[m] =
               central[m] /
               std::pow(central[0],
-                       ScalarType(1) + ScalarType(i + j + k) / ScalarType(3));
+                       ScalarType(1) + ScalarType(i + j + k) / ScalarType(2));
         }
       }
     }
@@ -191,7 +194,8 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::calculateInvariantMoments(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeAsInvariant(void) {
+void GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::normalizeAsInvariant(
+    void) {
   for (std::size_t m = 1; m < 1 + DIM; ++m) {
     (*this)[m] = (*this)[m] / (*this)[0];
   }
@@ -199,10 +203,8 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeAsInvariant(void) {
     for (int corder = 2, m = 1 + DIM; corder <= ORDER; ++corder) {
       for (int i = corder; i >= 0; --i, ++m) {
         const auto j = corder - i;
-        (*this)[m] =
-            (*this)[m] /
-            std::pow((*this)[0],
-                     ScalarType(1) + ScalarType(0.5) * ScalarType(i + j));
+        (*this)[m] = (*this)[m] /
+                     std::pow((*this)[0], ScalarType(1) + ScalarType(i + j));
       }
     }
   } else {
@@ -213,7 +215,7 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeAsInvariant(void) {
           (*this)[m] =
               (*this)[m] /
               std::pow((*this)[0],
-                       ScalarType(1) + ScalarType(i + j + k) / ScalarType(3));
+                       ScalarType(1) + ScalarType(i + j + k) / ScalarType(2));
         }
       }
     }
@@ -221,32 +223,25 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeAsInvariant(void) {
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-ScalarType& GeneralMomentsBase<ORDER, DIM, ScalarType>::volume(void) {
+ScalarType& GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::area(void) {
   return moments_m[0];
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-const ScalarType GeneralMomentsBase<ORDER, DIM, ScalarType>::volume(
+const ScalarType GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::area(
     void) const {
   return moments_m[0];
 }
 
-// template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-// const VolumeBase<ScalarType> GeneralMomentsBase<ORDER, DIM,
-// ScalarType>::volume(
-//     void) const {
-//   return moments_m[0];
-// }
-
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-void GeneralMomentsBase<ORDER, DIM, ScalarType>::multiplyByVolume(void) {
+void GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::multiplyByArea(void) {
   for (std::size_t i = 1; i < moments_m.size(); ++i) {
     moments_m[i] *= moments_m[0];
   }
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeByVolume(void) {
+void GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::normalizeByArea(void) {
   if (moments_m[0] != ScalarType(0)) {
     for (std::size_t i = 1; i < moments_m.size(); ++i) {
       moments_m[i] /= moments_m[0];
@@ -255,8 +250,10 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::normalizeByVolume(void) {
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-void GeneralMomentsBase<ORDER, DIM, ScalarType>::moveMoments(
+void GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::moveMoments(
     const PtBase<ScalarType>& datum) {
+  static_assert(ORDER >= 0 && ORDER <= 2,
+                "ONLY ORDER = 0, 1, or 2 supported for moving moments");
   const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
 
   if constexpr (ORDER != 0) {
@@ -289,9 +286,12 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::moveMoments(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-void GeneralMomentsBase<ORDER, DIM, ScalarType>::moveAndRotateMoments(
+void GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::moveAndRotateMoments(
     const PtBase<ScalarType>& datum,
     const ReferenceFrameBase<ScalarType>& frame) {
+  static_assert(
+      ORDER >= 0 && ORDER <= 2,
+      "ONLY ORDER = 0, 1, or 2 supported for rotating and moving moments");
   const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
   const Eigen::Matrix<double, 3, 3> R{{frame[0][0], frame[1][0], frame[2][0]},
                                       {frame[0][1], frame[1][1], frame[2][1]},
@@ -327,9 +327,9 @@ void GeneralMomentsBase<ORDER, DIM, ScalarType>::moveAndRotateMoments(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>&
-GeneralMomentsBase<ORDER, DIM, ScalarType>::operator+=(
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_rhs) {
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>&
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator+=(
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_rhs) {
   for (std::size_t i = 0; i < moments_m.size(); ++i) {
     moments_m[i] += a_rhs[i];
   }
@@ -337,8 +337,9 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::operator+=(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>&
-GeneralMomentsBase<ORDER, DIM, ScalarType>::operator*=(const ScalarType a_rhs) {
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>&
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator*=(
+    const ScalarType a_rhs) {
   for (std::size_t i = 0; i < moments_m.size(); ++i) {
     moments_m[i] *= a_rhs;
   }
@@ -346,8 +347,9 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::operator*=(const ScalarType a_rhs) {
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>&
-GeneralMomentsBase<ORDER, DIM, ScalarType>::operator/=(const ScalarType a_rhs) {
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>&
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator/=(
+    const ScalarType a_rhs) {
   for (std::size_t i = 0; i < moments_m.size(); ++i) {
     moments_m[i] /= a_rhs;
   }
@@ -355,17 +357,17 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::operator/=(const ScalarType a_rhs) {
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>&
-GeneralMomentsBase<ORDER, DIM, ScalarType>::operator=(
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>&
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator=(
     const ScalarType a_value) {
   std::fill(moments_m.begin(), moments_m.end(), ScalarType(a_value));
   return *this;
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-GeneralMomentsBase<ORDER, DIM, ScalarType>&
-GeneralMomentsBase<ORDER, DIM, ScalarType>::operator=(
-    const GeneralMomentsBase<ORDER, DIM, double>& a_rhs) {
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>&
+GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator=(
+    const GeneralSurfaceMomentsBase<ORDER, DIM, double>& a_rhs) {
   for (UnsignedIndex_t i = 0; i < a_rhs.size(); ++i) {
     moments_m[i] = ScalarType(a_rhs[i]);
   }
@@ -373,19 +375,20 @@ GeneralMomentsBase<ORDER, DIM, ScalarType>::operator=(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-UnsignedIndex_t GeneralMomentsBase<ORDER, DIM, ScalarType>::size(void) const {
+UnsignedIndex_t GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::size(
+    void) const {
   return moments_m.size();
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-ScalarType& GeneralMomentsBase<ORDER, DIM, ScalarType>::operator[](
+ScalarType& GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator[](
     const UnsignedIndex_t a_index) {
   assert(a_index < this->size());
   return moments_m[a_index];
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-ScalarType GeneralMomentsBase<ORDER, DIM, ScalarType>::operator[](
+ScalarType GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>::operator[](
     const UnsignedIndex_t a_index) const {
   assert(a_index < this->size());
   return moments_m[a_index];
@@ -394,7 +397,7 @@ ScalarType GeneralMomentsBase<ORDER, DIM, ScalarType>::operator[](
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
 std::ostream& operator<<(
     std::ostream& out,
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_moments) {
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_moments) {
   static constexpr UnsignedIndex_t PER_LINE = 10;
   out << "There are " << a_moments.size() << " total moments.\n";
   UnsignedIndex_t index = 0;
@@ -438,10 +441,10 @@ std::ostream& operator<<(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator+(
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm1,
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm2) {
-  GeneralMomentsBase<ORDER, DIM, ScalarType> mom;
+inline GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> operator+(
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_vm1,
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_vm2) {
+  GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> mom;
   for (std::size_t i = 0; i < a_vm1.size(); ++i) {
     mom[i] = a_vm1[i] + a_vm2[i];
   }
@@ -449,10 +452,10 @@ inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator+(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator-(
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm1,
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm2) {
-  GeneralMomentsBase<ORDER, DIM, ScalarType> mom;
+inline GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> operator-(
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_vm1,
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_vm2) {
+  GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> mom;
   for (std::size_t i = 0; i < a_vm1.size(); ++i) {
     mom[i] = a_vm1[i] - a_vm2[i];
   }
@@ -460,22 +463,22 @@ inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator-(
 }
 
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator*(
+inline GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> operator*(
     const ScalarType a_multiplier,
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm) {
-  GeneralMomentsBase<ORDER, DIM, ScalarType> mom;
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_vm) {
+  GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> mom;
   for (std::size_t i = 0; i < a_vm.size(); ++i) {
     mom[i] = a_multiplier * a_vm[i];
   }
   return mom;
 }
 template <UnsignedIndex_t ORDER, UnsignedIndex_t DIM, class ScalarType>
-inline GeneralMomentsBase<ORDER, DIM, ScalarType> operator*(
-    const GeneralMomentsBase<ORDER, DIM, ScalarType>& a_vm,
+inline GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType> operator*(
+    const GeneralSurfaceMomentsBase<ORDER, DIM, ScalarType>& a_vm,
     const ScalarType a_multiplier) {
   return a_multiplier * a_vm;
 }
 
 }  // namespace IRL
 
-#endif  // IRL_MOMENTS_GENERAL_MOMENTS_TPP_
+#endif  // IRL_MOMENTS_GENERAL_SURFACE_MOMENTS_TPP_

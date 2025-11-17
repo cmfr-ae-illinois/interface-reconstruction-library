@@ -94,7 +94,7 @@ TEST(ParaboloidIntegrator, ParaboloidCapMoments) {
       (420. * std::pow(alpha, 4));
 
   // numerical solution
-  GeneralMoments3D<2> m = surface.getSurfaceMoments<2>();
+  GeneralSurfaceMoments3D<2> m = surface.getSurfaceMoments<2>();
 
   EXPECT_NEAR(M0_exact, m[0], 10.0 * DBL_EPSILON);
   EXPECT_NEAR(Mx_exact, m[1], 10.0 * DBL_EPSILON);

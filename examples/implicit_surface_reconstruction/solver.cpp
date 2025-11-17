@@ -7,7 +7,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "examples/variant_advector/solver.h"
+#include "examples/implicit_surface_reconstruction/solver.h"
 #include "irl/geometry/polygons/polygon.h"
 
 // Convert and store the mesh cells into localizers.
@@ -63,71 +63,6 @@ void setPhaseQuantities(const Data<IRL::SeparatorVariant>& a_interface,
   }
   a_liq_moments->updateBorder();
   a_gas_moments->updateBorder();
-}
-
-void writeDiagnosticsHeader(void) {
-  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s %20s\n",
-         "Iteration", "Time", "CFL", "liquidVFSum", "liquidVolSum",
-         "ChangeLiquidVFSum", "ChangeLiquidVolSum", "AdvectionDuration",
-         "ReconDuration", "OutputDuration", "InterfaceCells");
-}
-
-void writeOutDiagnostics(const int a_iteration, const double a_dt,
-                         const double a_simulation_time,
-                         const Data<double>& a_U, const Data<double>& a_V,
-                         const Data<double>& a_W,
-                         const Data<IRL::VolumeMoments>& a_liq_moments,
-                         const Data<IRL::SeparatorVariant>& a_interface,
-                         std::chrono::duration<double> a_VOF_duration,
-                         std::chrono::duration<double> a_recon_duration,
-                         std::chrono::duration<double> a_write_duration) {
-  const BasicMesh& mesh = a_U.getMesh();
-  static double initial_liquid_volume_fraction_sum;
-  static double initial_liquid_volume_sum;
-  // Calculate CFL
-  double CFL = -DBL_MAX;
-  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        CFL = std::fmax(CFL,
-                        std::fmax(a_U(i, j, k) * a_dt / mesh.dx(),
-                                  std::fmax(a_V(i, j, k) * a_dt / mesh.dy(),
-                                            a_W(i, j, k) * a_dt / mesh.dz())));
-      }
-    }
-  }
-  // Calculate sum of volume fraction and sum of liquid volume
-  double liquid_volume_fraction_sum = 0.0;
-  double liquid_volume_sum = 0.0;
-  int number_of_interface_cells = 0;
-  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        liquid_volume_fraction_sum += liquid_volume_fraction;
-        liquid_volume_sum += a_liq_moments(i, j, k).volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          ++number_of_interface_cells;
-        }
-      }
-    }
-  }
-  // Save initial values to compare against.
-  if (a_iteration == 0) {
-    initial_liquid_volume_fraction_sum = liquid_volume_fraction_sum;
-    initial_liquid_volume_sum = liquid_volume_sum;
-  }
-  printf(
-      "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20d"
-      "\n",
-      a_iteration, a_simulation_time, CFL, liquid_volume_fraction_sum,
-      liquid_volume_sum,
-      liquid_volume_fraction_sum - initial_liquid_volume_fraction_sum,
-      liquid_volume_sum - initial_liquid_volume_sum, a_VOF_duration.count(),
-      a_recon_duration.count(), a_write_duration.count(),
-      number_of_interface_cells);
 }
 
 void writeInterfaceToFile(
@@ -195,71 +130,6 @@ void writeInterfaceToFile(
   }
 
   a_output->writeVTKInterface(a_time, polygons, paraboloids, cylinders);
-}
-
-void printError(const BasicMesh& mesh,
-                const Data<IRL::VolumeMoments>& liq_moments,
-                const Data<IRL::VolumeMoments>& starting_liq_moments) {
-  int rank, size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  if (rank == 0) {
-    double linf_error_m0 = 0.0, linf_error_m1 = 0.0;
-    double l1_error_m0 = 0.0, l1_error_m1 = 0.0;
-    double l2_error_m0 = 0.0, l2_error_m1 = 0.0;
-    double scale_m0 = 1.0 / std::pow(mesh.dx(), 3.0);
-    double scale_m1 = 1.0 / std::pow(mesh.dx(), 4.0);
-    for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-        for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-          const double liquid_volume_fraction =
-              liq_moments(i, j, k).volume() / mesh.cell_volume();
-          if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-              liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-            auto mom_err =
-                (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
-            linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.volume()));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
-            l1_error_m0 += std::abs(mom_err.volume());
-            l1_error_m1 += std::abs(mom_err.centroid()[0]);
-            l1_error_m1 += std::abs(mom_err.centroid()[1]);
-            l1_error_m1 += std::abs(mom_err.centroid()[2]);
-            l2_error_m0 += mom_err.volume() * mom_err.volume();
-            l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
-            l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
-            l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
-          }
-        }
-      }
-    }
-    l1_error_m0 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    l1_error_m1 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    l2_error_m0 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    l2_error_m1 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    linf_error_m0 *= scale_m0;
-    linf_error_m1 *= scale_m1;
-    l1_error_m0 *= scale_m0;
-    l1_error_m1 *= scale_m1;
-    l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
-    l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
-    std::cout << std::scientific << std::setprecision(2)
-              << "Linf M0 = " << linf_error_m0 << std::endl;
-    std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
-    std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
-    std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
-    std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
-    std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
-  }
 }
 
 void connectMesh(

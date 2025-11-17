@@ -34,6 +34,7 @@
 
 #include "irl/geometry/general/normal.h"
 #include "irl/moments/general_moments.h"
+#include "irl/moments/general_surface_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/quadratic_reconstruction/coons_patch.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
@@ -86,6 +87,8 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
   inline double getMeanCurvatureNonAligned(const Pt a_pt);
   inline double getGaussianCurvatureAligned(const Pt a_pt);
   inline double getGaussianCurvatureNonAligned(const Pt a_pt);
+  inline double getCurvednessAligned(const Pt a_pt);
+  inline double getCurvednessNonAligned(const Pt a_pt);
 
   // general integrator
   using F = std::function<double(Pt)>;
@@ -93,10 +96,14 @@ class ParaboloidParametrizedSurfaceOutput : public ParametrizedSurfaceOutput {
       const F a_F, const bool useAdaptive = true,
       const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
           Eigen::Integrator<double, 2>::GaussKronrod15,
-      const int npts = 75);
+      const int npts = 50);
 
   template <std::size_t ORDER>
-  inline GeneralMoments3D<ORDER> getSurfaceMoments(void);
+  inline GeneralSurfaceMoments3D<ORDER> getSurfaceMoments(
+      const bool useAdaptive = true,
+      const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
+          Eigen::Integrator<double, 2>::GaussKronrod15,
+      const int npts = 50);
 
   MixedPolygonBezierSurface getQuadraticBezierTriangleApprox(void);
   MixedPolygonBezierSurface getCubicBezierTriangleApprox(void);

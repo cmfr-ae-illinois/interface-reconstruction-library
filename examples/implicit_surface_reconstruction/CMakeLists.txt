@@ -2,29 +2,25 @@ set(CMAKE_CXX_COMPILER mpic++)
 
 IRLAddExample_cpp(
   TARGET_NAME
-  variant_advector
+  implicit_surface_reconstruction
   HDRS
   "basic_mesh.h"
   "data.h"
-  "translation_3d.h"
-  "deformation_3d.h"
-  "rotation_3d.h"
   "reconstruction_types.h"
   "solver.h"
-  "vof_advection.h"
   "vtk.h"
+  "initialization.h"
+  "binary.h"
+  "reconstruction.h"
+  "surface_select.h"
   SRCS
   "main.cpp"
   "basic_mesh.cpp"
-  "vof_advection.cpp"
   "solver.cpp"
   "reconstruction_types.cpp"
-  "translation_3d.cpp"
-  "deformation_3d.cpp"
-  "rotation_3d.cpp"
   "vtk.cpp"
   OUTPUT_DIR
-  "${IRL_EXAMPLES_OUTPUT_DIR}/variant_advector"
+  "${IRL_EXAMPLES_OUTPUT_DIR}/implicit_surface_reconstruction"
   COLLECTION
-  "examples_variant_advector"
+  "examples_implicit_surface_reconstruction"
 )

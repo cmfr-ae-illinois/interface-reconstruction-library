@@ -45,7 +45,7 @@ TEST(ImplicitSurfaceCutting, EllipsoidVolume) {
         RectangularCuboid cell = RectangularCuboid::fromBoundingPts(x0, x1);
         ImplicitSurfaceCutter<Ellipsoid<double, max_refine>, Volume> cutter(
             ellipsoid, cell);
-        double vol = cutter.getMoments();
+        double vol = cutter.computeVolumeMoments();
         volume_cutting += vol;
       }
     }
@@ -78,7 +78,7 @@ TEST(ImplicitSurfaceCutting, SphereMoments) {
         RectangularCuboid cell = RectangularCuboid::fromBoundingPts(x0, x1);
         ImplicitSurfaceCutter<Sphere<double, max_refine>, VolumeMoments> cutter(
             sphere, cell);
-        moments_cutting += cutter.getMoments();
+        moments_cutting += cutter.computeVolumeMoments();
       }
     }
   }
@@ -87,6 +87,40 @@ TEST(ImplicitSurfaceCutting, SphereMoments) {
   EXPECT_NEAR(0.1, moments_cutting.centroid()[0], 1e-12);
   EXPECT_NEAR(0.2, moments_cutting.centroid()[1], 1e-12);
   EXPECT_NEAR(0.3, moments_cutting.centroid()[2], 1e-12);
+}
+
+TEST(ImplicitSurfaceCutting, SphereSurfaceMoments) {
+  constexpr size_t max_refine = 1;
+  Sphere<double, max_refine> sphere(0.1, 0.2, 0.3, 0.15);
+  double area_exact = sphere.surfaceArea();
+
+  constexpr int nx = 32;
+  constexpr int ny = 32;
+  constexpr int nz = 32;
+  const double xmin = -0.5, ymin = -0.5, zmin = -0.5;
+  const double xmax = 0.5, ymax = 0.5, zmax = 0.5;
+  double dx = (xmax - xmin) / nx;
+  double dy = (ymax - ymin) / ny;
+  double dz = (zmax - zmin) / nz;
+
+  GeneralSurfaceMoments3D<1> moments_cutting;
+
+  for (int i = 0; i < nx; ++i) {
+    for (int j = 0; j < ny; ++j) {
+      for (int k = 0; k < nz; ++k) {
+        Pt x0(xmin + i * dx, ymin + j * dy, zmin + k * dz);
+        Pt x1(xmin + (i + 1) * dx, ymin + (j + 1) * dy, zmin + (k + 1) * dz);
+        RectangularCuboid cell = RectangularCuboid::fromBoundingPts(x0, x1);
+        ImplicitSurfaceCutter<Sphere<double, max_refine>, VolumeMoments> cutter(
+            sphere, cell);
+        moments_cutting += cutter.computeSurfaceMoments<1>();
+      }
+    }
+  }
+  EXPECT_NEAR(area_exact, moments_cutting[0], 1e-6);
+  EXPECT_NEAR(0.1, moments_cutting[1] / moments_cutting[0], 1e-6);
+  EXPECT_NEAR(0.2, moments_cutting[2] / moments_cutting[0], 1e-6);
+  EXPECT_NEAR(0.3, moments_cutting[3] / moments_cutting[0], 1e-6);
 }
 
 }  // namespace

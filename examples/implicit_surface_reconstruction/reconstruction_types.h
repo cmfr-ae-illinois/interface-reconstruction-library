@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_VARIANT_ADVECTOR_RECONSTRUCTION_TYPES_H_
-#define EXAMPLES_VARIANT_ADVECTOR_RECONSTRUCTION_TYPES_H_
+#ifndef EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_RECONSTRUCTION_TYPES_H_
+#define EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_RECONSTRUCTION_TYPES_H_
 
 #include <string>
 
@@ -16,10 +16,7 @@
 #include "irl/moments/volume_moments.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
-#include "examples/variant_advector/data.h"
-#include "examples/variant_advector/vtk.h"
-
-#include "Eigen/Dense"
+#include "examples/implicit_surface_reconstruction/data.h"
 
 void getReconstruction(const std::string& a_reconstruction_method,
                        const Data<IRL::VolumeMoments>& a_liq_moments,
@@ -89,7 +86,27 @@ struct SlicesParabola {
                                 const bool a_plic_already_built = false);
 };
 
+struct Taubin {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
 struct SlicesTaubin {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+struct PLICAligned {
   static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                                 const Data<IRL::VolumeMoments>& a_gas_moments,
                                 const double a_dt, const Data<double>& a_U,
@@ -167,4 +184,4 @@ inline IRL::Paraboloid fromSphere(const IRL::Pt& a_center,
 
 }  // namespace details
 
-#endif  // EXAMPLES_VARIANT_ADVECTOR_RECONSTRUCTION_TYPES_H_
+#endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_RECONSTRUCTION_TYPES_H_

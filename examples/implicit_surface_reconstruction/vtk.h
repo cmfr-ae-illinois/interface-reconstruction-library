@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_SIMPLE_VARIANT_ADVECTOR_VTK_H_
-#define EXAMPLES_SIMPLE_VARIANT_ADVECTOR_VTK_H_
+#ifndef EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_VTK_H_
+#define EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_VTK_H_
 
 #include <string>
 #include <vector>
@@ -18,8 +18,8 @@
 #include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
-#include "examples/variant_advector/basic_mesh.h"
-#include "examples/variant_advector/data.h"
+#include "examples/implicit_surface_reconstruction/basic_mesh.h"
+#include "examples/implicit_surface_reconstruction/data.h"
 
 class VTKOutput {
   struct DataIO {
@@ -57,26 +57,4 @@ class VTKOutput {
   std::vector<DataIO> data_to_write_m;
 };
 
-void writeCellsVTK(const std::string& path,
-                   const std::vector<std::pair<IRL::Pt, IRL::Pt>>& cells);
-
-bool writeScatterVTK(const std::vector<IRL::Pt>& points,
-                     const std::string& filename);
-
-void writePolygonVTK(const std::string& filename,
-                     const std::vector<IRL::Pt>& poly);
-
-void writePolygonsVTK(const std::string& filename,
-                      const std::vector<std::vector<IRL::Pt>>& polygons);
-
-void writeVectorsVTK(const std::string& file, const std::vector<IRL::Pt>& pts,
-                     const std::vector<IRL::Normal>& vecs);
-
-bool writeLinesVTK(const std::vector<std::pair<IRL::Pt, IRL::Pt>>& lines,
-                   const std::string& filename);
-
-bool writePlanePatchVTK(const Eigen::Vector3d& origin,
-                        const Eigen::Vector3d& normal, double h,
-                        const std::string& filename);
-
-#endif  // EXAMPLES_SIMPLE_VARIANT_ADVECTOR_VTK_H_
+#endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_VTK_H_
