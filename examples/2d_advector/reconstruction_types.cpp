@@ -243,7 +243,7 @@ void LVIRA::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
 //                                const Data<double>& a_V,
 //                                Data<IRL2D::Parabola>* a_interface) {
 
-//   ELVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
+//   LVIRA::getReconstruction(a_liquid_moments, a_gas_moments, a_dt, a_U, a_V,
 //                             a_interface);
 
 //   const BasicMesh& mesh = a_U.getMesh();
@@ -2479,8 +2479,8 @@ void MOF2AL::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                       << residuals(4) << " " << residuals(5) << " "
                       << residuals(6) << " " << residuals(7) << " "
                       << residuals(8) << " " << residuals(9) << " "
-                      << residuals(10) << "] "
-                      << " norm = " << residuals.norm() << std::endl;
+                      << residuals(10) << "] " << " norm = " << residuals.norm()
+                      << std::endl;
             std::cout << "Volfrac residual = " << std::abs(f_constraint_current)
                       << std::endl;
 
@@ -2696,8 +2696,8 @@ void MOF2ALUnit::getReconstruction(const Data<IRL2D::Moments>& a_liquid_moments,
                       << residuals(4) << " " << residuals(5) << " "
                       << residuals(6) << " " << residuals(7) << " "
                       << residuals(8) << " " << residuals(9) << " "
-                      << residuals(10) << "] "
-                      << " norm = " << residuals.norm() << std::endl;
+                      << residuals(10) << "] " << " norm = " << residuals.norm()
+                      << std::endl;
             std::cout << "Volfrac residual = " << std::abs(f_constraint_current)
                       << std::endl;
 
@@ -3341,8 +3341,8 @@ struct LMAFunctor {
       double wi = std::sqrt(vfw[i] * dw[i] * nw[i]);  // weights
 
       fjac(i, 0) =
-          wi * ((zi + 2.0 * D * ui / E) * Ri - (di * di / Qi));         // ∂d/∂A
-      fjac(i, 1) = wi * ((2.0 * A * ui / E + 1.0) * Ri);                // ∂d/∂D
+          wi * ((zi + 2.0 * D * ui / E) * Ri - (di * di / Qi));  // ∂d/∂A
+      fjac(i, 1) = wi * ((2.0 * A * ui / E + 1.0) * Ri);         // ∂d/∂D
       fjac(i, 2) = wi * ((-xi * sin_theta + yi * cos_theta) * E * Ri);  // ∂d/∂θ
     }
     return 0;

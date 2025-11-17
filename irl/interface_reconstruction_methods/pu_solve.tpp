@@ -97,7 +97,7 @@ void PUImplicitSurface::implicitSeparator(
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
       const double d = plane.distance();
-      if (n[0] != 0 && n[1] != 0 && n[2] != 0) {  // If plane exists
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
         F = n * a_pt - d;                         // Distance
       } else {                                    // IF plane doesn't exist
         F = 0;                                    // Zero
@@ -155,7 +155,7 @@ void PUImplicitSurface::implicitSeparator(
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
       const double d = plane.distance();
-      if (n[0] != 0 && n[1] != 0 && n[2] != 0) {  // If plane exists
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
         F = n * a_pt - d;                         // Distance
       } else {                                    // IF plane doesn't exist
         F = 0;                                    // Zero
@@ -627,12 +627,15 @@ PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1, double delta,
-                                 double Pressure, Normal& Marangoni) {
+Normal PUST<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
+                                 const double delta, const double Pressure,
+                                 const Normal& Marangoni) {
   // The Marangoni normal object holds the Xgradient, then the Y gradient, then
   // the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make Implicit
   // Surface std::cout << "In Solve Edge\n";
 
+  // Something is up with paraboloids because they take like 8x the time to run.
+  double STCoeff = STin;
   // The Pressure Option tells us if we should include the pressure terms or
   // not.
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
@@ -707,7 +710,8 @@ Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1, double delta,
         // Now that we have the length of section, we just need to calculat
         // the curvature, then calculat the pressure jump, then multiply it
         // all together and add
-        double curv = std::abs(s.getCurvature(intersections[j]));
+
+        double curv = s.getCurvature(intersections[j]);
         // This also contains some direction information, but I am unsure how
         // this needs to be positive or not. I am going to leave it for now,
         // and we will see if that is a problem. If there seems to be issues,
@@ -716,21 +720,21 @@ Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1, double delta,
         // Now we just add this all together. Note, the pressure force
         // alwaysacts inwards, so we multiply by the negative of the outwards
         // pointingnormal
-        // if (std::abs(Scale) >=
-        //     1e-10) {  // Ensure that in the undefinedareas, we
-        // // do not add pressure terms.
-        // total = total - Scale * STCoeff * curv * L * denom * OutwardsNormal;
-        // std::cout << "======================= Pressure Force: "
-        //             << Scale * STCoeff * curv * L * denom << "\n";
-        // std::cout << "Scale = " << Scale << "\n";
-        // std::cout << "curv = " << curv << "\n";
-        // std::cout << "L = " << L << "\n";
-        // std::cout << "denom = " << denom << "\n";
-        // std::cout << "sx = " << L * denom << "\n";
-        // std::cout << "tangent = " << tangent << "\n";
-        // std::cout << "gradient = " << gradient << "\n";
-        // std::cout << "dPN = " << dPN << "\n";
-        // }
+        if (std::abs(Scale) >=
+            1e-10) {  // Ensure that in the undefinedareas, we
+          // // do not add pressure terms.
+          total = total - Scale * STCoeff * curv * L * denom * OutwardsNormal;
+          // std::cout << "======================= Pressure Force: "
+          //             << Scale * STCoeff * curv * L * denom << "\n";
+          // std::cout << "Scale = " << Scale << "\n";
+          // std::cout << "curv = " << curv << "\n";
+          // std::cout << "L = " << L << "\n";
+          // std::cout << "denom = " << denom << "\n";
+          // std::cout << "sx = " << L * denom << "\n";
+          // std::cout << "tangent = " << tangent << "\n";
+          // std::cout << "gradient = " << gradient << "\n";
+          // std::cout << "dPN = " << dPN << "\n";
+        }
       }
     }
   }

@@ -99,8 +99,9 @@ class PUST {
   PUImplicitSurface neighborhoodToImplicitSurface(double delta);
   // Edge Solve Method - Returns the surface tension force vector
   // for edge
-  Normal solveEdge(double STCoeff, Pt& P0, Pt& P1, double delta,
-                   double Pressure, Normal& Marangoni);
+  Normal solveEdge(const double STIn, const Pt& P0, const Pt& P1,
+                   const double delta, const double Pressure,
+                   const Normal& Marangoni);
 
   Normal solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1, double radius,
                            Pt& center, double delta);

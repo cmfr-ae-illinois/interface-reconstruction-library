@@ -3778,24 +3778,25 @@ Parabola getParabolaJibben(const Parabola& target_interface,
     BezierList clipped_interface = ParabolaClip(cell, interface, true);
     BezierList clipped_cell = ParabolaClip(cell, interface, false);
 
-    if (clipped_interface.size() < 2) {
-      std::cout << "Warning: Clipped interface has size < 2\n";
-      std::cout << "Target cell global ID: (" << i_target << ", " << j_target
-                << ")\n";
-      std::cout << "Neighbor global ID: (" << neighbor.ii_global << ", "
-                << neighbor.jj_global << ")\n";
-      IRL2D::Print(clipped_interface);
-      std::cout << "coefficient = " << interface.coeff() << std::endl;
-      std::cout << "datum = " << interface.datum() << std::endl;
-      std::cout << "frame = " << interface.frame() << std::endl;
-      std::cout << "cell liquid volume fraction = " << neighbor.lvf
-                << std::endl;
-      std::cout << "volume fraction of clipped cell = "
-                << IRL2D::ComputeArea(clipped_cell) / IRL2D::ComputeArea(cell)
-                << std::endl;
-      IRL2D::Print(clipped_cell);
-      continue;
-    }
+    // if (clipped_interface.size() < 2) {
+    //   std::cout << "Warning: Clipped interface has size < 2\n";
+    //   std::cout << "Target cell global ID: (" << i_target << ", " << j_target
+    //             << ")\n";
+    //   std::cout << "Neighbor global ID: (" << neighbor.ii_global << ", "
+    //             << neighbor.jj_global << ")\n";
+    //   IRL2D::Print(clipped_interface);
+    //   std::cout << "coefficient = " << interface.coeff() << std::endl;
+    //   std::cout << "datum = " << interface.datum() << std::endl;
+    //   std::cout << "frame = " << interface.frame() << std::endl;
+    //   std::cout << "cell liquid volume fraction = " << neighbor.lvf
+    //             << std::endl;
+    //   std::cout << "volume fraction of clipped cell = "
+    //             << IRL2D::ComputeArea(clipped_cell) /
+    //             IRL2D::ComputeArea(cell)
+    //             << std::endl;
+    //   IRL2D::Print(clipped_cell);
+    //   continue;
+    // }
 
     line_seg_endpoints.push_back(
         {clipped_interface[0].first, clipped_interface[1].first});
