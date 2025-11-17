@@ -158,4 +158,26 @@ TEST(Polygon, calculateNearestPtOnSurface) {
   EXPECT_NEAR(nearest_pt[1], 0.37, 1.0e-14);
   EXPECT_NEAR(nearest_pt[2], 0.0, 1.0e-14);
 }
+
+TEST(Polygon, calculateGeneralMoments) {
+  Polygon square;
+  const double L = 4.0;
+  square.addVertex(Pt(0., 0., 0.));
+  square.addVertex(Pt(L, 0., 0.));
+  square.addVertex(Pt(L, L, 0.));
+  square.addVertex(Pt(0., L, 0.));
+  square.calculateAndSetPlaneOfExistence();
+  auto moments = square.calculateGeneralMoments<2>();
+  EXPECT_NEAR(moments[0], L * L, 1e-13);
+  EXPECT_NEAR(moments[1], 0.5 * L * L * L, 1e-13);
+  EXPECT_NEAR(moments[2], 0.5 * L * L * L, 1e-13);
+  EXPECT_NEAR(moments[3], 0., 1e-13);
+  EXPECT_NEAR(moments[4], L * L * L * L / 3., 1e-13);
+  EXPECT_NEAR(moments[5], L * L * L * L / 4., 1e-13);
+  EXPECT_NEAR(moments[6], 0., 1e-13);
+  EXPECT_NEAR(moments[7], L * L * L * L / 3., 1e-13);
+  EXPECT_NEAR(moments[8], 0., 1e-13);
+  EXPECT_NEAR(moments[9], 0., 1e-13);
+}
+
 }  // namespace

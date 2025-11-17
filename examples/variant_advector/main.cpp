@@ -17,6 +17,7 @@
 #include "examples/variant_advector/vof_advection.h"
 
 #include "examples/variant_advector/deformation_3d.h"
+#include "examples/variant_advector/rotation_3d.h"
 #include "examples/variant_advector/translation_3d.h"
 
 static int startSimulation(const std::string& a_case_name,
@@ -72,9 +73,14 @@ static int startSimulation(const std::string& a_case_name,
     return runSimulation<Deformation3D>(a_case_name, a_advection_method,
                                         a_reconstruction_method, a_max_cfl,
                                         a_final_time, a_viz_frequency, a_nx);
+  } else if (a_case_name == "Rotation3D") {
+    return runSimulation<Rotation3D>(a_case_name, a_advection_method,
+                                     a_reconstruction_method, a_max_cfl,
+                                     a_final_time, a_viz_frequency, a_nx);
   } else {
     std::cout << "Unknown case : " << a_case_name << '\n';
-    std::cout << "Valid entries are: Translation3D, Deformation3D. \n";
+    std::cout
+        << "Valid entries are: Translation3D, Deformation3D, Rotation3D. \n";
     std::exit(-1);
   }
   return -1;

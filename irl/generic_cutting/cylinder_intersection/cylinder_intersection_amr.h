@@ -11,51 +11,58 @@
 #define IRL_GENERIC_CUTTING_CYLINDER_INTERSECTION_CYLINDER_INTERSECTION_AMR_H_
 
 #include <float.h>
+#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 #include "irl/geometry/general/geometry_type_traits.h"
-#include "irl/cylinder_reconstruction/aligned_cylinder.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
+
+extern std::vector<double> amr_cylinder_triangles_clipped;
+extern std::vector<double> amr_cylinder_triangles_unclipped;
 
 namespace IRL {
 
 template <class ReturnType>
-ReturnType computeMomentContributionClippedTriangle(
+inline ReturnType computeMomentContributionClippedTriangle(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    const bool a_print);
+    std::vector<double>& a_amr_triangles_clipped,
+    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
 
 template <class ReturnType>
-ReturnType computeMomentContributionUnclippedTriangle(
+inline ReturnType computeMomentContributionUnclippedTriangle(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    const bool a_print);
+    std::vector<double>& a_amr_triangles_clipped,
+    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
 
 template <class ReturnType>
-void computeMomentContributionMixedTriangle(
+inline void computeMomentContributionMixedTriangle(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
     const double a_signed_area, std::array<ReturnType, 1>& a_moments_to_add,
-    const bool a_print);
+    std::vector<double>& a_amr_triangles_clipped,
+    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
 
-std::pair<bool, bool> computeZBounds(const AlignedCylinder& a_aligned_cylinder,
-                                     const Pt& a_pt_0, const Pt& a_pt_1,
-                                     const Pt& a_pt_2);
+inline std::pair<bool, bool> computeZBounds(
+    const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
+    const Pt& a_pt_1, const Pt& a_pt_2);
 
 template <class ReturnType>
-void computeMomentContributionAMR(
+inline void computeMomentContributionAMR(
     const AlignedCylinder& a_aligned_cylinder, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
-    const double a_signed_area,
-    const UnsignedIndex_t a_max_amr_level, const double max_length,
+    const double a_signed_area, const UnsignedIndex_t a_max_amr_level,
+    const double max_length,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments_ref,
     std::array<std::pair<ReturnType, ReturnType>, 1>& a_full_moments,
-    const bool a_print);
+    std::vector<double>& a_amr_triangles_clipped,
+    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
 
 template <class SegmentedHalfEdgePolyhedronType>
-void printClippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope);
+inline void printClippedPolytope(SegmentedHalfEdgePolyhedronType* a_polytope);
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType>

@@ -4,4 +4,3 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/surface_mesher/triangulated_surface
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/surface_mesher/marching_cubes.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/surface_mesher/marching_cubes.tpp)
 
-

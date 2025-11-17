@@ -26,14 +26,14 @@
 
 namespace IRL {
 
-const double triangleSignedArea(const Pt& a_pt_0, const Pt& a_pt_1,
-                                const Pt& a_pt_2) {
+inline const double triangleSignedArea(const Pt& a_pt_0, const Pt& a_pt_1,
+                                       const Pt& a_pt_2) {
   return 0.5 * ((a_pt_1[0] - a_pt_0[0]) * (a_pt_2[1] - a_pt_0[1]) -
                 (a_pt_2[0] - a_pt_0[0]) * (a_pt_1[1] - a_pt_0[1]));
 }
 
 template <>
-void kahanSummationMoments(
+inline void kahanSummationMoments(
     std::array<std::pair<Volume, Volume>, N_AMR_STRATEGIES>& a_full_moments,
     std::array<std::pair<Volume, Volume>, N_AMR_STRATEGIES>& a_full_moments_ref,
     std::array<Volume, N_AMR_STRATEGIES>& a_moments_to_add) {
@@ -52,7 +52,7 @@ void kahanSummationMoments(
 }
 
 template <>
-void kahanSummationMoments(
+inline void kahanSummationMoments(
     std::array<std::pair<VolumeMoments, VolumeMoments>, N_AMR_STRATEGIES>&
         a_full_moments,
     std::array<std::pair<VolumeMoments, VolumeMoments>, N_AMR_STRATEGIES>&

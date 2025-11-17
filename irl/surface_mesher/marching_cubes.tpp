@@ -51,9 +51,9 @@ inline TriangulatedSurfaceOutput MarchingCubes::triangulate(
   for (UnsignedIndex_t i = 0; i < n; i++) {
     for (UnsignedIndex_t j = 0; j < n; j++) {
       for (UnsignedIndex_t k = 0; k < n; k++) {
-        const double x = static_cast<double>(i) * dx[0];
-        const double y = static_cast<double>(j) * dx[1];
-        const double z = static_cast<double>(k) * dx[2];
+        const double x = static_cast<double>(i) * dx[0] + x0[0];
+        const double y = static_cast<double>(j) * dx[1] + x0[1];
+        const double z = static_cast<double>(k) * dx[2] + x0[2];
         f[i][j][k] = function_m(Pt(x, y, z));
       }
     }
@@ -72,17 +72,17 @@ inline TriangulatedSurfaceOutput MarchingCubes::triangulate(
         vals[7] = f[i][j + 1][k + 1];
 
         p[0].x() = p[3].x() = p[4].x() = p[7].x() =
-            static_cast<double>(i) * dx[0];
+            static_cast<double>(i) * dx[0] + x0[0];
         p[1].x() = p[2].x() = p[5].x() = p[6].x() =
-            static_cast<double>(i + 1) * dx[0];
+            static_cast<double>(i + 1) * dx[0] + x0[0];
         p[0].y() = p[1].y() = p[2].y() = p[3].y() =
-            static_cast<double>(j) * dx[1];
+            static_cast<double>(j) * dx[1] + x0[1];
         p[4].y() = p[5].y() = p[6].y() = p[7].y() =
-            static_cast<double>(j + 1) * dx[1];
+            static_cast<double>(j + 1) * dx[1] + x0[1];
         p[0].z() = p[1].z() = p[4].z() = p[5].z() =
-            static_cast<double>(k) * dx[2];
+            static_cast<double>(k) * dx[2] + x0[2];
         p[2].z() = p[3].z() = p[6].z() = p[7].z() =
-            static_cast<double>(k + 1) * dx[2];
+            static_cast<double>(k + 1) * dx[2] + x0[2];
 
         UnsignedIndex_t cubeindex = 0;
         if (vals[0] < 0.0) cubeindex |= 1;

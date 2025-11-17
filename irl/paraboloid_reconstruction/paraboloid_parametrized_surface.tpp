@@ -10,6 +10,7 @@
 #ifndef IRL_PARABOLOID_RECONSTRUCTION_PARABOLOID_PARAMETRIZED_SURFACE_TPP_
 #define IRL_PARABOLOID_RECONSTRUCTION_PARABOLOID_PARAMETRIZED_SURFACE_TPP_
 
+#include <Eigen/Dense>
 #include <fstream>
 #include <iomanip>
 
@@ -374,23 +375,6 @@ class ArcContributionToParaboloidSurfaceArea_Functor {
                                     4. * (b * b) * (pt[1] * pt[1]))) /
                  std::fabs(a)) /
             4.;
-        if (std::isnan(primitive)) {
-          std::cout << "Pr = " << pt << std::endl;
-          std::cout << "Der = " << der << std::endl;
-          std::cout << "a = " << a << std::endl;
-          std::cout << "b = " << b << std::endl;
-          std::cout << "Arc: weight = " << arc_m.weight() << std::endl;
-          std::cout << "Arc: start = " << arc_m.start_point() << std::endl;
-          std::cout << "Arc: ctrl  = " << arc_m.control_point() << std::endl;
-          std::cout << "Arc: end   = " << arc_m.end_point() << std::endl;
-          std::cout << "Primitive is NaN" << std::endl;
-          exit(1);
-        }
-        if (std::isnan(der[1])) {
-          std::cout << "der[1] is NaN" << std::endl;
-          exit(1);
-        }
-
         return primitive * der[1];
       } else {
         const double primitive =
@@ -403,23 +387,6 @@ class ArcContributionToParaboloidSurfaceArea_Functor {
                                      4. * (b * b) * (pt[1] * pt[1]))) /
                   std::fabs(b)) /
             (4.);
-        if (std::isnan(primitive)) {
-          std::cout << "Pr = " << pt << std::endl;
-          std::cout << "Der = " << der << std::endl;
-          std::cout << "a = " << a << std::endl;
-          std::cout << "b = " << b << std::endl;
-          std::cout << "Arc: weight = " << arc_m.weight() << std::endl;
-          std::cout << "Arc: start = " << arc_m.start_point() << std::endl;
-          std::cout << "Arc: ctrl  = " << arc_m.control_point() << std::endl;
-          std::cout << "Arc: end   = " << arc_m.end_point() << std::endl;
-          std::cout << "Primitive is NaN" << std::endl;
-          exit(1);
-        }
-        if (std::isnan(der[0])) {
-          std::cout << "der[0] is NaN" << std::endl;
-          exit(1);
-        }
-
         return primitive * der[0];
       }
     }
@@ -895,6 +862,175 @@ ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
     aligned_pt[n] = ref_frame[n] * original_pt;
   }
   return this->getGaussianCurvatureAligned(aligned_pt);
+}
+
+inline double ParaboloidParametrizedSurfaceOutput::getCurvednessAligned(
+    const Pt a_pt) {
+  const double H = this->getMeanCurvatureAligned(a_pt);
+  const double K = this->getGaussianCurvatureAligned(a_pt);
+  if (!std::isfinite(H) || !std::isfinite(K))
+    return std::numeric_limits<double>::quiet_NaN();
+  const double curvedness_2 = 2.0 * H * H - K;
+  return std::sqrt(std::max(0.0, curvedness_2));
+}
+
+inline double ParaboloidParametrizedSurfaceOutput::getCurvednessNonAligned(
+    const Pt a_pt) {
+  const auto& datum = this->getParaboloid().getDatum();
+  const auto& ref_frame = this->getParaboloid().getReferenceFrame();
+  const Pt original_pt = a_pt - datum;
+  auto aligned_pt = a_pt;
+  for (std::size_t n = 0; n < 3; ++n) {
+    aligned_pt[n] = ref_frame[n] * original_pt;
+  }
+  return this->getCurvednessAligned(aligned_pt);
+}
+
+inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
+    const F a_F, const bool useAdaptive,
+    const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
+    const int npts) {
+  double result = 0.0;
+
+  // paraboloid params
+  const auto& datum = this->getParaboloid().getDatum();
+  const auto& frame = this->getParaboloid().getReferenceFrame();
+  const auto& a = this->getParaboloid().getAlignedParaboloid().a();
+  const auto& b = this->getParaboloid().getAlignedParaboloid().b();
+
+  // reference point for pseduo-triangles
+  Pt x_ref(0., 0., 0.);
+  for (const auto& arc : arc_list_m) {
+    x_ref += arc.start_point();
+  }
+  x_ref /= static_cast<double>(arc_list_m.size());
+
+  // intgerating f(x) over clipped paraboloid
+  for (const auto& arc : arc_list_m) {
+    //  points for bezier quadrilaterals
+    Pt A = arc.start_point();
+    Pt B = arc.point(0.5);
+    Pt C = arc.end_point();
+    Pt E = x_ref;
+    Pt D = 0.5 * (E + C);
+    Pt F = 0.5 * (A + E);
+    Pt G = 1. / 3. * (A + C + E);
+
+    // arcs for bezier quadrilaterals
+    auto [arc_1, arc_2] = arc.split();
+    RationalBezierArc arc_3(C, 0.5 * (C + D), D, 1.0);
+    RationalBezierArc arc_4(D, 0.5 * (D + E), E, 1.0);
+    RationalBezierArc arc_5(E, 0.5 * (E + F), F, 1.0);
+    RationalBezierArc arc_6(F, 0.5 * (F + A), A, 1.0);
+    RationalBezierArc arc_7(B, 0.5 * (B + G), G, 1.0);
+    RationalBezierArc arc_8(D, 0.5 * (D + G), G, 1.0);
+    RationalBezierArc arc_9(F, 0.5 * (F + G), G, 1.0);
+
+    // bezier quadrilaterals
+    std::vector<RationalBezierArc> quad_1 = {arc_1, arc_7, arc_9, -arc_6};
+    std::vector<RationalBezierArc> quad_2 = {arc_2, arc_3, -arc_8, arc_7};
+    std::vector<RationalBezierArc> quad_3 = {arc_4, arc_5, -arc_9, arc_8};
+    std::vector<std::vector<RationalBezierArc>> quad_list = {quad_1, quad_2,
+                                                             quad_3};
+
+    for (const auto& quad : quad_list) {
+      const double a_bound = 0.0;
+      const double b_bound = 1.0;
+      auto functor = [=](const double u, const double v) {
+        CoonsPatch coons(quad[0], quad[1], quad[2], quad[3]);
+        Pt coons_val = coons.evaluate(u, v);
+        double det_J = coons.detJacobian(u, v);
+        double dS_factor =
+            std::sqrt(1. + 4. * a * a * coons_val[0] * coons_val[0] +
+                      4. * b * b * coons_val[1] * coons_val[1]);
+        return (a_F(coons_val) * dS_factor * det_J);
+      };
+      double integral = 0.0;
+      if (useAdaptive) {
+        const std::size_t max_nsubdivisions = 256;
+        const double epsabs = 10.0 * DBL_EPSILON;
+        const double epsrel = 10.0 * DBL_EPSILON;
+        for (std::size_t i = 1; i <= max_nsubdivisions; i *= 4) {
+          Eigen::Integrator<double, 2> integrator(i);
+          integral = integrator.quadratureAdaptive(
+              functor, a_bound, b_bound, epsabs, epsrel, quadratureRule);
+        }
+      } else {
+        GaussLegendreIntegrator<double, 2> integrator(npts);
+        integral =
+            integrator.integrate(functor, a_bound, a_bound, b_bound, b_bound);
+      }
+      result += integral;
+    }
+  }
+  return result;
+}
+
+template <std::size_t ORDER>
+inline GeneralSurfaceMoments3D<ORDER>
+ParaboloidParametrizedSurfaceOutput::getSurfaceMoments(
+    const bool useAdaptive,
+    const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
+    const int npts) {
+  static_assert(ORDER >= 0 && ORDER <= 2,
+                "ONLY ORDER = 0, 1, or 2 supported for paraboloids");
+  GeneralSurfaceMoments3D<ORDER> moments;
+
+  const auto& a = this->getParaboloid().getAlignedParaboloid().a();
+  const auto& b = this->getParaboloid().getAlignedParaboloid().b();
+  const auto& datum = this->getParaboloid().getDatum();
+  const auto& ref_frame = this->getParaboloid().getReferenceFrame();
+
+  auto z = [a, b](const Pt& p) { return -a * p[0] * p[0] - b * p[1] * p[1]; };
+
+  const double M0 = this->getIntegrator([](const Pt&) { return 1.0; },
+                                        useAdaptive, quadratureRule, npts);
+  moments[0] = M0;
+
+  if constexpr (ORDER == 0) return moments;
+
+  const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; },
+                                         useAdaptive, quadratureRule, npts);
+  const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; },
+                                         useAdaptive, quadratureRule, npts);
+  const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); },
+                                         useAdaptive, quadratureRule, npts);
+  moments[1] = M1x;
+  moments[2] = M1y;
+  moments[3] = M1z;
+
+  if constexpr (ORDER == 1) {
+    moments.moveAndRotateMoments(datum, ref_frame);
+    return moments;
+  }
+
+  const double Mxx =
+      this->getIntegrator([](const Pt& p) { return p[0] * p[0]; }, useAdaptive,
+                          quadratureRule, npts);
+  const double Mxy =
+      this->getIntegrator([](const Pt& p) { return p[0] * p[1]; }, useAdaptive,
+                          quadratureRule, npts);
+  const double Mxz =
+      this->getIntegrator([&](const Pt& p) { return p[0] * z(p); }, useAdaptive,
+                          quadratureRule, npts);
+  const double Myy =
+      this->getIntegrator([](const Pt& p) { return p[1] * p[1]; }, useAdaptive,
+                          quadratureRule, npts);
+  const double Myz =
+      this->getIntegrator([&](const Pt& p) { return p[1] * z(p); }, useAdaptive,
+                          quadratureRule, npts);
+  const double Mzz =
+      this->getIntegrator([&](const Pt& p) { return z(p) * z(p); }, useAdaptive,
+                          quadratureRule, npts);
+  moments[4] = Mxx;
+  moments[5] = Mxy;
+  moments[6] = Mxz;
+  moments[7] = Myy;
+  moments[8] = Myz;
+  moments[9] = Mzz;
+  moments.moveAndRotateMoments(datum, ref_frame);
+
+  return moments;
 }
 
 inline MixedPolygonBezierSurface
