@@ -159,6 +159,391 @@ struct ReconRec {
   double surf[NS];
 };
 
+// template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+// MomentDiffNorms computeReconstructionMetricsFromBin(
+//     const int& factor, const std::string& reconstruction_method,
+//     const std::string& shape, int Nx_fine, const std::string& output_dir) {
+//   int rank = 0, size = 1;
+//   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//   MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+//   BasicMesh mesh_fine(Nx_fine, Nx_fine, Nx_fine, 1);
+//   SurfaceVariant surf = makeSurface(shape, mesh_fine);
+//   (void)surf;
+
+//   const std::string bin_path = binary_filename(output_dir, shape, Nx_fine);
+
+//   // ------------------ coarsening the data -------------------------------
+//   const int Nx_coarse = Nx_fine / factor;
+
+//   BasicMesh mesh_coarse(Nx_coarse, Nx_coarse, Nx_coarse, 1);
+//   mesh_coarse.setCellBoundaries(
+//       IRL::Pt(mesh_fine.x(mesh_fine.imin()), mesh_fine.y(mesh_fine.jmin()),
+//               mesh_fine.z(mesh_fine.kmin())),
+//       IRL::Pt(mesh_fine.x(mesh_fine.imax() + 1),
+//               mesh_fine.y(mesh_fine.jmax() + 1),
+//               mesh_fine.z(mesh_fine.kmax() + 1)));
+
+//   Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+//                  IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+//       moments_coarse(&mesh_coarse);
+
+//   if (rank == 0) {
+//     auto t0 = std::chrono::steady_clock::now();
+//     coarsenMomentsFromBinary<VM_ORDER, SM_ORDER>(bin_path, factor,
+//                                                  &moments_coarse);
+//     auto t1 = std::chrono::steady_clock::now();
+//     std::printf("time taken to coarsen moments: %20.6f s\n",
+//                 std::chrono::duration<double>(t1 - t0).count());
+//   }
+//   MPI_Barrier(MPI_COMM_WORLD);
+
+//   // -------- interface reconstruction from coarse moments  ------------
+//   Data<double> velU(&mesh_coarse), velV(&mesh_coarse), velW(&mesh_coarse);
+//   Data<IRL::VolumeMoments> liq_moments(&mesh_coarse),
+//   gas_moments(&mesh_coarse); Data<IRL::SeparatorVariant> interface(
+//       &mesh_coarse);  // PUT THIS WITHIN RANK LOOP
+
+//   if (rank == 0) {
+//     auto t0 = std::chrono::steady_clock::now();
+
+//     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+//       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+//         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+//           IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+//           IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+//                      mesh_coarse.z(k + 1));
+//           IRL::RectangularCuboid cell =
+//               IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+//           double m0 = moments_coarse(i, j, k).first[0];
+//           IRL::Pt m1(moments_coarse(i, j, k).first[1],
+//                      moments_coarse(i, j, k).first[2],
+//                      moments_coarse(i, j, k).first[3]);
+
+//           liq_moments(i, j, k) = IRL::VolumeMoments(m0, m1);
+//           gas_moments(i, j, k) = cell.calculateMoments() - liq_moments(i, j,
+//           k);
+//         }
+//       }
+//     }
+
+//     getReconstruction(reconstruction_method, liq_moments, gas_moments, 0.0,
+//                       velU, velV, velW, &interface);
+
+//     auto t1 = std::chrono::steady_clock::now();
+//     std::printf("time taken to reconstruct interface: %20.6f s\n",
+//                 std::chrono::duration<double>(t1 - t0).count());
+//   }
+//   MPI_Barrier(MPI_COMM_WORLD);
+
+//   // ------- moments of inside cells and build mixed list ---------
+//   Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+//                  IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+//       moments_reconstruction(&mesh_coarse);
+
+//   if (rank == 0) {
+//     auto t0 = std::chrono::steady_clock::now();
+
+//     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+//       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+//         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+//           double vf = liq_moments(i, j, k).volume() /
+//           mesh_coarse.cell_volume();
+
+//           if (vf > IRL::global_constants::VF_HIGH) {
+//             const IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j),
+//                              mesh_coarse.z(k));
+//             const IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+//                              mesh_coarse.z(k + 1));
+//             const IRL::RectangularCuboid cell =
+//                 IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+//             moments_reconstruction(i, j, k).first =
+//                 IRL::getVolumeMoments<IRL::GeneralMoments3D<VM_ORDER>>(cell);
+//           }
+//         }
+//       }
+//     }
+
+//     auto t1 = std::chrono::steady_clock::now();
+//     std::printf(
+//         "time taken to compute moments for cells inside and finding mixed "
+//         "list: %20.6f s\n",
+//         std::chrono::duration<double>(t1 - t0).count());
+//   }
+//   MPI_Barrier(MPI_COMM_WORLD);
+
+//   // --------------- mixed cell moments using mpi ------------------------
+//   using VM = IRL::GeneralMoments3D<VM_ORDER>;
+//   using SM = IRL::GeneralSurfaceMoments3D<SM_ORDER>;
+//   using VMS = IRL::AddSurfaceOutput<IRL::VolumeMoments,
+//                                     IRL::ParaboloidParametrizedSurfaceOutput>;
+//   using RecOut = ReconRec<VM_ORDER, SM_ORDER>;
+
+//   auto t0 = std::chrono::steady_clock::now();
+
+//   // 0) Count mixed cells (rank 0), build I/J/K arrays, and serialize all
+//   // mixed-cell paraboloids contiguously.
+//   int Nmixed = 0;
+//   std::vector<int> I, J, K;  // (i,j,k) for mixed cells, global order
+//   IRL::ByteBuffer buf_all;   // all mixed-cell paraboloids, back-to-back
+//   int size_paraboloid = 0;   // fixed byte-size per paraboloid
+
+//   if (rank == 0) {
+//     // determine fixed serialized size of a paraboloid (one-shot)
+//     {
+//       IRL::Paraboloid dummy;
+//       IRL::ByteBuffer probe;
+//       probe.resize(0);
+//       probe.resetBufferPointer();
+//       IRL::serializeAndPack(dummy, &probe);
+//       size_paraboloid = probe.size();
+//     }
+
+//     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); ++i) {
+//       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); ++j) {
+//         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); ++k) {
+//           const double vf =
+//               liq_moments(i, j, k).volume() / mesh_coarse.cell_volume();
+//           if (vf > IRL::global_constants::VF_LOW &&
+//               vf < IRL::global_constants::VF_HIGH) {
+//             // must be a paraboloid in the interface for mixed cells
+//             const auto* parab =
+//                 std::get_if<IRL::Paraboloid>(&interface(i, j, k));
+//             if (!parab) continue;  // (or throw)
+//             I.push_back(i);
+//             J.push_back(j);
+//             K.push_back(k);
+//             ++Nmixed;
+//           }
+//         }
+//       }
+//     }
+
+//     // Pre-size a single contiguous buffer to hold all serialized paraboloids
+//     buf_all.resize(Nmixed * size_paraboloid);
+//     buf_all.resetBufferPointer();
+//     for (int n = 0; n < Nmixed; ++n) {
+//       const int i = I[n], j = J[n], k = K[n];
+//       const auto& parab = std::get<IRL::Paraboloid>(interface(i, j, k));
+//       IRL::serializeAndPack(parab, &buf_all);
+//     }
+//   }
+
+//   // 1) Broadcast counts / sizes so all ranks know how many bytes to receive.
+//   MPI_Bcast(&Nmixed, 1, MPI_INT, 0, MPI_COMM_WORLD);
+//   MPI_Bcast(&size_paraboloid, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+//   std::vector<int> counts(size), displs(size);
+//   if (rank == 0) {
+//     displs[0] = 0;
+//     for (int r = 0; r < size; ++r) {
+//       auto rr = block_partition(Nmixed, r, size);
+//       counts[r] = rr.end - rr.begin;
+//       if (r > 0) displs[r] = displs[r - 1] + counts[r - 1];
+//     }
+//   }
+
+//   const auto bounds = block_partition(Nmixed, rank, size);
+//   const int myN = bounds.end - bounds.begin;
+
+//   std::vector<int> Ii(myN), Jj(myN), Kk(myN);
+//   MPI_Scatterv(rank == 0 ? I.data() : nullptr, counts.data(), displs.data(),
+//                MPI_INT, Ii.data(), myN, MPI_INT, 0, MPI_COMM_WORLD);
+//   MPI_Scatterv(rank == 0 ? J.data() : nullptr, counts.data(), displs.data(),
+//                MPI_INT, Jj.data(), myN, MPI_INT, 0, MPI_COMM_WORLD);
+//   MPI_Scatterv(rank == 0 ? K.data() : nullptr, counts.data(), displs.data(),
+//                MPI_INT, Kk.data(), myN, MPI_INT, 0, MPI_COMM_WORLD);
+
+//   // 4) Scatter the serialized paraboloids as raw bytes (one big contiguous
+//   // buffer).
+//   std::vector<int> countsB(size), displsB(size);
+//   if (rank == 0) {
+//     for (int r = 0; r < size; ++r) {
+//       countsB[r] = counts[r] * size_paraboloid;
+//       displsB[r] = displs[r] * size_paraboloid;
+//     }
+//   }
+//   IRL::ByteBuffer buf_local;
+//   buf_local.resize(myN * size_paraboloid);
+//   buf_local.resetBufferPointer();
+
+//   MPI_Scatterv(rank == 0 ? buf_all.data() : nullptr, countsB.data(),
+//                displsB.data(), MPI_BYTE, buf_local.data(),
+//                myN * size_paraboloid, MPI_BYTE, 0, MPI_COMM_WORLD);
+
+//   std::vector<RecOut> local;
+//   local.reserve(std::max(1, myN));
+
+//   // reset read pointer for sequential unpack (matches pack order during
+//   // scatter)
+//   buf_local.resetBufferPointer();
+//   for (int t = 0; t < myN; ++t) {
+//     IRL::Paraboloid P;
+//     IRL::unpackAndStore(&P, &buf_local);  // <-- same API as your code
+
+//     const int i = Ii[t], j = Jj[t], k = Kk[t];
+
+//     const IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+//     const IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+//                      mesh_coarse.z(k + 1));
+//     const IRL::RectangularCuboid cell =
+//         IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+//     auto surface = IRL::getVolumeMoments<VMS>(cell, P).getSurface();
+//     auto vm = IRL::getVolumeMoments<VM>(cell, P);
+//     auto sm = surface.template getSurfaceMoments<SM_ORDER>();
+
+//     RecOut r{};
+//     r.i = i;
+//     r.j = j;
+//     r.k = k;
+//     for (int n = 0; n < RecOut::NV; ++n) r.vol[n] = vm[n];
+//     for (int n = 0; n < RecOut::NS; ++n) r.surf[n] = sm[n];
+//     local.push_back(r);
+//   }
+
+//   // 6) Gather results to rank 0 and write into moments_reconstruction
+//   const int rec_bytes = (int)sizeof(RecOut);
+//   int local_n = (int)local.size();
+
+//   std::vector<int> rcnts(size), rdisp(size), rcntsB(size), rdispB(size);
+//   MPI_Gather(&local_n, 1, MPI_INT, rcnts.data(), 1, MPI_INT, 0,
+//   MPI_COMM_WORLD);
+
+//   std::vector<RecOut> all;
+//   int total = 0;
+//   if (rank == 0) {
+//     rdisp[0] = 0;
+//     for (int r = 1; r < size; ++r) rdisp[r] = rdisp[r - 1] + rcnts[r - 1];
+//     total = rdisp[size - 1] + rcnts[size - 1];
+//     all.resize(total);
+//     for (int r = 0; r < size; ++r) {
+//       rcntsB[r] = rcnts[r] * rec_bytes;
+//       rdispB[r] = rdisp[r] * rec_bytes;
+//     }
+//   }
+
+//   MPI_Gatherv(local.data(), local_n * rec_bytes, MPI_BYTE,
+//               rank == 0 ? all.data() : nullptr,
+//               rank == 0 ? rcntsB.data() : nullptr,
+//               rank == 0 ? rdispB.data() : nullptr, MPI_BYTE, 0,
+//               MPI_COMM_WORLD);
+
+//   if (rank == 0) {
+//     for (const auto& rec : all) {
+//       auto& dst = moments_reconstruction(rec.i, rec.j, rec.k);
+//       for (int n = 0; n < RecOut::NV; ++n) dst.first[n] = rec.vol[n];
+//       for (int n = 0; n < RecOut::NS; ++n) dst.second[n] = rec.surf[n];
+//     }
+//   }
+
+//   MPI_Barrier(MPI_COMM_WORLD);
+//   auto t1 = std::chrono::steady_clock::now();
+//   if (rank == 0) {
+//     std::printf(
+//         "time taken to compute moments using interface [MPI/pack]: %20.6f
+//         s\n", std::chrono::duration<double>(t1 - t0).count());
+//   }
+
+//   // ------------ recentering moments and finding metrics
+//   -------------------- MomentDiffNorms norms{}; if (rank == 0) {
+//     auto t0 = std::chrono::steady_clock::now();
+
+//     Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+//                    IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+//         moments_reconstruction_recentered(&mesh_coarse);
+//     Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
+//                    IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
+//         moments_coarse_recentered(&mesh_coarse);
+
+//     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+//       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+//         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+//           const IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j),
+//                            mesh_coarse.z(k));
+//           const IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+//                            mesh_coarse.z(k + 1));
+//           const IRL::Pt xc = 0.5 * (x0 + x1);
+
+//           IRL::GeneralMoments3D<VM_ORDER> vm = moments_coarse(i, j, k).first;
+//           IRL::GeneralSurfaceMoments3D<SM_ORDER> sm =
+//               moments_coarse(i, j, k).second;
+//           IRL::GeneralMoments3D<VM_ORDER> vmr =
+//               moments_reconstruction(i, j, k).first;
+//           IRL::GeneralSurfaceMoments3D<SM_ORDER> smr =
+//               moments_reconstruction(i, j, k).second;
+
+//           moments_reconstruction_recentered(i, j, k).first =
+//               recenterMoments<IRL::GeneralMoments3D<VM_ORDER>>(vmr, xc);
+//           moments_reconstruction_recentered(i, j, k).second =
+//               recenterMoments<IRL::GeneralSurfaceMoments3D<SM_ORDER>>(smr,
+//               xc);
+
+//           moments_coarse_recentered(i, j, k).first =
+//               recenterMoments<IRL::GeneralMoments3D<VM_ORDER>>(vm, xc);
+//           moments_coarse_recentered(i, j, k).second =
+//               recenterMoments<IRL::GeneralSurfaceMoments3D<SM_ORDER>>(sm,
+//               xc);
+//         }
+//       }
+//     }
+
+//     auto t1 = std::chrono::steady_clock::now();
+//     std::printf("time taken to recenter moments: %20.6f s\n",
+//                 std::chrono::duration<double>(t1 - t0).count());
+
+//     // metrics
+//     norms = compute_moment_diff_norms<VM_ORDER, SM_ORDER>(
+//         moments_coarse_recentered, moments_reconstruction_recentered);
+
+//     std::printf("VOL  : M0  Linf=%.8e  L2=%.8e\n", norms.vol_M0_Linf,
+//                 norms.vol_M0_L2);
+//     std::printf("VOL  : M1  Linf=%.8e  L2=%.8e\n", norms.vol_M1_Linf,
+//                 norms.vol_M1_L2);
+//     std::printf("VOL  : M2  Linf=%.8e  L2=%.8e\n", norms.vol_M2_Linf,
+//                 norms.vol_M2_L2);
+//     std::printf("SURF : M0  Linf=%.8e  L2=%.8e\n", norms.surf_M0_Linf,
+//                 norms.surf_M0_L2);
+//     std::printf("SURF : M1  Linf=%.8e  L2=%.8e\n", norms.surf_M1_Linf,
+//                 norms.surf_M1_L2);
+//     std::printf("SURF : M2  Linf=%.8e  L2=%.8e\n", norms.surf_M2_Linf,
+//                 norms.surf_M2_L2);
+//   }
+//   double buf[12];
+//   if (rank == 0) {
+//     buf[0] = norms.vol_M0_Linf;
+//     buf[1] = norms.vol_M0_L2;
+//     buf[2] = norms.vol_M1_Linf;
+//     buf[3] = norms.vol_M1_L2;
+//     buf[4] = norms.vol_M2_Linf;
+//     buf[5] = norms.vol_M2_L2;
+//     buf[6] = norms.surf_M0_Linf;
+//     buf[7] = norms.surf_M0_L2;
+//     buf[8] = norms.surf_M1_Linf;
+//     buf[9] = norms.surf_M1_L2;
+//     buf[10] = norms.surf_M2_Linf;
+//     buf[11] = norms.surf_M2_L2;
+//   }
+//   MPI_Bcast(buf, 12, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+//   if (rank != 0) {
+//     norms.vol_M0_Linf = buf[0];
+//     norms.vol_M0_L2 = buf[1];
+//     norms.vol_M1_Linf = buf[2];
+//     norms.vol_M1_L2 = buf[3];
+//     norms.vol_M2_Linf = buf[4];
+//     norms.vol_M2_L2 = buf[5];
+//     norms.surf_M0_Linf = buf[6];
+//     norms.surf_M0_L2 = buf[7];
+//     norms.surf_M1_Linf = buf[8];
+//     norms.surf_M1_L2 = buf[9];
+//     norms.surf_M2_Linf = buf[10];
+//     norms.surf_M2_L2 = buf[11];
+//   }
+
+//   return norms;
+// }
+
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 MomentDiffNorms computeReconstructionMetricsFromBin(
     const int& factor, const std::string& reconstruction_method,
@@ -184,14 +569,15 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
               mesh_fine.y(mesh_fine.jmax() + 1),
               mesh_fine.z(mesh_fine.kmax() + 1)));
 
-  Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                 IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-      moments_coarse(&mesh_coarse);
+  using VM = IRL::GeneralMoments3D<VM_ORDER>;
+  using SM = IRL::GeneralSurfaceMoments3D<SM_ORDER>;
+  std::unique_ptr<Data<std::pair<VM, SM>>> moments_coarse;
 
   if (rank == 0) {
+    moments_coarse = std::make_unique<Data<std::pair<VM, SM>>>(&mesh_coarse);
     auto t0 = std::chrono::steady_clock::now();
     coarsenMomentsFromBinary<VM_ORDER, SM_ORDER>(bin_path, factor,
-                                                 &moments_coarse);
+                                                 moments_coarse.get());
     auto t1 = std::chrono::steady_clock::now();
     std::printf("time taken to coarsen moments: %20.6f s\n",
                 std::chrono::duration<double>(t1 - t0).count());
@@ -199,13 +585,19 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
   MPI_Barrier(MPI_COMM_WORLD);
 
   // -------- interface reconstruction from coarse moments  ------------
-  Data<double> velU(&mesh_coarse), velV(&mesh_coarse), velW(&mesh_coarse);
-  Data<IRL::VolumeMoments> liq_moments(&mesh_coarse), gas_moments(&mesh_coarse);
-  Data<IRL::SeparatorVariant> interface(&mesh_coarse);
+  std::unique_ptr<Data<double>> velU, velV, velW;
+  std::unique_ptr<Data<IRL::VolumeMoments>> liq_moments, gas_moments;
+  std::unique_ptr<Data<IRL::SeparatorVariant>> interface;
 
   if (rank == 0) {
-    auto t0 = std::chrono::steady_clock::now();
+    velU = std::make_unique<Data<double>>(&mesh_coarse);
+    velV = std::make_unique<Data<double>>(&mesh_coarse);
+    velW = std::make_unique<Data<double>>(&mesh_coarse);
+    liq_moments = std::make_unique<Data<IRL::VolumeMoments>>(&mesh_coarse);
+    gas_moments = std::make_unique<Data<IRL::VolumeMoments>>(&mesh_coarse);
+    interface = std::make_unique<Data<IRL::SeparatorVariant>>(&mesh_coarse);
 
+    auto t0 = std::chrono::steady_clock::now();
     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
@@ -215,19 +607,20 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
           IRL::RectangularCuboid cell =
               IRL::RectangularCuboid::fromBoundingPts(x0, x1);
 
-          double m0 = moments_coarse(i, j, k).first[0];
-          IRL::Pt m1(moments_coarse(i, j, k).first[1],
-                     moments_coarse(i, j, k).first[2],
-                     moments_coarse(i, j, k).first[3]);
+          double m0 = (*moments_coarse)(i, j, k).first[0];
+          IRL::Pt m1((*moments_coarse)(i, j, k).first[1],
+                     (*moments_coarse)(i, j, k).first[2],
+                     (*moments_coarse)(i, j, k).first[3]);
 
-          liq_moments(i, j, k) = IRL::VolumeMoments(m0, m1);
-          gas_moments(i, j, k) = cell.calculateMoments() - liq_moments(i, j, k);
+          (*liq_moments)(i, j, k) = IRL::VolumeMoments(m0, m1);
+          (*gas_moments)(i, j, k) =
+              cell.calculateMoments() - (*liq_moments)(i, j, k);
         }
       }
     }
 
-    getReconstruction(reconstruction_method, liq_moments, gas_moments, 0.0,
-                      velU, velV, velW, &interface);
+    getReconstruction(reconstruction_method, *liq_moments, *gas_moments, 0.0,
+                      *velU, *velV, *velW, interface.get());
 
     auto t1 = std::chrono::steady_clock::now();
     std::printf("time taken to reconstruct interface: %20.6f s\n",
@@ -235,19 +628,18 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
   }
   MPI_Barrier(MPI_COMM_WORLD);
 
-  // ------- moments of inside cells and build mixed list ---------
-  Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                 IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-      moments_reconstruction(&mesh_coarse);
-
+  // ------- moments of inside cells and prepare mixed list on root ---------
+  std::unique_ptr<Data<std::pair<VM, SM>>> moments_reconstruction;
   if (rank == 0) {
+    moments_reconstruction =
+        std::make_unique<Data<std::pair<VM, SM>>>(&mesh_coarse);
     auto t0 = std::chrono::steady_clock::now();
 
     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
-          double vf = liq_moments(i, j, k).volume() / mesh_coarse.cell_volume();
-
+          double vf =
+              (*liq_moments)(i, j, k).volume() / mesh_coarse.cell_volume();
           if (vf > IRL::global_constants::VF_HIGH) {
             const IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j),
                              mesh_coarse.z(k));
@@ -255,8 +647,8 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
                              mesh_coarse.z(k + 1));
             const IRL::RectangularCuboid cell =
                 IRL::RectangularCuboid::fromBoundingPts(x0, x1);
-            moments_reconstruction(i, j, k).first =
-                IRL::getVolumeMoments<IRL::GeneralMoments3D<VM_ORDER>>(cell);
+            (*moments_reconstruction)(i, j, k).first =
+                IRL::getVolumeMoments<VM>(cell);
           }
         }
       }
@@ -271,23 +663,19 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
   MPI_Barrier(MPI_COMM_WORLD);
 
   // --------------- mixed cell moments using mpi ------------------------
-  using VM = IRL::GeneralMoments3D<VM_ORDER>;
-  using SM = IRL::GeneralSurfaceMoments3D<SM_ORDER>;
   using VMS = IRL::AddSurfaceOutput<IRL::VolumeMoments,
                                     IRL::ParaboloidParametrizedSurfaceOutput>;
   using RecOut = ReconRec<VM_ORDER, SM_ORDER>;
 
   auto t0 = std::chrono::steady_clock::now();
 
-  // 0) Count mixed cells (rank 0), build I/J/K arrays, and serialize all
-  // mixed-cell paraboloids contiguously.
   int Nmixed = 0;
-  std::vector<int> I, J, K;  // (i,j,k) for mixed cells, global order
-  IRL::ByteBuffer buf_all;   // all mixed-cell paraboloids, back-to-back
-  int size_paraboloid = 0;   // fixed byte-size per paraboloid
+  std::vector<int> I, J, K;  // root-only lists of mixed cells
+  IRL::ByteBuffer buf_all;   // root-only contiguous paraboloids
+  int size_paraboloid = 0;   // fixed size
 
   if (rank == 0) {
-    // determine fixed serialized size of a paraboloid (one-shot)
+    // Determine serialized size once.
     {
       IRL::Paraboloid dummy;
       IRL::ByteBuffer probe;
@@ -297,42 +685,60 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
       size_paraboloid = probe.size();
     }
 
+    // Build mixed list and pack
+    I.reserve((mesh_coarse.imax() - mesh_coarse.imin() + 1) *
+              (mesh_coarse.jmax() - mesh_coarse.jmin() + 1) *
+              (mesh_coarse.kmax() - mesh_coarse.kmin() + 1) / 10);  // heuristic
+    J.reserve(I.capacity());
+    K.reserve(I.capacity());
+
     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); ++i) {
       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); ++j) {
         for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); ++k) {
           const double vf =
-              liq_moments(i, j, k).volume() / mesh_coarse.cell_volume();
+              (*liq_moments)(i, j, k).volume() / mesh_coarse.cell_volume();
           if (vf > IRL::global_constants::VF_LOW &&
               vf < IRL::global_constants::VF_HIGH) {
-            // must be a paraboloid in the interface for mixed cells
             const auto* parab =
-                std::get_if<IRL::Paraboloid>(&interface(i, j, k));
-            if (!parab) continue;  // (or throw)
+                std::get_if<IRL::Paraboloid>(&(*interface)(i, j, k));
+            if (!parab) continue;
             I.push_back(i);
             J.push_back(j);
             K.push_back(k);
-            ++Nmixed;
           }
         }
       }
     }
+    Nmixed = (int)I.size();
 
-    // Pre-size a single contiguous buffer to hold all serialized paraboloids
     buf_all.resize(Nmixed * size_paraboloid);
     buf_all.resetBufferPointer();
     for (int n = 0; n < Nmixed; ++n) {
       const int i = I[n], j = J[n], k = K[n];
-      const auto& parab = std::get<IRL::Paraboloid>(interface(i, j, k));
+      const auto& parab = std::get<IRL::Paraboloid>((*interface)(i, j, k));
       IRL::serializeAndPack(parab, &buf_all);
     }
+
+    // Free root-only fields we no longer need to save RAM before the MPI stage
+    // (interface content has been serialized).
+    interface.reset();
+    velU.reset();
+    velV.reset();
+    velW.reset();
+    // liq_moments is still used for VF checks above; safe to free now:
+    liq_moments.reset();
+    gas_moments.reset();
   }
 
-  // 1) Broadcast counts / sizes so all ranks know how many bytes to receive.
+  // Broadcast the counts / sizes
   MPI_Bcast(&Nmixed, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&size_paraboloid, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  std::vector<int> counts(size), displs(size);
+  // Partition work
+  std::vector<int> counts, displs;
   if (rank == 0) {
+    counts.resize(size);
+    displs.resize(size);
     displs[0] = 0;
     for (int r = 0; r < size; ++r) {
       auto rr = block_partition(Nmixed, r, size);
@@ -340,44 +746,65 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
       if (r > 0) displs[r] = displs[r - 1] + counts[r - 1];
     }
   }
-
   const auto bounds = block_partition(Nmixed, rank, size);
   const int myN = bounds.end - bounds.begin;
 
   std::vector<int> Ii(myN), Jj(myN), Kk(myN);
-  MPI_Scatterv(rank == 0 ? I.data() : nullptr, counts.data(), displs.data(),
-               MPI_INT, Ii.data(), myN, MPI_INT, 0, MPI_COMM_WORLD);
-  MPI_Scatterv(rank == 0 ? J.data() : nullptr, counts.data(), displs.data(),
-               MPI_INT, Jj.data(), myN, MPI_INT, 0, MPI_COMM_WORLD);
-  MPI_Scatterv(rank == 0 ? K.data() : nullptr, counts.data(), displs.data(),
-               MPI_INT, Kk.data(), myN, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? I.data() : nullptr,
+               rank == 0 ? counts.data() : nullptr,
+               rank == 0 ? displs.data() : nullptr, MPI_INT, Ii.data(), myN,
+               MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? J.data() : nullptr,
+               rank == 0 ? counts.data() : nullptr,
+               rank == 0 ? displs.data() : nullptr, MPI_INT, Jj.data(), myN,
+               MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? K.data() : nullptr,
+               rank == 0 ? counts.data() : nullptr,
+               rank == 0 ? displs.data() : nullptr, MPI_INT, Kk.data(), myN,
+               MPI_INT, 0, MPI_COMM_WORLD);
 
-  // 4) Scatter the serialized paraboloids as raw bytes (one big contiguous
-  // buffer).
-  std::vector<int> countsB(size), displsB(size);
+  // Scatter serialized paraboloids as bytes
+  std::vector<int> countsB, displsB;
   if (rank == 0) {
+    countsB.resize(size);
+    displsB.resize(size);
     for (int r = 0; r < size; ++r) {
       countsB[r] = counts[r] * size_paraboloid;
       displsB[r] = displs[r] * size_paraboloid;
     }
   }
+
   IRL::ByteBuffer buf_local;
   buf_local.resize(myN * size_paraboloid);
   buf_local.resetBufferPointer();
 
-  MPI_Scatterv(rank == 0 ? buf_all.data() : nullptr, countsB.data(),
-               displsB.data(), MPI_BYTE, buf_local.data(),
+  MPI_Scatterv(rank == 0 ? buf_all.data() : nullptr,
+               rank == 0 ? countsB.data() : nullptr,
+               rank == 0 ? displsB.data() : nullptr, MPI_BYTE, buf_local.data(),
                myN * size_paraboloid, MPI_BYTE, 0, MPI_COMM_WORLD);
 
-  std::vector<RecOut> local;
+  // Free large root-only vectors ASAP after scattering
+  if (rank == 0) {
+    std::vector<int>().swap(I);
+    std::vector<int>().swap(J);
+    std::vector<int>().swap(K);
+    IRL::ByteBuffer tmp;
+    std::swap(buf_all, tmp);
+    // IRL::ByteBuffer().swap(buf_all);
+    std::vector<int>().swap(counts);
+    std::vector<int>().swap(displs);
+    std::vector<int>().swap(countsB);
+    std::vector<int>().swap(displsB);
+  }
+
+  // Local computation
+  std::vector<ReconRec<VM_ORDER, SM_ORDER>> local;
   local.reserve(std::max(1, myN));
 
-  // reset read pointer for sequential unpack (matches pack order during
-  // scatter)
   buf_local.resetBufferPointer();
   for (int t = 0; t < myN; ++t) {
     IRL::Paraboloid P;
-    IRL::unpackAndStore(&P, &buf_local);  // <-- same API as your code
+    IRL::unpackAndStore(&P, &buf_local);
 
     const int i = Ii[t], j = Jj[t], k = Kk[t];
 
@@ -391,21 +818,30 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
     auto vm = IRL::getVolumeMoments<VM>(cell, P);
     auto sm = surface.template getSurfaceMoments<SM_ORDER>();
 
-    RecOut r{};
+    ReconRec<VM_ORDER, SM_ORDER> r{};
     r.i = i;
     r.j = j;
     r.k = k;
-    for (int n = 0; n < RecOut::NV; ++n) r.vol[n] = vm[n];
-    for (int n = 0; n < RecOut::NS; ++n) r.surf[n] = sm[n];
+    for (int n = 0; n < ReconRec<VM_ORDER, SM_ORDER>::NV; ++n) r.vol[n] = vm[n];
+    for (int n = 0; n < ReconRec<VM_ORDER, SM_ORDER>::NS; ++n)
+      r.surf[n] = sm[n];
     local.push_back(r);
   }
 
-  // 6) Gather results to rank 0 and write into moments_reconstruction
+  // Gather structured results to root (others allocate no big recv buffers).
   const int rec_bytes = (int)sizeof(RecOut);
   int local_n = (int)local.size();
 
-  std::vector<int> rcnts(size), rdisp(size), rcntsB(size), rdispB(size);
-  MPI_Gather(&local_n, 1, MPI_INT, rcnts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+  std::vector<int> rcnts, rdisp, rcntsB, rdispB;
+  if (rank == 0) {
+    rcnts.resize(size);
+    rdisp.resize(size);
+    rcntsB.resize(size);
+    rdispB.resize(size);
+  }
+
+  MPI_Gather(&local_n, 1, MPI_INT, rank == 0 ? rcnts.data() : nullptr, 1,
+             MPI_INT, 0, MPI_COMM_WORLD);
 
   std::vector<RecOut> all;
   int total = 0;
@@ -425,9 +861,10 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
               rank == 0 ? rcntsB.data() : nullptr,
               rank == 0 ? rdispB.data() : nullptr, MPI_BYTE, 0, MPI_COMM_WORLD);
 
+  // Root writes gathered results into moments_reconstruction
   if (rank == 0) {
     for (const auto& rec : all) {
-      auto& dst = moments_reconstruction(rec.i, rec.j, rec.k);
+      auto& dst = (*moments_reconstruction)(rec.i, rec.j, rec.k);
       for (int n = 0; n < RecOut::NV; ++n) dst.first[n] = rec.vol[n];
       for (int n = 0; n < RecOut::NS; ++n) dst.second[n] = rec.surf[n];
     }
@@ -441,17 +878,13 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
         std::chrono::duration<double>(t1 - t0).count());
   }
 
-  // ------------ recentering moments and finding metrics  --------------------
+  // --------------------- recentering & metrics  ------------------------
   MomentDiffNorms norms{};
   if (rank == 0) {
-    auto t0 = std::chrono::steady_clock::now();
+    auto t0m = std::chrono::steady_clock::now();
 
-    Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-        moments_reconstruction_recentered(&mesh_coarse);
-    Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-        moments_coarse_recentered(&mesh_coarse);
+    Data<std::pair<VM, SM>> moments_reconstruction_recentered(&mesh_coarse);
+    Data<std::pair<VM, SM>> moments_coarse_recentered(&mesh_coarse);
 
     for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
       for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
@@ -462,32 +895,28 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
                            mesh_coarse.z(k + 1));
           const IRL::Pt xc = 0.5 * (x0 + x1);
 
-          IRL::GeneralMoments3D<VM_ORDER> vm = moments_coarse(i, j, k).first;
-          IRL::GeneralSurfaceMoments3D<SM_ORDER> sm =
-              moments_coarse(i, j, k).second;
-          IRL::GeneralMoments3D<VM_ORDER> vmr =
-              moments_reconstruction(i, j, k).first;
-          IRL::GeneralSurfaceMoments3D<SM_ORDER> smr =
-              moments_reconstruction(i, j, k).second;
+          const VM& vm = (*moments_coarse)(i, j, k).first;
+          const SM& sm = (*moments_coarse)(i, j, k).second;
+          const VM& vmr = (*moments_reconstruction)(i, j, k).first;
+          const SM& smr = (*moments_reconstruction)(i, j, k).second;
 
           moments_reconstruction_recentered(i, j, k).first =
-              recenterMoments<IRL::GeneralMoments3D<VM_ORDER>>(vmr, xc);
+              recenterMoments<VM>(vmr, xc);
           moments_reconstruction_recentered(i, j, k).second =
-              recenterMoments<IRL::GeneralSurfaceMoments3D<SM_ORDER>>(smr, xc);
+              recenterMoments<SM>(smr, xc);
 
           moments_coarse_recentered(i, j, k).first =
-              recenterMoments<IRL::GeneralMoments3D<VM_ORDER>>(vm, xc);
+              recenterMoments<VM>(vm, xc);
           moments_coarse_recentered(i, j, k).second =
-              recenterMoments<IRL::GeneralSurfaceMoments3D<SM_ORDER>>(sm, xc);
+              recenterMoments<SM>(sm, xc);
         }
       }
     }
 
-    auto t1 = std::chrono::steady_clock::now();
+    auto t1m = std::chrono::steady_clock::now();
     std::printf("time taken to recenter moments: %20.6f s\n",
-                std::chrono::duration<double>(t1 - t0).count());
+                std::chrono::duration<double>(t1m - t0m).count());
 
-    // metrics
     norms = compute_moment_diff_norms<VM_ORDER, SM_ORDER>(
         moments_coarse_recentered, moments_reconstruction_recentered);
 
@@ -503,7 +932,12 @@ MomentDiffNorms computeReconstructionMetricsFromBin(
                 norms.surf_M1_L2);
     std::printf("SURF : M2  Linf=%.8e  L2=%.8e\n", norms.surf_M2_Linf,
                 norms.surf_M2_L2);
+
+    moments_reconstruction.reset();
+    moments_coarse.reset();
   }
+
+  // Broadcast metrics to all ranks for the return value
   double buf[12];
   if (rank == 0) {
     buf[0] = norms.vol_M0_Linf;
@@ -688,6 +1122,315 @@ void output_interfaces(const std::string& shape, int Nx_fine, const int& factor,
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
+}
+
+// finding curvedness
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+std::pair<double, double> getCurvednessMetrics(
+    const std::string& shape, int Nx_fine, const int& factor,
+    const std::string& reconstruction_method, const std::string& output_dir) {
+  // int rank = 0, size = 1;
+  // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  // MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  std::pair<double, double> norms = {0.0, 0.0};  // Linf, L2
+
+  // if (rank == 0) {
+  // ---------------- CSV OUTPUTTING -----------------------
+  // const std::string csv_path = output_dir + "/" + shape + "_Nx" +
+  //                              std::to_string(Nx_fine / factor) +
+  //                              "_curvedness_data.csv";
+  // std::ofstream csv(csv_path);
+  // if (!csv) {
+  //   std::fprintf(stderr, "ERROR: cannot open CSV for writing: %s\n",
+  //                csv_path.c_str());
+  // } else {
+  //   csv << "i,j,k,C_parab,C_surface,"
+  //          "centroid_x,centroid_y,centroid_z,"
+  //          "proj_x,proj_y,proj_z\n";
+  //   csv << std::scientific << std::setprecision(10);
+  // }
+  // -------------------------------------------------------
+
+  // -- coarsen --
+  BasicMesh mesh_fine(Nx_fine, Nx_fine, Nx_fine, 1);
+  SurfaceVariant surf = makeSurface(shape, mesh_fine);
+  const std::string bin_path = binary_filename(output_dir, shape, Nx_fine);
+
+  const int Nx_coarse = Nx_fine / factor;
+  BasicMesh mesh_coarse(Nx_coarse, Nx_coarse, Nx_coarse, 1);
+  mesh_coarse.setCellBoundaries(
+      IRL::Pt(mesh_fine.x(mesh_fine.imin()), mesh_fine.y(mesh_fine.jmin()),
+              mesh_fine.z(mesh_fine.kmin())),
+      IRL::Pt(mesh_fine.x(mesh_fine.imax() + 1),
+              mesh_fine.y(mesh_fine.jmax() + 1),
+              mesh_fine.z(mesh_fine.kmax() + 1)));
+
+  using VM = IRL::GeneralMoments3D<VM_ORDER>;
+  using SM = IRL::GeneralSurfaceMoments3D<SM_ORDER>;
+  Data<std::pair<VM, SM>> moments_coarse(&mesh_coarse);
+
+  coarsenMomentsFromBinary<VM_ORDER, SM_ORDER>(bin_path, factor,
+                                               &moments_coarse);
+
+  // -- reconstruction --
+  Data<double> velU(&mesh_coarse), velV(&mesh_coarse), velW(&mesh_coarse);
+  Data<IRL::VolumeMoments> liq_moments(&mesh_coarse), gas_moments(&mesh_coarse);
+  Data<IRL::SeparatorVariant> interface(&mesh_coarse);
+
+  for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+    for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+      for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+        IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+        IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+                   mesh_coarse.z(k + 1));
+        IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+        const double m0 = moments_coarse(i, j, k).first[0];
+
+        const IRL::Pt m1(moments_coarse(i, j, k).first[1],
+                         moments_coarse(i, j, k).first[2],
+                         moments_coarse(i, j, k).first[3]);
+
+        liq_moments(i, j, k) = IRL::VolumeMoments(m0, m1);
+        gas_moments(i, j, k) = cell.calculateMoments() - liq_moments(i, j, k);
+      }
+    }
+  }
+
+  getReconstruction(reconstruction_method, liq_moments, gas_moments, 0.0, velU,
+                    velV, velW, &interface);
+
+  // -- curvedness --
+  double L2_sum = 0.0;
+  int N = 0;
+
+  for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+    for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+      for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+        double vf = liq_moments(i, j, k).volume() / mesh_coarse.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+
+        const auto* parab = std::get_if<IRL::Paraboloid>(&interface(i, j, k));
+        if (!parab) continue;
+
+        IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+        IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+                   mesh_coarse.z(k + 1));
+        IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+        using VMS =
+            IRL::AddSurfaceOutput<IRL::VolumeMoments,
+                                  IRL::ParaboloidParametrizedSurfaceOutput>;
+        auto surface = IRL::getVolumeMoments<VMS>(cell, *parab).getSurface();
+
+        auto surface_moments = surface.template getSurfaceMoments<1>();
+        Eigen::Vector3d surface_centroid(
+            surface_moments[1] / surface_moments[0],
+            surface_moments[2] / surface_moments[0],
+            surface_moments[3] / surface_moments[0]);
+
+        Eigen::Vector3d x_proj = std::visit(
+            [&](auto& s) { return s.projectPointOnSurface(surface_centroid); },
+            surf);
+
+        double surface_curvedness = std::visit(
+            [&](auto& s) {
+              return s.curvedness(x_proj[0], x_proj[1], x_proj[2]);
+            },
+            surf);
+
+        double parab_curvedness = surface.getCurvednessNonAligned(
+            IRL::Pt(x_proj[0], x_proj[1], x_proj[2]));
+
+        norms.first = std::max(norms.first,
+                               std::abs(surface_curvedness - parab_curvedness));
+        L2_sum += (surface_curvedness - parab_curvedness) *
+                  (surface_curvedness - parab_curvedness);
+        N++;
+
+        // ------------------------ csv output -----------------------
+        // if (csv) {
+        //   csv << i << ',' << j << ',' << k << ',' << parab_curvedness <<
+        //   ','
+        //       << surface_curvedness << ',' << surface_centroid[0] << ','
+        //       << surface_centroid[1] << ',' << surface_centroid[2] << ','
+        //       << x_proj[0] << ',' << x_proj[1] << ',' << x_proj[2] << '\n';
+        // }
+        // -----------------------------------------------------------
+      }
+    }
+  }
+  // csv.close();
+  // if (csv) {
+  //   std::printf("curvedness data outputted to csv: %s\n",
+  //   csv_path.c_str());
+  // }
+
+  norms.second = std::sqrt(1.0 / static_cast<double>(N) * L2_sum);
+  // }
+
+  // double buf[2];
+  // if (rank == 0) {
+  //   buf[0] = norms.first;
+  //   buf[1] = norms.second;
+  // }
+  // MPI_Bcast(buf, 2, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  // if (rank != 0) {
+  //   norms.first = buf[0];
+  //   norms.second = buf[1];
+  // }
+
+  return norms;
+}
+
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+void runCurvednessConvergence(const std::string& shape, int Nx_fine,
+                              const std::string& reconstruction_method,
+                              const std::string& output_dir) {
+  int rank = 0, size = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  std::string csv_path = output_dir + "/curvedness_convergence_" + shape + "_" +
+                         reconstruction_method + "_Nx" +
+                         std::to_string(Nx_fine) + ".csv";
+
+  // factors for convergence
+  const std::vector<int> factors = {1, 2, 4, 8, 16};  // {1, 2, 4, 8, 16}
+
+  if (rank == 0) {
+    std::ofstream csv(csv_path);
+    if (!csv) {
+      std::fprintf(stderr, "ERROR: cannot open CSV for writing: %s\n",
+                   csv_path.c_str());
+    } else {
+      csv << "factor,Linf,L2\n";
+      csv << std::scientific << std::setprecision(10);
+    }
+    for (int f : factors) {
+      std::cout << "Running factor = " << f << std::endl;
+      int ok = (Nx_fine % f == 0) ? 1 : 0;
+      if (!ok) {
+        std::fprintf(stderr,
+                     "ERROR: Nx_fine (%d) not divisible by factor (%d)\n",
+                     Nx_fine, f);
+        if (!ok) MPI_Abort(MPI_COMM_WORLD, 4);
+      }
+      std::pair<double, double> norms =
+          getCurvednessMetrics<VM_ORDER, SM_ORDER>(
+              shape, Nx_fine, f, reconstruction_method, output_dir);
+      if (csv) {
+        csv << f << "," << norms.first << "," << norms.second << "\n";
+      }
+    }
+    csv.close();
+    std::printf("✅ Curvedness convergence results written to %s\n",
+                csv_path.c_str());
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+
+// --------------------------- LVIRA norms --------------------------------
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+MomentDiffNorms computePLICMetricsFromBin(
+    const int& factor, const std::string& reconstruction_method,
+    const std::string& shape, int Nx_fine, const std::string& output_dir) {
+  if (reconstruction_method != "LVIRA" && reconstruction_method != "ELVIRA") {
+    std::cerr << "ERROR: reconstruction method must be LVIRA or ELVIRA (got "
+              << reconstruction_method << ")\n";
+    return {};
+  }
+
+  // -- coarsen --
+  BasicMesh mesh_fine(Nx_fine, Nx_fine, Nx_fine, 1);
+  SurfaceVariant surf = makeSurface(shape, mesh_fine);
+  const std::string bin_path = binary_filename(output_dir, shape, Nx_fine);
+
+  const int Nx_coarse = Nx_fine / factor;
+  BasicMesh mesh_coarse(Nx_coarse, Nx_coarse, Nx_coarse, 1);
+  mesh_coarse.setCellBoundaries(
+      IRL::Pt(mesh_fine.x(mesh_fine.imin()), mesh_fine.y(mesh_fine.jmin()),
+              mesh_fine.z(mesh_fine.kmin())),
+      IRL::Pt(mesh_fine.x(mesh_fine.imax() + 1),
+              mesh_fine.y(mesh_fine.jmax() + 1),
+              mesh_fine.z(mesh_fine.kmax() + 1)));
+
+  using VM = IRL::GeneralMoments3D<VM_ORDER>;
+  using SM = IRL::GeneralSurfaceMoments3D<SM_ORDER>;
+  Data<std::pair<VM, SM>> moments_coarse(&mesh_coarse);
+
+  coarsenMomentsFromBinary<VM_ORDER, SM_ORDER>(bin_path, factor,
+                                               &moments_coarse);
+
+  // -- reconstruction --
+  Data<double> velU(&mesh_coarse), velV(&mesh_coarse), velW(&mesh_coarse);
+  Data<IRL::VolumeMoments> liq_moments(&mesh_coarse), gas_moments(&mesh_coarse);
+  Data<IRL::SeparatorVariant> interface(&mesh_coarse);
+
+  for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+    for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+      for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+        IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+        IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+                   mesh_coarse.z(k + 1));
+        IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+        const double m0 = moments_coarse(i, j, k).first[0];
+
+        const IRL::Pt m1(moments_coarse(i, j, k).first[1],
+                         moments_coarse(i, j, k).first[2],
+                         moments_coarse(i, j, k).first[3]);
+
+        liq_moments(i, j, k) = IRL::VolumeMoments(m0, m1);
+        gas_moments(i, j, k) = cell.calculateMoments() - liq_moments(i, j, k);
+      }
+    }
+  }
+
+  getReconstruction(reconstruction_method, liq_moments, gas_moments, 0.0, velU,
+                    velV, velW, &interface);
+
+  // -- computing PLIC moments --
+  Data<std::pair<VM, SM>> moments_reconstruction(&mesh_coarse);
+  for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+    for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+      for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+        double vf = liq_moments(i, j, k).volume() / mesh_coarse.cell_volume();
+        const IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+        const IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+                         mesh_coarse.z(k + 1));
+        const IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+        if (vf > IRL::global_constants::VF_HIGH) {
+          moments_reconstruction(i, j, k).first =
+              IRL::getVolumeMoments<VM>(cell);
+        }
+        if (vf > IRL::global_constants::VF_LOW &&
+            vf < IRL::global_constants::VF_HIGH) {
+          const auto planar_separator =
+              std::get<IRL::PlanarSeparator>(interface(i, j, k));
+          IRL::Polygon polygon =
+              IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                  cell, planar_separator, planar_separator[0]);
+          // polygon.calculateAndSetPlaneOfExistence();
+          moments_reconstruction(i, j, k).second =
+              polygon.calculateGeneralMoments<SM_ORDER>();
+          moments_reconstruction(i, j, k).first =
+              IRL::getVolumeMoments<VM>(cell, planar_separator);
+          // RECENTER MOMENTS
+        }
+      }
+    }
+  }
+
+  // -- moment norms --
+  return compute_moment_diff_norms(moments_coarse, moments_reconstruction);
 }
 
 #endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_RECONSTRUCTION_METRICS_TPP_

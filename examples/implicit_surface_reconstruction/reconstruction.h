@@ -68,6 +68,18 @@ void output_interfaces(const std::string& shape, int Nx_fine, const int& factor,
                        const std::string& reconstruction_method,
                        const std::string& output_dir);
 
+std::pair<double, double> getCurvednessMetrics(
+    const std::string& shape, int Nx_fine, const int& factor,
+    const std::string& reconstruction_method, const std::string& output_dir);
+
+void runCurvednessConvergence(const std::string& shape, int Nx_fine,
+                              const std::string& reconstruction_method,
+                              const std::string& output_dir);
+
+MomentDiffNorms computePLICMetricsFromBin(
+    const int& factor, const std::string& reconstruction_method,
+    const std::string& shape, int Nx_fine, const std::string& output_dir);
+
 #include "examples/implicit_surface_reconstruction/reconstruction.tpp"
 
 #endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_RECONSTRUCTION_H_

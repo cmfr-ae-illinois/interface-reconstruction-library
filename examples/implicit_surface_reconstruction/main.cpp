@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
     // generating binary file with implicit surface moments
     run_initialization<VM_ORDER, SM_ORDER>(shape, Nx, outdir);
   } else if (mode == "metrics") {
+    // only for paraboloids
     // reading binary file and computing metrics for one coarse mesh
     if (Nx % factor != 0) {
       if (rank == 0)
@@ -90,24 +91,11 @@ int main(int argc, char** argv) {
     const MomentDiffNorms norms =
         computeReconstructionMetricsFromBin<VM_ORDER, SM_ORDER>(
             factor, method, shape, Nx, outdir);
-    if (rank == 0) {
-      std::printf("[metrics] shape=%s Nx=%d factor=%d\n", shape.c_str(), Nx,
-                  factor);
-      std::printf("VOL  : M0  Linf=%.8e  L2=%.8e\n", norms.vol_M0_Linf,
-                  norms.vol_M0_L2);
-      std::printf("VOL  : M1  Linf=%.8e  L2=%.8e\n", norms.vol_M1_Linf,
-                  norms.vol_M1_L2);
-      std::printf("VOL  : M2  Linf=%.8e  L2=%.8e\n", norms.vol_M2_Linf,
-                  norms.vol_M2_L2);
-      std::printf("SURF : M0  Linf=%.8e  L2=%.8e\n", norms.surf_M0_Linf,
-                  norms.surf_M0_L2);
-      std::printf("SURF : M1  Linf=%.8e  L2=%.8e\n", norms.surf_M1_Linf,
-                  norms.surf_M1_L2);
-      std::printf("SURF : M2  Linf=%.8e  L2=%.8e\n", norms.surf_M2_Linf,
-                  norms.surf_M2_L2);
-    }
   } else if (mode == "convergence") {
+    // only for paraboloids
     run_convergence<VM_ORDER, SM_ORDER>(shape, Nx, method, outdir);
+  } else if (mode == "curvednessConvergence") {
+    runCurvednessConvergence<VM_ORDER, SM_ORDER>(shape, Nx, method, outdir);
   } else if (mode == "outputInterface") {
     output_interfaces<VM_ORDER, SM_ORDER>(shape, Nx, factor, method, outdir);
   } else {
@@ -127,3 +115,45 @@ int main(int argc, char** argv) {
   MPI_Finalize();
   return 0;
 }
+
+// // ------- FOR TESTING PURPOSES -----------
+// int main(int argc, char** argv) {
+//   MPI_Init(&argc, &argv);
+//   int rank = 0, size = 1;
+//   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//   MPI_Comm_size(MPI_COMM_WORLD, &size);
+//   // std::string shape = "sphere";
+//   // BasicMesh mesh(32, 32, 32, 1);
+//   // SurfaceVariant surf = makeSurface(shape, mesh);
+
+//   // double area = std::visit([](auto& s) { return s.surfaceArea(); }, surf);
+//   // std::cout << area << std::endl;
+
+//   // testing curvedness
+//   constexpr std::size_t VM_ORDER = 2, SM_ORDER = 2;
+//   const std::string shape = "sphere";
+//   const int Nx_fine = 256;
+//   const int factor = 16;
+//   const std::string reconstruction_method = "Jibben";
+//   const std::string output_dir =
+//       "/home/parinht2/Desktop/ppic paper/curvedness_testing";
+//   // std::pair<double, double> curvedness_norms =
+//   //     getCurvednessMetrics<VM_ORDER, SM_ORDER>(
+//   //         shape, Nx_fine, factor, reconstruction_method, output_dir);
+
+//   // std::cout << "Linf norm = " << curvedness_norms.first << std::endl;
+//   // std::cout << "L2 norm = " << curvedness_norms.second << std::endl;
+
+//   // outputting corresponding interface
+//   // output_interfaces<VM_ORDER, SM_ORDER>(shape, Nx_fine, factor,
+//   //                                       reconstruction_method,
+//   output_dir);
+
+//   // running curvedness convergence
+//   runCurvednessConvergence<VM_ORDER, SM_ORDER>(
+//       shape, Nx_fine, reconstruction_method, output_dir);
+
+//   MPI_Finalize();
+
+//   return 0;
+// }
