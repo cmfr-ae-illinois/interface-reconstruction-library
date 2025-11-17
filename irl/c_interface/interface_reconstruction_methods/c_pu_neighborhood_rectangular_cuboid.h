@@ -20,6 +20,9 @@ void c_PUSTNeigh_RectCub_delete(c_PUSTNeigh_RectCub* a_self);
 void c_PUSTNeigh_RectCub_setSize(c_PUSTNeigh_RectCub* a_self,
                                  const int* a_size);
 
+void c_PUSTNeigh_RectCub_reserve(c_PUSTNeigh_RectCub* a_self,
+                                 const int* a_size);
+
 void c_PUSTNeigh_RectCub_setMember(c_PUSTNeigh_RectCub* a_self,
                                    const int* a_index,
                                    const double* __restrict__ a_centroid,

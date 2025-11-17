@@ -98,6 +98,12 @@ void PUSTNeighborhood<CellType>::resize(const UnsignedIndex_t a_size) {
 }
 
 template <class CellType>
+void PUSTNeighborhood<CellType>::reserve(const UnsignedIndex_t a_size) {
+  centroids_m.reserve(a_size);
+  separators_m.reserve(a_size);
+}
+
+template <class CellType>
 UnsignedIndex_t PUSTNeighborhood<CellType>::size(void) const {
   return static_cast<UnsignedIndex_t>(centroids_m.size());
 }

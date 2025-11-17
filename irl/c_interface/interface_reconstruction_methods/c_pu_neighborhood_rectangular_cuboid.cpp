@@ -21,6 +21,13 @@ void c_PUSTNeigh_RectCub_setSize(c_PUSTNeigh_RectCub* a_self,
   a_self->obj_ptr->resize(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 
+void c_PUSTNeigh_RectCub_reserve(c_PUSTNeigh_RectCub* a_self,
+                                 const int* a_size) {
+  assert(a_self != nullptr);
+  assert(a_self->!= nullptr);
+  a_self->obj_ptr->reserve(static_cast<IRL::UnsignedIndex_t>(*a_size));
+}
+
 void c_PUSTNeigh_RectCub_setMember(c_PUSTNeigh_RectCub* a_self,
                                    const int* a_index,
                                    const double* __restrict__ a_centroid,

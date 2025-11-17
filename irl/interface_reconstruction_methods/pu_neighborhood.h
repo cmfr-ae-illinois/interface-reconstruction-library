@@ -34,6 +34,7 @@ class PUSTNeighborhood {
 
   /// \brief Set size of the neighborhood. Tested
   void resize(const UnsignedIndex_t a_size);
+  void reserve(const UnsignedIndex_t a_size);
 
   /// \brief Set the index for the center cell in the collection. Tested
   // void setCenterOfStencil(const UnsignedIndex_t a_index);

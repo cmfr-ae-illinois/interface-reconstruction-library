@@ -28,6 +28,7 @@ module f_ReconstructionInterface
   use f_PlanarSep_class
   use f_SeparatorVariant_class
   use f_JibbenNeigh_class
+  use f_PUSTNeigh_RectCub_class
   use f_ELVIRANeigh_class
   use f_ListVM_VMAN_class
   use f_LVIRANeigh_RectCub_class
@@ -37,6 +38,10 @@ module f_ReconstructionInterface
   use f_OptimizationBehavior_class
   use f_R2PWeighting_class
   implicit none
+
+  interface reconstructPU3D
+    module procedure reconstructPU3D_RectCub_Variant
+  end interface reconstructPU3D
 
   interface reconstructJibben3D
     module procedure reconstructJibben3D_Variant
@@ -167,6 +172,19 @@ module f_ReconstructionInterface
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
     end subroutine F_reconstructJibben3D_Variant
+  end interface
+
+  interface
+    subroutine F_reconstructPU3D_RectCub_Variant(a_PURectCubNeigh, a_centroid, a_delta, a_separator) &
+    bind(C, name="c_reconstructPU3D_RectCub_Variant")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_PUSTNeigh_RectCub) :: a_PURectCubNeigh ! Pointer to a PUNeigh object
+      real(C_DOUBLE), dimension(*), intent(in) :: a_centroid !  dimension(1:3)
+      real(C_DOUBLE), intent(in) :: a_delta
+      type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
+    end subroutine F_reconstructPU3D_RectCub_Variant
   end interface
 
 
@@ -548,6 +566,18 @@ module f_ReconstructionInterface
       call F_reconstructJibben3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
 
   end subroutine reconstructJibben3D_Variant
+
+  subroutine reconstructPU3D_RectCub_Variant(a_pu_neighborhood, a_centroid, a_delta, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(PUSTNeigh_RectCub_type), intent(in) :: a_pu_neighborhood
+      real(IRL_double), dimension(1:3), intent(in) :: a_centroid
+      real(IRL_double), intent(in) :: a_delta
+      type(SeparatorVariant_type), intent(inout) :: a_separator
+
+      call F_reconstructPU3D_RectCub_Variant(a_pu_neighborhood%c_object, a_centroid, a_delta, a_separator%c_object)
+
+  end subroutine reconstructPU3D_RectCub_Variant
 
   subroutine reconstructELVIRA3D_Variant(a_elvira_neighborhood, a_variant)
     use, intrinsic :: iso_c_binding

@@ -13,6 +13,18 @@
 
 extern "C" {
 
+void c_reconstructPU3D_RectCub_Variant(
+    const c_PUSTNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
+    const double* a_delta, c_SeparatorVariant* a_separator) {
+  assert(a_pu_neighborhood != nullptr);
+  assert(a_pu_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  *a_separator->obj_ptr = IRL::reconstructionWithPU3D<IRL::RectangularCuboid>(
+      *a_pu_neighborhood->obj_ptr, IRL::Pt::fromRawDoublePointer(a_centroid),
+      *a_delta);
+}
+
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
                                  c_Paraboloid* a_separator) {
   assert(a_jibben_neighborhood != nullptr);
