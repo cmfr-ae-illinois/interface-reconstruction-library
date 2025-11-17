@@ -19,13 +19,7 @@
 
 namespace IRL {
 
-#ifndef AMR_DBL_EPSILON
-#define AMR_DBL_EPSILON 10.0 * DBL_EPSILON
-#endif
-
-#ifndef no_amr_output
-#define no_amr_output ""
-#endif
+const double AMR_DBL_EPSILON = 10.0 * DBL_EPSILON;
 
 #define ONE_AMR_STRATEGY
 
@@ -39,17 +33,18 @@ static constexpr UnsignedIndex_t N_AMR_STRATEGIES = 3;
 static constexpr UnsignedIndex_t N_AMR_STRATEGIES = 1;
 #endif
 
+std::vector<double> amr_triangles_clipped;
+std::vector<double> amr_triangles_unclipped;
+
 template <class ReturnType>
-inline void kahanSummationMoments(
+void kahanSummationMoments(
     std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
         a_full_moments,
     std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
         a_full_moments_ref,
     std::array<ReturnType, N_AMR_STRATEGIES>& a_moments_to_add);
 
-inline const double triangleSignedArea(const Pt& a_pt_0, const Pt& a_pt_1,
-                                       const Pt& a_pt_2);
-
+std::string no_amr_output = "";
 }  // namespace IRL
 
 #include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.tpp"

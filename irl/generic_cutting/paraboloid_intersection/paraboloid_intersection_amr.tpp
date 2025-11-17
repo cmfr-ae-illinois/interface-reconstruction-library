@@ -30,8 +30,7 @@ template <>
 inline Volume computeMomentContributionClippedTriangle<Volume, 0>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_clipped.insert(
         amr_triangles_clipped.end(),
@@ -51,8 +50,7 @@ template <>
 inline VolumeMoments computeMomentContributionClippedTriangle<VolumeMoments, 0>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_clipped.insert(
         amr_triangles_clipped.end(),
@@ -196,8 +194,7 @@ template <>
 inline Volume computeMomentContributionClippedTriangle<Volume, 1>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   return -(a_aligned_paraboloid.a() *
                (a_pt_0[0] * (a_pt_0[0] + a_pt_1[0] + a_pt_2[0]) +
                 a_pt_1[0] * (a_pt_1[0] + a_pt_2[0]) + a_pt_2[0] * a_pt_2[0]) +
@@ -211,8 +208,7 @@ template <>
 inline Volume computeMomentContributionClippedTriangle<Volume, 2>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   return 0.0;
 }
 
@@ -220,8 +216,7 @@ template <>
 inline Volume computeMomentContributionUnclippedTriangle<Volume, 0>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_unclipped.insert(
         amr_triangles_unclipped.end(),
@@ -236,8 +231,7 @@ inline VolumeMoments
 computeMomentContributionUnclippedTriangle<VolumeMoments, 0>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   if (a_print) {
     amr_triangles_unclipped.insert(
         amr_triangles_unclipped.end(),
@@ -269,8 +263,7 @@ template <>
 inline Volume computeMomentContributionUnclippedTriangle<Volume, 1>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   return (4.0 * (a_pt_0[2] + a_pt_1[2] + a_pt_2[2]) +
           (a_aligned_paraboloid.a() *
                (a_pt_0[0] * (a_pt_0[0] + a_pt_1[0] + a_pt_2[0]) +
@@ -285,8 +278,7 @@ template <>
 inline Volume computeMomentContributionUnclippedTriangle<Volume, 2>(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   return (2.0 * (a_pt_0[2] + a_pt_1[2] + a_pt_2[2]) +
           (a_aligned_paraboloid.a() *
                (a_pt_0[0] * (a_pt_0[0] + a_pt_1[0] + a_pt_2[0]) +
@@ -303,8 +295,7 @@ void computeMomentContributionMixedTriangle(
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
     const double a_signed_area,
     std::array<ReturnType, N_AMR_STRATEGIES>& a_moments_to_add,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   auto below =
       StackVector<bool, 3>({vertexBelow(a_pt_0, a_aligned_paraboloid),
                             vertexBelow(a_pt_1, a_aligned_paraboloid),
@@ -314,35 +305,35 @@ void computeMomentContributionMixedTriangle(
     a_moments_to_add[0] =
         computeMomentContributionUnclippedTriangle<ReturnType, 0>(
             a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-            amr_triangles_clipped, amr_triangles_unclipped, a_print);
+            a_print);
     if constexpr (N_AMR_STRATEGIES > 1) {
       a_moments_to_add[1] =
           computeMomentContributionUnclippedTriangle<ReturnType, 1>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
     if constexpr (N_AMR_STRATEGIES > 2) {
       a_moments_to_add[2] =
           computeMomentContributionUnclippedTriangle<ReturnType, 2>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
   } else if (!below[0] && !below[1] && !below[2]) {
     a_moments_to_add[0] =
         computeMomentContributionClippedTriangle<ReturnType, 0>(
             a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-            amr_triangles_clipped, amr_triangles_unclipped, a_print);
+            a_print);
     if constexpr (N_AMR_STRATEGIES > 1) {
       a_moments_to_add[1] =
           computeMomentContributionClippedTriangle<ReturnType, 1>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
     if constexpr (N_AMR_STRATEGIES > 2) {
       a_moments_to_add[2] =
           computeMomentContributionClippedTriangle<ReturnType, 2>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
   } else {
     const double d = a_normal * a_pt_0;
@@ -371,39 +362,35 @@ void computeMomentContributionMixedTriangle(
             a_moments_to_add[0] =
                 computeMomentContributionUnclippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-                    amr_triangles_clipped, amr_triangles_unclipped, a_print);
+                    a_print);
             if constexpr (N_AMR_STRATEGIES > 1) {
               a_moments_to_add[1] =
                   computeMomentContributionUnclippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2,
-                      a_signed_area, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      a_signed_area, a_print);
             }
             if constexpr (N_AMR_STRATEGIES > 2) {
               a_moments_to_add[2] =
                   computeMomentContributionUnclippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2,
-                      a_signed_area, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      a_signed_area, a_print);
             }
           } else {
             a_moments_to_add[0] =
                 computeMomentContributionClippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-                    amr_triangles_clipped, amr_triangles_unclipped, a_print);
+                    a_print);
             if constexpr (N_AMR_STRATEGIES > 1) {
               a_moments_to_add[1] =
                   computeMomentContributionClippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2,
-                      a_signed_area, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      a_signed_area, a_print);
             }
             if constexpr (N_AMR_STRATEGIES > 2) {
               a_moments_to_add[2] =
                   computeMomentContributionClippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2,
-                      a_signed_area, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      a_signed_area, a_print);
             }
           }
           break;
@@ -424,89 +411,71 @@ void computeMomentContributionMixedTriangle(
             a_moments_to_add[0] =
                 computeMomentContributionUnclippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, tris[3 + ids[0]], new_pt_1, new_pt_2,
-                    signed_area_1, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    signed_area_1, a_print) +
                 computeMomentContributionClippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, new_pt_1, tris[3 + ids[1]],
-                    tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    tris[3 + ids[2]], signed_area_2, a_print) +
                 computeMomentContributionClippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, tris[3 + ids[2]], new_pt_2, new_pt_1,
-                    signed_area_3, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print);
+                    signed_area_3, a_print);
             if constexpr (N_AMR_STRATEGIES > 1) {
               a_moments_to_add[1] =
                   computeMomentContributionUnclippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, tris[3 + ids[0]], new_pt_1,
-                      new_pt_2, signed_area_1, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      new_pt_2, signed_area_1, a_print) +
                   computeMomentContributionClippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, new_pt_1, tris[3 + ids[1]],
-                      tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      tris[3 + ids[2]], signed_area_2, a_print) +
                   computeMomentContributionClippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, tris[3 + ids[2]], new_pt_2,
-                      new_pt_1, signed_area_3, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      new_pt_1, signed_area_3, a_print);
             }
             if constexpr (N_AMR_STRATEGIES > 2) {
               a_moments_to_add[2] =
                   computeMomentContributionUnclippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, tris[3 + ids[0]], new_pt_1,
-                      new_pt_2, signed_area_1, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      new_pt_2, signed_area_1, a_print) +
                   computeMomentContributionClippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, new_pt_1, tris[3 + ids[1]],
-                      tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      tris[3 + ids[2]], signed_area_2, a_print) +
                   computeMomentContributionClippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, tris[3 + ids[2]], new_pt_2,
-                      new_pt_1, signed_area_3, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      new_pt_1, signed_area_3, a_print);
             }
           } else {
             a_moments_to_add[0] =
                 computeMomentContributionClippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, tris[3 + ids[0]], new_pt_1, new_pt_2,
-                    signed_area_1, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    signed_area_1, a_print) +
                 computeMomentContributionUnclippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, new_pt_1, tris[3 + ids[1]],
-                    tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print) +
+                    tris[3 + ids[2]], signed_area_2, a_print) +
                 computeMomentContributionUnclippedTriangle<ReturnType, 0>(
                     a_aligned_paraboloid, tris[3 + ids[2]], new_pt_2, new_pt_1,
-                    signed_area_3, amr_triangles_clipped,
-                    amr_triangles_unclipped, a_print);
+                    signed_area_3, a_print);
             if constexpr (N_AMR_STRATEGIES > 1) {
               a_moments_to_add[1] =
                   computeMomentContributionClippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, tris[3 + ids[0]], new_pt_1,
-                      new_pt_2, signed_area_1, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      new_pt_2, signed_area_1, a_print) +
                   computeMomentContributionUnclippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, new_pt_1, tris[3 + ids[1]],
-                      tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      tris[3 + ids[2]], signed_area_2, a_print) +
                   computeMomentContributionUnclippedTriangle<ReturnType, 1>(
                       a_aligned_paraboloid, tris[3 + ids[2]], new_pt_2,
-                      new_pt_1, signed_area_3, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      new_pt_1, signed_area_3, a_print);
             }
             if constexpr (N_AMR_STRATEGIES > 2) {
               a_moments_to_add[2] =
                   computeMomentContributionClippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, tris[3 + ids[0]], new_pt_1,
-                      new_pt_2, signed_area_1, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      new_pt_2, signed_area_1, a_print) +
                   computeMomentContributionUnclippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, new_pt_1, tris[3 + ids[1]],
-                      tris[3 + ids[2]], signed_area_2, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print) +
+                      tris[3 + ids[2]], signed_area_2, a_print) +
                   computeMomentContributionUnclippedTriangle<ReturnType, 2>(
                       a_aligned_paraboloid, tris[3 + ids[2]], new_pt_2,
-                      new_pt_1, signed_area_3, amr_triangles_clipped,
-                      amr_triangles_unclipped, a_print);
+                      new_pt_1, signed_area_3, a_print);
             }
           }
           break;
@@ -582,8 +551,7 @@ void computeMomentContributionAMR(
         a_full_moments_ref,
     std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
         a_full_moments,
-    std::vector<double>& amr_triangles_clipped,
-    std::vector<double>& amr_triangles_unclipped, const bool a_print) {
+    const bool a_print) {
   std::array<ReturnType, N_AMR_STRATEGIES> moments_to_add;
 
   // Compute z-bounds of triangle and paraboloid
@@ -593,20 +561,20 @@ void computeMomentContributionAMR(
     moments_to_add[0] =
         computeMomentContributionUnclippedTriangle<ReturnType, 0>(
             a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-            amr_triangles_clipped, amr_triangles_unclipped, a_print);
+            a_print);
 
     if constexpr (N_AMR_STRATEGIES > 1) {
       moments_to_add[1] =
           computeMomentContributionUnclippedTriangle<ReturnType, 1>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
 
     if constexpr (N_AMR_STRATEGIES > 2) {
       moments_to_add[2] =
           computeMomentContributionUnclippedTriangle<ReturnType, 2>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
@@ -614,21 +582,20 @@ void computeMomentContributionAMR(
   } else if (z_limits.second) {
     // Max of triangle is smaller than min of paraboloid
     moments_to_add[0] = computeMomentContributionClippedTriangle<ReturnType, 0>(
-        a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-        amr_triangles_clipped, amr_triangles_unclipped, a_print);
+        a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area, a_print);
 
     if constexpr (N_AMR_STRATEGIES > 1) {
       moments_to_add[1] =
           computeMomentContributionClippedTriangle<ReturnType, 1>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
 
     if constexpr (N_AMR_STRATEGIES > 2) {
       moments_to_add[2] =
           computeMomentContributionClippedTriangle<ReturnType, 2>(
               a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_signed_area,
-              amr_triangles_clipped, amr_triangles_unclipped, a_print);
+              a_print);
     }
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
@@ -636,8 +603,7 @@ void computeMomentContributionAMR(
   } else if (a_amr_level == a_max_amr_level) {
     computeMomentContributionMixedTriangle<ReturnType>(
         a_aligned_paraboloid, a_pt_0, a_pt_1, a_pt_2, a_normal, a_signed_area,
-        moments_to_add, amr_triangles_clipped, amr_triangles_unclipped,
-        a_print);
+        moments_to_add, a_print);
 
     kahanSummationMoments<ReturnType>(a_full_moments, a_full_moments_ref,
                                       moments_to_add);
@@ -650,19 +616,19 @@ void computeMomentContributionAMR(
   computeMomentContributionAMR<ReturnType>(
       a_aligned_paraboloid, a_pt_0, c0, c2, a_normal, 0.25 * a_signed_area,
       a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
-      amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_paraboloid, a_pt_1, c1, c0, a_normal, 0.25 * a_signed_area,
       a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
-      amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_paraboloid, a_pt_2, c2, c1, a_normal, 0.25 * a_signed_area,
       a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
-      amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_print);
   computeMomentContributionAMR<ReturnType>(
       a_aligned_paraboloid, c0, c1, c2, a_normal, 0.25 * a_signed_area,
       a_amr_level + 1, a_max_amr_level, a_full_moments_ref, a_full_moments,
-      amr_triangles_clipped, amr_triangles_unclipped, a_print);
+      a_print);
 }
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
@@ -674,8 +640,6 @@ intersectPolyhedronWithParaboloidAMR(
     const AlignedParaboloid& a_paraboloid,
     const UnsignedIndex_t a_max_amr_level, const std::string& a_filename) {
   const bool print = !a_filename.empty();
-  std::vector<double> amr_triangles_clipped;
-  std::vector<double> amr_triangles_unclipped;
   // We have N strategies for computing the moments (and will later on choose
   // the best of those)
   std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES> full_moments;
@@ -707,8 +671,7 @@ intersectPolyhedronWithParaboloidAMR(
       const double signed_area = triangleSignedArea(ref_pt, prev_pt, curr_pt);
       computeMomentContributionAMR<ReturnType>(
           a_paraboloid, ref_pt, prev_pt, curr_pt, face_normal, signed_area, 0,
-          a_max_amr_level, full_moments_ref, full_moments,
-          amr_triangles_clipped, amr_triangles_unclipped, print);
+          a_max_amr_level, full_moments_ref, full_moments, print);
       prev_pt = curr_pt;
       current_half_edge = current_half_edge->getNextHalfEdge();
     } while (current_half_edge != starting_half_edge);
@@ -725,7 +688,7 @@ intersectPolyhedronWithParaboloidAMR(
       std::strncpy(head, a_header.c_str(), a_header.size() - 1);
       char attribute[2] = "0";
       char dummy[4] = "0";
-      const auto nTriLong = a_triangle_list.size() / 3;
+      const auto nTriLong = amr_triangles_clipped.size() / 3;
 
       std::ofstream myfile;
 

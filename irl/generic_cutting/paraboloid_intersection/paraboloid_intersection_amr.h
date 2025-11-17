@@ -14,43 +14,40 @@
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
-#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 #include "irl/geometry/general/geometry_type_traits.h"
 #include "irl/paraboloid_reconstruction/aligned_paraboloid.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/quadratic_reconstruction/ellipse.h"
+#include "irl/paraboloid_reconstruction/paraboloid.h"
+#include "irl/generic_cutting/quadratic_intersection/quadratic_intersection_amr.h"
 
 namespace IRL {
 
 template <class ReturnType, UnsignedIndex_t strategyID>
-inline ReturnType computeMomentContributionClippedTriangle(
+ReturnType computeMomentContributionClippedTriangle(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& a_amr_triangles_clipped,
-    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
+    const bool a_print);
 
 template <class ReturnType, UnsignedIndex_t strategyID>
-inline ReturnType computeMomentContributionUnclippedTriangle(
+ReturnType computeMomentContributionUnclippedTriangle(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const double a_signed_area,
-    std::vector<double>& a_amr_triangles_clipped,
-    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
+    const bool a_print);
 
 template <class ReturnType>
-inline void computeMomentContributionMixedTriangle(
+void computeMomentContributionMixedTriangle(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
     const double a_signed_area,
     std::array<ReturnType, N_AMR_STRATEGIES>& a_moments_to_add,
-    std::vector<double>& a_amr_triangles_clipped,
-    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
+    const bool a_print);
 
-inline std::pair<bool, bool> computeZBounds(
+std::pair<bool, bool> computeZBounds(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2);
 
 template <class ReturnType>
-inline void computeMomentContributionAMR(
+void computeMomentContributionAMR(
     const AlignedParaboloid& a_aligned_paraboloid, const Pt& a_pt_0,
     const Pt& a_pt_1, const Pt& a_pt_2, const Normal& a_normal,
     const double a_signed_area, const UnsignedIndex_t a_amr_level,
@@ -59,9 +56,8 @@ inline void computeMomentContributionAMR(
         a_full_moments_ref,
     std::array<std::pair<ReturnType, ReturnType>, N_AMR_STRATEGIES>&
         a_full_moments,
-    std::vector<double>& a_amr_triangles_clipped,
-    std::vector<double>& a_amr_triangles_unclipped, const bool a_print);
-
+    const bool a_print);
+    
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
