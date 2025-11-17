@@ -868,7 +868,10 @@ inline double ParaboloidParametrizedSurfaceOutput::getCurvednessAligned(
     const Pt a_pt) {
   const double H = this->getMeanCurvatureAligned(a_pt);
   const double K = this->getGaussianCurvatureAligned(a_pt);
-  return std::sqrt(2.0 * H * H - K);
+  if (!std::isfinite(H) || !std::isfinite(K))
+    return std::numeric_limits<double>::quiet_NaN();
+  const double curvedness_2 = 2.0 * H * H - K;
+  return std::sqrt(std::max(0.0, curvedness_2));
 }
 
 inline double ParaboloidParametrizedSurfaceOutput::getCurvednessNonAligned(
