@@ -143,7 +143,17 @@ void c_MixedPolygonBezierSurface_getSurface_RectCub_Variant(
             *a_rectangular_cuboid->obj_ptr, *paraboloid);
     a_surface->obj_ptr->addSurface(
         volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());
-  } else {
+  } else if (IRL::Cylinder* cylinder =
+                 std::get_if<IRL::Cylinder>(a_separator->obj_ptr)) {
+  using VolumeAndCylinder =
+        IRL::AddSurfaceOutput<IRL::Volume,
+                              IRL::CylinderParametrizedSurfaceOutput>;
+    VolumeAndCylinder volume_and_surface =
+        IRL::getVolumeMoments<VolumeAndCylinder>(
+            *a_rectangular_cuboid->obj_ptr, *cylinder);
+    a_surface->obj_ptr->addSurface(
+        volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());                
+  }else {
     throw std::runtime_error("Unknown SeparatorVariant type in getSurface");
   }
 }
