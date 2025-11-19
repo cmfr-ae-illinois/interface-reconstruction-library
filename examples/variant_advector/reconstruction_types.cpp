@@ -947,14 +947,28 @@ void MixedPLICJibben::getReconstruction(
 
   // Choose between PLIC and Jibben
   const double vfrac_threshold = 1.0e-4;
+  const double kdx_threshold = 4.0;
   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
         const double liquid_volume_fraction =
             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        // vfrac check
         if (liquid_volume_fraction < vfrac_threshold ||
             liquid_volume_fraction > 1.0 - vfrac_threshold) {
           (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+          continue;
+        }
+        // curvature check
+        if (IRL::Paraboloid* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+          const auto& aligned = paraboloid->getAlignedParaboloid();
+          const double a = aligned.a();
+          const double b = aligned.b();
+          if (std::abs(a) * mesh.dx() > kdx_threshold ||
+              std::abs(b) * mesh.dx() > kdx_threshold) {
+            (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+          }
         }
       }
     }
