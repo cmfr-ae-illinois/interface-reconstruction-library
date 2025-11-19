@@ -131,12 +131,12 @@ int main(int argc, char** argv) {
 
 //   // testing curvedness
 //   constexpr std::size_t VM_ORDER = 2, SM_ORDER = 2;
-//   const std::string shape = "sphere";
+//   const std::string shape = "ellipsoid";
 //   const int Nx_fine = 256;
 //   const int factor = 16;
 //   const std::string reconstruction_method = "Jibben";
 //   const std::string output_dir =
-//       "/home/parinht2/Desktop/ppic paper/curvedness_testing";
+//       "/home/parinht2/Desktop/ppic paper/reconstruction_convergence/sweep_4";
 //   // std::pair<double, double> curvedness_norms =
 //   //     getCurvednessMetrics<VM_ORDER, SM_ORDER>(
 //   //         shape, Nx_fine, factor, reconstruction_method, output_dir);
@@ -145,13 +145,12 @@ int main(int argc, char** argv) {
 //   // std::cout << "L2 norm = " << curvedness_norms.second << std::endl;
 
 //   // outputting corresponding interface
-//   // output_interfaces<VM_ORDER, SM_ORDER>(shape, Nx_fine, factor,
-//   //                                       reconstruction_method,
-//   output_dir);
+//   output_interfaces<VM_ORDER, SM_ORDER>(shape, Nx_fine, factor,
+//                                         reconstruction_method, output_dir);
 
 //   // running curvedness convergence
-//   runCurvednessConvergence<VM_ORDER, SM_ORDER>(
-//       shape, Nx_fine, reconstruction_method, output_dir);
+//   // runCurvednessConvergence<VM_ORDER, SM_ORDER>(
+//   //     shape, Nx_fine, reconstruction_method, output_dir);
 
 //   MPI_Finalize();
 

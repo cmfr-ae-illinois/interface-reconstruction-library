@@ -986,7 +986,7 @@ void run_convergence(const std::string& shape, int Nx_fine,
                          std::to_string(Nx_fine) + ".csv";
 
   // factors for convergence
-  const std::vector<int> factors = {2, 4, 8, 16};  // 256, 128, 64, 32, 16
+  const std::vector<int> factors = {1, 2, 4, 8, 16};  // 256, 128, 64, 32, 16
 
   std::ofstream ofs;
   if (rank == 0) {
@@ -1424,6 +1424,7 @@ MomentDiffNorms computePLICMetricsFromBin(
           moments_reconstruction(i, j, k).first =
               IRL::getVolumeMoments<VM>(cell, planar_separator);
           // RECENTER MOMENTS
+          // CHANGE MOMENT CALC
         }
       }
     }
