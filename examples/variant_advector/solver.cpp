@@ -308,3 +308,338 @@ void connectMesh(
     }
   }
 }
+
+// calculate moments of the polygon
+std::vector<double> calculatePolygonSurfaceMoments(
+    const IRL::Polygon& polygon) {
+  std::vector<double> moments(10, 0.0);
+
+  const int n = polygon.getNumberOfVertices();
+
+  if (n < 3) return moments;
+
+  // common point for all triangles
+  const IRL::Pt& v0 = polygon[0];
+
+  // finding moments for each triangle
+  for (int i = 1; i < n - 1; i++) {
+    const IRL::Pt& v1 = polygon[i];
+    const IRL::Pt& v2 = polygon[i + 1];
+
+    // forming triangle
+    IRL::Polygon triangle;
+    triangle.addVertex(v0);
+    triangle.addVertex(v1);
+    triangle.addVertex(v2);
+    triangle.calculateAndSetPlaneOfExistence();
+
+    // M0
+    double triangle_area = triangle.calculateVolume();
+    moments[0] += triangle_area;
+
+    // M1
+    IRL::Pt triangle_centroid = (v0 + v1 + v2) * (1.0 / 3.0);
+    moments[1] += triangle_centroid[0] * triangle_area;
+    moments[2] += triangle_centroid[1] * triangle_area;
+    moments[3] += triangle_centroid[2] * triangle_area;
+
+    // M2
+    const auto a = v1 - v0;
+    const auto b = v2 - v0;
+    const double factor = 2.0 * triangle_area;
+
+    auto accumulate = [&](const IRL::Pt& u, const IRL::Pt& v, double scale) {
+      moments[4] += scale * u[0] * v[0];  // M00
+      moments[5] += scale * u[0] * v[1];  // M01
+      moments[6] += scale * u[0] * v[2];  // M02
+      moments[7] += scale * u[1] * v[1];  // M11
+      moments[8] += scale * u[1] * v[2];  // M12
+      moments[9] += scale * u[2] * v[2];  // M22
+    };
+    accumulate(v0, v0, factor * 0.5);
+    accumulate(v0, a, factor * (1.0 / 6.0));
+    accumulate(a, v0, factor * (1.0 / 6.0));
+    accumulate(v0, b, factor * (1.0 / 6.0));
+    accumulate(b, v0, factor * (1.0 / 6.0));
+    accumulate(a, a, factor * (1.0 / 12.0));
+    accumulate(b, b, factor * (1.0 / 12.0));
+    accumulate(a, b, factor * (1.0 / 24.0));
+    accumulate(b, a, factor * (1.0 / 24.0));
+  }
+
+  return moments;
+}
+
+// recentering moments
+std::vector<double> recenterMoments(const std::vector<double>& moments,
+                                    const IRL::Pt& xc) {
+  std::vector<double> centered_moments(10, 0.0);
+
+  Eigen::Vector3d x_ref(xc[0], xc[1], xc[2]);
+
+  double M0 = moments[0];
+  Eigen::Vector3d M1(moments[1], moments[2], moments[3]);
+  Eigen::Matrix3d M2 = Eigen::Matrix3d::Zero();
+  M2(0, 0) = moments[4];
+  M2(0, 1) = moments[5];
+  M2(0, 2) = moments[6];
+  M2(1, 0) = M2(0, 1);
+  M2(1, 1) = moments[7];
+  M2(1, 2) = moments[8];
+  M2(2, 0) = M2(0, 2);
+  M2(2, 1) = M2(1, 2);
+  M2(2, 2) = moments[9];
+
+  Eigen::Vector3d M1_recentered = M1 - (M0 * x_ref);
+  Eigen::Matrix3d M2_recentered = M2 - (x_ref * M1.transpose()) -
+                                  (M1 * x_ref.transpose()) +
+                                  (M0 * x_ref * x_ref.transpose());
+
+  centered_moments[0] = M0;
+  centered_moments[1] = M1_recentered[0];
+  centered_moments[2] = M1_recentered[1];
+  centered_moments[3] = M1_recentered[2];
+  centered_moments[4] = M2_recentered(0, 0);
+  centered_moments[5] = M2_recentered(0, 1);
+  centered_moments[6] = M2_recentered(0, 2);
+  centered_moments[7] = M2_recentered(1, 1);
+  centered_moments[8] = M2_recentered(1, 2);
+  centered_moments[9] = M2_recentered(2, 2);
+
+  return centered_moments;
+}
+
+// getting starting and ending moments
+void writeMomentsToBinary(const Data<IRL::VolumeMoments>& liq_moments_1,
+                          const Data<IRL::VolumeMoments>& liq_moments_2,
+                          const Data<IRL::SeparatorVariant>& interfaces_1,
+                          const Data<IRL::SeparatorVariant>& interfaces_2,
+                          const std::string& output_dir,
+                          const std::string& case_name,
+                          const std::string& reconstruction_method) {
+  const BasicMesh& mesh = interfaces_1.getMesh();
+  const int Nx = mesh.getNx();
+  const int Ny = mesh.getNy();
+  const int Nz = mesh.getNz();
+
+  const int mom_count = 10;
+
+  // storing moments in vectors
+  Data<std::vector<double>> volume_moments_1_centered(&mesh);
+  Data<std::vector<double>> volume_moments_2_centered(&mesh);
+  Data<std::vector<double>> surface_moments_1_centered(&mesh);
+  Data<std::vector<double>> surface_moments_2_centered(&mesh);
+
+  // default everything to zero
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        volume_moments_1_centered(i, j, k).resize(mom_count, 0.0);
+        volume_moments_2_centered(i, j, k).resize(mom_count, 0.0);
+        surface_moments_1_centered(i, j, k).resize(mom_count, 0.0);
+        surface_moments_2_centered(i, j, k).resize(mom_count, 0.0);
+      }
+    }
+  }
+
+  using VolumeMomentsAndSurface =
+      IRL::AddSurfaceOutput<IRL::VolumeMoments,
+                            IRL::ParaboloidParametrizedSurfaceOutput>;
+
+  // --- starting ---
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        const double vf_1 =
+            liq_moments_1(i, j, k).volume() / mesh.cell_volume();
+        if (vf_1 > IRL::global_constants::VF_LOW &&
+            vf_1 < IRL::global_constants::VF_HIGH) {
+          // mixed
+          IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
+          IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
+          IRL::Pt xc = 0.5 * (x0 + x1);
+          IRL::RectangularCuboid cell =
+              IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+          // volume moments
+          IRL::GeneralMoments3D<2> vm1 = std::visit(
+              [&](const auto& interface) -> IRL::GeneralMoments3D<2> {
+                return IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(
+                    cell, interface);
+              },
+              interfaces_1(i, j, k));
+
+          // storing volume moments
+          std::vector<double> temp_vm1(10, 0.0);
+          for (int m = 0; m < mom_count; m++) {
+            temp_vm1[m] = vm1[m];
+          }
+          volume_moments_1_centered(i, j, k) = recenterMoments(temp_vm1, xc);
+
+          // surface moments (starting is always a paraboloid)
+          const IRL::Paraboloid paraboloid =
+              std::get<IRL::Paraboloid>(interfaces_1(i, j, k));
+          auto surface =
+              IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid)
+                  .getSurface();
+          IRL::GeneralSurfaceMoments3D<2> sm1 = surface.getSurfaceMoments<2>();
+
+          // storing surface moments
+          std::vector<double> temp_sm1(10, 0.0);
+          for (int m = 0; m < mom_count; m++) {
+            temp_sm1[m] = sm1[m];
+          }
+          surface_moments_1_centered(i, j, k) = recenterMoments(temp_sm1, xc);
+        }
+      }
+    }
+  }
+
+  // --- ending ---
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        const double vf_2 =
+            liq_moments_2(i, j, k).volume() / mesh.cell_volume();
+        if (vf_2 > IRL::global_constants::VF_LOW &&
+            vf_2 < IRL::global_constants::VF_HIGH) {
+          // mixed
+          IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
+          IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
+          IRL::Pt xc = 0.5 * (x0 + x1);
+          IRL::RectangularCuboid cell =
+              IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+          // volume moments
+          IRL::GeneralMoments3D<2> vm2 = std::visit(
+              [&](const auto& interface) -> IRL::GeneralMoments3D<2> {
+                return IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(
+                    cell, interface);
+              },
+              interfaces_2(i, j, k));
+
+          // storing volume moments
+          std::vector<double> temp_vm2(10, 0.0);
+          for (int m = 0; m < mom_count; m++) {
+            temp_vm2[m] = vm2[m];
+          }
+          volume_moments_2_centered(i, j, k) = recenterMoments(temp_vm2, xc);
+
+          // calculating and storing surface moments
+          std::vector<double> temp_sm2(10, 0.0);
+          std::visit(
+              [&](auto const& separator) {
+                using T = std::decay_t<decltype(separator)>;
+
+                if constexpr (std::is_same_v<T, IRL::Paraboloid>) {
+                  const IRL::Paraboloid& paraboloid = separator;
+                  auto surface = IRL::getVolumeMoments<VolumeMomentsAndSurface>(
+                                     cell, paraboloid)
+                                     .getSurface();
+                  IRL::GeneralSurfaceMoments3D<2> sm2 =
+                      surface.template getSurfaceMoments<2>();
+                  for (int m = 0; m < mom_count; m++) {
+                    temp_sm2[m] = sm2[m];
+                  }
+                } else if constexpr (std::is_same_v<T, IRL::PlanarSeparator>) {
+                  const IRL::PlanarSeparator& planar_separator = separator;
+                  IRL::Polygon polygon =
+                      IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                          cell, planar_separator, planar_separator[0]);
+                  if (polygon.getNumberOfVertices() > 2) {
+                    polygon.calculateAndSetPlaneOfExistence();
+                    temp_sm2 = calculatePolygonSurfaceMoments(polygon);
+                  }
+                }
+              },
+              interfaces_2(i, j, k));
+          surface_moments_2_centered(i, j, k) = recenterMoments(temp_sm2, xc);
+        }
+      }
+    }
+  }
+
+  // --- writing data to binary ---
+  std::string filename = output_dir + "/moments_" + case_name + "_" +
+                         reconstruction_method + "_Nx" + std::to_string(Nx) +
+                         ".bin";
+
+  std::ofstream out(filename, std::ios::binary);
+  if (!out) {
+    throw std::runtime_error("Cannot open " + filename + " for writing.");
+  }
+
+  // simple header: magic, version, Nx, Ny, Nz
+  int32_t magic = 0x4D4F4D33;  // 'MOM3' in hex
+  int32_t version = 1;
+  int32_t dims[3] = {Nx, Ny, Nz};
+
+  out.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+  out.write(reinterpret_cast<const char*>(&version), sizeof(version));
+  out.write(reinterpret_cast<const char*>(dims), sizeof(dims));
+
+  double buf[40];
+
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        const auto& m1v = volume_moments_1_centered(i, j, k);
+        const auto& m2v = volume_moments_2_centered(i, j, k);
+        const auto& m1s = surface_moments_1_centered(i, j, k);
+        const auto& m2s = surface_moments_2_centered(i, j, k);
+
+        // volume start
+        buf[0] = m1v[0];
+        buf[1] = m1v[1];
+        buf[2] = m1v[2];
+        buf[3] = m1v[3];
+        buf[4] = m1v[4];
+        buf[5] = m1v[5];
+        buf[6] = m1v[6];
+        buf[7] = m1v[7];
+        buf[8] = m1v[8];
+        buf[9] = m1v[9];
+
+        // volume end
+        buf[10] = m2v[0];
+        buf[11] = m2v[1];
+        buf[12] = m2v[2];
+        buf[13] = m2v[3];
+        buf[14] = m2v[4];
+        buf[15] = m2v[5];
+        buf[16] = m2v[6];
+        buf[17] = m2v[7];
+        buf[18] = m2v[8];
+        buf[19] = m2v[9];
+
+        // surface start
+        buf[20] = m1s[0];
+        buf[21] = m1s[1];
+        buf[22] = m1s[2];
+        buf[23] = m1s[3];
+        buf[24] = m1s[4];
+        buf[25] = m1s[5];
+        buf[26] = m1s[6];
+        buf[27] = m1s[7];
+        buf[28] = m1s[8];
+        buf[29] = m1s[9];
+
+        // surface end
+        buf[30] = m2s[0];
+        buf[31] = m2s[1];
+        buf[32] = m2s[2];
+        buf[33] = m2s[3];
+        buf[34] = m2s[4];
+        buf[35] = m2s[5];
+        buf[36] = m2s[6];
+        buf[37] = m2s[7];
+        buf[38] = m2s[8];
+        buf[39] = m2s[9];
+
+        out.write(reinterpret_cast<const char*>(buf), sizeof(buf));
+      }
+    }
+  }
+
+  out.close();
+}

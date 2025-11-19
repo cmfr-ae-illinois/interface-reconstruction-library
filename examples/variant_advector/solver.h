@@ -13,6 +13,7 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <Eigen/Dense>
 #include <chrono>
 #include <cstdio>
 #include <iostream>
@@ -82,6 +83,16 @@ void connectMesh(
     const BasicMesh& a_mesh,
     Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface);
 
+std::vector<double> calculatePolygonSurfaceMoments(const IRL::Polygon& polygon);
+
+void writeMomentsToBinary(const Data<IRL::VolumeMoments>& liq_moments_1,
+                          const Data<IRL::VolumeMoments>& liq_moments_2,
+                          const Data<IRL::SeparatorVariant>& interfaces_1,
+                          const Data<IRL::SeparatorVariant>& interfaces_2,
+                          const std::string& output_dir,
+                          const std::string& case_name,
+                          const std::string& reconstruction_method);
+
 //******************************************************************* //
 //     Template function definitions placed below this.
 //******************************************************************* //
@@ -132,10 +143,23 @@ int runSimulation(const std::string& a_case_name,
   setPhaseQuantities(interface, &liq_moments, &gas_moments);
   const auto starting_liq_moments = liq_moments;
 
-  VTKOutput vtk_io("viz_out", "viz", cc_mesh);
-  vtk_io.addData("VelocityX", velU);
-  vtk_io.addData("VelocityY", velV);
-  vtk_io.addData("VelocityZ", velW);
+  // storing initial interface
+  Data<IRL::SeparatorVariant> starting_interface(&cc_mesh);
+  starting_interface = interface;
+
+  // outputting interfaces in respective directory
+  std::string output_dir =
+      "/home/parinht2/Desktop/ppic "
+      "paper/advection_convergence/run_2/interfaces";
+  std::string vtk_output_dir = output_dir + "/" + a_case_name + "_" +
+                               a_reconstruction_method + "_" +
+                               std::to_string(a_nx);
+
+  VTKOutput vtk_io(vtk_output_dir, "viz", cc_mesh);
+  // VTKOutput vtk_io("viz_out", "viz", cc_mesh);
+  // vtk_io.addData("VelocityX", velU);
+  // vtk_io.addData("VelocityY", velV);
+  // vtk_io.addData("VelocityZ", velW);
   double simulation_time = 0.0;
   int iteration = 0;
 
@@ -150,8 +174,8 @@ int runSimulation(const std::string& a_case_name,
   if (rank == 0) {
     writeDiagnosticsHeader();
   }
-  std::string output_folder = "viz";
-  const int dir_err = mkdir(output_folder.c_str(), 0777);
+  // std::string output_folder = "viz";
+  // const int dir_err = mkdir(output_folder.c_str(), 0777);
   std::chrono::duration<double> advect_VOF_time(0.0);
   std::chrono::duration<double> recon_time(0.0);
   std::chrono::duration<double> write_time(0.0);
@@ -178,6 +202,21 @@ int runSimulation(const std::string& a_case_name,
                           liq_moments, interface, advect_VOF_time, recon_time,
                           write_time);
       if (simulation_time + time_step_to_use >= a_end_time) {
+        // storing final interface
+        Data<IRL::SeparatorVariant> ending_interface(&cc_mesh);
+        const auto ending_liq_moments = liq_moments;
+        getReconstruction(a_reconstruction_method, liq_moments, gas_moments,
+                          time_step_to_use, velU, velV, velW,
+                          &ending_interface);
+        // writing moments to file
+        std::string moments_output_dir =
+            "/home/parinht2/Desktop/ppic "
+            "paper/advection_convergence/run_2/binary_files";
+        writeMomentsToBinary(starting_liq_moments, ending_liq_moments,
+                             starting_interface, ending_interface,
+                             moments_output_dir, a_case_name,
+                             a_reconstruction_method);
+
         Data<IRL::SeparatorVariant> ref_interface(&cc_mesh);
         Data<IRL::VolumeMoments> ref_liq_moments(&cc_mesh);
         Data<IRL::VolumeMoments> ref_gas_moments(&cc_mesh);
