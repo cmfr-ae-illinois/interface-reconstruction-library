@@ -86,27 +86,7 @@ struct SlicesParabola {
                                 const bool a_plic_already_built = false);
 };
 
-struct Taubin {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
-};
-
 struct SlicesTaubin {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
-};
-
-struct PLICAligned {
   static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                                 const Data<IRL::VolumeMoments>& a_gas_moments,
                                 const double a_dt, const Data<double>& a_U,
