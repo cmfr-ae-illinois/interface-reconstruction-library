@@ -17,11 +17,12 @@
 // with different flags from other targets, using different levels of
 // optimization, potentially introducing ODR violations.
 
+#include "absl/random/internal/randen_detect.h"
+
 #include <cstdint>
 #include <cstring>
 
 #include "absl/random/internal/platform.h"
-#include "absl/random/internal/randen_detect.h"
 
 #if !defined(__UCLIBC__) && defined(__GLIBC__) && \
     (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
@@ -41,9 +42,7 @@
 #endif
 #endif
 
-#if defined(ABSL_INTERNAL_USE_X86_CPUID) && !defined(_MSC_VER) && \
-    !defined(__GNUC__) && !defined(__INTEL_COMPILER) &&           \
-    !defined(__INTEL_LLVM_COMPILER)
+#if defined(ABSL_INTERNAL_USE_X86_CPUID)
 #if defined(_WIN32) || defined(_WIN64)
 #include <intrin.h>  // NOLINT(build/include_order)
 #else
