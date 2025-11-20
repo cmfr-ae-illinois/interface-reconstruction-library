@@ -13,6 +13,16 @@
 
 extern "C" {
 
+void c_reconstructTaubin3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                                   c_SeparatorVariant* a_separator) {
+  assert(a_jibben_neighborhood != nullptr);
+  assert(a_jibben_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  *a_separator->obj_ptr =
+      reconstructionWithTaubin3D(*a_jibben_neighborhood->obj_ptr);
+}
+
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUSTNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
     const double* a_delta, c_SeparatorVariant* a_separator) {

@@ -22,9 +22,15 @@
 #include "irl/interface_reconstruction_methods/pu_solve.h"
 #include "irl/interface_reconstruction_methods/r2p_optimization.h"
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.h"
+#include "irl/interface_reconstruction_methods/taubin.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 
 namespace IRL {
+
+/// \brief Perform Taubin reconstruction for a 3D problem.
+inline Paraboloid reconstructionWithTaubin3D(
+    const JibbenNeighborhood& a_neighborhood_geometry,
+    const double a_delta = -1.0);
 
 /// \brief Perform Partition of Unity reconstruction for a 3D problem.
 template <class CellType>
