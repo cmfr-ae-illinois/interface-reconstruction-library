@@ -23,11 +23,13 @@ class PUSTNeighborhood {
   PUSTNeighborhood(void);
 
   /// \brief Construct CellGroupedMoments and add to end of collection. Tested
-  void addMember(const Pt* a_centroid, const SeparatorVariant* a_separator);
+  void addMember(const Pt* a_centroid, const SeparatorVariant* a_separator,
+                 const double a_weight = 1.0);
 
   /// \brief Construct CellGroupedMoments and place into collection. Tested
   void setMember(const UnsignedIndex_t a_index, const Pt* a_centroid,
-                 const SeparatorVariant* a_separator);
+                 const SeparatorVariant* a_separator,
+                 const double a_weight = 1.0);
 
   /// \brief Reset neighborhood size to 0. Tested
   void emptyNeighborhood(void);
@@ -63,6 +65,8 @@ class PUSTNeighborhood {
 
   const std::vector<Pt> getCentroids() const;
 
+  const std::vector<double> getWeights() const;
+
   void setCenterCell(const CellType* a_cell);
 
   /// \brief Get size of the vector. Tested
@@ -91,6 +95,7 @@ class PUSTNeighborhood {
   // New Method
   std::vector<IRL::Pt> centroids_m;
   std::vector<IRL::SeparatorVariant> separators_m;
+  std::vector<double> weights_m;
   CellType center_cell_m;
 };
 }  // End Namespace IRL
