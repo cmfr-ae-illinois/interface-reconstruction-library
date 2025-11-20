@@ -16,6 +16,8 @@
 #include "irl/moments/volume_moments.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
+#include "irl/interface_reconstruction_methods/taubin.h"
+
 #include "examples/variant_advector/data.h"
 
 void getReconstruction(const std::string& a_reconstruction_method,
@@ -77,6 +79,16 @@ struct MixedPLICJibben {
 };
 
 struct SlicesParabola {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false);
+};
+
+struct SlicesTaubin {
   static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                                 const Data<IRL::VolumeMoments>& a_gas_moments,
                                 const double a_dt, const Data<double>& a_U,
