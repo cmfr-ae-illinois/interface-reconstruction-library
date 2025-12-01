@@ -7,13 +7,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_PARABOLOID_ADVECTOR_VOF_ADVECTION_H_
-#define EXAMPLES_PARABOLOID_ADVECTOR_VOF_ADVECTION_H_
+#ifndef EXAMPLES_PU_ANALYSIS_VOF_ADVECTION_H_
+#define EXAMPLES_PU_ANALYSIS_VOF_ADVECTION_H_
 
 #include <string>
 
-#include "examples/2d_advector/data.h"
-#include "examples/2d_advector/irl2d.h"
+#include "examples/pu_analysis/data.h"
+#include "examples/pu_analysis/irl2d.h"
 
 void advectVOF(const std::string& a_simulation_type,
                const std::string& a_advection_method,
@@ -58,4 +58,4 @@ struct ReSyFullLagL {
 
 void correctMomentLocations(Data<IRL2D::Moments>* a_liquid_moments);
 
-#endif  // EXAMPLES_PARABOLOID_ADVECTOR_VOF_ADVECTION_H_
+#endif  // EXAMPLES_PU_ANALYSIS_VOF_ADVECTION_H_

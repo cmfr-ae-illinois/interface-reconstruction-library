@@ -1,4 +1,5 @@
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -8,6 +9,11 @@
 #include "examples/2d_advector/rotation_2d.h"
 #include "examples/2d_advector/solver.h"
 #include "examples/2d_advector/vof_advection.h"
+
+#include <Eigen/Dense>
+#include <Eigen/QR>
+#include <unsupported/Eigen/NonLinearOptimization>
+#include <unsupported/Eigen/NumericalDiff>
 
 static int startSimulation(const std::string& a_simulation_type,
                            const std::string& a_advection_method,
@@ -20,9 +26,12 @@ int main(int argc, char* argv[]) {
   if (argc != 8) {
     std::cout << "Incorrect amount of command line arguments supplied. \n";
     std::cout << "Arguments should be \n";
-    std::cout << "Simulation to run. Options: Rotation2D\n";
-    std::cout << "Advection method. Options: SemiLagQ\n";
-    std::cout << "Reconstruction method. Options: ELVIRA, LVIRA, LVIRAQ\n";
+    std::cout << "Simulation to run. Options: Rotation2D, Oscillation2D, "
+                 "Deformation2D\n";
+    std::cout << "Advection method. Options: SemiLagQ, FullLagQ, SemiLagL, "
+                 "FullLagL, ReSyFullLagL\n";
+    std::cout << "Reconstruction method. Options: ELVIRA, LVIRA, LVIRAQ, MOF1, "
+                 "MOF2, MOF2AL\n";
     std::cout << "Time step size, dt (double)\n";
     std::cout << "Simulation duration(double)\n";
     std::cout

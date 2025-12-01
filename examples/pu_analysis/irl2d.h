@@ -1,5 +1,5 @@
-#ifndef EXAMPLES_2D_ADVECTOR_IRL_2D_H_
-#define EXAMPLES_2D_ADVECTOR_IRL_2D_H_
+#ifndef EXAMPLES_PU_ANALYSIS_IRL_2D_H_
+#define EXAMPLES_PU_ANALYSIS_IRL_2D_H_
 
 #include <quadmath.h>
 #include <Eigen/Dense>
@@ -554,14 +554,6 @@ void particle_pf(const std::vector<Vec>& pp0, const std::vector<Vec>& pf0,
                  const int& N, const double& Hp, const double& h,
                  const double& eta);
 
-void curvature_vareta(
-    const std::vector<Vec>& pp0, const std::vector<Vec>& pf0,
-    std::vector<Vec>& pp_final, std::vector<Vec>& pf_final,
-    const std::pair<Vec, Vec>& target_endpoints,
-    const std::vector<std::pair<Vec, Vec>>& line_seg_endpoints,
-    const std::vector<std::vector<InterfaceEndPoints>>& plicDataMat,
-    const int& N, const double& Hp, const double& h);
-
 std::vector<Vec> generatePoints(
     const std::vector<std::pair<Vec, Vec>>& line_seg_endpoints);
 
@@ -590,41 +582,12 @@ double getNormalWeight(const Vec& nref, const Vec& nloc);
 Mat estimateFrame(const Vec& circle_center, const Vec& plic_center,
                   const double& r, const Vec& plic_normal, bool& flip_coeff);
 
-Parabola getPrattParabola(const std::vector<IRL2D::Vec>& points,
-                          const std::vector<double>& vfw,
-                          const std::vector<double>& dw,
-                          const std::vector<double>& nw, const Mat& plic_frame,
-                          const Vec& plic_center);
-
-Parabola getPrattParabola_localframe(const std::vector<IRL2D::Vec>& points,
-                                     const std::vector<double>& vfw,
-                                     const std::vector<double>& dw,
-                                     const std::vector<double>& nw,
-                                     const Mat& plic_frame,
-                                     const Vec& plic_center);
-
-Parabola getTaubinParabola(const std::vector<IRL2D::Vec>& points,
-                           const std::vector<double>& vfw,
-                           const std::vector<double>& dw,
-                           const std::vector<double>& nw,
-                           const Vec& plic_normal, const Vec& plic_center);
-
 Parabola getTaubinParabola_localframe(const std::vector<IRL2D::Vec>& points,
                                       const std::vector<double>& vfw,
                                       const std::vector<double>& dw,
                                       const std::vector<double>& nw,
                                       const Mat& plic_frame,
                                       const Vec& plic_center);
-
-std::vector<double> getPrattParams(const std::vector<IRL2D::Vec>& points,
-                                   const std::vector<double>& vfw,
-                                   const std::vector<double>& dw,
-                                   const std::vector<double>& nw);
-
-std::vector<double> getTaubinParams(const std::vector<IRL2D::Vec>& points,
-                                    const std::vector<double>& vfw,
-                                    const std::vector<double>& dw,
-                                    const std::vector<double>& nw);
 
 // Parabola getParabolaJibben(const Parabola& target_interface, const
 // BezierList& target_cell,
@@ -650,24 +613,8 @@ std::vector<double> getJibbenCoeffs(const Parabola& target_interface,
                                     const std::vector<NeighborInfo>& neighbors,
                                     const std::vector<double>& weights);
 
-// connectivity of interfaces
-// class InterfaceConnectivity{
-
-//  public:
-//   // connectivity matrix for interfaces
-//   std::vector<std::vector<int>> c_matrix;
-
-//   // constructor for initializing connectivity matrix
-//   InterfaceConnectivity(int n_mixed) {
-//     c_matrix = std::vector<std::vector<int>>(n_mixed,
-//     std::vector<int>(n_mixed,0));
-//   }
-
-//   // adding more nodes
-
-// };
-
 // partition of unity
+
 struct Wendland {
   const double delta;
   const Vec x_eval;
@@ -699,46 +646,175 @@ struct Wendland {
            std::pow(r - delta, 3.0);
   }
 
+  // double ddphidxx(Vec xi) const {
+  //   double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+  //                        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+  //   if (r >= delta) return 0.0;
+  //   if (r < 1e-12) r = 1.0;
+  //   double num = 20.0 * std::pow(r - delta, 2.0) *
+  //                ((x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (r - delta) +
+  //                 x_eval[0] * x_eval[0] * (4.0 * r - delta) +
+  //                 xi[0] * xi[0] * (4.0 * r - delta) +
+  //                 2.0 * x_eval[0] * xi[0] * (-4.0 * r + delta));
+  //   double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
+  //   return num / denom;
+  // }
+
+  // double ddphidyy(Vec xi) const {
+  //   double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+  //                        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+  //   if (r >= delta) return 0.0;
+  //   if (r < 1e-12) r = 1.0;
+  //   double num =
+  //       20.0 * std::pow(r - delta, 2.0) *
+  //       (x_eval[0] * x_eval[0] * (r - delta) + xi[0] * xi[0] * (r - delta) +
+  //        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (4.0 * r - delta) +
+  //        2.0 * x_eval[0] * xi[0] * (-r + delta));
+  //   double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
+  //   return num / denom;
+  // }
+
+  // double ddphidxy(Vec xi) const {
+  //   double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+  //                        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+  //   if (r >= delta) return 0.0;
+  //   if (r < 1e-12) r = 1.0;
+  //   double num = 60.0 * (x_eval[0] - xi[0]) * (x_eval[1] - xi[1]) *
+  //                std::pow(r - delta, 2.0);
+  //   double denom = r * std::pow(delta, 5.0);
+  //   return num / denom;
+  // }
+
   double ddphidxx(Vec xi) const {
-    double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
-                         (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+    double dx = x_eval[0] - xi[0];
+    double dy = x_eval[1] - xi[1];
+    double r2 = dx * dx + dy * dy;
+    double r = std::sqrt(r2);
     if (r >= delta) return 0.0;
-    if (r < 1e-12) r = 1.0;
-    double num = 20.0 * std::pow(r - delta, 2.0) *
-                 ((x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (r - delta) +
-                  x_eval[0] * x_eval[0] * (4.0 * r - delta) +
-                  xi[0] * xi[0] * (4.0 * r - delta) +
-                  2.0 * x_eval[0] * xi[0] * (-4.0 * r + delta));
-    double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
-    return num / denom;
+
+    // Exact r→0 limit: Hessian = phi''(0) * I
+    const double eps = 1e-12 * delta;
+    if (r <= eps) return -20.0 / (delta * delta);
+
+    // radial derivatives
+    const double rmD = (r - delta);
+    const double phi_p =
+        20.0 * r * rmD * rmD * rmD / std::pow(delta, 5);  // φ'(r)
+    const double phi_pp = 20.0 * (4.0 * r - delta) * (delta - r) * (delta - r) /
+                          std::pow(delta, 5);  // φ''(r)
+
+    const double inv_r = 1.0 / r;
+    const double inv_r2 = inv_r * inv_r;
+    const double uxx = dx * dx * inv_r2;  // (dx/r)^2
+
+    return phi_pp * uxx + (phi_p * inv_r) * (1.0 - uxx);
   }
 
   double ddphidyy(Vec xi) const {
-    double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
-                         (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+    double dx = x_eval[0] - xi[0];
+    double dy = x_eval[1] - xi[1];
+    double r2 = dx * dx + dy * dy;
+    double r = std::sqrt(r2);
     if (r >= delta) return 0.0;
-    if (r < 1e-12) r = 1.0;
-    double num =
-        20.0 * std::pow(r - delta, 2.0) *
-        (x_eval[0] * x_eval[0] * (r - delta) + xi[0] * xi[0] * (r - delta) +
-         (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (4.0 * r - delta) +
-         2.0 * x_eval[0] * xi[0] * (-r + delta));
-    double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
-    return num / denom;
+
+    const double eps = 1e-12 * delta;
+    if (r <= eps) return -20.0 / (delta * delta);
+
+    const double rmD = (r - delta);
+    const double phi_p = 20.0 * r * rmD * rmD * rmD / std::pow(delta, 5);
+    const double phi_pp = 20.0 * (4.0 * r - delta) * (delta - r) * (delta - r) /
+                          std::pow(delta, 5);
+
+    const double inv_r = 1.0 / r;
+    const double inv_r2 = inv_r * inv_r;
+    const double uyy = dy * dy * inv_r2;
+
+    return phi_pp * uyy + (phi_p * inv_r) * (1.0 - uyy);
   }
 
   double ddphidxy(Vec xi) const {
-    double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
-                         (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+    double dx = x_eval[0] - xi[0];
+    double dy = x_eval[1] - xi[1];
+    double r2 = dx * dx + dy * dy;
+    double r = std::sqrt(r2);
     if (r >= delta) return 0.0;
-    if (r < 1e-12) r = 1.0;
-    double num = 60.0 * (x_eval[0] - xi[0]) * (x_eval[1] - xi[1]) *
-                 std::pow(r - delta, 2.0);
-    double denom = r * std::pow(delta, 5.0);
-    return num / denom;
+
+    const double eps = 1e-12 * delta;
+    if (r <= eps) return 0.0;  // off-diagonal goes to 0 isotropically
+
+    const double rmD = (r - delta);
+    const double phi_p = 20.0 * r * rmD * rmD * rmD / std::pow(delta, 5);
+    const double phi_pp = 20.0 * (4.0 * r - delta) * (delta - r) * (delta - r) /
+                          std::pow(delta, 5);
+
+    const double inv_r = 1.0 / r;
+    const double inv_r2 = inv_r * inv_r;
+    const double uxy = (dx * dy) * inv_r2;
+
+    // f_xy = φ'' u_x u_y + (φ'/r) (δ_xy - u_x u_y) = (φ'' - φ'/r) u_x u_y
+    return (phi_pp - phi_p * inv_r) * uxy;
   }
 };
 
+struct PlaneField {
+  const Vec c;
+  const Vec n;
+
+  PlaneField(const Vec& c_, const Vec& n_) : c(c_), n(n_) {}
+
+  // F_i(x) = n·(x - c)
+  inline double F(Vec x) const {
+    return n[0] * (x[0] - c[0]) + n[1] * (x[1] - c[1]);
+  }
+
+  inline double dFdx(Vec) const { return n[0]; }
+  inline double dFdy(Vec) const { return n[1]; }
+
+  inline double ddFdxx(Vec) const { return 0.0; }
+  inline double ddFdyy(Vec) const { return 0.0; }
+  inline double ddFdxy(Vec) const { return 0.0; }
+};
+
+struct ParabolaField {
+  const Vec datum;
+  const Vec t;
+  const Vec n;
+  const double a;
+
+  ParabolaField(const Vec& datum_, const Vec& t_, const Vec& n_,
+                const double& a_)
+      : datum(datum_), t(t_), n(n_), a(a_) {}
+
+  // x to local parabola frame
+  inline void toLocal(const Vec& x, double& xi, double& eta) const {
+    Vec r = x - datum;
+    xi = t * r;
+    eta = n * r;
+  }
+
+  inline double F(Vec x) const {
+    double xi, eta;
+    toLocal(x, xi, eta);
+    return eta + a * xi * xi;
+  }
+
+  inline double dFdx(Vec x) const {
+    double xi, eta;
+    toLocal(x, xi, eta);
+    return n[0] + 2.0 * a * xi * t[0];
+  }
+  inline double dFdy(Vec x) const {
+    double xi, eta;
+    toLocal(x, xi, eta);
+    return n[1] + 2.0 * a * xi * t[1];
+  }
+
+  inline double ddFdxx(Vec) const { return 2.0 * a * t[0] * t[0]; }
+  inline double ddFdyy(Vec) const { return 2.0 * a * t[1] * t[1]; }
+  inline double ddFdxy(Vec) const { return 2.0 * a * t[0] * t[1]; }
+};
+
+// PoU blend of planes
 struct ImplicitSurface {
   const std::vector<Vec> centroids, normals;
   const double kernel_size;
@@ -752,10 +828,9 @@ struct ImplicitSurface {
     Wendland w(kernel_size, x);
     double num = 0.0, denom = 0.0;
     for (int i = 0; i < centroids.size(); i++) {
-      double wi = w.phi(centroids[i]);
-      double Fi = normals[i][0] * (x[0] - centroids[i][0]) +
-                  normals[i][1] * (x[1] - centroids[i][1]);
-      num += wi * Fi;
+      const PlaneField P(centroids[i], normals[i]);
+      const double wi = w.phi(centroids[i]);
+      num += wi * P.F(x);
       denom += wi;
     }
     if (denom < 1e-12) {
@@ -774,15 +849,12 @@ struct ImplicitSurface {
     double sum_phi_dFdx = 0.0;
 
     for (int i = 0; i < centroids.size(); i++) {
-      // phi derivatives
-      double phi_i = w.phi(centroids[i]);
-      double dphidx_i = w.dphidx(centroids[i]);
-      // Fi derivatives
-      Vec n = normals[i];
-      double F_i =
-          n[0] * (x[0] - centroids[i][0]) + n[1] * (x[1] - centroids[i][1]);
-      double dFdx_i = n[0];
-      // terms for Fx
+      const PlaneField P(centroids[i], normals[i]);
+      const double phi_i = w.phi(centroids[i]);
+      const double dphidx_i = w.dphidx(centroids[i]);
+      const double F_i = P.F(x);
+      const double dFdx_i = P.dFdx(x);
+
       sum_phi += phi_i;
       sum_phi_F += phi_i * F_i;
       sum_dphidx += dphidx_i;
@@ -802,15 +874,12 @@ struct ImplicitSurface {
     double sum_phi_dFdy = 0.0;
 
     for (int i = 0; i < centroids.size(); i++) {
-      // phi derivatives
-      double phi_i = w.phi(centroids[i]);
-      double dphidy_i = w.dphidy(centroids[i]);
-      // Fi derivatives
-      Vec n = normals[i];
-      double F_i =
-          n[0] * (x[0] - centroids[i][0]) + n[1] * (x[1] - centroids[i][1]);
-      double dFdy_i = n[1];
-      // terms for Fy
+      const PlaneField P(centroids[i], normals[i]);
+      const double phi_i = w.phi(centroids[i]);
+      const double dphidy_i = w.dphidy(centroids[i]);
+      const double F_i = P.F(x);
+      const double dFdy_i = P.dFdy(x);
+
       sum_phi += phi_i;
       sum_phi_F += phi_i * F_i;
       sum_dphidy += dphidy_i;
@@ -837,23 +906,191 @@ struct ImplicitSurface {
     double Dxy = 0.0;
 
     for (int i = 0; i < centroids.size(); i++) {
-      // phi derivatives
-      double phi_i = w.phi(centroids[i]);
-      double dphidx_i = w.dphidx(centroids[i]);
-      double dphidy_i = w.dphidy(centroids[i]);
-      double ddphidxx_i = w.ddphidxx(centroids[i]);
-      double ddphidyy_i = w.ddphidyy(centroids[i]);
-      double ddphidxy_i = w.ddphidxy(centroids[i]);
+      const PlaneField P(centroids[i], normals[i]);
+
+      // kernel and its derivatives
+      const double phi_i = w.phi(centroids[i]);
+      const double dphidx_i = w.dphidx(centroids[i]);
+      const double dphidy_i = w.dphidy(centroids[i]);
+      const double ddphidxx_i = w.ddphidxx(centroids[i]);
+      const double ddphidyy_i = w.ddphidyy(centroids[i]);
+      const double ddphidxy_i = w.ddphidxy(centroids[i]);
 
       // F derivatives
-      Vec n = normals[i];
-      double F_i =
-          n[0] * (x[0] - centroids[i][0]) + n[1] * (x[1] - centroids[i][1]);
-      double dFdx_i = n[0];
-      double dFdy_i = n[1];
-      double ddFdxx_i = 0.0;
-      double ddFdyy_i = 0.0;
-      double ddFdxy_i = 0.0;
+      const double F_i = P.F(x);
+      const double dFdx_i = P.dFdx(x);
+      const double dFdy_i = P.dFdy(x);
+      const double ddFdxx_i = P.ddFdxx(x);
+      const double ddFdyy_i = P.ddFdyy(x);
+      const double ddFdxy_i = P.ddFdxy(x);
+
+      // numerator terms
+      N += phi_i * F_i;
+      Nx += dphidx_i * F_i + phi_i * dFdx_i;
+      Ny += dphidy_i * F_i + phi_i * dFdy_i;
+      Nxx += F_i * ddphidxx_i + phi_i * ddFdxx_i + 2.0 * dphidx_i * dFdx_i;
+      Nyy += F_i * ddphidyy_i + phi_i * ddFdyy_i + 2.0 * dphidy_i * dFdy_i;
+      Nxy += F_i * ddphidxy_i + phi_i * ddFdxy_i + dphidx_i * dFdy_i +
+             dphidy_i * dFdx_i;
+
+      // denominator terms
+      D += phi_i;
+      Dx += dphidx_i;
+      Dy += dphidy_i;
+      Dxx += ddphidxx_i;
+      Dyy += ddphidyy_i;
+      Dxy += ddphidxy_i;
+    }
+    double Fxx =
+        (D * (Nxx * D - N * Dxx) - 2.0 * Dx * (Nx * D - N * Dx)) / (D * D * D);
+    double Fyy =
+        (D * (Nyy * D - N * Dyy) - 2.0 * Dy * (Ny * D - N * Dy)) / (D * D * D);
+    double Fxy = (D * (Nxy * D + Nx * Dy - Ny * Dx - N * Dxy) -
+                  2.0 * Dy * (Nx * D - N * Dx)) /
+                 (D * D * D);
+
+    return {Fxx, Fyy, Fxy};
+  }
+
+  // finite differences
+  double Fx_FD(Vec x, double h) {
+    return (F({x[0] + h, x[1]}) - F({x[0] - h, x[1]})) / (2.0 * h);
+  }
+  double Fy_FD(Vec x, double h) {
+    return (F({x[0], x[1] + h}) - F({x[0], x[1] - h})) / (2.0 * h);
+  }
+  double Fxx_FD(Vec x, double h) {
+    return (F({x[0] + h, x[1]}) - 2.0 * F(x) + F({x[0] - h, x[1]})) / (h * h);
+  }
+  double Fyy_FD(Vec x, double h) {
+    return (F({x[0], x[1] + h}) - 2.0 * F(x) + F({x[0], x[1] - h})) / (h * h);
+  }
+  double Fxy_FD(Vec x, double h) {
+    return (F({x[0] + h, x[1] + h}) - F({x[0] + h, x[1] - h}) -
+            F({x[0] - h, x[1] + h}) + F({x[0] - h, x[1] - h})) /
+           (4.0 * h * h);
+  }
+};
+
+// PoU blend of parabolas
+struct ImplicitSurfaceParabola {
+  const std::vector<Vec> datums, tangents, normals, centroids;
+  const std::vector<double> a_list;
+  const double kernel_size;
+
+  ImplicitSurfaceParabola(const std::vector<Vec>& datums_,
+                          const std::vector<Vec>& tangents_,
+                          const std::vector<Vec>& normals_,
+                          const std::vector<double>& a_list_,
+                          const std::vector<Vec>& centroids_,
+                          const double& kernel_size_)
+      : datums(datums_),
+        tangents(tangents_),
+        normals(normals_),
+        a_list(a_list_),
+        centroids(centroids_),
+        kernel_size(kernel_size_) {}
+
+  // evaluating functions at x
+  double F(Vec x) {
+    Wendland w(kernel_size, x);
+    double num = 0.0, denom = 0.0;
+    for (int i = 0; i < centroids.size(); i++) {
+      const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+      const double wi = w.phi(centroids[i]);
+      num += wi * P.F(x);
+      denom += wi;
+    }
+    if (denom < 1e-12) {
+      std::cout << "Sum of weights is too small, denominator = " << denom
+                << std::endl;
+    }
+    return num / denom;
+  }
+
+  double Fx(Vec x) {
+    Wendland w(kernel_size, x);
+    double sum_phi = 0.0;
+    double sum_phi_F = 0.0;
+    double sum_dphidx = 0.0;
+    double sum_dphidx_F = 0.0;
+    double sum_phi_dFdx = 0.0;
+
+    for (int i = 0; i < centroids.size(); i++) {
+      const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+      const double phi_i = w.phi(centroids[i]);
+      const double dphidx_i = w.dphidx(centroids[i]);
+      const double F_i = P.F(x);
+      const double dFdx_i = P.dFdx(x);
+
+      sum_phi += phi_i;
+      sum_phi_F += phi_i * F_i;
+      sum_dphidx += dphidx_i;
+      sum_dphidx_F += dphidx_i * F_i;
+      sum_phi_dFdx += phi_i * dFdx_i;
+    }
+    return ((sum_dphidx_F + sum_phi_dFdx) * sum_phi - sum_phi_F * sum_dphidx) /
+           (sum_phi * sum_phi);
+  }
+
+  double Fy(Vec x) {
+    Wendland w(kernel_size, x);
+    double sum_phi = 0.0;
+    double sum_phi_F = 0.0;
+    double sum_dphidy = 0.0;
+    double sum_dphidy_F = 0.0;
+    double sum_phi_dFdy = 0.0;
+
+    for (int i = 0; i < centroids.size(); i++) {
+      const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+      const double phi_i = w.phi(centroids[i]);
+      const double dphidy_i = w.dphidy(centroids[i]);
+      const double F_i = P.F(x);
+      const double dFdy_i = P.dFdy(x);
+
+      sum_phi += phi_i;
+      sum_phi_F += phi_i * F_i;
+      sum_dphidy += dphidy_i;
+      sum_dphidy_F += dphidy_i * F_i;
+      sum_phi_dFdy += phi_i * dFdy_i;
+    }
+    return ((sum_dphidy_F + sum_phi_dFdy) * sum_phi - sum_phi_F * sum_dphidy) /
+           (sum_phi * sum_phi);
+  }
+
+  std::vector<double> HessianTerms(Vec x) {
+    Wendland w(kernel_size, x);
+    double N = 0.0;
+    double Nx = 0.0;
+    double Ny = 0.0;
+    double Nxx = 0.0;
+    double Nyy = 0.0;
+    double Nxy = 0.0;
+    double D = 0.0;
+    double Dx = 0.0;
+    double Dy = 0.0;
+    double Dxx = 0.0;
+    double Dyy = 0.0;
+    double Dxy = 0.0;
+
+    for (int i = 0; i < centroids.size(); i++) {
+      const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+
+      // kernel and its derivatives
+      const double phi_i = w.phi(centroids[i]);
+      const double dphidx_i = w.dphidx(centroids[i]);
+      const double dphidy_i = w.dphidy(centroids[i]);
+      const double ddphidxx_i = w.ddphidxx(centroids[i]);
+      const double ddphidyy_i = w.ddphidyy(centroids[i]);
+      const double ddphidxy_i = w.ddphidxy(centroids[i]);
+
+      // F derivatives
+      const double F_i = P.F(x);
+      const double dFdx_i = P.dFdx(x);
+      const double dFdy_i = P.dFdy(x);
+      const double ddFdxx_i = P.ddFdxx(x);
+      const double ddFdyy_i = P.ddFdyy(x);
+      const double ddFdxy_i = P.ddFdxy(x);
 
       // numerator terms
       N += phi_i * F_i;
@@ -907,9 +1144,29 @@ Vec projectToImplicitSurface(const Vec& x0, const std::vector<Vec>& centroids,
                              const std::vector<Vec>& normals,
                              const double& kernel_size, bool& usePlane);
 
+Vec projectParabolaToImplicitSurface(const Vec& x0,
+                                     const std::vector<Vec>& centroids,
+                                     const std::vector<Vec>& datums,
+                                     const std::vector<Vec>& tangents,
+                                     const std::vector<Vec>& normals,
+                                     const std::vector<double>& a_list,
+                                     const double& kernel_size, bool& usePlane);
+
 Parabola getPU_interface(const Vec& x0, const std::vector<Vec>& centroids,
                          const std::vector<Vec>& normals,
                          const double& kernel_size, bool& usePlane);
+
+Parabola getPU_parabola_interface(const Vec& x0,
+                                  const std::vector<Vec>& centroids,
+                                  const std::vector<Vec>& datums,
+                                  const std::vector<Vec>& tangents,
+                                  const std::vector<Vec>& normals,
+                                  const std::vector<double>& a_list,
+                                  const double& kernel_size, bool& usePlane);
+
+Vec centroidParabolaSegmentAnalytic(const Vec& datum, const Vec& t,
+                                    const Vec& n, const double a, const Vec& pL,
+                                    const Vec& pR);
 
 }  // namespace IRL2D
 

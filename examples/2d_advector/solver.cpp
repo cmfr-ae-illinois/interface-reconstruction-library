@@ -12,6 +12,10 @@
 #include <stdio.h>
 #include <cstdio>
 #include <string>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
+#include <iomanip>
 
 #include "examples/2d_advector/basic_mesh.h"
 #include "examples/2d_advector/data.h"
@@ -40,7 +44,7 @@ void setPhaseQuantities(const Data<IRL2D::Parabola>& a_interface,
 }
 
 void writeDiagnosticsHeader(void) {
-  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s\n", "Iteration",
+  printf("%10s %20s %12s %20s %20s %20s %20s %20s %20s %20s %16s\n", "Iteration",
          "Time", "CFL", "liquidVFSum", "liquidVolSum", "ChangeLiquidVFSum",
          "ChangeLiquidVolSum", "AdvectionDuration", "ReconDuration",
          "OutputDuration", "InterfaceCells");
@@ -88,7 +92,7 @@ void writeOutDiagnostics(const int a_iteration, const double a_dt,
     initial_liquid_volume_sum = liquid_volume_sum;
   }
   printf(
-      "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20d"
+      "%10d %20.4E %12.3F %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %20.6E %16d"
       "\n",
       a_iteration, a_simulation_time, CFL, liquid_volume_fraction_sum,
       liquid_volume_sum,
@@ -169,4 +173,87 @@ void printError(const BasicMesh& mesh,
   std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
   std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
   std::cout << "L2   M2 = " << l2_error_m2 << std::endl;
+}
+
+// output data to csv
+void writeToCSV(const BasicMesh& mesh, 
+                const Data<IRL2D::Parabola>& a_interface,
+                const Data<IRL2D::Moments>& a_liquid_moments,
+                const std::string& filepath){
+
+  // finding mixed cells
+  Data<int> band(&mesh);
+  for (int i = mesh.imin(); i < mesh.imax(); ++i){
+    for (int j = mesh.jmin(); j < mesh.jmax(); ++j){
+      const double liquid_volume_fraction =
+          (a_liquid_moments)(i, j).m0() / mesh.cell_volume();
+      if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        band(i, j) = 1;
+      }
+    }
+  }
+
+  // csv file
+  // stores indices, end points, normal and tangent components
+  std::ofstream csvfile(filepath);
+  csvfile << "i,j,ax,ay,bx,by,tx,ty,nx,ny,vf\n";
+  double ax, ay, bx, by, tx, ty, nx, ny, vf;
+  // storing interface endpoints for all line segments
+  for (int i = mesh.imin(); i < mesh.imax(); ++i){
+    for (int j = mesh.jmin(); j < mesh.jmax(); ++j){
+      if (band(i,j) == 1){
+        IRL2D::BezierList cell = IRL2D::RectangleFromBounds(
+          IRL2D::Vec(mesh.x(i), mesh.y(j)), 
+          IRL2D::Vec(mesh.x(i+1), mesh.y(j+1))
+        );
+        IRL2D::BezierList clipped_plic = IRL2D::ParabolaClip(cell, a_interface(i,j), true);
+        ax = clipped_plic[0].first[0]; ay = clipped_plic[0].first[1];
+        bx = clipped_plic[1].first[0]; by = clipped_plic[1].first[1];
+        tx = a_interface(i,j).frame()[0][0]; ty = a_interface(i,j).frame()[0][1];
+        nx = a_interface(i,j).frame()[1][0]; ny = a_interface(i,j).frame()[1][1];
+        vf = a_liquid_moments(i,j).m0() / IRL2D::ComputeArea(cell);
+        csvfile << i << "," << j << ',' << ax << "," << ay << ","
+                << bx << "," << by << "," << tx << "," << ty << ","
+                << nx << "," << ny << "," << vf << "\n";
+      }
+    }
+  }
+}
+
+void readCSV(const std::string& filepath,
+             std::vector<IRL2D::InterfaceEndPoints>& data){
+  
+  std::ifstream file(filepath);
+
+  if (!file.is_open()) {
+    std::cerr << "Error opening file: " << filepath << std::endl;
+  }
+
+  std::string line;
+
+  // skip header
+  std::getline(file, line);
+
+  while (std::getline(file, line)){
+    std::stringstream ss(line);   // separates by ,
+    std::string info;
+    IRL2D::InterfaceEndPoints iep;
+
+    // reading in each value and storing it in struct
+    std::getline(ss, info, ','); iep.xIndex = std::stoi(info);
+    std::getline(ss, info, ','); iep.yIndex = std::stoi(info);
+    std::getline(ss, info, ','); iep.ax = std::stod(info);
+    std::getline(ss, info, ','); iep.ay = std::stod(info);
+    std::getline(ss, info, ','); iep.bx = std::stod(info);
+    std::getline(ss, info, ','); iep.by = std::stod(info);
+    std::getline(ss, info, ','); iep.tx = std::stod(info);
+    std::getline(ss, info, ','); iep.ty = std::stod(info);
+    std::getline(ss, info, ','); iep.nx = std::stod(info);
+    std::getline(ss, info, ','); iep.ny = std::stod(info);
+    std::getline(ss, info, ','); iep.vf = std::stod(info);
+    iep.mixed = true;
+    data.push_back(iep);
+  }
+  file.close();
 }

@@ -1,0 +1,31 @@
+IRLAddExample_cpp(
+  TARGET_NAME
+  pu_analysis
+  HDRS
+  "functions.h"
+  "surfaces.h"
+  "irl2d.h"
+  "reconstruction_types.h"
+  "translation.h"
+  "vof_advection.h"
+  "vtk.h"
+  "data.h"
+  "basic_mesh.h"
+  SRCS
+  "main.cpp"
+  "functions.cpp"
+  "circle.cpp"
+  "ellipse.cpp"
+  "sine.cpp"
+  "output.cpp"
+  "irl2d.cpp"
+  "reconstruction_types.cpp"
+  "translation.cpp"
+  "vof_advection.cpp"
+  "vtk.cpp"
+  "basic_mesh.cpp"
+  OUTPUT_DIR
+  "${IRL_EXAMPLES_OUTPUT_DIR}/pu_analysis"
+  COLLECTION
+  "examples_pu_analysis"
+)

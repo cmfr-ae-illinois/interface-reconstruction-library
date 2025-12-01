@@ -9,13 +9,11 @@
 
 #include <iostream>
 
-#include "examples/2d_advector/deformation_2d.h"
-#include "examples/2d_advector/irl2d.h"
-#include "examples/2d_advector/oscillation_2d.h"
-#include "examples/2d_advector/reconstruction_types.h"
-#include "examples/2d_advector/rotation_2d.h"
-#include "examples/2d_advector/vof_advection.h"
-#include "examples/2d_advector/vtk.h"
+#include "examples/pu_analysis/irl2d.h"
+#include "examples/pu_analysis/reconstruction_types.h"
+#include "examples/pu_analysis/translation.h"
+#include "examples/pu_analysis/vof_advection.h"
+#include "examples/pu_analysis/vtk.h"
 
 void advectVOF(const std::string& a_simulation_type,
                const std::string& a_advection_method,
@@ -33,15 +31,15 @@ void advectVOF(const std::string& a_simulation_type,
     FullLag::advectVOF(a_simulation_type, a_advection_method,
                        a_reconstruction_method, a_dt, a_time, a_U, a_V,
                        a_liquid_moments, a_gas_moments, a_interface);
-  } else if (a_advection_method == "ReSyFullLagL"){
+  } else if (a_advection_method == "ReSyFullLagL") {
     ReSyFullLagL::advectVOF(a_simulation_type, a_advection_method,
-                       a_reconstruction_method, a_dt, a_time, a_U, a_V,
-                       a_liquid_moments, a_gas_moments, a_interface);
+                            a_reconstruction_method, a_dt, a_time, a_U, a_V,
+                            a_liquid_moments, a_gas_moments, a_interface);
   } else {
     std::cout << "Unknown advection method of : " << a_reconstruction_method
               << '\n';
-    std::cout
-        << "Valid entries are: SemiLagL, SemiLagQ, FullLagL, FullLagQ, ReSyFullLagL. \n";
+    std::cout << "Valid entries are: SemiLagL, SemiLagQ, FullLagL, FullLagQ, "
+                 "ReSyFullLagL. \n";
     std::exit(-1);
   }
 }
@@ -89,16 +87,8 @@ void SemiLag::advectVOF(const std::string& a_simulation_type,
   const IRL2D::Vec (*getExactVelocity2D)(const double t, const IRL2D::Vec& P);
   const IRL2D::Mat (*getExactGradient2D)(const double t, const IRL2D::Vec& P);
 
-  if (a_simulation_type == "Rotation2D") {
-    getExactVelocity2D = Rotation2D::getExactVelocity2D;
-    getExactGradient2D = Rotation2D::getExactVelocityGradient2D;
-  } else if (a_simulation_type == "Oscillation2D") {
-    getExactVelocity2D = Oscillation2D::getExactVelocity2D;
-    getExactGradient2D = Oscillation2D::getExactVelocityGradient2D;
-  } else if (a_simulation_type == "Deformation2D") {
-    getExactVelocity2D = Deformation2D::getExactVelocity2D;
-    getExactGradient2D = Deformation2D::getExactVelocityGradient2D;
-  }
+  getExactVelocity2D = Translation::getExactVelocity2D;
+  getExactGradient2D = Translation::getExactVelocityGradient2D;
 
   // Allocate storage for face fluxes
   Data<IRL2D::Moments> liq_flux[2] = {Data<IRL2D::Moments>(&mesh),
@@ -525,16 +515,8 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
   const IRL2D::Vec (*getExactVelocity2D)(const double t, const IRL2D::Vec& P);
   const IRL2D::Mat (*getExactGradient2D)(const double t, const IRL2D::Vec& P);
 
-  if (a_simulation_type == "Rotation2D") {
-    getExactVelocity2D = Rotation2D::getExactVelocity2D;
-    getExactGradient2D = Rotation2D::getExactVelocityGradient2D;
-  } else if (a_simulation_type == "Oscillation2D") {
-    getExactVelocity2D = Oscillation2D::getExactVelocity2D;
-    getExactGradient2D = Oscillation2D::getExactVelocityGradient2D;
-  } else if (a_simulation_type == "Deformation2D") {
-    getExactVelocity2D = Deformation2D::getExactVelocity2D;
-    getExactGradient2D = Deformation2D::getExactVelocityGradient2D;
-  }
+  getExactVelocity2D = Translation::getExactVelocity2D;
+  getExactGradient2D = Translation::getExactVelocityGradient2D;
 
   // Calculate CFL
   double CFL = -DBL_MAX;
@@ -900,13 +882,13 @@ void FullLag::advectVOF(const std::string& a_simulation_type,
 // ---------------------------------------------------------------------------------------
 
 void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
-                        const std::string& a_advection_method,
-                        const std::string& a_reconstruction_method,
-                        const double a_dt, const double a_time,
-                        const Data<double>& a_U, const Data<double>& a_V,
-                        Data<IRL2D::Moments>* a_liquid_moments,
-                        Data<IRL2D::Moments>* a_gas_moments,
-                        Data<IRL2D::Parabola>* a_interface) {
+                             const std::string& a_advection_method,
+                             const std::string& a_reconstruction_method,
+                             const double a_dt, const double a_time,
+                             const Data<double>& a_U, const Data<double>& a_V,
+                             Data<IRL2D::Moments>* a_liquid_moments,
+                             Data<IRL2D::Moments>* a_gas_moments,
+                             Data<IRL2D::Parabola>* a_interface) {
   const double tol = 100. * std::numeric_limits<double>::epsilon();
   const bool correct_fluxes = true;
   const BasicMesh& mesh = a_liquid_moments->getMesh();
@@ -938,16 +920,8 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
   const IRL2D::Vec (*getExactVelocity2D)(const double t, const IRL2D::Vec& P);
   const IRL2D::Mat (*getExactGradient2D)(const double t, const IRL2D::Vec& P);
 
-  if (a_simulation_type == "Rotation2D") {
-    getExactVelocity2D = Rotation2D::getExactVelocity2D;
-    getExactGradient2D = Rotation2D::getExactVelocityGradient2D;
-  } else if (a_simulation_type == "Oscillation2D") {
-    getExactVelocity2D = Oscillation2D::getExactVelocity2D;
-    getExactGradient2D = Oscillation2D::getExactVelocityGradient2D;
-  } else if (a_simulation_type == "Deformation2D") {
-    getExactVelocity2D = Deformation2D::getExactVelocity2D;
-    getExactGradient2D = Deformation2D::getExactVelocityGradient2D;
-  }
+  getExactVelocity2D = Translation::getExactVelocity2D;
+  getExactGradient2D = Translation::getExactVelocityGradient2D;
 
   // Calculate CFL
   double CFL = -DBL_MAX;
@@ -1017,7 +991,8 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
 
   const int size_moments = 2 * 6;
   std::vector<double> mom_update_local(size_moments * nmixed_local);
-  std::vector<double> mom_update_global(size_moments * n_simplices * nmixed_global);
+  std::vector<double> mom_update_global(size_moments * n_simplices *
+                                        nmixed_global);
 #endif
 
   // Compute fluxes
@@ -1036,13 +1011,16 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
     for (int j = mesh.jmin(); j <= mesh.jmax() + 1; ++j) {
       const double cell_volume = mesh.cell_volume();
       // initializing
-      tri_liq_mom_update(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
-      tri_gas_mom_update(i,j) = std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
-      liq_mom_final(i,j) = IRL2D::Moments();
-      gas_mom_final(i,j) = IRL2D::Moments();
-      mapping_A(i,j) = std::vector<IRL2D::Mat>(num_triangles, IRL2D::Mat());
-      mapping_b(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
-      mapped_m1_triangle(i,j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
+      tri_liq_mom_update(i, j) =
+          std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
+      tri_gas_mom_update(i, j) =
+          std::vector<IRL2D::Moments>(num_triangles, IRL2D::Moments());
+      liq_mom_final(i, j) = IRL2D::Moments();
+      gas_mom_final(i, j) = IRL2D::Moments();
+      mapping_A(i, j) = std::vector<IRL2D::Mat>(num_triangles, IRL2D::Mat());
+      mapping_b(i, j) = std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
+      mapped_m1_triangle(i, j) =
+          std::vector<IRL2D::Vec>(num_triangles, IRL2D::Vec());
 
       // Only solve advection in narrow band near the interface
       if (band(i, j) > 0 || band(i - 1, j) > 0 || band(i, j - 1) > 0) {
@@ -1065,50 +1043,57 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
                              getExactGradient2D, correct_fluxes, exact_fluxes);
 
           // triangulation of cell and preimage
-          std::vector<IRL2D::BezierList> triangulated_cell = IRL2D::TriangulateCell(cell, false);
-          std::vector<IRL2D::BezierList> triangulated_preimage = IRL2D::TriangulateCell(preimage, true);
+          std::vector<IRL2D::BezierList> triangulated_cell =
+              IRL2D::TriangulateCell(cell, false);
+          std::vector<IRL2D::BezierList> triangulated_preimage =
+              IRL2D::TriangulateCell(preimage, true);
 
-          for (int t = 0; t < num_triangles; ++t){
+          for (int t = 0; t < num_triangles; ++t) {
             // mapping from preimage to cell
-            std::pair<IRL2D::Mat, IRL2D::Vec> mapping_MatVec 
-            = IRL2D::MappingMatVec(triangulated_preimage[t], triangulated_cell[t]);
-            mapping_A(i,j)[t] = mapping_MatVec.first; mapping_b(i,j)[t] = mapping_MatVec.second;
-            for (int ii = i - nlayers; ii <= i + nlayers; ++ii){
-              for (int jj = j - nlayers; jj <= j + nlayers; ++jj){
+            std::pair<IRL2D::Mat, IRL2D::Vec> mapping_MatVec =
+                IRL2D::MappingMatVec(triangulated_preimage[t],
+                                     triangulated_cell[t]);
+            mapping_A(i, j)[t] = mapping_MatVec.first;
+            mapping_b(i, j)[t] = mapping_MatVec.second;
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
                 const auto xn0 = IRL2D::Vec(mesh.x(ii), mesh.y(jj));
                 const auto xn1 = IRL2D::Vec(mesh.x(ii + 1), mesh.y(jj + 1));
-                tri_liq_mom_update(i,j)[t] += IRL2D::ComputeMoments(triangulated_preimage[t], 
-                                              xn0, xn1, (*a_interface)(ii, jj));
+                tri_liq_mom_update(i, j)[t] += IRL2D::ComputeMoments(
+                    triangulated_preimage[t], xn0, xn1, (*a_interface)(ii, jj));
               }
             }
-            tri_gas_mom_update(i,j)[t] = IRL2D::ComputeMoments(triangulated_preimage[t])
-                                         - (tri_liq_mom_update)(i, j)[t];
-            liq_mom_final(i,j) += IRL2D::ComputeMappedTriangleMoments(tri_liq_mom_update(i,j)[t],
-                                  mapping_A(i,j)[t], mapping_b(i,j)[t]);
-            gas_mom_final(i,j) += IRL2D::ComputeMappedTriangleMoments(tri_gas_mom_update(i,j)[t],
-                                  mapping_A(i,j)[t], mapping_b(i,j)[t]);
+            tri_gas_mom_update(i, j)[t] =
+                IRL2D::ComputeMoments(triangulated_preimage[t]) -
+                (tri_liq_mom_update)(i, j)[t];
+            liq_mom_final(i, j) += IRL2D::ComputeMappedTriangleMoments(
+                tri_liq_mom_update(i, j)[t], mapping_A(i, j)[t],
+                mapping_b(i, j)[t]);
+            gas_mom_final(i, j) += IRL2D::ComputeMappedTriangleMoments(
+                tri_gas_mom_update(i, j)[t], mapping_A(i, j)[t],
+                mapping_b(i, j)[t]);
           }
 
 #ifdef USE_MPI
           const auto fm = IRL2D::ComputeMoments(preimage);
-          mom_update_local[count_local++] = liq_mom_final(i,j).m0();
-          mom_update_local[count_local++] = liq_mom_final(i,j).m1()[0];
-          mom_update_local[count_local++] = liq_mom_final(i,j).m1()[1];
-          mom_update_local[count_local++] = liq_mom_final(i,j).m2()[0][0];
-          mom_update_local[count_local++] = liq_mom_final(i,j).m2()[1][0];
-          mom_update_local[count_local++] = liq_mom_final(i,j).m2()[1][1];
-          mom_update_local[count_local++] = gas_mom_final(i,j).m0();
-          mom_update_local[count_local++] = gas_mom_final(i,j).m1()[0];
-          mom_update_local[count_local++] = gas_mom_final(i,j).m1()[1];
-          mom_update_local[count_local++] = gas_mom_final(i,j).m2()[0][0];
-          mom_update_local[count_local++] = gas_mom_final(i,j).m2()[1][0];
-          mom_update_local[count_local++] = gas_mom_final(i,j).m2()[1][1];
+          mom_update_local[count_local++] = liq_mom_final(i, j).m0();
+          mom_update_local[count_local++] = liq_mom_final(i, j).m1()[0];
+          mom_update_local[count_local++] = liq_mom_final(i, j).m1()[1];
+          mom_update_local[count_local++] = liq_mom_final(i, j).m2()[0][0];
+          mom_update_local[count_local++] = liq_mom_final(i, j).m2()[1][0];
+          mom_update_local[count_local++] = liq_mom_final(i, j).m2()[1][1];
+          mom_update_local[count_local++] = gas_mom_final(i, j).m0();
+          mom_update_local[count_local++] = gas_mom_final(i, j).m1()[0];
+          mom_update_local[count_local++] = gas_mom_final(i, j).m1()[1];
+          mom_update_local[count_local++] = gas_mom_final(i, j).m2()[0][0];
+          mom_update_local[count_local++] = gas_mom_final(i, j).m2()[1][0];
+          mom_update_local[count_local++] = gas_mom_final(i, j).m2()[1][1];
         }
         count++;
 #endif
       }
     }
-  } // end of calculating moments for each preimage
+  }  // end of calculating moments for each preimage
 
 #ifdef USE_MPI
   std::vector<int> proc_count(size);
@@ -1152,8 +1137,8 @@ void ReSyFullLagL::advectVOF(const std::string& a_simulation_type,
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       if (band(i, j) > 0) {
-        (*a_liquid_moments)(i,j) = liq_mom_final(i,j);
-        (*a_gas_moments)(i,j) = gas_mom_final(i,j);
+        (*a_liquid_moments)(i, j) = liq_mom_final(i, j);
+        (*a_gas_moments)(i, j) = gas_mom_final(i, j);
       }
     }
   }

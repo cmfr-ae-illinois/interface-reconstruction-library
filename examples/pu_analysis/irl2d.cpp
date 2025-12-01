@@ -1,6 +1,6 @@
 #include <boost/multiprecision/cpp_bin_float.hpp>
 
-#include "examples/2d_advector/irl2d.h"
+#include "examples/pu_analysis/irl2d.h"
 
 #include <Eigen/Dense>
 #include <Eigen/QR>
@@ -2910,128 +2910,6 @@ void particle_pf(const std::vector<Vec>& pp0, const std::vector<Vec>& pf0,
   std::cout << "Iteration: " << iter << std::endl;
 }
 
-void curvature_vareta(
-    const std::vector<Vec>& pp0, const std::vector<Vec>& pf0,
-    std::vector<Vec>& pp_final, std::vector<Vec>& pf_final,
-    const std::pair<Vec, Vec>& target_endpoints,
-    const std::vector<std::pair<Vec, Vec>>& line_seg_endpoints,
-    const std::vector<std::vector<InterfaceEndPoints>>& plicDataMat,
-    const int& N, const double& Hp, const double& h) {
-  double theta, phi;
-  std::vector<Vec> particle_positions(N), particle_forces(N),
-      particle_positions_prev(N), particle_forces_prev(N),
-      particle_positions_s(N), particle_positions_ss(N), particle_forces_s(N),
-      particle_forces_ss(N);
-
-  // particle spacing
-  double hp = Hp * h / (static_cast<double>(N) - 1.0);
-
-  // Initial particle positions and forces
-  particle_positions = pp0;
-  particle_forces = pf0;
-
-  // initialize orientation and bending angle
-  theta = 0.0;
-  Vec ab_star = target_endpoints.second - target_endpoints.first;
-  phi = std::atan2(ab_star[1], ab_star[0]);
-  if (phi < 0.0) {
-    phi += 2.0 * M_PI;
-  }
-
-  // iteration parameters
-  int max_iter = 200;
-  double tol = 1e-6;
-  int iter = 0;
-  double residual = 1.0;
-
-  // index of central particle
-  int c = (N - 1) / 2;
-
-  // update positions and forces
-  while (std::abs(residual) > tol) {
-    iter++;
-
-    // prev iter
-    particle_positions_prev = particle_positions;
-    particle_forces_prev = particle_forces;
-
-    // step 1: correct central particle position using force
-    particle_positions[c] += particle_forces[c];
-
-    // step 1: change in position for other particles
-    particle_positions_s =
-        ComputeParticlePositions(N, particle_positions[c], phi, theta, hp);
-
-    // step 1: subtracting change of position from forces
-    for (int i = 0; i < N; i++) {
-      particle_forces_s[i] =
-          particle_forces_prev[i] -
-          (particle_positions_s[i] - particle_positions_prev[i]);
-    }
-
-    // step 2: correct phi by projection of force
-    phi += ComputeParticleForceProjection(N, phi, theta, hp, true,
-                                          particle_forces_s);
-
-    // step 2: change in position for other particles
-    particle_positions_ss =
-        ComputeParticlePositions(N, particle_positions[c], phi, theta, hp);
-
-    // step 2: subtracting change of position from forces
-    for (int i = 0; i < N; i++) {
-      particle_forces_ss[i] = particle_forces_s[i] - (particle_positions_ss[i] -
-                                                      particle_positions_s[i]);
-    }
-
-    // step 3: correct theta by projection of force
-    theta -= ComputeParticleForceProjection(N, phi, theta, hp, false,
-                                            particle_forces_ss);
-
-    // step 3: update particle positions
-    particle_positions =
-        ComputeParticlePositions(N, particle_positions[c], phi, theta, hp);
-
-    // compute eta for each particle
-    // std::vector<int> pointedSegmentIndices =
-    // findClosestSegmentIndex(particle_positions, line_seg_endpoints);
-    // std::vector<Vec> pointedPLIC_normals =
-    // findClosestSegmentNormal(pointedSegmentIndices, plicDataMat);
-    std::vector<Vec> pointedPLIC_normals =
-        findSegmentNormals(particle_positions, plicDataMat);
-    std::vector<double> eta =
-        computeEta(particle_positions, pointedPLIC_normals);
-
-    // step 3: update particle forces
-    for (int i = 0; i < N; i++) {
-      particle_forces[i] = ComputeParticleForce(particle_positions[i],
-                                                line_seg_endpoints, eta[i]);
-    }
-
-    // residual: change in position for all particles (max value among all
-    // particles)
-    residual = 0.0;
-    for (int i = 0; i < N; i++) {
-      residual = std::max(residual,
-                          (particle_positions[i] - particle_positions_prev[i])
-                              .magnitude()) /
-                 (eta[i] * h);
-    }
-
-    if (iter == max_iter) {
-      break;
-    }
-  }
-
-  // final particle positions and forces
-  pp_final = particle_positions;
-  pf_final = particle_forces;
-
-  // printing curvature
-  std::cout << "Curvature: " << (2 * std::sin(theta / 2.0) / hp) << std::endl;
-  std::cout << "residual: " << residual << std::endl;
-  std::cout << "Iteration: " << iter << std::endl;
-}
-
 // least squares fit of a circle
 // --------------------------------------------------------------------
 std::vector<Vec> generatePoints(
@@ -3225,249 +3103,6 @@ Mat estimateFrame(const Vec& circle_center, const Vec& plic_center,
   return {tangent, normal};
 }
 
-// Pratt parabola
-Parabola getPrattParabola(const std::vector<IRL2D::Vec>& points,
-                          const std::vector<double>& vfw,
-                          const std::vector<double>& dw,
-                          const std::vector<double>& nw, const Mat& plic_frame,
-                          const Vec& plic_center) {
-  Parabola PrattParabola;
-
-  // moment matrix
-  int n = points.size();
-  Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
-  for (int i = 0; i < n; i++) {
-    double xi = points[i].x(), yi = points[i].y();
-    double zi = xi * xi + yi * yi;
-    double w = vfw[i] * dw[i] * nw[i];
-    Eigen::Vector4d u;
-    u << zi, xi, yi, 1.0;
-    M += w * u * u.transpose();
-  }
-  Eigen::Matrix4d B;  // constraint matrix
-  B << 0, 0, 0, -2, 0, 1, 0, 0, 0, 0, 1, 0, -2, 0, 0, 0;
-
-  // solving the generalized eigenvalue problem
-  Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
-  ges.compute(M, B);
-  auto eigenvalues = ges.eigenvalues();
-  auto eigenvectors = ges.eigenvectors();
-
-  // extracting smallest positive eigenvalue and its eigenvector
-  std::vector<std::pair<double, int>> positive_eigs;
-  for (int i = 0; i < eigenvalues.size(); i++) {
-    double real_part = eigenvalues[i].real();
-    if (real_part > 0) {
-      positive_eigs.emplace_back(real_part, i);
-    }
-  }
-  std::sort(positive_eigs.begin(), positive_eigs.end());
-  double A = eigenvectors.col(positive_eigs[0].second)[0].real();
-  double B_ = eigenvectors.col(positive_eigs[0].second)[1].real();
-  double C = eigenvectors.col(positive_eigs[0].second)[2].real();
-  double D = eigenvectors.col(positive_eigs[0].second)[3].real();
-
-  // scaling parameters
-  double constraint = B_ * B_ + C * C - 4.0 * A * D;
-  double scale_factor = 1.0 / std::sqrt(constraint);
-  A *= scale_factor;
-  B_ *= scale_factor;
-  C *= scale_factor;
-  D *= scale_factor;
-
-  // circle radius and center
-  double radius = std::sqrt((B_ * B_ + C * C - 4.0 * A * D) / (4.0 * A * A));
-  Vec circle_center = IRL2D::Vec(-B_ / (2.0 * A), -C / (2.0 * A));
-
-  // parabola coefficient
-  PrattParabola.coeff() = 0.5 / radius;
-
-  // reference frame
-  bool flip_coeff = false;
-  PrattParabola.frame() = estimateFrame(circle_center, plic_center, radius,
-                                        plic_frame[1], flip_coeff);
-  if (flip_coeff == true) {
-    PrattParabola.coeff() = -PrattParabola.coeff();
-  }
-
-  // datum
-  Vec direction = plic_center - circle_center;
-  direction.normalize();
-  PrattParabola.datum() = circle_center + radius * direction;
-
-  return PrattParabola;
-}
-
-Parabola getPrattParabola_localframe(const std::vector<IRL2D::Vec>& points,
-                                     const std::vector<double>& vfw,
-                                     const std::vector<double>& dw,
-                                     const std::vector<double>& nw,
-                                     const Mat& plic_frame,
-                                     const Vec& plic_center) {
-  Parabola PrattParabola;
-
-  // points in local frame
-  std::vector<Vec> pts_local(points.size());
-  double tx = plic_frame[0][0], ty = plic_frame[0][1];
-  double nx = plic_frame[1][0], ny = plic_frame[1][1];
-  for (int i = 0; i < points.size(); i++) {
-    Vec p = points[i];
-    pts_local[i] = {
-        (p.x() - plic_center.x()) * tx + (p.y() - plic_center.y()) * ty,
-        (p.x() - plic_center.x()) * nx + (p.y() - plic_center.y()) * ny};
-  }
-
-  // moment matrix
-  int n = points.size();
-  Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
-  for (int i = 0; i < n; i++) {
-    double xi = pts_local[i].x(), yi = pts_local[i].y();
-    double zi = xi * xi + yi * yi;
-    double w = vfw[i] * dw[i] * nw[i];
-    Eigen::Vector4d u;
-    u << zi, xi, yi, 1.0;
-    M += w * u * u.transpose();
-  }
-  Eigen::Matrix4d B;  // constraint matrix
-  B << 0, 0, 0, -2, 0, 1, 0, 0, 0, 0, 1, 0, -2, 0, 0, 0;
-
-  // solving the generalized eigenvalue problem
-  Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
-  ges.compute(M, B);
-  auto eigenvalues = ges.eigenvalues();
-  auto eigenvectors = ges.eigenvectors();
-
-  // extracting smallest positive eigenvalue and its eigenvector
-  std::vector<std::pair<double, int>> positive_eigs;
-  for (int i = 0; i < eigenvalues.size(); i++) {
-    double real_part = eigenvalues[i].real();
-    if (real_part > 0) {
-      positive_eigs.emplace_back(real_part, i);
-    }
-  }
-  std::sort(positive_eigs.begin(), positive_eigs.end());
-  double A = eigenvectors.col(positive_eigs[0].second)[0].real();
-  double B_ = eigenvectors.col(positive_eigs[0].second)[1].real();
-  double C = eigenvectors.col(positive_eigs[0].second)[2].real();
-  double D = eigenvectors.col(positive_eigs[0].second)[3].real();
-
-  // scaling parameters
-  double constraint = B_ * B_ + C * C - 4.0 * A * D;
-  double scale_factor = 1.0 / std::sqrt(constraint);
-  A *= scale_factor;
-  B_ *= scale_factor;
-  C *= scale_factor;
-  D *= scale_factor;
-
-  // circle radius and center in local frame
-  double radius = std::sqrt((B_ * B_ + C * C - 4.0 * A * D) / (4.0 * A * A));
-  Vec cc_local = IRL2D::Vec(-B_ / (2.0 * A), -C / (2.0 * A));
-
-  // circle center in global frame
-  Vec circle_center = {plic_center.x() + tx * cc_local.x() + nx * cc_local.y(),
-                       plic_center.y() + ty * cc_local.x() + ny * cc_local.y()};
-
-  // parabola coefficient
-  PrattParabola.coeff() = 0.5 / radius;
-
-  // reference frame
-  bool flip_coeff = false;
-  PrattParabola.frame() = estimateFrame(circle_center, plic_center, radius,
-                                        plic_frame[1], flip_coeff);
-  if (flip_coeff == true) {
-    PrattParabola.coeff() = -PrattParabola.coeff();
-  }
-
-  // datum
-  Vec direction = plic_center - circle_center;
-  direction.normalize();
-  PrattParabola.datum() = circle_center + radius * direction;
-
-  return PrattParabola;
-}
-
-// Taubin parabola
-Parabola getTaubinParabola(const std::vector<IRL2D::Vec>& points,
-                           const std::vector<double>& vfw,
-                           const std::vector<double>& dw,
-                           const std::vector<double>& nw,
-                           const Vec& plic_normal, const Vec& plic_center) {
-  Parabola TaubinParabola;
-
-  // moment matrix
-  int n = points.size();
-  Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
-  for (int i = 0; i < n; i++) {
-    double xi = points[i].x(), yi = points[i].y();
-    double zi = xi * xi + yi * yi;
-    double w = vfw[i] * dw[i] * nw[i];  // volume fraction and distance weight
-    Eigen::Vector4d u;
-    u << zi, xi, yi, 1.0;
-    M += w * u * u.transpose();  // weighted outer product
-  }
-
-  // constraint matrix
-  Eigen::Matrix4d C;
-  C.setZero();
-  C(0, 0) = 4.0 * M(0, 3);
-  C(0, 1) = 2.0 * M(1, 3);
-  C(0, 2) = 2.0 * M(2, 3);
-  C(1, 0) = C(0, 1);
-  C(1, 1) = n;
-  C(2, 0) = C(0, 2);
-  C(2, 2) = n;
-
-  // solving the generalized eigenvalue problem
-  Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
-  ges.compute(M, C);
-  auto eigenvalues = ges.eigenvalues();
-  auto eigenvectors = ges.eigenvectors();
-
-  // extracting smallest positive eigenvalue and its eigenvector
-  std::vector<std::pair<double, int>> positive_eigs;
-  for (int i = 0; i < eigenvalues.size(); i++) {
-    double real_part = eigenvalues[i].real();
-    if (real_part > 0) {
-      positive_eigs.emplace_back(real_part, i);
-    }
-  }
-  std::sort(positive_eigs.begin(), positive_eigs.end());
-  double A = eigenvectors.col(positive_eigs[0].second)[0].real();
-  double B = eigenvectors.col(positive_eigs[0].second)[1].real();
-  double C_ = eigenvectors.col(positive_eigs[0].second)[2].real();
-  double D = eigenvectors.col(positive_eigs[0].second)[3].real();
-
-  // scaling parameters
-  double constraint = 4.0 * A * A * M(0, 3) + 4.0 * A * B * M(1, 3) +
-                      4.0 * A * C_ * M(2, 3) + B * B * static_cast<double>(n) +
-                      C_ * C_ * static_cast<double>(n);
-  double scale_factor = 1.0 / std::sqrt(constraint) * std::sqrt(80.0);
-  A *= scale_factor;
-  B *= scale_factor;
-  C_ *= scale_factor;
-  D *= scale_factor;
-
-  // parabola coefficient
-  double radius = std::sqrt((B * B + C_ * C_ - 4.0 * A * D) / (4.0 * A * A));
-  TaubinParabola.coeff() = 0.5 / radius;
-
-  // reference frame
-  Vec circle_center = IRL2D::Vec(-B / (2.0 * A), -C_ / (2.0 * A));
-  bool flip_coeff = false;
-  TaubinParabola.frame() = estimateFrame(circle_center, plic_center, radius,
-                                         plic_normal, flip_coeff);
-  if (flip_coeff == true) {
-    TaubinParabola.coeff() = -TaubinParabola.coeff();
-  }
-
-  // datum
-  Vec direction = plic_center - circle_center;
-  direction.normalize();
-  TaubinParabola.datum() = circle_center + radius * direction;
-
-  return TaubinParabola;
-}
-
 // Taubin fit in local frame of reference
 Parabola getTaubinParabola_localframe(const std::vector<IRL2D::Vec>& points,
                                       const std::vector<double>& vfw,
@@ -3566,117 +3201,6 @@ Parabola getTaubinParabola_localframe(const std::vector<IRL2D::Vec>& points,
   TaubinParabola.datum() = circle_center + radius * direction;
 
   return TaubinParabola;
-}
-
-std::vector<double> getPrattParams(const std::vector<IRL2D::Vec>& points,
-                                   const std::vector<double>& vfw,
-                                   const std::vector<double>& dw,
-                                   const std::vector<double>& nw) {
-  // Generating matrices for eigenvalue problem
-  int n = points.size();
-  Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
-  for (int i = 0; i < n; i++) {
-    double xi = points[i].x(), yi = points[i].y();
-    double zi = xi * xi + yi * yi;
-    double w = vfw[i] * dw[i] * nw[i];  // volume fraction and distance weight
-    Eigen::Vector4d u;
-    u << zi, xi, yi, 1.0;
-    M += w * u * u.transpose();  // weighted outer product
-  }
-  Eigen::Matrix4d B;  // constraint matrix
-  B << 0, 0, 0, -2, 0, 1, 0, 0, 0, 0, 1, 0, -2, 0, 0, 0;
-
-  // solving the generalized eigenvalue problem
-  Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
-  ges.compute(M, B);
-  auto eigenvalues = ges.eigenvalues();
-  auto eigenvectors = ges.eigenvectors();
-
-  // extracting smallest positive eigenvalue and its eigenvector
-  std::vector<std::pair<double, int>> positive_eigs;
-  for (int i = 0; i < eigenvalues.size(); i++) {
-    double real_part = eigenvalues[i].real();
-    if (real_part > 0) {
-      positive_eigs.emplace_back(real_part, i);
-    }
-  }
-  std::sort(positive_eigs.begin(), positive_eigs.end());
-  double A = eigenvectors.col(positive_eigs[0].second)[0].real();
-  double B_ = eigenvectors.col(positive_eigs[0].second)[1].real();
-  double C = eigenvectors.col(positive_eigs[0].second)[2].real();
-  double D = eigenvectors.col(positive_eigs[0].second)[3].real();
-
-  // scaling parameters
-  double constraint = B_ * B_ + C * C - 4.0 * A * D;
-  double scale_factor = 1.0 / std::sqrt(constraint);
-  A *= scale_factor;
-  B_ *= scale_factor;
-  C *= scale_factor;
-  D *= scale_factor;
-  double theta = std::atan2(C, B_);
-
-  return {A, D, theta};
-}
-
-std::vector<double> getTaubinParams(const std::vector<IRL2D::Vec>& points,
-                                    const std::vector<double>& vfw,
-                                    const std::vector<double>& dw,
-                                    const std::vector<double>& nw) {
-  // moment matrix
-  int n = points.size();
-  Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
-  for (int i = 0; i < n; i++) {
-    double xi = points[i].x(), yi = points[i].y();
-    double zi = xi * xi + yi * yi;
-    double w = vfw[i] * dw[i] * nw[i];  // volume fraction and distance weight
-    Eigen::Vector4d u;
-    u << zi, xi, yi, 1.0;
-    M += w * u * u.transpose();  // weighted outer product
-  }
-
-  // constraint matrix
-  Eigen::Matrix4d C;
-  C.setZero();
-  C(0, 0) = 4.0 * M(0, 3);
-  C(0, 1) = 2.0 * M(1, 3);
-  C(0, 2) = 2.0 * M(2, 3);
-  C(1, 0) = C(0, 1);
-  C(1, 1) = n;
-  C(2, 0) = C(0, 2);
-  C(2, 2) = n;
-
-  // solving the generalized eigenvalue problem
-  Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
-  ges.compute(M, C);
-  auto eigenvalues = ges.eigenvalues();
-  auto eigenvectors = ges.eigenvectors();
-
-  // extracting smallest positive eigenvalue and its eigenvector
-  std::vector<std::pair<double, int>> positive_eigs;
-  for (int i = 0; i < eigenvalues.size(); i++) {
-    double real_part = eigenvalues[i].real();
-    if (real_part > 0) {
-      positive_eigs.emplace_back(real_part, i);
-    }
-  }
-  std::sort(positive_eigs.begin(), positive_eigs.end());
-  double A = eigenvectors.col(positive_eigs[0].second)[0].real();
-  double B = eigenvectors.col(positive_eigs[0].second)[1].real();
-  double C_ = eigenvectors.col(positive_eigs[0].second)[2].real();
-  double D = eigenvectors.col(positive_eigs[0].second)[3].real();
-
-  // scaling parameters
-  double constraint = 4.0 * A * A * M(0, 3) + 4.0 * A * B * M(1, 3) +
-                      4.0 * A * C_ * M(2, 3) + B * B * static_cast<double>(n) +
-                      C_ * C_ * static_cast<double>(n);
-  double scale_factor = 1.0 / std::sqrt(constraint) * std::sqrt(80.0);
-  A *= scale_factor;
-  B *= scale_factor;
-  C_ *= scale_factor;
-  D *= scale_factor;
-  double theta = std::atan2(C_, B);
-
-  return {A, D, theta};
 }
 
 // 2D Jibben
@@ -3991,6 +3515,550 @@ std::vector<double> getJibbenCoeffs(const Parabola& target_interface,
 // Functions for partition of unity
 // ----------------------------------------------------------------------
 
+// struct Wendland {
+//   const double delta;
+//   const Vec x_eval;
+
+//   Wendland(const double& delta_, const Vec& x_eval_)
+//       : delta(delta_), x_eval(x_eval_) {}
+
+//   double phi(Vec xi) const {
+//     double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+//                          (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+//     if (r >= delta) return 0.0;
+//     double s = 1.0 - r / delta;
+//     return std::pow(s, 4) * (4.0 * r / delta + 1.0);
+//   }
+
+//   double dphidx(Vec xi) const {
+//     double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+//                          (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+//     if (r >= delta) return 0.0;
+//     return 1.0 / std::pow(delta, 5.0) * 20.0 * (x_eval[0] - xi[0]) *
+//            std::pow(r - delta, 3.0);
+//   }
+
+//   double dphidy(Vec xi) const {
+//     double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+//                          (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+//     if (r >= delta) return 0.0;
+//     return 1.0 / std::pow(delta, 5.0) * 20.0 * (x_eval[1] - xi[1]) *
+//            std::pow(r - delta, 3.0);
+//   }
+
+//   // double ddphidxx(Vec xi) const {
+//   //   double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+//   //                        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+//   //   if (r >= delta) return 0.0;
+//   //   if (r < 1e-12) r = 1.0;
+//   //   double num = 20.0 * std::pow(r - delta, 2.0) *
+//   //                ((x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (r - delta)
+//   +
+//   //                 x_eval[0] * x_eval[0] * (4.0 * r - delta) +
+//   //                 xi[0] * xi[0] * (4.0 * r - delta) +
+//   //                 2.0 * x_eval[0] * xi[0] * (-4.0 * r + delta));
+//   //   double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
+//   //   return num / denom;
+//   // }
+
+//   // double ddphidyy(Vec xi) const {
+//   //   double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+//   //                        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+//   //   if (r >= delta) return 0.0;
+//   //   if (r < 1e-12) r = 1.0;
+//   //   double num =
+//   //       20.0 * std::pow(r - delta, 2.0) *
+//   //       (x_eval[0] * x_eval[0] * (r - delta) + xi[0] * xi[0] * (r - delta)
+//   +
+//   //        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]) * (4.0 * r - delta) +
+//   //        2.0 * x_eval[0] * xi[0] * (-r + delta));
+//   //   double denom = std::pow(r, 2.0) * std::pow(delta, 5.0);
+//   //   return num / denom;
+//   // }
+
+//   // double ddphidxy(Vec xi) const {
+//   //   double r = std::sqrt((x_eval[0] - xi[0]) * (x_eval[0] - xi[0]) +
+//   //                        (x_eval[1] - xi[1]) * (x_eval[1] - xi[1]));
+//   //   if (r >= delta) return 0.0;
+//   //   if (r < 1e-12) r = 1.0;
+//   //   double num = 60.0 * (x_eval[0] - xi[0]) * (x_eval[1] - xi[1]) *
+//   //                std::pow(r - delta, 2.0);
+//   //   double denom = r * std::pow(delta, 5.0);
+//   //   return num / denom;
+//   // }
+
+//   double ddphidxx(Vec xi) const {
+//     double dx = x_eval[0] - xi[0];
+//     double dy = x_eval[1] - xi[1];
+//     double r2 = dx * dx + dy * dy;
+//     double r = std::sqrt(r2);
+//     if (r >= delta) return 0.0;
+
+//     // Exact r→0 limit: Hessian = phi''(0) * I
+//     const double eps = 1e-12 * delta;
+//     if (r <= eps) return -20.0 / (delta * delta);
+
+//     // radial derivatives
+//     const double rmD = (r - delta);
+//     const double phi_p =
+//         20.0 * r * rmD * rmD * rmD / std::pow(delta, 5);  // φ'(r)
+//     const double phi_pp = 20.0 * (4.0 * r - delta) * (delta - r) * (delta -
+//     r) /
+//                           std::pow(delta, 5);  // φ''(r)
+
+//     const double inv_r = 1.0 / r;
+//     const double inv_r2 = inv_r * inv_r;
+//     const double uxx = dx * dx * inv_r2;  // (dx/r)^2
+
+//     return phi_pp * uxx + (phi_p * inv_r) * (1.0 - uxx);
+//   }
+
+//   double ddphidyy(Vec xi) const {
+//     double dx = x_eval[0] - xi[0];
+//     double dy = x_eval[1] - xi[1];
+//     double r2 = dx * dx + dy * dy;
+//     double r = std::sqrt(r2);
+//     if (r >= delta) return 0.0;
+
+//     const double eps = 1e-12 * delta;
+//     if (r <= eps) return -20.0 / (delta * delta);
+
+//     const double rmD = (r - delta);
+//     const double phi_p = 20.0 * r * rmD * rmD * rmD / std::pow(delta, 5);
+//     const double phi_pp = 20.0 * (4.0 * r - delta) * (delta - r) * (delta -
+//     r) /
+//                           std::pow(delta, 5);
+
+//     const double inv_r = 1.0 / r;
+//     const double inv_r2 = inv_r * inv_r;
+//     const double uyy = dy * dy * inv_r2;
+
+//     return phi_pp * uyy + (phi_p * inv_r) * (1.0 - uyy);
+//   }
+
+//   double ddphidxy(Vec xi) const {
+//     double dx = x_eval[0] - xi[0];
+//     double dy = x_eval[1] - xi[1];
+//     double r2 = dx * dx + dy * dy;
+//     double r = std::sqrt(r2);
+//     if (r >= delta) return 0.0;
+
+//     const double eps = 1e-12 * delta;
+//     if (r <= eps) return 0.0;  // off-diagonal goes to 0 isotropically
+
+//     const double rmD = (r - delta);
+//     const double phi_p = 20.0 * r * rmD * rmD * rmD / std::pow(delta, 5);
+//     const double phi_pp = 20.0 * (4.0 * r - delta) * (delta - r) * (delta -
+//     r) /
+//                           std::pow(delta, 5);
+
+//     const double inv_r = 1.0 / r;
+//     const double inv_r2 = inv_r * inv_r;
+//     const double uxy = (dx * dy) * inv_r2;
+
+//     // f_xy = φ'' u_x u_y + (φ'/r) (δ_xy - u_x u_y) = (φ'' - φ'/r) u_x u_y
+//     return (phi_pp - phi_p * inv_r) * uxy;
+//   }
+// };
+
+// struct PlaneField {
+//   const Vec c;
+//   const Vec n;
+
+//   PlaneField(const Vec& c_, const Vec& n_) : c(c_), n(n_) {}
+
+//   // F_i(x) = n·(x - c)
+//   inline double F(Vec x) const {
+//     return n[0] * (x[0] - c[0]) + n[1] * (x[1] - c[1]);
+//   }
+
+//   inline double dFdx(Vec) const { return n[0]; }
+//   inline double dFdy(Vec) const { return n[1]; }
+
+//   inline double ddFdxx(Vec) const { return 0.0; }
+//   inline double ddFdyy(Vec) const { return 0.0; }
+//   inline double ddFdxy(Vec) const { return 0.0; }
+// };
+
+// struct ParabolaField {
+//   const Vec datum;
+//   const Vec t;
+//   const Vec n;
+//   const double a;
+
+//   ParabolaField(const Vec& datum_, const Vec& t_, const Vec& n_,
+//                 const double& a_)
+//       : datum(datum_), t(t_), n(n_), a(a_) {}
+
+//   // x to local parabola frame
+//   inline void toLocal(const Vec& x, double& xi, double& eta) const {
+//     Vec r = x - datum;
+//     xi = t * r;
+//     eta = n * r;
+//   }
+
+//   inline double F(Vec x) const {
+//     double xi, eta;
+//     toLocal(x, xi, eta);
+//     return eta + a * xi * xi;
+//   }
+
+//   inline double dFdx(Vec x) const {
+//     double xi, eta;
+//     toLocal(x, xi, eta);
+//     return n[0] + 2.0 * a * xi * t[0];
+//   }
+//   inline double dFdy(Vec x) const {
+//     double xi, eta;
+//     toLocal(x, xi, eta);
+//     return n[1] + 2.0 * a * xi * t[1];
+//   }
+
+//   inline double ddFdxx(Vec) const { return 2.0 * a * t[0] * t[0]; }
+//   inline double ddFdyy(Vec) const { return 2.0 * a * t[1] * t[1]; }
+//   inline double ddFdxy(Vec) const { return 2.0 * a * t[0] * t[1]; }
+// };
+
+// // PoU blend of planes
+// struct ImplicitSurface {
+//   const std::vector<Vec> centroids, normals;
+//   const double kernel_size;
+
+//   ImplicitSurface(const std::vector<Vec>& centroids_,
+//                   const std::vector<Vec>& normals_, const double&
+//                   kernel_size_)
+//       : centroids(centroids_), normals(normals_), kernel_size(kernel_size_)
+//       {}
+
+//   // evaluating functions at x
+//   double F(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double num = 0.0, denom = 0.0;
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const PlaneField P(centroids[i], normals[i]);
+//       const double wi = w.phi(centroids[i]);
+//       num += wi * P.F(x);
+//       denom += wi;
+//     }
+//     if (denom < 1e-12) {
+//       std::cout << "Sum of weights is too small, denominator = " << denom
+//                 << std::endl;
+//     }
+//     return num / denom;
+//   }
+
+//   double Fx(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double sum_phi = 0.0;
+//     double sum_phi_F = 0.0;
+//     double sum_dphidx = 0.0;
+//     double sum_dphidx_F = 0.0;
+//     double sum_phi_dFdx = 0.0;
+
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const PlaneField P(centroids[i], normals[i]);
+//       const double phi_i = w.phi(centroids[i]);
+//       const double dphidx_i = w.dphidx(centroids[i]);
+//       const double F_i = P.F(x);
+//       const double dFdx_i = P.dFdx(x);
+
+//       sum_phi += phi_i;
+//       sum_phi_F += phi_i * F_i;
+//       sum_dphidx += dphidx_i;
+//       sum_dphidx_F += dphidx_i * F_i;
+//       sum_phi_dFdx += phi_i * dFdx_i;
+//     }
+//     return ((sum_dphidx_F + sum_phi_dFdx) * sum_phi - sum_phi_F * sum_dphidx)
+//     /
+//            (sum_phi * sum_phi);
+//   }
+
+//   double Fy(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double sum_phi = 0.0;
+//     double sum_phi_F = 0.0;
+//     double sum_dphidy = 0.0;
+//     double sum_dphidy_F = 0.0;
+//     double sum_phi_dFdy = 0.0;
+
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const PlaneField P(centroids[i], normals[i]);
+//       const double phi_i = w.phi(centroids[i]);
+//       const double dphidy_i = w.dphidy(centroids[i]);
+//       const double F_i = P.F(x);
+//       const double dFdy_i = P.dFdy(x);
+
+//       sum_phi += phi_i;
+//       sum_phi_F += phi_i * F_i;
+//       sum_dphidy += dphidy_i;
+//       sum_dphidy_F += dphidy_i * F_i;
+//       sum_phi_dFdy += phi_i * dFdy_i;
+//     }
+//     return ((sum_dphidy_F + sum_phi_dFdy) * sum_phi - sum_phi_F * sum_dphidy)
+//     /
+//            (sum_phi * sum_phi);
+//   }
+
+//   std::vector<double> HessianTerms(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double N = 0.0;
+//     double Nx = 0.0;
+//     double Ny = 0.0;
+//     double Nxx = 0.0;
+//     double Nyy = 0.0;
+//     double Nxy = 0.0;
+//     double D = 0.0;
+//     double Dx = 0.0;
+//     double Dy = 0.0;
+//     double Dxx = 0.0;
+//     double Dyy = 0.0;
+//     double Dxy = 0.0;
+
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const PlaneField P(centroids[i], normals[i]);
+
+//       // kernel and its derivatives
+//       const double phi_i = w.phi(centroids[i]);
+//       const double dphidx_i = w.dphidx(centroids[i]);
+//       const double dphidy_i = w.dphidy(centroids[i]);
+//       const double ddphidxx_i = w.ddphidxx(centroids[i]);
+//       const double ddphidyy_i = w.ddphidyy(centroids[i]);
+//       const double ddphidxy_i = w.ddphidxy(centroids[i]);
+
+//       // F derivatives
+//       const double F_i = P.F(x);
+//       const double dFdx_i = P.dFdx(x);
+//       const double dFdy_i = P.dFdy(x);
+//       const double ddFdxx_i = P.ddFdxx(x);
+//       const double ddFdyy_i = P.ddFdyy(x);
+//       const double ddFdxy_i = P.ddFdxy(x);
+
+//       // numerator terms
+//       N += phi_i * F_i;
+//       Nx += dphidx_i * F_i + phi_i * dFdx_i;
+//       Ny += dphidy_i * F_i + phi_i * dFdy_i;
+//       Nxx += F_i * ddphidxx_i + phi_i * ddFdxx_i + 2.0 * dphidx_i * dFdx_i;
+//       Nyy += F_i * ddphidyy_i + phi_i * ddFdyy_i + 2.0 * dphidy_i * dFdy_i;
+//       Nxy += F_i * ddphidxy_i + phi_i * ddFdxy_i + dphidx_i * dFdy_i +
+//              dphidy_i * dFdx_i;
+
+//       // denominator terms
+//       D += phi_i;
+//       Dx += dphidx_i;
+//       Dy += dphidy_i;
+//       Dxx += ddphidxx_i;
+//       Dyy += ddphidyy_i;
+//       Dxy += ddphidxy_i;
+//     }
+//     double Fxx =
+//         (D * (Nxx * D - N * Dxx) - 2.0 * Dx * (Nx * D - N * Dx)) / (D * D *
+//         D);
+//     double Fyy =
+//         (D * (Nyy * D - N * Dyy) - 2.0 * Dy * (Ny * D - N * Dy)) / (D * D *
+//         D);
+//     double Fxy = (D * (Nxy * D + Nx * Dy - Ny * Dx - N * Dxy) -
+//                   2.0 * Dy * (Nx * D - N * Dx)) /
+//                  (D * D * D);
+
+//     return {Fxx, Fyy, Fxy};
+//   }
+
+//   // finite differences
+//   double Fx_FD(Vec x, double h) {
+//     return (F({x[0] + h, x[1]}) - F({x[0] - h, x[1]})) / (2.0 * h);
+//   }
+//   double Fy_FD(Vec x, double h) {
+//     return (F({x[0], x[1] + h}) - F({x[0], x[1] - h})) / (2.0 * h);
+//   }
+//   double Fxx_FD(Vec x, double h) {
+//     return (F({x[0] + h, x[1]}) - 2.0 * F(x) + F({x[0] - h, x[1]})) / (h *
+//     h);
+//   }
+//   double Fyy_FD(Vec x, double h) {
+//     return (F({x[0], x[1] + h}) - 2.0 * F(x) + F({x[0], x[1] - h})) / (h *
+//     h);
+//   }
+//   double Fxy_FD(Vec x, double h) {
+//     return (F({x[0] + h, x[1] + h}) - F({x[0] + h, x[1] - h}) -
+//             F({x[0] - h, x[1] + h}) + F({x[0] - h, x[1] - h})) /
+//            (4.0 * h * h);
+//   }
+// };
+
+// // PoU blend of parabolas
+// struct ImplicitSurfaceParabola {
+//   const std::vector<Vec> datums, tangents, normals, centroids;
+//   const std::vector<double> a_list;
+//   const double kernel_size;
+
+//   ImplicitSurfaceParabola(const std::vector<Vec>& datums_,
+//                           const std::vector<Vec>& tangents_,
+//                           const std::vector<Vec>& normals_,
+//                           const std::vector<double>& a_list_,
+//                           const std::vector<Vec>& centroids_,
+//                           const double& kernel_size_)
+//       : datums(datums_),
+//         tangents(tangents_),
+//         normals(normals_),
+//         a_list(a_list_),
+//         centroids(centroids_),
+//         kernel_size(kernel_size_) {}
+
+//   // evaluating functions at x
+//   double F(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double num = 0.0, denom = 0.0;
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+//       const double wi = w.phi(centroids[i]);
+//       num += wi * P.F(x);
+//       denom += wi;
+//     }
+//     if (denom < 1e-12) {
+//       std::cout << "Sum of weights is too small, denominator = " << denom
+//                 << std::endl;
+//     }
+//     return num / denom;
+//   }
+
+//   double Fx(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double sum_phi = 0.0;
+//     double sum_phi_F = 0.0;
+//     double sum_dphidx = 0.0;
+//     double sum_dphidx_F = 0.0;
+//     double sum_phi_dFdx = 0.0;
+
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+//       const double phi_i = w.phi(centroids[i]);
+//       const double dphidx_i = w.dphidx(centroids[i]);
+//       const double F_i = P.F(x);
+//       const double dFdx_i = P.dFdx(x);
+
+//       sum_phi += phi_i;
+//       sum_phi_F += phi_i * F_i;
+//       sum_dphidx += dphidx_i;
+//       sum_dphidx_F += dphidx_i * F_i;
+//       sum_phi_dFdx += phi_i * dFdx_i;
+//     }
+//     return ((sum_dphidx_F + sum_phi_dFdx) * sum_phi - sum_phi_F * sum_dphidx)
+//     /
+//            (sum_phi * sum_phi);
+//   }
+
+//   double Fy(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double sum_phi = 0.0;
+//     double sum_phi_F = 0.0;
+//     double sum_dphidy = 0.0;
+//     double sum_dphidy_F = 0.0;
+//     double sum_phi_dFdy = 0.0;
+
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+//       const double phi_i = w.phi(centroids[i]);
+//       const double dphidy_i = w.dphidy(centroids[i]);
+//       const double F_i = P.F(x);
+//       const double dFdy_i = P.dFdy(x);
+
+//       sum_phi += phi_i;
+//       sum_phi_F += phi_i * F_i;
+//       sum_dphidy += dphidy_i;
+//       sum_dphidy_F += dphidy_i * F_i;
+//       sum_phi_dFdy += phi_i * dFdy_i;
+//     }
+//     return ((sum_dphidy_F + sum_phi_dFdy) * sum_phi - sum_phi_F * sum_dphidy)
+//     /
+//            (sum_phi * sum_phi);
+//   }
+
+//   std::vector<double> HessianTerms(Vec x) {
+//     Wendland w(kernel_size, x);
+//     double N = 0.0;
+//     double Nx = 0.0;
+//     double Ny = 0.0;
+//     double Nxx = 0.0;
+//     double Nyy = 0.0;
+//     double Nxy = 0.0;
+//     double D = 0.0;
+//     double Dx = 0.0;
+//     double Dy = 0.0;
+//     double Dxx = 0.0;
+//     double Dyy = 0.0;
+//     double Dxy = 0.0;
+
+//     for (int i = 0; i < centroids.size(); i++) {
+//       const ParabolaField P(datums[i], tangents[i], normals[i], a_list[i]);
+
+//       // kernel and its derivatives
+//       const double phi_i = w.phi(centroids[i]);
+//       const double dphidx_i = w.dphidx(centroids[i]);
+//       const double dphidy_i = w.dphidy(centroids[i]);
+//       const double ddphidxx_i = w.ddphidxx(centroids[i]);
+//       const double ddphidyy_i = w.ddphidyy(centroids[i]);
+//       const double ddphidxy_i = w.ddphidxy(centroids[i]);
+
+//       // F derivatives
+//       const double F_i = P.F(x);
+//       const double dFdx_i = P.dFdx(x);
+//       const double dFdy_i = P.dFdy(x);
+//       const double ddFdxx_i = P.ddFdxx(x);
+//       const double ddFdyy_i = P.ddFdyy(x);
+//       const double ddFdxy_i = P.ddFdxy(x);
+
+//       // numerator terms
+//       N += phi_i * F_i;
+//       Nx += dphidx_i * F_i + phi_i * dFdx_i;
+//       Ny += dphidy_i * F_i + phi_i * dFdy_i;
+//       Nxx += F_i * ddphidxx_i + phi_i * ddFdxx_i + 2.0 * dphidx_i * dFdx_i;
+//       Nyy += F_i * ddphidyy_i + phi_i * ddFdyy_i + 2.0 * dphidy_i * dFdy_i;
+//       Nxy += F_i * ddphidxy_i + phi_i * ddFdxy_i + dphidx_i * dFdy_i +
+//              dphidy_i * dFdx_i;
+
+//       // denominator terms
+//       D += phi_i;
+//       Dx += dphidx_i;
+//       Dy += dphidy_i;
+//       Dxx += ddphidxx_i;
+//       Dyy += ddphidyy_i;
+//       Dxy += ddphidxy_i;
+//     }
+//     double Fxx =
+//         (D * (Nxx * D - N * Dxx) - 2.0 * Dx * (Nx * D - N * Dx)) / (D * D *
+//         D);
+//     double Fyy =
+//         (D * (Nyy * D - N * Dyy) - 2.0 * Dy * (Ny * D - N * Dy)) / (D * D *
+//         D);
+//     double Fxy = (D * (Nxy * D + Nx * Dy - Ny * Dx - N * Dxy) -
+//                   2.0 * Dy * (Nx * D - N * Dx)) /
+//                  (D * D * D);
+
+//     return {Fxx, Fyy, Fxy};
+//   }
+
+//   // finite differences
+//   double Fx_FD(Vec x, double h) {
+//     return (F({x[0] + h, x[1]}) - F({x[0] - h, x[1]})) / (2.0 * h);
+//   }
+//   double Fy_FD(Vec x, double h) {
+//     return (F({x[0], x[1] + h}) - F({x[0], x[1] - h})) / (2.0 * h);
+//   }
+//   double Fxx_FD(Vec x, double h) {
+//     return (F({x[0] + h, x[1]}) - 2.0 * F(x) + F({x[0] - h, x[1]})) / (h *
+//     h);
+//   }
+//   double Fyy_FD(Vec x, double h) {
+//     return (F({x[0], x[1] + h}) - 2.0 * F(x) + F({x[0], x[1] - h})) / (h *
+//     h);
+//   }
+//   double Fxy_FD(Vec x, double h) {
+//     return (F({x[0] + h, x[1] + h}) - F({x[0] + h, x[1] - h}) -
+//             F({x[0] - h, x[1] + h}) + F({x[0] - h, x[1] - h})) /
+//            (4.0 * h * h);
+//   }
+// };
+
 Vec projectToImplicitSurface(const Vec& x0, const std::vector<Vec>& centroids,
                              const std::vector<Vec>& normals,
                              const double& kernel_size, bool& usePlane) {
@@ -3998,6 +4066,67 @@ Vec projectToImplicitSurface(const Vec& x0, const std::vector<Vec>& centroids,
   double tol = 1e-12;
   Vec x = x0;
   ImplicitSurface IS(centroids, normals, kernel_size);
+
+  // for NaN debugging
+  std::ostringstream diagnostics;
+  diagnostics << "x0 = " << x0 << std::endl;
+  bool nan_detected = false;
+
+  for (int i = 0; i < max_iter; i++) {
+    double F = IS.F(x);
+    double Fx = IS.Fx(x);
+    double Fy = IS.Fy(x);
+    Vec gradF = {Fx, Fy};
+    Vec change = F * gradF / (Fx * Fx + Fy * Fy);
+    x = x - change;
+
+    // diagnostics for NaN
+    diagnostics << "Iteration: " << i + 1 << "\n";
+    diagnostics << "F(x) = " << F << "\n";
+    diagnostics << "Fx = " << Fx << ", Fy = " << Fy << "\n";
+    diagnostics << "gradF = " << gradF << "\n";
+    diagnostics << "change = " << change
+                << ", |change| = " << change.magnitude() << "\n";
+    diagnostics << "x = " << x << "\n";
+    diagnostics << "distance to x0 in terms of dx = "
+                << (x - x0).magnitude() / (kernel_size / 2.5) << "\n";
+    diagnostics << "--------------------------------------------\n";
+
+    // NaN check
+    if (std::isnan(x.magnitude()) && !nan_detected) {
+      nan_detected = true;
+      usePlane = true;
+      std::cout << "========== NaN detected at iteration " << i + 1
+                << " ==========\n";
+      std::cout << diagnostics.str();
+      // break;
+    }
+
+    // iteration parameter checks
+    if (std::fabs(change.magnitude()) < tol && !nan_detected)
+      break;  // converged solution
+    if (i == (max_iter - 1)) {
+      std::cout << "Max iterations reached: Projection to implicit surface is "
+                   "incomplete ";
+      if (std::isnan(x.magnitude())) {
+        std::cout << "because NaN is detected";
+      }
+      std::cout << std::endl;
+    }
+  }
+  return x;
+}
+
+Vec projectParabolaToImplicitSurface(
+    const Vec& x0, const std::vector<Vec>& centroids,
+    const std::vector<Vec>& datums, const std::vector<Vec>& tangents,
+    const std::vector<Vec>& normals, const std::vector<double>& a_list,
+    const double& kernel_size, bool& usePlane) {
+  int max_iter = 200;
+  double tol = 1e-12;
+  Vec x = x0;
+  ImplicitSurfaceParabola IS(datums, tangents, normals, a_list, centroids,
+                             kernel_size);
 
   // for NaN debugging
   std::ostringstream diagnostics;
@@ -4078,6 +4207,95 @@ Parabola getPU_interface(const Vec& x0, const std::vector<Vec>& centroids,
   PU_parabola.coeff() = 0.5 * curvature;
 
   return PU_parabola;
+}
+
+Parabola getPU_parabola_interface(const Vec& x0,
+                                  const std::vector<Vec>& centroids,
+                                  const std::vector<Vec>& datums,
+                                  const std::vector<Vec>& tangents,
+                                  const std::vector<Vec>& normals,
+                                  const std::vector<double>& a_list,
+                                  const double& kernel_size, bool& usePlane) {
+  Parabola PU_parabola;
+
+  // projecting x0 onto implicit surface
+  Vec x_proj = projectParabolaToImplicitSurface(
+      x0, centroids, datums, tangents, normals, a_list, kernel_size, usePlane);
+  PU_parabola.datum() = x_proj;
+
+  // reference frame
+  ImplicitSurfaceParabola IS(datums, tangents, normals, a_list, centroids,
+                             kernel_size);
+  double Fx = IS.Fx(x_proj);
+  double Fy = IS.Fy(x_proj);
+  IRL2D::Vec normal = {Fx, Fy};
+  normal.normalize();
+  IRL2D::Vec tangent = {normal.y(), -normal.x()};
+  PU_parabola.frame() = {tangent, normal};
+
+  // coefficient
+  std::vector<double> HessianTerms = IS.HessianTerms(x_proj);
+  double Fxx = HessianTerms[0];
+  double Fxy = HessianTerms[2];
+  double Fyy = HessianTerms[1];
+  double curvature = (Fx * Fx * Fyy - 2.0 * Fx * Fy * Fxy + Fy * Fy * Fxx) /
+                     (std::pow(Fx * Fx + Fy * Fy, 1.5));
+  PU_parabola.coeff() = 0.5 * curvature;
+
+  return PU_parabola;
+}
+
+Vec centroidParabolaSegmentAnalytic(const Vec& datum, const Vec& t,
+                                    const Vec& n, const double a, const Vec& pL,
+                                    const Vec& pR) {
+  // Project endpoints to local xi using the tangent
+  const double xiL = t[0] * (pL[0] - datum[0]) + t[1] * (pL[1] - datum[1]);
+  const double xiR = t[0] * (pR[0] - datum[0]) + t[1] * (pR[1] - datum[1]);
+
+  double x0 = std::min(xiL, xiR);
+  double x1 = std::max(xiL, xiR);
+
+  // Degenerate/near-linear fallback (a ~ 0): use chord midpoint
+  const double q = 2.0 * a;
+  const double eps = 1e-14;
+  if (std::abs(q) < 1e-12 || std::abs(x1 - x0) < eps) {
+    return Vec{0.5 * (pL[0] + pR[0]), 0.5 * (pL[1] + pR[1])};
+  }
+
+  auto Sqrt = [&](double x) { return std::sqrt(1.0 + q * q * x * x); };
+
+  // Antiderivatives on [-] side (closed-form)
+  auto Lp = [&](double x) {
+    // ∫ sqrt(1 + q^2 x^2) dx
+    return 0.5 * x * Sqrt(x) + 0.5 * std::asinh(q * x) / q;
+  };
+  auto J1 = [&](double x) {
+    // ∫ x sqrt(1 + q^2 x^2) dx
+    return std::pow(1.0 + q * q * x * x, 1.5) / (3.0 * q * q);
+  };
+  auto J2 = [&](double x) {
+    // ∫ x^2 sqrt(1 + q^2 x^2) dx
+    return (2.0 * q * q * q * x * x * x * Sqrt(x) + q * x * Sqrt(x) -
+            std::asinh(q * x)) /
+           (8.0 * q * q * q);
+  };
+
+  const double Lseg = Lp(x1) - Lp(x0);  // total arc length
+  if (std::abs(Lseg) < eps) {
+    return Vec{0.5 * (pL[0] + pR[0]), 0.5 * (pL[1] + pR[1])};
+  }
+
+  const double S1 = J1(x1) - J1(x0);  // ∫ xi ds  over [x0,x1]
+  const double S2 = J2(x1) - J2(x0);  // ∫ xi^2 ds over [x0,x1]
+
+  const double xi_bar = S1 / Lseg;          // centroid in local xi
+  const double eta_bar = -a * (S2 / Lseg);  // centroid in local eta
+
+  // Convert centroid back to global: c = d + xi_bar * t + eta_bar * n
+  Vec c;
+  c[0] = datum[0] + xi_bar * t[0] + eta_bar * n[0];
+  c[1] = datum[1] + xi_bar * t[1] + eta_bar * n[1];
+  return c;
 }
 
 }  // namespace IRL2D

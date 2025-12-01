@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_PARABOLOID_ADVECTOR_BASIC_MESH_H_
-#define EXAMPLES_PARABOLOID_ADVECTOR_BASIC_MESH_H_
+#ifndef EXAMPLES_PU_ANALYSIS_BASIC_MESH_H_
+#define EXAMPLES_PU_ANALYSIS_BASIC_MESH_H_
 
 #define USE_MPI
 
@@ -17,7 +17,7 @@
 #endif
 
 #include <cstring>
-#include "examples/2d_advector/irl2d.h"
+#include "examples/pu_analysis/irl2d.h"
 
 /// \brief This is a basic mesh class that stores
 /// the number of cells in the mesh, the number of

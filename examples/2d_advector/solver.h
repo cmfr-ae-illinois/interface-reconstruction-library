@@ -14,6 +14,7 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <nlopt.hpp>
 
 #include "examples/2d_advector/basic_mesh.h"
 #include "examples/2d_advector/data.h"
@@ -22,6 +23,9 @@
 #include "examples/2d_advector/rotation_2d.h"
 #include "examples/2d_advector/vof_advection.h"
 #include "examples/2d_advector/vtk.h"
+
+#include <Eigen/Dense>
+#include <Eigen/QR>
 
 /// \brief Handles running and advancing the solution according to provided
 /// static functions in structs.
@@ -59,6 +63,14 @@ void writeInterfaceToFile(const Data<IRL2D::Moments>& a_liquid_moments,
 void printError(const BasicMesh& mesh,
                 const Data<IRL2D::Moments>& liquid_moments,
                 const Data<IRL2D::Moments>& starting_liquid_moments);
+
+void writeToCSV(const BasicMesh& mesh, 
+                const Data<IRL2D::Parabola>& a_interface,
+                const Data<IRL2D::Moments>& a_liquid_moments,
+                const std::string& filepath);
+
+void readCSV(const std::string& filepath,
+             std::vector<IRL2D::InterfaceEndPoints>& data);
 
 //******************************************************************* //
 //     Template function definitions placed below this.
@@ -105,6 +117,16 @@ int runSimulation(const std::string& a_simulation_type,
   setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
   const auto starting_liquid_moments = liquid_moments;
 
+  // reference frame
+  // for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); i++){
+  //   for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); j++){
+  //     const double lvf = liquid_moments(i,j).m0() / cc_mesh.cell_volume();
+  //     if (lvf >= IRL::global_constants::VF_LOW && lvf <= IRL::global_constants::VF_HIGH){
+  //       std::cout << "Exact frame = " << interface(i,j).frame() << std::endl;
+  //     }
+  //   }
+  // }
+
   VTKOutput vtk_io("viz_out", "viz", cc_mesh);
   vtk_io.addData("VelocityX", velU);
   vtk_io.addData("VelocityY", velV);
@@ -116,6 +138,11 @@ int runSimulation(const std::string& a_simulation_type,
   getReconstruction(a_reconstruction_method, liquid_moments, gas_moments, 0.0,
                     velU, velV, &interface);
   setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
+
+  // writing data to csv
+  std::string dir = "/home/parinht2/Documents/testing code/particle_var_force"; // and circle
+  std::string filepath = dir + "/interface.csv";
+  // writeToCSV(cc_mesh, interface, liquid_moments, filepath);
 
   vtk_io.writeVTKInterface(simulation_time, interface);
   std::string output_folder = "viz";
@@ -173,6 +200,11 @@ int runSimulation(const std::string& a_simulation_type,
       }
       vtk_io.writeVTKFile(simulation_time);
       vtk_io.writeVTKInterface(simulation_time, interface);
+
+      // writing to csv
+      // if ((iteration+1) == 400){
+      //   writeToCSV(cc_mesh, interface, liquid_moments, filepath);
+      // }
     }
 
     // setPhaseQuantities(interface, &liquid_moments, &gas_moments, &vfrac);
