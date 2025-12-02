@@ -9,14 +9,14 @@
 
 namespace IRL {
 
-// ===================== Helpers =====================
+// Helpers
 inline int64_t cube_index_3d_to_1d(int s, int i,int j,int k){
     // row-major: i fastest or slowest? We'll keep i fastest -> (i + s*j + s*s*k)
     // But we must be consistent everywhere. We'll pick: (i*s + j)*s + k (i slowest).
     return (static_cast<int64_t>(i)*s + j)*s + k;
 }
 
-// ===================== Cube group (48 rotations incl. mirrors) =====================
+// Cube group (48 rotations incl. mirrors)
 // We generate all 3x3 signed permutation matrices (entries in {0,±1}); that's 3!*2^3 = 48.
 // Each acts on grid coordinates (centered) exactly; we precompute the induced node permutation.
 struct CubeElement {
@@ -99,7 +99,7 @@ struct CubeGroup {
     }
 };
 
-// ===================== Equivariant dense layer (no conv) =====================
+// Equivariant dense layer (no conv)
 //
 // Channels are split into scalars (l=0) and vectors (l=1 with 3 components).
 // Node mixing matrices are projected into the commutant of the group: Π(A) = (1/|G|) Σ_g P_g A P_g^T
@@ -152,7 +152,7 @@ struct EquivariantDenseImpl : torch::nn::Module {
 };
 TORCH_MODULE(EquivariantDense);
 
-// ===================== Gated nonlinearity =====================
+// Gated nonlinearity
 //
 // Scalars: GELU. Vectors: scale magnitudes by sigmoid(gate(s)), keep directions.
 //
@@ -177,12 +177,7 @@ struct GatedNonlinImpl : torch::nn::Module {
 };
 TORCH_MODULE(GatedNonlin);
 
-// ===================== e3nn model (non-convolutional) =====================
-//
-// Public name: e3nn   (replaces your previous Net)
-// Two constructors:
-//   (A) e3nn(int stencil_size, int hidden1, int hidden2, int hidden3, int output)
-//   (B) e3nn(int input_size,  int hidden1, int hidden2, int hidden3, int output)  // compat
+// e3nn model (non-convolutional)
 //
 // Input format: [B, 4*N] flattened per-cell (vof, mx, my, mz)
 // Output: logits [B, output_size]

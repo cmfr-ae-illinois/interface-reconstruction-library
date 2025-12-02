@@ -6,13 +6,11 @@
 
 namespace IRL {
 
-// =====================================================
 // Compute inertia tensor from stencil data
 // flattened_state interpretation depends on 'from_ith_moment':
 //   from_ith_moment = 0 → use geometric cell centers
 //   from_ith_moment = 1 → read first moments from flattened_state (current behavior)
 //   from_ith_moment = 3 → RESERVED: transported moment immediately (to be implemented)
-// =====================================================
 Eigen::Matrix3d computeInertiaTensor(const std::vector<double>& flattened_state,
                                      int stencil_size,
                                      int from_ith_moment = 1,

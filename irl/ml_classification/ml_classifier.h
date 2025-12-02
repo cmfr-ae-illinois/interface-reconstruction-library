@@ -4,6 +4,7 @@
 #include "data_set.h"
 #include "trainer.h"
 #include "net.h"
+#include "stencil_rotator.h"
 
 #include <torch/torch.h>
 #include <iostream>
@@ -212,6 +213,35 @@ public:
 
         std::cout << "📂 Loaded " << num_samples << " samples from " << dir_path << std::endl;
     }
+
+    void canonicalize_data(int no_symmetries) {
+        if (statesV.empty()) {
+            std::cerr << "⚠ No data loaded. Cannot canonicalize." << std::endl;
+            return;
+        }
+        const int cells_per_stencil = stencil_size * stencil_size * stencil_size;
+
+        const int stencil_flat_size = cells_per_stencil * 4;  // always 4 values per cell
+
+        std::cout << "🔄 Canonicalizing " << statesV.size()
+                << " samples using " << no_symmetries << " symmetries..." << std::endl;
+
+        for (size_t sample = 0; sample < statesV.size(); sample++) {
+            auto& flat = statesV[sample];
+
+            if (flat.size() != stencil_flat_size) {
+                throw std::runtime_error(
+                    "Error: stencil size mismatch in canonicalize_data(). "
+                    "Expected " + std::to_string(stencil_flat_size) +
+                    " but got " + std::to_string(flat.size()));
+            }
+
+            IRL::rotate_stencil(flat, stencil_size, no_symmetries);
+        }
+
+        std::cout << "✅ Canonicalization complete!" << std::endl;
+    }
+
 
     void trainModel() {
         optimizer = std::make_unique<torch::optim::Adam>(

@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <chrono>
+#include "stencil_rotator.h"
 
 #include <vtkSmartPointer.h>
 #include <vtkEnSightGoldBinaryReader.h>
@@ -24,7 +26,7 @@
 
 namespace IRL {
 
-void classify_simulation(IRL::Classifier& classifier, const std::string& filename) {
+void classify_simulation(IRL::Classifier& classifier, const std::string& filename, int cannonicalize_symmetries = 0) {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filename.c_str());
     //reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
@@ -291,7 +293,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     int no_spheres = 0;
     int no_sheets = 0;
 
-    std::cout << "Starting classification loop over cells..." << std::endl;
+    double start_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
     // Loop through interior cells (excluding half-cell boundary)
     for (int i = half; i < nx - half; ++i) {
@@ -417,6 +419,11 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     }
                 }
 
+                //Cannonicalize stencil
+                if (cannonicalize_symmetries > 0) {
+                    IRL::rotate_stencil(flattened_state, stencil_size_reader, cannonicalize_symmetries);
+                }  
+
                 // Classify
                 std::vector<float> out_probs;
                 int predicted_class = classifier.classify(flattened_state, &out_probs);
@@ -447,6 +454,9 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
             }
         }
     }
+
+    double end_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    std::cout << "Classification time (s): " << (end_time - start_time) / 1e9 << std::endl;
 
   
 

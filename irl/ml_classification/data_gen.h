@@ -1000,7 +1000,7 @@ namespace IRL {
                 flattened_state.push_back(inertia(1, 2)); // Iyz
             }
 
-            if (include_Moments == 3) {
+            if (include_Moments >= 3) {
                 // if include_Moments == 3, vector should have only inertia eigenvalues
                 Eigen::Matrix3d I = IRL::computeInertiaTensor(flattened_state, stencil_size, 0);
 
@@ -1012,7 +1012,10 @@ namespace IRL {
                 std::sort(evals.data(), evals.data() + 3, std::greater<double>());
                 double I1 = evals[0], I2 = evals[1], I3 = evals[2];
 
-                flattened_state.clear();
+                if (include_Moments == 4) {
+                    // if include_Moments == 4, use only the three eigenvalues
+                    flattened_state.clear();
+                }
 
                 flattened_state.push_back(I1);
                 flattened_state.push_back(I2);
