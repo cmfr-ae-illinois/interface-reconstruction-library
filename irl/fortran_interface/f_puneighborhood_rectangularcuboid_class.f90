@@ -70,7 +70,7 @@ module f_PUSTNeigh_RectCub_class
         integer(C_INT) :: a_size
     end subroutine F_PUSTNeigh_RectCub_reserve
 
-    subroutine F_PUSTNeigh_RectCub_setMember(this,a_index, a_centroid, &
+    subroutine F_PUSTNeigh_RectCub_setMember(this,a_index, a_centroid, a_weight, &
             a_separator) &
         bind(C, name = "c_PUSTNeigh_RectCub_setMember")
         import
@@ -78,16 +78,18 @@ module f_PUSTNeigh_RectCub_class
         integer(C_INT), intent(in) :: a_index
         type(c_PUSTNeigh_RectCub) :: this
         real(C_DOUBLE), dimension(*) :: a_centroid ! dimension(1:3)
+        real(C_DOUBLE) :: a_weight
         type(c_SeparatorVariant) :: a_separator
     end subroutine F_PUSTNeigh_RectCub_setMember
 
-    subroutine F_PUSTNeigh_RectCub_addMember(this,a_centroid, &
+    subroutine F_PUSTNeigh_RectCub_addMember(this,a_centroid, a_weight, &
             a_separator) &
         bind(C, name = "c_PUSTNeigh_RectCub_addMember")
         import
         implicit none 
         type(c_PUSTNeigh_RectCub) :: this
         real(C_DOUBLE), dimension(*) :: a_centroid ! dimension(1:3)
+        real(C_DOUBLE) :: a_weight
         type(c_SeparatorVariant) :: a_separator
     end subroutine F_PUSTNeigh_RectCub_addMember
 
@@ -129,24 +131,26 @@ module f_PUSTNeigh_RectCub_class
         call F_PUSTNeigh_RectCub_reserve(this%c_object,a_size)
     end subroutine PUSTNeigh_RectCub_class_reserve
 
-    subroutine PUSTNeigh_RectCub_class_setMember(this,a_index, a_centroid, &
+    subroutine PUSTNeigh_RectCub_class_setMember(this,a_index, a_centroid, a_weight, &
             a_separator)
         implicit none
         type(PUSTNeigh_RectCub_type), intent(in) :: this
         integer(IRL_SignedIndex_t), intent(in) :: a_index
         real(IRL_double), dimension(1:3), intent(in) :: a_centroid
+        real(IRL_double), intent(in) :: a_weight
         type(SeparatorVariant_type), intent(in) :: a_separator
-        call F_PUSTNeigh_RectCub_setMember(this%c_object,a_index,a_centroid, &
+        call F_PUSTNeigh_RectCub_setMember(this%c_object,a_index,a_centroid,a_weight, &
             a_separator%c_object)
     end subroutine PUSTNeigh_RectCub_class_setMember
 
-    subroutine PUSTNeigh_RectCub_class_addMember(this, a_centroid, &
+    subroutine PUSTNeigh_RectCub_class_addMember(this, a_centroid, a_weight, &
             a_separator)
         implicit none
         type(PUSTNeigh_RectCub_type), intent(in) :: this
         real(IRL_double), dimension(1:3), intent(in) :: a_centroid
+        real(IRL_double), intent(in) :: a_weight
         type(SeparatorVariant_type), intent(in) :: a_separator
-        call F_PUSTNeigh_RectCub_addMember(this%c_object, a_centroid, &
+        call F_PUSTNeigh_RectCub_addMember(this%c_object, a_centroid, a_weight, &
             a_separator%c_object)
     end subroutine PUSTNeigh_RectCub_class_addMember 
 

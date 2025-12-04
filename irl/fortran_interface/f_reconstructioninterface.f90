@@ -39,6 +39,10 @@ module f_ReconstructionInterface
   use f_R2PWeighting_class
   implicit none
 
+  interface reconstructTaubin3D
+    module procedure reconstructTaubin3D_Variant
+  end interface reconstructTaubin3D
+
   interface reconstructPU3D
     module procedure reconstructPU3D_RectCub_Variant
   end interface reconstructPU3D
@@ -172,6 +176,17 @@ module f_ReconstructionInterface
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
     end subroutine F_reconstructJibben3D_Variant
+  end interface
+
+  interface
+    subroutine F_reconstructTaubin3D_Variant(a_JibbenNeigh, a_separator) &
+    bind(C, name="c_reconstructTaubin3D_Variant")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
+      type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
+    end subroutine F_reconstructTaubin3D_Variant
   end interface
 
   interface
@@ -566,6 +581,16 @@ module f_ReconstructionInterface
       call F_reconstructJibben3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
 
   end subroutine reconstructJibben3D_Variant
+
+  subroutine reconstructTaubin3D_Variant(a_jibben_neighborhood, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
+      type(SeparatorVariant_type), intent(inout) :: a_separator
+
+      call F_reconstructTaubin3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
+
+  end subroutine reconstructTaubin3D_Variant
 
   subroutine reconstructPU3D_RectCub_Variant(a_pu_neighborhood, a_centroid, a_delta, a_separator)
     use, intrinsic :: iso_c_binding

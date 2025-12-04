@@ -25,15 +25,18 @@ class PUImplicitSurface {
  private:
   const std::vector<Pt> centroids;
   const std::vector<SeparatorVariant> separators;
+  const std::vector<double> weights;
   const double kernel_size;
 
  public:
   // Constructor
   PUImplicitSurface(const std::vector<Pt>& centroids_,
                     const std::vector<SeparatorVariant>& separators_,
+                    const std::vector<double>& weights_,
                     const double& kernel_size_)
       : centroids(centroids_),
         separators(separators_),
+        weights(weights_),
         kernel_size(kernel_size_) {}
 
   // Get Value

@@ -57,7 +57,17 @@ int c_SeparatorVariant_getNumberOfPlanes(const c_SeparatorVariant* a_self);
 void c_SeparatorVariant_getPlane(c_SeparatorVariant* a_self, const int* a_index,
                                  double* a_plane_listed);
 
+void c_SeparatorVariant_setPrincipalCurvatures(c_SeparatorVariant* a_self,
+                                               double* a_curvatures);
+
+void c_SeparatorVariant_getPrincipalCurvatures(c_SeparatorVariant* a_self,
+                                               double* a_curvatures);
+
 bool c_SeparatorVariant_isFlipped(const c_SeparatorVariant* a_self);
+
+bool c_SeparatorVariant_isPlane(const c_SeparatorVariant* a_self);
+
+bool c_SeparatorVariant_isParaboloid(const c_SeparatorVariant* a_self);
 
 void c_SeparatorVariant_printToScreen(const c_SeparatorVariant* a_self);
 

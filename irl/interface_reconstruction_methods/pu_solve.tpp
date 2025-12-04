@@ -231,9 +231,9 @@ inline void PUImplicitSurface::evaluate(
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> weightRet;
     Wendland::evaluate(centroids[i], kernel_size, x, &weightRet);
     // Get Results
-    double weight = std::get<0>(weightRet);
-    Eigen::Vector3d grad_weight = std::get<1>(weightRet);
-    Eigen::Matrix3d hess_weight = std::get<2>(weightRet);
+    const double weight = weights[i] * std::get<0>(weightRet);
+    const Eigen::Vector3d grad_weight = weights[i] * std::get<1>(weightRet);
+    const Eigen::Matrix3d hess_weight = weights[i] * std::get<2>(weightRet);
 
     // Add results to sums
     weight_sum += weight;
@@ -287,8 +287,8 @@ inline void PUImplicitSurface::evaluate(
     std::pair<double, Eigen::Vector3d> weightRet;
     Wendland::evaluate(centroids[i], kernel_size, x, &weightRet);
     // Get Results
-    double weight = std::get<0>(weightRet);
-    Eigen::Vector3d grad_weight = std::get<1>(weightRet);
+    const double weight = weights[i] * std::get<0>(weightRet);
+    const Eigen::Vector3d grad_weight = weights[i] * std::get<1>(weightRet);
 
     // Add results to sums
     weight_sum += weight;
@@ -327,6 +327,7 @@ inline void PUImplicitSurface::evaluate(const Pt& x, double* retVal) {
     // Distance Weights
     double weight = 0.0;
     Wendland::evaluate(centroids[i], kernel_size, x, &weight);
+    weight *= weights[i];
     // Add results to sums
     weight_sum += weight;
 
@@ -638,10 +639,11 @@ PUST<CellType>::PUST(PUSTNeighborhood<CellType> stencil_) {
 
 template <class CellType>
 PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
-  const auto centroids = stencil_m.getCentroids();
-  const auto separators = stencil_m.getSeparators();
-
-  return PUImplicitSurface(centroids, separators, delta);
+  // const auto centroids = stencil_m.getCentroids();
+  // const auto separators = stencil_m.getSeparators();
+  // const auto weights = stencil_m.getWeights();
+  return PUImplicitSurface(stencil_m.getCentroids(), stencil_m.getSeparators(),
+                           stencil_m.getWeights(), delta);
 }
 
 template <class CellType>

@@ -57,9 +57,20 @@ module f_SeparatorVariant_class
   end interface
   interface getParaboloid
     module procedure SeparatorVariant_class_getParaboloid,SeparatorVariant_class_getParaboloidObject
+  interface setPrincipalCurvatures
+    module procedure SeparatorVariant_class_setPrincipalCurvatures
+  end interface
+  interface getPrincipalCurvatures
+    module procedure SeparatorVariant_class_getPrincipalCurvatures
   end interface
   interface isFlipped
     module procedure SeparatorVariant_class_isFlipped
+  end interface
+  interface isPlane
+    module procedure SeparatorVariant_class_isPlane
+  end interface
+  interface isParaboloid
+    module procedure SeparatorVariant_class_isParaboloid
   end interface
   interface printToScreen
     module procedure SeparatorVariant_class_printToScreen
@@ -163,6 +174,21 @@ module f_SeparatorVariant_class
       type(c_SeparatorVariant) :: this
       type(c_Paraboloid) :: a_paraboloid
     end subroutine F_SeparatorVariant_getParaboloidObject
+    subroutine F_SeparatorVariant_setPrincipalCurvatures(this, a_curvatures) &
+      bind(C, name="c_SeparatorVariant_setPrincipalCurvatures")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      real(C_DOUBLE), dimension(*), intent(in) :: a_curvatures !  dimension(1:2)
+    end subroutine F_SeparatorVariant_setPrincipalCurvatures
+
+    subroutine F_SeparatorVariant_getPrincipalCurvatures(this, a_curvatures) &
+      bind(C, name="c_SeparatorVariant_getPrincipalCurvatures")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      real(C_DOUBLE), dimension(*), intent(out) :: a_curvatures
+    end subroutine F_SeparatorVariant_getPrincipalCurvatures
 
     function F_SeparatorVariant_isFlipped(this) result(a_flipped) &
       bind(C, name="c_SeparatorVariant_isFlipped")
@@ -171,6 +197,22 @@ module f_SeparatorVariant_class
       type(c_SeparatorVariant) :: this
       logical(C_BOOL) :: a_flipped
     end function F_SeparatorVariant_isFlipped
+
+    function F_SeparatorVariant_isPlane(this) result(a_isplane) &
+      bind(C, name="c_SeparatorVariant_isPlane")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      logical(C_BOOL) :: a_isplane
+    end function F_SeparatorVariant_isPlane
+
+    function F_SeparatorVariant_isParaboloid(this) result(a_isparaboloid) &
+      bind(C, name="c_SeparatorVariant_isParaboloid")
+      import
+      implicit none
+      type(c_SeparatorVariant) :: this
+      logical(C_BOOL) :: a_isparaboloid
+    end function F_SeparatorVariant_isParaboloid
 
     subroutine F_SeparatorVariant_printToScreen(this) &
       bind(C, name="c_SeparatorVariant_printToScreen")
@@ -273,6 +315,19 @@ module f_SeparatorVariant_class
       type(Paraboloid_type):: a_paraboloid
       call F_SeparatorVariant_getParaboloidObject(this%c_object, a_paraboloid%c_object)
     end subroutine SeparatorVariant_class_getParaboloidObject
+    subroutine SeparatorVariant_class_setPrincipalCurvatures(this, a_curvatures)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      real(IRL_double), dimension(1:2), intent(in) :: a_curvatures
+      call F_SeparatorVariant_setPrincipalCurvatures(this%c_object, a_curvatures)
+    end subroutine SeparatorVariant_class_setPrincipalCurvatures
+
+    function SeparatorVariant_class_getPrincipalCurvatures(this) result(a_curvatures)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      real(IRL_double), dimension(2) :: a_curvatures
+      call F_SeparatorVariant_getPrincipalCurvatures(this%c_object, a_curvatures)
+    end function SeparatorVariant_class_getPrincipalCurvatures
 
     function SeparatorVariant_class_isFlipped(this) result(a_flipped)
       implicit none
@@ -281,6 +336,22 @@ module f_SeparatorVariant_class
       a_flipped = F_SeparatorVariant_isFlipped(this%c_object)
       return
     end function SeparatorVariant_class_isFlipped
+
+    function SeparatorVariant_class_isPlane(this) result(a_isplane)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      logical(1) :: a_isplane
+      a_isplane = F_SeparatorVariant_isPlane(this%c_object)
+      return
+    end function SeparatorVariant_class_isPlane
+
+    function SeparatorVariant_class_isParaboloid(this) result(a_isparaboloid)
+      implicit none
+      type(SeparatorVariant_type), intent(in) :: this
+      logical(1) :: a_isparaboloid
+      a_isparaboloid = F_SeparatorVariant_isParaboloid(this%c_object)
+      return
+    end function SeparatorVariant_class_isParaboloid
 
     subroutine SeparatorVariant_class_printToScreen(this)
       implicit none

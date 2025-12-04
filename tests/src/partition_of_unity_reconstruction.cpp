@@ -186,6 +186,7 @@ TEST(Wendland, WendlandTests) {
 TEST(PartitionOfUnityImplicitSurface, Test) {
   std::vector<IRL::Pt> centroids;
   std::vector<IRL::SeparatorVariant> variantSeps;
+  std::vector<double> weights;
   double delta = 5.0;
 
   // Construct a Plane
@@ -203,8 +204,11 @@ TEST(PartitionOfUnityImplicitSurface, Test) {
   centroids.push_back(p0);
   centroids.push_back(p1);
   centroids.push_back(p2);
+  weights.push_back(1.0);
+  weights.push_back(1.0);
+  weights.push_back(1.0);
 
-  IRL::PUImplicitSurface planarSurface(centroids, variantSeps, delta);
+  IRL::PUImplicitSurface planarSurface(centroids, variantSeps, weights, delta);
 
   // Test Evaluate method, which in turn tests the implicitSeparator methods
   double res1;

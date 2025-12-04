@@ -45,6 +45,9 @@ extern "C" {
 /// the individual needs of each reconstruction method,
 /// it is best to constult its specific documentation.
 
+void c_reconstructTaubin3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                                   c_SeparatorVariant* a_separator);
+
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUSTNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
     const double* a_delta, c_SeparatorVariant* a_separator);
