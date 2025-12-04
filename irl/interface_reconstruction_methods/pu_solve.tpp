@@ -29,7 +29,7 @@ namespace IRL {
 //       kernel_size(kernel_size_) {}
 
 // Separator Stuff
-void PUImplicitSurface::printSurface() {
+inline void PUImplicitSurface::printSurface() {
   // Print Kernel Size
   std::cout << "> Kernel Size = " << this->kernel_size << "\n";
   // Loop over separators and centroids and print
@@ -97,7 +97,7 @@ inline void PUImplicitSurface::implicitSeparator(
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
       const double d = plane.distance();
-      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
+      if (n[0] != 0 && n[1] != 0 && n[2] != 0) {  // If plane exists
         F = n * a_pt - d;                         // Distance
       } else {                                    // IF plane doesn't exist
         F = 0;                                    // Zero
@@ -155,7 +155,7 @@ inline void PUImplicitSurface::implicitSeparator(
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
       const double d = plane.distance();
-      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
+      if (n[0] != 0 && n[1] != 0 && n[2] != 0) {  // If plane exists
         F = n * a_pt - d;                         // Distance
       } else {                                    // IF plane doesn't exist
         F = 0;                                    // Zero
@@ -341,7 +341,7 @@ inline void PUImplicitSurface::evaluate(const Pt& x, double* retVal) {
 }
 
 // Evaluate Function Hess for Circle =====================================
-void PUImplicitSurface::evaluateCylinder(
+inline void PUImplicitSurface::evaluateCylinder(
     Pt& x, double radius, Pt& center,
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
   Pt offset = x - center;
@@ -358,7 +358,7 @@ void PUImplicitSurface::evaluateCylinder(
 }
 
 // Evaluate Function Grad for Circle =====================================
-void PUImplicitSurface::evaluateCylinder(
+inline void PUImplicitSurface::evaluateCylinder(
     Pt& x, double radius, Pt& center,
     std::pair<double, Eigen::Vector3d>* retVal) {
   Pt offset = x - center;
@@ -371,8 +371,8 @@ void PUImplicitSurface::evaluateCylinder(
 }
 
 // Evaluate Function Value for Circle =====================================
-void PUImplicitSurface::evaluateCylinder(Pt& x, double radius, Pt& center,
-                                         double* retVal) {
+inline void PUImplicitSurface::evaluateCylinder(Pt& x, double radius,
+                                                Pt& center, double* retVal) {
   Pt offset = x - center;
   double F =
       (offset[0] * offset[0]) + (offset[1] * offset[1]) - (radius * radius);
@@ -381,7 +381,7 @@ void PUImplicitSurface::evaluateCylinder(Pt& x, double radius, Pt& center,
   *retVal = F;
 }
 
-std::vector<Pt> PUImplicitSurface::intersectEdgeCylinder(
+inline std::vector<Pt> PUImplicitSurface::intersectEdgeCylinder(
     const Pt& x0, const Pt& x1, double radius, Pt& center,
     const int& Npartitions) {
   // Split the domain into segments
@@ -464,7 +464,7 @@ std::vector<Pt> PUImplicitSurface::intersectEdgeCylinder(
 }
 
 // Get Total Weight at a Point
-void PUImplicitSurface::getTotalWeight(Pt& x, double* retVal) {
+inline void PUImplicitSurface::getTotalWeight(Pt& x, double* retVal) {
   double weight_sum = 0.0;
   for (int i = 0; i < centroids.size(); ++i) {  // Loop over separators
     // Distance Weights
@@ -477,10 +477,22 @@ void PUImplicitSurface::getTotalWeight(Pt& x, double* retVal) {
   *retVal = weight_sum;
 }
 
+inline Normal PUImplicitSurface::getTangentCylinder(Pt& x, double radius,
+                                                    Pt& center) {
+  std::pair<double, Eigen::Vector3d> holdsGrad;
+  this->evaluateCylinder(x, radius, center, &holdsGrad);
+  auto gradF = std::get<1>(holdsGrad);
+  double Fx = gradF(0);
+  double Fy = gradF(1);
+
+  return Normal(-Fy, Fx, 0.0);
+}
+
 // template <class SeparatorType>
-std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
-                                                 const int& Npartitions,
-                                                 const double& thresh) {
+inline std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0,
+                                                        const Pt& x1,
+                                                        const int& Npartitions,
+                                                        const double& thresh) {
   // Split the domain into segments
   std::vector<Pt> sampleLocations = {};
   // At these locations, calculate the function value
@@ -577,7 +589,7 @@ inline Normal PUImplicitSurface::getTangent(Pt& x) {
   return Normal(-Fy, Fx, 0.0);
 }
 
-double PUImplicitSurface::getCurvature(Pt& x) {
+inline double PUImplicitSurface::getCurvature(Pt& x) {
   std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
   this->evaluate(x, &holdsGradAndHessian);
   auto gradF = std::get<1>(holdsGradAndHessian);
@@ -828,8 +840,8 @@ double PUST<CellType>::getValueCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-Normal PUST<CellType>::getTangentCylinder(double x, double y, double z,
-                                          double radius, Pt center) {
+inline Normal PUST<CellType>::getTangentCylinder(double x, double y, double z,
+                                                 double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   Normal retVal = s.getTangentCylinder(in, radius, center);
