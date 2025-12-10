@@ -57,26 +57,4 @@ class VTKOutput {
   std::vector<DataIO> data_to_write_m;
 };
 
-void writeCellsVTK(const std::string& path,
-                   const std::vector<std::pair<IRL::Pt, IRL::Pt>>& cells);
-
-bool writeScatterVTK(const std::vector<IRL::Pt>& points,
-                     const std::string& filename);
-
-void writePolygonVTK(const std::string& filename,
-                     const std::vector<IRL::Pt>& poly);
-
-void writePolygonsVTK(const std::string& filename,
-                      const std::vector<std::vector<IRL::Pt>>& polygons);
-
-void writeVectorsVTK(const std::string& file, const std::vector<IRL::Pt>& pts,
-                     const std::vector<IRL::Normal>& vecs);
-
-bool writeLinesVTK(const std::vector<std::pair<IRL::Pt, IRL::Pt>>& lines,
-                   const std::string& filename);
-
-bool writePlanePatchVTK(const Eigen::Vector3d& origin,
-                        const Eigen::Vector3d& normal, double h,
-                        const std::string& filename);
-
 #endif  // EXAMPLES_SIMPLE_VARIANT_ADVECTOR_VTK_H_
