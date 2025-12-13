@@ -92,28 +92,34 @@ inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
     std::vector<CellData> C = S;
     if (type == 1) {
         // (x,y,z)->(y,z,x)
-        for (int i = 0; i < N; ++i)
-            for (int j = 0; j < N; ++j)
-                for (int k = 0; k < N; ++k) {
-                    CellData d = C[cellIndex(j, k, i, N)];
-                    double mx_old = d.mx, my_old = d.my, mz_old = d.mz;
-                    d.mx = my_old;  // x' component = old y
-                    d.my = mz_old;  // y' component = old z
-                    d.mz = mx_old;  // z' component = old x
-                    S[cellIndex(i, j, k, N)] = d;
-                }
+        for (int i=0;i<N;++i)
+        for (int j=0;j<N;++j)
+            for (int k=0;k<N;++k) {
+                // new(i,j,k) = old(k,i,j)
+                CellData d = C[cellIndex(k, i, j, N)];
+
+                double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
+                d.mx = my_old;
+                d.my = mz_old;
+                d.mz = mx_old;
+
+                S[cellIndex(i, j, k, N)] = d;
+            }
     } else if (type == 2) {
         // (x,y,z)->(z,x,y)
-        for (int i = 0; i < N; ++i)
-            for (int j = 0; j < N; ++j)
-                for (int k = 0; k < N; ++k) {
-                    CellData d = C[cellIndex(k, i, j, N)];
-                    double mx_old = d.mx, my_old = d.my, mz_old = d.mz;
-                    d.mx = mz_old;  // x' component = old z
-                    d.my = mx_old;  // y' component = old x
-                    d.mz = my_old;  // z' component = old y
-                    S[cellIndex(i, j, k, N)] = d;
-                }
+        for (int i=0;i<N;++i)
+        for (int j=0;j<N;++j)
+            for (int k=0;k<N;++k) {
+                // new(i,j,k) = old(j,k,i)
+                CellData d = C[cellIndex(j, k, i, N)];
+
+                double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
+                d.mx = mz_old;
+                d.my = mx_old;
+                d.mz = my_old;
+
+                S[cellIndex(i, j, k, N)] = d;
+            }
     }
 }
 
@@ -210,9 +216,9 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
     }
 
     // Mirror symmetry around diagonal x = y.
-
-    swap_xy(stencil, stencil_size);
-
+    if (cy > cx + 1e-8) { 
+        swap_xy(stencil, stencil_size);
+    }
     // Pack back into flat storage
     repackStencil(flat_stencil, stencil, stencil_size);
 }
