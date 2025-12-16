@@ -4,31 +4,31 @@
 
 extern "C" {
 
-void c_PUSTNeigh_RectCub_new(c_PUSTNeigh_RectCub* a_self) {
+void c_PUNeigh_RectCub_new(c_PUNeigh_RectCub* a_self) {
   assert(a_self->obj_ptr == nullptr);
-  a_self->obj_ptr = new IRL::PUSTNeighborhood<IRL::RectangularCuboid>;
+  a_self->obj_ptr = new IRL::PUNeighborhood<IRL::RectangularCuboid>;
 }
 
-void c_PUSTNeigh_RectCub_delete(c_PUSTNeigh_RectCub* a_self) {
+void c_PUNeigh_RectCub_delete(c_PUNeigh_RectCub* a_self) {
   delete a_self->obj_ptr;
   a_self->obj_ptr = nullptr;
 }
 
-void c_PUSTNeigh_RectCub_setSize(c_PUSTNeigh_RectCub* a_self,
+void c_PUNeigh_RectCub_setSize(c_PUNeigh_RectCub* a_self,
                                  const int* a_size) {
   assert(a_self != nullptr);
   assert(a_self->!= nullptr);
   a_self->obj_ptr->resize(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 
-void c_PUSTNeigh_RectCub_reserve(c_PUSTNeigh_RectCub* a_self,
+void c_PUNeigh_RectCub_reserve(c_PUNeigh_RectCub* a_self,
                                  const int* a_size) {
   assert(a_self != nullptr);
   assert(a_self->!= nullptr);
   a_self->obj_ptr->reserve(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 
-void c_PUSTNeigh_RectCub_setMember(c_PUSTNeigh_RectCub* a_self,
+void c_PUNeigh_RectCub_setMember(c_PUNeigh_RectCub* a_self,
                                    const int* a_index,
                                    const double* __restrict__ a_centroid,
                                    const double* a_weight,
@@ -45,7 +45,7 @@ void c_PUSTNeigh_RectCub_setMember(c_PUSTNeigh_RectCub* a_self,
                              &centroid, a_separator->obj_ptr, *a_weight);
 }
 
-void c_PUSTNeigh_RectCub_addMember(c_PUSTNeigh_RectCub* a_self,
+void c_PUNeigh_RectCub_addMember(c_PUNeigh_RectCub* a_self,
                                    const double* __restrict__ a_centroid,
                                    const double* a_weight,
                                    const c_SeparatorVariant* a_separator) {
@@ -59,7 +59,7 @@ void c_PUSTNeigh_RectCub_addMember(c_PUSTNeigh_RectCub* a_self,
   a_self->obj_ptr->addMember(&centroid, a_separator->obj_ptr, *a_weight);
 }
 
-void c_PUSTNeigh_RectCub_emptyNeighborhood(c_PUSTNeigh_RectCub* a_self) {
+void c_PUNeigh_RectCub_emptyNeighborhood(c_PUNeigh_RectCub* a_self) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
   a_self->obj_ptr->emptyNeighborhood();

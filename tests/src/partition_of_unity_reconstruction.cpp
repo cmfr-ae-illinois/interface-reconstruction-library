@@ -328,7 +328,7 @@ TEST(PUReconstruction, Test1) {
 
   count = 0;
   StackVector<Pt, 2> intersections;
-  PUSTNeighborhood<RectangularCuboid> neighborhood;
+  PUNeighborhood<RectangularCuboid> neighborhood;
   const auto xy_plane = Plane(Normal(0.0, 0.0, 1.0), 0.0);
   for (int i = 0; i < 1 + 2 * nlayers; ++i) {
     for (int j = 0; j < 1 + 2 * nlayers; ++j) {
@@ -367,7 +367,7 @@ TEST(PUReconstruction, Test1) {
   // Calculate Intersections
   IRL::Pt x1(0, 2, 0);
   IRL::Pt x0(0, 3, 0);
-  PUST solver(neighborhood);
+  PU solver(neighborhood);
   PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
   std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 0.2);
   EXPECT_EQ(inters.size(), 1) << "Wrong Number of Intersections Found";

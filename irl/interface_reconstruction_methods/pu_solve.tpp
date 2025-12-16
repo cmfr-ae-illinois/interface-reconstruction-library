@@ -629,16 +629,16 @@ inline const Pt PUImplicitSurface::projectOntoPU(const Pt& a_pt) {
 
 // ============== Solver Methods
 template <class CellType>
-PUST<CellType>::PUST(void) {}
+PU<CellType>::PU(void) {}
 
 template <class CellType>
-PUST<CellType>::PUST(PUSTNeighborhood<CellType> stencil_) {
+PU<CellType>::PU(PUNeighborhood<CellType> stencil_) {
   this->stencil_m = stencil_;
   // this->surface_m = this->neighborhoodToImplicitSurface(5.0);
 }
 
 template <class CellType>
-PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
+PUImplicitSurface PU<CellType>::neighborhoodToImplicitSurface(double delta) {
   // const auto centroids = stencil_m.getCentroids();
   // const auto separators = stencil_m.getSeparators();
   // const auto weights = stencil_m.getWeights();
@@ -647,7 +647,7 @@ PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
+Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
                                  const double delta, const double Pressure,
                                  const Normal& Marangoni) {
   // The Marangoni normal object holds the Xgradient, then the Y gradient, then
@@ -765,7 +765,7 @@ Normal PUST<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
+Normal PU<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
                                          double radius, Pt& center,
                                          double delta) {
   // Make Implicit Surface
@@ -802,7 +802,7 @@ Normal PUST<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
 }
 
 template <class CellType>
-double PUST<CellType>::getValue(double x, double y, double z, double delta) {
+double PU<CellType>::getValue(double x, double y, double z, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
   double retVal = 0;
@@ -812,7 +812,7 @@ double PUST<CellType>::getValue(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-Normal PUST<CellType>::getTangent(double x, double y, double z, double delta) {
+Normal PU<CellType>::getTangent(double x, double y, double z, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
   Normal retVal = s.getTangent(in);
@@ -821,7 +821,7 @@ Normal PUST<CellType>::getTangent(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-double PUST<CellType>::getWeight(double x, double y, double z, double delta) {
+double PU<CellType>::getWeight(double x, double y, double z, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
   double retVal;
@@ -831,7 +831,7 @@ double PUST<CellType>::getWeight(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-double PUST<CellType>::getValueCylinder(double x, double y, double z,
+double PU<CellType>::getValueCylinder(double x, double y, double z,
                                         double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
@@ -842,7 +842,7 @@ double PUST<CellType>::getValueCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-inline Normal PUST<CellType>::getTangentCylinder(double x, double y, double z,
+inline Normal PU<CellType>::getTangentCylinder(double x, double y, double z,
                                                  double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
@@ -852,7 +852,7 @@ inline Normal PUST<CellType>::getTangentCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-double PUST<CellType>::getWeightCylinder(double x, double y, double z,
+double PU<CellType>::getWeightCylinder(double x, double y, double z,
                                          double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
@@ -862,7 +862,7 @@ double PUST<CellType>::getWeightCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-void PUST<CellType>::printSolver() {
+void PU<CellType>::printSolver() {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(1);
   // First Print Solver
   s.printSurface();
@@ -870,18 +870,18 @@ void PUST<CellType>::printSolver() {
 }
 
 template <class CellType>
-void PUST<CellType>::setNeighborhood(PUSTNeighborhood<CellType> stencil_) {
+void PU<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
   stencil_m = stencil_;
 }
 
 template <class CellType>
-void PUST<CellType>::setThreshold(double thresh_) {
+void PU<CellType>::setThreshold(double thresh_) {
   intersection_threshold_m = thresh_;
 }
 
 template <class CellType>
-Paraboloid PUST<CellType>::solve(
-    const PUSTNeighborhood<CellType>* a_neighborhood_pointer,
+Paraboloid PU<CellType>::solve(
+    const PUNeighborhood<CellType>* a_neighborhood_pointer,
     const Pt& a_centroid, const double a_delta) {
   double delta = a_delta;
   if (delta < 0.0) {

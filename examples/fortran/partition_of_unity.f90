@@ -15,7 +15,7 @@
 ! Results are printed and verified.
 program main
   use irl_fortran_interface
-  use f_PUSTNeigh_RectCub_class
+  use f_PUNeigh_RectCub_class
   use f_SeparatorVariant_class
   use f_PUSolve_RectCub_class
   implicit none
@@ -28,9 +28,9 @@ program main
   real(DP),parameter :: delta = 5.0_DP
   type(SeparatorVariant_type) :: plane1,plane2,plane3,plane4,plane5
   ! First make a Neighborhood
-  type(PUSTNeigh_RectCub_type) :: neighborhood
+  type(PUNeigh_RectCub_type) :: neighborhood
   ! Now the solver object
-  type(PUST_RectCub_type) :: solver
+  type(PU_RectCub_type) :: solver
 
   ! Define Planar Separators
   ! Centroids

@@ -24,7 +24,7 @@ void c_reconstructTaubin3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
 }
 
 void c_reconstructPU3D_RectCub_Variant(
-    const c_PUSTNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
+    const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
     const double* a_delta, c_SeparatorVariant* a_separator) {
   assert(a_pu_neighborhood != nullptr);
   assert(a_pu_neighborhood->obj_ptr != nullptr);

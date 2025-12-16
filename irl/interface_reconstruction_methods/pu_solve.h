@@ -93,19 +93,19 @@ class PUImplicitSurface {
 };
 
 template <class CellType>
-class PUST {
+class PU {
  private:
-  PUSTNeighborhood<CellType> stencil_m;
+  PUNeighborhood<CellType> stencil_m;
   // PUImplicitSurface surface_m;
   double intersection_threshold_m;
 
  public:
   // Constructor
-  PUST(PUSTNeighborhood<CellType> stencil_);
+  PU(PUNeighborhood<CellType> stencil_);
   // Default Constructor;
-  PUST(void);
+  PU(void);
   // Neighborhood Setter
-  void setNeighborhood(PUSTNeighborhood<CellType> stencil_);
+  void setNeighborhood(PUNeighborhood<CellType> stencil_);
   // Threshold Setter
   void setThreshold(double tresh);
   // Takes Neighborhood and Returns the Implicit Surface
@@ -133,7 +133,7 @@ class PUST {
   // Print
   void printSolver();
   /// \brief Solve the system for the reconstruction
-  Paraboloid solve(const PUSTNeighborhood<CellType>* a_neighborhood_pointer,
+  Paraboloid solve(const PUNeighborhood<CellType>* a_neighborhood_pointer,
                    const Pt& a_centroid, const double a_delta = -1.0);
 };
 

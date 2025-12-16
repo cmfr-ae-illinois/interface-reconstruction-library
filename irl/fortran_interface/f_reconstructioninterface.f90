@@ -28,7 +28,7 @@ module f_ReconstructionInterface
   use f_PlanarSep_class
   use f_SeparatorVariant_class
   use f_JibbenNeigh_class
-  use f_PUSTNeigh_RectCub_class
+  use f_PUNeigh_RectCub_class
   use f_ELVIRANeigh_class
   use f_ListVM_VMAN_class
   use f_LVIRANeigh_RectCub_class
@@ -195,7 +195,7 @@ module f_ReconstructionInterface
       use, intrinsic :: iso_c_binding
       import
       implicit none
-      type(c_PUSTNeigh_RectCub) :: a_PURectCubNeigh ! Pointer to a PUNeigh object
+      type(c_PUNeigh_RectCub) :: a_PURectCubNeigh ! Pointer to a PUNeigh object
       real(C_DOUBLE), dimension(*), intent(in) :: a_centroid !  dimension(1:3)
       real(C_DOUBLE), intent(in) :: a_delta
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
@@ -595,7 +595,7 @@ module f_ReconstructionInterface
   subroutine reconstructPU3D_RectCub_Variant(a_pu_neighborhood, a_centroid, a_delta, a_separator)
     use, intrinsic :: iso_c_binding
     implicit none
-      type(PUSTNeigh_RectCub_type), intent(in) :: a_pu_neighborhood
+      type(PUNeigh_RectCub_type), intent(in) :: a_pu_neighborhood
       real(IRL_double), dimension(1:3), intent(in) :: a_centroid
       real(IRL_double), intent(in) :: a_delta
       type(SeparatorVariant_type), intent(inout) :: a_separator

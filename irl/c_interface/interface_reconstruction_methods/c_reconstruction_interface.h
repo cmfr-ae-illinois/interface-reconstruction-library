@@ -49,7 +49,7 @@ void c_reconstructTaubin3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
                                    c_SeparatorVariant* a_separator);
 
 void c_reconstructPU3D_RectCub_Variant(
-    const c_PUSTNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
+    const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_centroid,
     const double* a_delta, c_SeparatorVariant* a_separator);
 
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,

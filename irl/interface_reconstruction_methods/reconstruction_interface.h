@@ -35,7 +35,7 @@ inline Paraboloid reconstructionWithTaubin3D(
 /// \brief Perform Partition of Unity reconstruction for a 3D problem.
 template <class CellType>
 inline Paraboloid reconstructionWithPU3D(
-    const PUSTNeighborhood<CellType>& a_neighborhood_geometry,
+    const PUNeighborhood<CellType>& a_neighborhood_geometry,
     const Pt& a_centroid, const double a_delta = -1.0);
 
 /// \brief Perform Jibben reconstruction for a 3D problem.

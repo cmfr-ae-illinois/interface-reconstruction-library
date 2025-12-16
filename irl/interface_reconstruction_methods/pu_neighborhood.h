@@ -11,7 +11,7 @@ namespace IRL {
 /// using the partition of unity method. This stores the
 /// CellGroupedMoments of the cell and planar Separator.
 template <class CellType>
-class PUSTNeighborhood {
+class PUNeighborhood {
   // using CGP = CellGroupedMoments<CellType, SeparatorType>;
   // using iterator = typename CellCollection<CGP>::iterator;
   // using const_iterator = typename CellCollection<CGP>::const_iterator;
@@ -20,7 +20,7 @@ class PUSTNeighborhood {
   using cell_type = CellType;
 
   // Default Constructor Tested
-  PUSTNeighborhood(void);
+  PUNeighborhood(void);
 
   /// \brief Construct CellGroupedMoments and add to end of collection. Tested
   void addMember(const Pt* a_centroid, const SeparatorVariant* a_separator,
@@ -80,7 +80,7 @@ class PUSTNeighborhood {
   // const_iterator cend(void) const noexcept;
 
   /// \brief Default destructor.
-  ~PUSTNeighborhood(void) = default;
+  ~PUNeighborhood(void) = default;
 
  private:
   /// \brief Make sure index is not larger than current collection size.
