@@ -12,9 +12,6 @@ namespace IRL {
 /// CellGroupedMoments of the cell and planar Separator.
 template <class CellType>
 class PUNeighborhood {
-  // using CGP = CellGroupedMoments<CellType, SeparatorType>;
-  // using iterator = typename CellCollection<CGP>::iterator;
-  // using const_iterator = typename CellCollection<CGP>::const_iterator;
 
  public:
   using cell_type = CellType;
@@ -38,24 +35,8 @@ class PUNeighborhood {
   void resize(const UnsignedIndex_t a_size);
   void reserve(const UnsignedIndex_t a_size);
 
-  /// \brief Set the index for the center cell in the collection. Tested
-  // void setCenterOfStencil(const UnsignedIndex_t a_index);
-
-  /// \brief Return the index for the center stencil Tested
-  // UnsignedIndex_t getCenterOfStencilIndex(void) const;
-
   // / \brief Return the center cell. Tested
   const CellType& getCenterCell(void) const;
-
-  /// \brief Return the center cell moments Tested
-  // const SeparatorType& getCenterCellStoredMoments(void) const;
-
-  /// \brief Return the cell stored at the index Tested
-  // const typename CGP::cell_type& getCell(const UnsignedIndex_t a_index)
-  // const;
-
-  /// \brief Return moments stored at the index Tested
-  // const SeparatorType& getStoredMoments(const UnsignedIndex_t a_index) const;
 
   const SeparatorVariant& getSeparator(const UnsignedIndex_t a_index) const;
 
@@ -72,27 +53,13 @@ class PUNeighborhood {
   /// \brief Get size of the vector. Tested
   UnsignedIndex_t size(void) const;
 
-  // iterator begin(void) noexcept;
-  // const_iterator begin(void) const noexcept;
-  // const_iterator end(void) const noexcept;
-  // const_iterator cbegin(void) const noexcept;
-  // iterator end(void) noexcept;
-  // const_iterator cend(void) const noexcept;
-
   /// \brief Default destructor.
   ~PUNeighborhood(void) = default;
 
  private:
   /// \brief Make sure index is not larger than current collection size.
   void checkIndex(UnsignedIndex_t a_index) const;
-  // void checkCenterStencilSet(void) const;
 
-  /// \brief Collection of cells and planes.
-  // CellCollection<CGP> collection_m;
-  /// \brief Center stencil cell index in the list of added cells.
-  // UnsignedIndex_t center_cell_index_m;
-
-  // New Method
   std::vector<IRL::Pt> centroids_m;
   std::vector<IRL::SeparatorVariant> separators_m;
   std::vector<double> weights_m;
