@@ -45,21 +45,21 @@ void GeneralSurfaceMoments3D_Functor<ORDER>::operator()(
     moments_m[0] += area;
 
   } else if constexpr (ORDER == 1) {
-    auto centroid = (v0 + v1 + v2) * (1.0 / 3.0);
+    IRL::Pt centroid = (v0 + v1 + v2) * (1.0 / 3.0);
     moments_m[0] += area;
     moments_m[1] += centroid[0] * area;
     moments_m[2] += centroid[1] * area;
     moments_m[3] += centroid[2] * area;
 
   } else if constexpr (ORDER == 2) {
-    auto centroid = (v0 + v1 + v2) * (1.0 / 3.0);
+    IRL::Pt centroid = (v0 + v1 + v2) * (1.0 / 3.0);
     moments_m[0] += area;
     moments_m[1] += centroid[0] * area;
     moments_m[2] += centroid[1] * area;
     moments_m[3] += centroid[2] * area;
 
-    const auto a = v1 - v0;
-    const auto b = v2 - v0;
+    const IRL::Pt a = v1 - v0;
+    const IRL::Pt b = v2 - v0;
     const double factor = 2.0 * area;
 
     auto accumulate = [&](const Pt& u, const Pt& v, double scale) {
