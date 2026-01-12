@@ -75,10 +75,10 @@ class SampleRecorder {
 
   // Iterates over all the registered `StackInfo`s.  Returning the number of
   // samples that have been dropped.
-  int64_t Iterate(const std::function<void(const T& stack)>& f);
+  size_t Iterate(const std::function<void(const T& stack)>& f);
 
-  int32_t GetMaxSamples() const;
-  void SetMaxSamples(int32_t max);
+  size_t GetMaxSamples() const;
+  void SetMaxSamples(size_t max);
 
  private:
   void PushNew(T* sample);
@@ -88,7 +88,7 @@ class SampleRecorder {
 
   std::atomic<size_t> dropped_samples_;
   std::atomic<size_t> size_estimate_;
-  std::atomic<int32_t> max_samples_{1 << 20};
+  std::atomic<size_t> max_samples_{1 << 20};
 
   // Intrusive lock free linked lists for tracking samples.
   //
@@ -130,7 +130,7 @@ SampleRecorder<T>::SetDisposeCallback(DisposeCallback f) {
 template <typename T>
 SampleRecorder<T>::SampleRecorder()
     : dropped_samples_(0), size_estimate_(0), all_(nullptr), dispose_(nullptr) {
-  absl::MutexLock l(&graveyard_.init_mu);
+  absl::MutexLock l(graveyard_.init_mu);
   graveyard_.dead = &graveyard_;
 }
 
@@ -159,8 +159,8 @@ void SampleRecorder<T>::PushDead(T* sample) {
     dispose(*sample);
   }
 
-  absl::MutexLock graveyard_lock(&graveyard_.init_mu);
-  absl::MutexLock sample_lock(&sample->init_mu);
+  absl::MutexLock graveyard_lock(graveyard_.init_mu);
+  absl::MutexLock sample_lock(sample->init_mu);
   sample->dead = graveyard_.dead;
   graveyard_.dead = sample;
 }
@@ -168,7 +168,7 @@ void SampleRecorder<T>::PushDead(T* sample) {
 template <typename T>
 template <typename... Targs>
 T* SampleRecorder<T>::PopDead(Targs... args) {
-  absl::MutexLock graveyard_lock(&graveyard_.init_mu);
+  absl::MutexLock graveyard_lock(graveyard_.init_mu);
 
   // The list is circular, so eventually it collapses down to
   //   graveyard_.dead == &graveyard_
@@ -176,7 +176,7 @@ T* SampleRecorder<T>::PopDead(Targs... args) {
   T* sample = graveyard_.dead;
   if (sample == &graveyard_) return nullptr;
 
-  absl::MutexLock sample_lock(&sample->init_mu);
+  absl::MutexLock sample_lock(sample->init_mu);
   graveyard_.dead = sample->dead;
   sample->dead = nullptr;
   sample->PrepareForSampling(std::forward<Targs>(args)...);
@@ -186,7 +186,7 @@ T* SampleRecorder<T>::PopDead(Targs... args) {
 template <typename T>
 template <typename... Targs>
 T* SampleRecorder<T>::Register(Targs&&... args) {
-  int64_t size = size_estimate_.fetch_add(1, std::memory_order_relaxed);
+  size_t size = size_estimate_.fetch_add(1, std::memory_order_relaxed);
   if (size > max_samples_.load(std::memory_order_relaxed)) {
     size_estimate_.fetch_sub(1, std::memory_order_relaxed);
     dropped_samples_.fetch_add(1, std::memory_order_relaxed);
@@ -198,7 +198,15 @@ T* SampleRecorder<T>::Register(Targs&&... args) {
     // Resurrection failed.  Hire a new warlock.
     sample = new T();
     {
-      absl::MutexLock sample_lock(&sample->init_mu);
+      absl::MutexLock sample_lock(sample->init_mu);
+      // If flag initialization happens to occur (perhaps in another thread)
+      // while in this block, it will lock `graveyard_` which is usually always
+      // locked before any sample. This will appear as a lock inversion.
+      // However, this code is run exactly once per sample, and this sample
+      // cannot be accessed until after it is returned from this method.  This
+      // means that this lock state can never be recreated, so we can safely
+      // inform the deadlock detector to ignore it.
+      sample->init_mu.ForgetDeadlockInfo();
       sample->PrepareForSampling(std::forward<Targs>(args)...);
     }
     PushNew(sample);
@@ -214,11 +222,11 @@ void SampleRecorder<T>::Unregister(T* sample) {
 }
 
 template <typename T>
-int64_t SampleRecorder<T>::Iterate(
+size_t SampleRecorder<T>::Iterate(
     const std::function<void(const T& stack)>& f) {
   T* s = all_.load(std::memory_order_acquire);
   while (s != nullptr) {
-    absl::MutexLock l(&s->init_mu);
+    absl::MutexLock l(s->init_mu);
     if (s->dead == nullptr) {
       f(*s);
     }
@@ -229,12 +237,12 @@ int64_t SampleRecorder<T>::Iterate(
 }
 
 template <typename T>
-void SampleRecorder<T>::SetMaxSamples(int32_t max) {
+void SampleRecorder<T>::SetMaxSamples(size_t max) {
   max_samples_.store(max, std::memory_order_release);
 }
 
 template <typename T>
-int32_t SampleRecorder<T>::GetMaxSamples() const {
+size_t SampleRecorder<T>::GetMaxSamples() const {
   return max_samples_.load(std::memory_order_acquire);
 }
 

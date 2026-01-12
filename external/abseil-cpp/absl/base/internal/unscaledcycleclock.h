@@ -42,47 +42,10 @@
 #include <TargetConditionals.h>
 #endif
 
-#include "absl/base/port.h"
-
-// The following platforms have an implementation of a hardware counter.
-#if defined(__i386__) || defined(__x86_64__) || defined(__aarch64__) || \
-    defined(__powerpc__) || defined(__ppc__) || defined(__riscv) ||     \
-    defined(_M_IX86) || (defined(_M_X64) && !defined(_M_ARM64EC))
-#define ABSL_HAVE_UNSCALED_CYCLECLOCK_IMPLEMENTATION 1
-#else
-#define ABSL_HAVE_UNSCALED_CYCLECLOCK_IMPLEMENTATION 0
-#endif
-
-// The following platforms often disable access to the hardware
-// counter (through a sandbox) even if the underlying hardware has a
-// usable counter. The CycleTimer interface also requires a *scaled*
-// CycleClock that runs at atleast 1 MHz. We've found some Android
-// ARM64 devices where this is not the case, so we disable it by
-// default on Android ARM64.
-#if defined(__native_client__) || (defined(__APPLE__)) || \
-    (defined(__ANDROID__) && defined(__aarch64__))
-#define ABSL_USE_UNSCALED_CYCLECLOCK_DEFAULT 0
-#else
-#define ABSL_USE_UNSCALED_CYCLECLOCK_DEFAULT 1
-#endif
-
-// UnscaledCycleClock is an optional internal feature.
-// Use "#if ABSL_USE_UNSCALED_CYCLECLOCK" to test for its presence.
-// Can be overridden at compile-time via -DABSL_USE_UNSCALED_CYCLECLOCK=0|1
-#if !defined(ABSL_USE_UNSCALED_CYCLECLOCK)
-#define ABSL_USE_UNSCALED_CYCLECLOCK               \
-  (ABSL_HAVE_UNSCALED_CYCLECLOCK_IMPLEMENTATION && \
-   ABSL_USE_UNSCALED_CYCLECLOCK_DEFAULT)
-#endif
+#include "absl/base/config.h"
+#include "absl/base/internal/unscaledcycleclock_config.h"
 
 #if ABSL_USE_UNSCALED_CYCLECLOCK
-
-// This macro can be used to test if UnscaledCycleClock::Frequency()
-// is NominalCPUFrequency() on a particular platform.
-#if (defined(__i386__) || defined(__x86_64__) || defined(__riscv) || \
-     defined(_M_IX86) || defined(_M_X64))
-#define ABSL_INTERNAL_UNSCALED_CYCLECLOCK_FREQUENCY_IS_CPU_FREQUENCY
-#endif
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -119,7 +82,24 @@ class UnscaledCycleClock {
 inline int64_t UnscaledCycleClock::Now() {
   uint64_t low, high;
   __asm__ volatile("rdtsc" : "=a"(low), "=d"(high));
-  return (high << 32) | low;
+  return static_cast<int64_t>((high << 32) | low);
+}
+
+#elif defined(__aarch64__)
+
+// System timer of ARMv8 runs at a different frequency than the CPU's.
+//
+// Frequency is fixed. From Armv8.6-A and Armv9.1-A on, the frequency is 1GHz.
+// Pre-Armv8.6-A, the frequency was a system design choice, typically in the
+// range of 1MHz to 50MHz. See also:
+// https://developer.arm.com/documentation/102379/0101/What-is-the-Generic-Timer-
+//
+// It can be read at CNTFRQ special register.  We assume the OS has set up the
+// virtual timer properly.
+inline int64_t UnscaledCycleClock::Now() {
+  int64_t virtual_timer_value;
+  asm volatile("mrs %0, cntvct_el0" : "=r"(virtual_timer_value));
+  return virtual_timer_value;
 }
 
 #endif

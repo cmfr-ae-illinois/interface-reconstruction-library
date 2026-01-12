@@ -15,7 +15,9 @@
 // See "Retrieving Symbol Information by Address":
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms680578(v=vs.85).aspx
 
+#include <ntstatus.h>
 #include <windows.h>
+#include <winternl.h>
 
 // MSVC header dbghelp.h has a warning for an ignored typedef.
 #pragma warning(push)
@@ -45,13 +47,30 @@ void InitializeSymbolizer(const char*) {
   // symbols be loaded. This is the fastest, most efficient way to use
   // the symbol handler.
   SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME);
-  if (!SymInitialize(process, nullptr, true)) {
-    // GetLastError() returns a Win32 DWORD, but we assign to
-    // unsigned long long to simplify the ABSL_RAW_LOG case below.  The uniform
-    // initialization guarantees this is not a narrowing conversion.
-    const unsigned long long error{GetLastError()};  // NOLINT(runtime/int)
-    ABSL_RAW_LOG(FATAL, "SymInitialize() failed: %llu", error);
+  DWORD syminitialize_error;
+  constexpr int kSymInitializeRetries = 5;
+  for (int i = 0; i < kSymInitializeRetries; ++i) {
+    if (SymInitialize(process, nullptr, true)) {
+      return;
+    }
+
+    // SymInitialize can fail sometimes with a STATUS_INFO_LENGTH_MISMATCH
+    // NTSTATUS (0xC0000004), which can happen when a module load occurs during
+    // the SymInitialize call. In this case, we should try calling SymInitialize
+    // again.
+    syminitialize_error = GetLastError();
+    // Both NTSTATUS and DWORD are 32-bit numbers, which makes the cast safe.
+    if (syminitialize_error !=
+        static_cast<DWORD>(STATUS_INFO_LENGTH_MISMATCH)) {
+      break;
+    }
   }
+
+  // GetLastError() returns a Win32 DWORD, but we assign to
+  // unsigned long long to simplify the ABSL_RAW_LOG case below.  The uniform
+  // initialization guarantees this is not a narrowing conversion.
+  const unsigned long long error{syminitialize_error};
+  ABSL_RAW_LOG(FATAL, "SymInitialize() failed: %llu", error);
 }
 
 bool Symbolize(const void* pc, char* out, int out_size) {
@@ -65,14 +84,15 @@ bool Symbolize(const void* pc, char* out, int out_size) {
   if (!SymFromAddr(process, reinterpret_cast<DWORD64>(pc), nullptr, symbol)) {
     return false;
   }
-  strncpy(out, symbol->Name, out_size);
-  if (out[out_size - 1] != '\0') {
+  const size_t out_size_t = static_cast<size_t>(out_size);
+  strncpy(out, symbol->Name, out_size_t);
+  if (out[out_size_t - 1] != '\0') {
     // strncpy() does not '\0' terminate when it truncates.
     static constexpr char kEllipsis[] = "...";
-    int ellipsis_size =
-        std::min<int>(sizeof(kEllipsis) - 1, out_size - 1);
-    memcpy(out + out_size - ellipsis_size - 1, kEllipsis, ellipsis_size);
-    out[out_size - 1] = '\0';
+    size_t ellipsis_size =
+        std::min(sizeof(kEllipsis) - 1, out_size_t - 1);
+    memcpy(out + out_size_t - ellipsis_size - 1, kEllipsis, ellipsis_size);
+    out[out_size_t - 1] = '\0';
   }
   return true;
 }

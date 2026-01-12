@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9...3.18)
+cmake_minimum_required(VERSION 3.18)
 
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
   cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
@@ -88,6 +88,12 @@ if(IRL_USE_ABSL)
   set(BUILD_TESTING OFF)
   set(CMAKE_INSTALL_PREFIX_ORIG "${CMAKE_INSTALL_PREFIX}")
   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/absl")
+  if(APPLE)
+    message("-- macOS version is: ${CMAKE_SYSTEM_VERSION}")
+    if("${CMAKE_SYSTEM_VERSION}" VERSION_GREATER "25.0")
+      add_compile_definitions(_XOPEN_SOURCE=0) # This patch is needed to compile Abseil with GCC-15 on MacOS Tahoe 26.1
+    endif()
+  endif()
   add_subdirectory(${ABSEIL_DIR})
   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX_ORIG}")
   set(BUILD_TESTING ${BUILD_TESTING_ORIG})

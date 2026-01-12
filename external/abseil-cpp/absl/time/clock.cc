@@ -48,16 +48,15 @@ Time Now() {
 ABSL_NAMESPACE_END
 }  // namespace absl
 
-// Decide if we should use the fast GetCurrentTimeNanos() algorithm
-// based on the cyclecounter, otherwise just get the time directly
-// from the OS on every call. This can be chosen at compile-time via
+// Decide if we should use the fast GetCurrentTimeNanos() algorithm based on the
+// cyclecounter, otherwise just get the time directly from the OS on every call.
+// By default, the fast algorithm based on the cyclecount is disabled because in
+// certain situations, for example, if the OS enters a "sleep" mode, it may
+// produce incorrect values immediately upon waking.
+// This can be chosen at compile-time via
 // -DABSL_USE_CYCLECLOCK_FOR_GET_CURRENT_TIME_NANOS=[0|1]
 #ifndef ABSL_USE_CYCLECLOCK_FOR_GET_CURRENT_TIME_NANOS
-#if ABSL_USE_UNSCALED_CYCLECLOCK
-#define ABSL_USE_CYCLECLOCK_FOR_GET_CURRENT_TIME_NANOS 1
-#else
 #define ABSL_USE_CYCLECLOCK_FOR_GET_CURRENT_TIME_NANOS 0
-#endif
 #endif
 
 #if defined(__APPLE__) || defined(_WIN32)
@@ -89,11 +88,25 @@ ABSL_NAMESPACE_END
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace time_internal {
+
+// On some processors, consecutive reads of the cycle counter may yield the
+// same value (weakly-increasing). In debug mode, clear the least significant
+// bits to discourage depending on a strictly-increasing Now() value.
+// In x86-64's debug mode, discourage depending on a strictly-increasing Now()
+// value.
+#if !defined(NDEBUG) && defined(__x86_64__)
+constexpr int64_t kCycleClockNowMask = ~int64_t{0xff};
+#else
+constexpr int64_t kCycleClockNowMask = ~int64_t{0};
+#endif
+
 // This is a friend wrapper around UnscaledCycleClock::Now()
 // (needed to access UnscaledCycleClock).
 class UnscaledCycleClockWrapperForGetCurrentTime {
  public:
-  static int64_t Now() { return base_internal::UnscaledCycleClock::Now(); }
+  static int64_t Now() {
+    return base_internal::UnscaledCycleClock::Now() & kCycleClockNowMask;
+  }
 };
 }  // namespace time_internal
 
@@ -122,7 +135,7 @@ static inline uint64_t SeqAcquire(std::atomic<uint64_t> *seq) {
   // fetch_add would be before it, not after.
   std::atomic_thread_fence(std::memory_order_release);
 
-  return x + 2;   // original word plus 2
+  return x + 2;  // original word plus 2
 }
 
 // Release seqlock (*seq) by writing x to it---a value previously returned by
@@ -147,8 +160,8 @@ static const uint64_t kMinNSBetweenSamples = 2000 << 20;
 // We require that kMinNSBetweenSamples shifted by kScale
 // have at least a bit left over for 64-bit calculations.
 static_assert(((kMinNSBetweenSamples << (kScale + 1)) >> (kScale + 1)) ==
-               kMinNSBetweenSamples,
-               "cannot represent kMaxBetweenSamplesNSScaled");
+                  kMinNSBetweenSamples,
+              "cannot represent kMaxBetweenSamplesNSScaled");
 
 // data from a sample of the kernel's time value
 struct TimeSampleAtomic {
@@ -193,10 +206,9 @@ struct ABSL_CACHELINE_ALIGNED TimeState {
 
   // A reader-writer lock protecting the static locations below.
   // See SeqAcquire() and SeqRelease() above.
-  absl::base_internal::SpinLock lock{absl::kConstInit,
-                                     base_internal::SCHEDULE_KERNEL_ONLY};
+  absl::base_internal::SpinLock lock{base_internal::SCHEDULE_KERNEL_ONLY};
 };
-ABSL_CONST_INIT static TimeState time_state{};
+ABSL_CONST_INIT static TimeState time_state;
 
 // Return the time in ns as told by the kernel interface.  Place in *cycleclock
 // the value of the cycleclock at about the time of the syscall.
@@ -217,9 +229,11 @@ static int64_t GetCurrentTimeNanosFromKernel(uint64_t last_cycleclock,
   uint64_t elapsed_cycles;
   int loops = 0;
   do {
-    before_cycles = GET_CURRENT_TIME_NANOS_CYCLECLOCK_NOW();
+    before_cycles =
+        static_cast<uint64_t>(GET_CURRENT_TIME_NANOS_CYCLECLOCK_NOW());
     current_time_nanos_from_system = GET_CURRENT_TIME_NANOS_FROM_SYSTEM();
-    after_cycles = GET_CURRENT_TIME_NANOS_CYCLECLOCK_NOW();
+    after_cycles =
+        static_cast<uint64_t>(GET_CURRENT_TIME_NANOS_CYCLECLOCK_NOW());
     // elapsed_cycles is unsigned, so is large on overflow
     elapsed_cycles = after_cycles - before_cycles;
     if (elapsed_cycles >= local_approx_syscall_time_in_cycles &&
@@ -316,7 +330,8 @@ int64_t GetCurrentTimeNanos() {
   // contribute to register pressure - reading it early before initializing
   // the other pieces of the calculation minimizes spill/restore instructions,
   // minimizing icache cost.
-  uint64_t now_cycles = GET_CURRENT_TIME_NANOS_CYCLECLOCK_NOW();
+  uint64_t now_cycles =
+      static_cast<uint64_t>(GET_CURRENT_TIME_NANOS_CYCLECLOCK_NOW());
 
   // Acquire pairs with the barrier in SeqRelease - if this load sees that
   // store, the shared-data reads necessarily see that SeqRelease's updates
@@ -356,7 +371,8 @@ int64_t GetCurrentTimeNanos() {
   uint64_t delta_cycles;
   if (seq_read0 == seq_read1 && (seq_read0 & 1) == 0 &&
       (delta_cycles = now_cycles - base_cycles) < min_cycles_per_sample) {
-    return base_ns + ((delta_cycles * nsscaled_per_cycle) >> kScale);
+    return static_cast<int64_t>(
+        base_ns + ((delta_cycles * nsscaled_per_cycle) >> kScale));
   }
   return GetCurrentTimeNanosSlowPath();
 }
@@ -399,13 +415,13 @@ static int64_t GetCurrentTimeNanosSlowPath()
     ABSL_LOCKS_EXCLUDED(time_state.lock) {
   // Serialize access to slow-path.  Fast-path readers are not blocked yet, and
   // code below must not modify last_sample until the seqlock is acquired.
-  time_state.lock.Lock();
+  base_internal::SpinLockHolder l(time_state.lock);
 
   // Sample the kernel time base.  This is the definition of
   // "now" if we take the slow path.
   uint64_t now_cycles;
-  uint64_t now_ns =
-      GetCurrentTimeNanosFromKernel(time_state.last_now_cycles, &now_cycles);
+  uint64_t now_ns = static_cast<uint64_t>(
+      GetCurrentTimeNanosFromKernel(time_state.last_now_cycles, &now_cycles));
   time_state.last_now_cycles = now_cycles;
 
   uint64_t estimated_base_ns;
@@ -422,17 +438,15 @@ static int64_t GetCurrentTimeNanosSlowPath()
   if (delta_cycles < sample.min_cycles_per_sample) {
     // Another thread updated the sample.  This path does not take the seqlock
     // so that blocked readers can make progress without blocking new readers.
-    estimated_base_ns = sample.base_ns +
-        ((delta_cycles * sample.nsscaled_per_cycle) >> kScale);
+    estimated_base_ns =
+        sample.base_ns + ((delta_cycles * sample.nsscaled_per_cycle) >> kScale);
     time_state.stats_fast_slow_paths++;
   } else {
     estimated_base_ns =
         UpdateLastSample(now_cycles, now_ns, delta_cycles, &sample);
   }
 
-  time_state.lock.Unlock();
-
-  return estimated_base_ns;
+  return static_cast<int64_t>(estimated_base_ns);
 }
 
 // Main part of the algorithm.  Locks out readers, updates the approximation
@@ -477,8 +491,8 @@ static uint64_t UpdateLastSample(uint64_t now_cycles, uint64_t now_ns,
         estimated_scaled_ns = (delta_cycles >> s) * sample->nsscaled_per_cycle;
       } while (estimated_scaled_ns / sample->nsscaled_per_cycle !=
                (delta_cycles >> s));
-      estimated_base_ns = sample->base_ns +
-                          (estimated_scaled_ns >> (kScale - s));
+      estimated_base_ns =
+          sample->base_ns + (estimated_scaled_ns >> (kScale - s));
     }
 
     // Compute the assumed cycle time kMinNSBetweenSamples ns into the future
@@ -489,7 +503,8 @@ static uint64_t UpdateLastSample(uint64_t now_cycles, uint64_t now_ns,
     uint64_t assumed_next_sample_delta_cycles =
         SafeDivideAndScale(kMinNSBetweenSamples, measured_nsscaled_per_cycle);
 
-    int64_t diff_ns = now_ns - estimated_base_ns;  // estimate low by this much
+    // Estimate low by this much.
+    int64_t diff_ns = static_cast<int64_t>(now_ns - estimated_base_ns);
 
     // We want to set nsscaled_per_cycle so that our estimate of the ns time
     // at the assumed cycle time is the assumed ns time.
@@ -500,11 +515,12 @@ static uint64_t UpdateLastSample(uint64_t now_cycles, uint64_t now_ns,
     // of our current error, by solving:
     //  kMinNSBetweenSamples + diff_ns - (diff_ns / 16) ==
     //  (assumed_next_sample_delta_cycles * nsscaled_per_cycle) >> kScale
-    ns = kMinNSBetweenSamples + diff_ns - (diff_ns / 16);
+    ns = static_cast<uint64_t>(static_cast<int64_t>(kMinNSBetweenSamples) +
+                               diff_ns - (diff_ns / 16));
     uint64_t new_nsscaled_per_cycle =
         SafeDivideAndScale(ns, assumed_next_sample_delta_cycles);
-    if (new_nsscaled_per_cycle != 0 &&
-        diff_ns < 100 * 1000 * 1000 && -diff_ns < 100 * 1000 * 1000) {
+    if (new_nsscaled_per_cycle != 0 && diff_ns < 100 * 1000 * 1000 &&
+        -diff_ns < 100 * 1000 * 1000) {
       // record the cycle time measurement
       time_state.last_sample.nsscaled_per_cycle.store(
           new_nsscaled_per_cycle, std::memory_order_relaxed);
@@ -558,7 +574,7 @@ constexpr absl::Duration MaxSleep() {
 // REQUIRES: to_sleep <= MaxSleep().
 void SleepOnce(absl::Duration to_sleep) {
 #ifdef _WIN32
-  Sleep(to_sleep / absl::Milliseconds(1));
+  Sleep(static_cast<DWORD>(to_sleep / absl::Milliseconds(1)));
 #else
   struct timespec sleep_time = absl::ToTimespec(to_sleep);
   while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR) {

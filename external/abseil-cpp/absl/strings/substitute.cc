@@ -15,19 +15,29 @@
 #include "absl/strings/substitute.h"
 
 #include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <string>
 
+#include "absl/base/config.h"
 #include "absl/base/internal/raw_logging.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/internal/resize_uninitialized.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace substitute_internal {
 
-void SubstituteAndAppendArray(std::string* output, absl::string_view format,
-                              const absl::string_view* args_array,
+void SubstituteAndAppendArray(std::string* absl_nonnull output,
+                              absl::string_view format,
+                              const absl::string_view* absl_nullable args_array,
                               size_t num_args) {
   // Determine total size needed.
   size_t size = 0;
@@ -40,7 +50,8 @@ void SubstituteAndAppendArray(std::string* output, absl::string_view format,
                      absl::CEscape(format).c_str());
 #endif
         return;
-      } else if (absl::ascii_isdigit(format[i + 1])) {
+      } else if (absl::ascii_isdigit(
+                     static_cast<unsigned char>(format[i + 1]))) {
         int index = format[i + 1] - '0';
         if (static_cast<size_t>(index) >= num_args) {
 #ifndef NDEBUG
@@ -75,12 +86,15 @@ void SubstituteAndAppendArray(std::string* output, absl::string_view format,
 
   // Build the string.
   size_t original_size = output->size();
+  ABSL_INTERNAL_CHECK(
+      size <= std::numeric_limits<size_t>::max() - original_size,
+      "size_t overflow");
   strings_internal::STLStringResizeUninitializedAmortized(output,
                                                           original_size + size);
   char* target = &(*output)[original_size];
   for (size_t i = 0; i < format.size(); i++) {
     if (format[i] == '$') {
-      if (absl::ascii_isdigit(format[i + 1])) {
+      if (absl::ascii_isdigit(static_cast<unsigned char>(format[i + 1]))) {
         const absl::string_view src = args_array[format[i + 1] - '0'];
         target = std::copy(src.begin(), src.end(), target);
         ++i;  // Skip next char.
@@ -96,7 +110,7 @@ void SubstituteAndAppendArray(std::string* output, absl::string_view format,
   assert(target == output->data() + output->size());
 }
 
-Arg::Arg(const void* value) {
+Arg::Arg(const void* absl_nullable value) {
   static_assert(sizeof(scratch_) >= sizeof(value) * 2 + 2,
                 "fix sizeof(scratch_)");
   if (value == nullptr) {
@@ -110,7 +124,8 @@ Arg::Arg(const void* value) {
     } while (num != 0);
     *--ptr = 'x';
     *--ptr = '0';
-    piece_ = absl::string_view(ptr, scratch_ + sizeof(scratch_) - ptr);
+    piece_ = absl::string_view(
+        ptr, static_cast<size_t>(scratch_ + sizeof(scratch_) - ptr));
   }
 }
 
@@ -132,7 +147,7 @@ Arg::Arg(Hex hex) {
     beg = writer;
   }
 
-  piece_ = absl::string_view(beg, end - beg);
+  piece_ = absl::string_view(beg, static_cast<size_t>(end - beg));
 }
 
 // TODO(jorg): Don't duplicate so much code between here and str_cat.cc
@@ -147,7 +162,7 @@ Arg::Arg(Dec dec) {
     *--writer = '0' + (value % 10);
     value /= 10;
   }
-  *--writer = '0' + value;
+  *--writer = '0' + static_cast<char>(value);
   if (neg) *--writer = '-';
 
   ptrdiff_t fillers = writer - minfill;
@@ -164,7 +179,7 @@ Arg::Arg(Dec dec) {
     if (add_sign_again) *--writer = '-';
   }
 
-  piece_ = absl::string_view(writer, end - writer);
+  piece_ = absl::string_view(writer, static_cast<size_t>(end - writer));
 }
 
 }  // namespace substitute_internal
