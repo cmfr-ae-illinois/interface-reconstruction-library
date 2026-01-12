@@ -66,6 +66,12 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "SlicesTaubin") {
     SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
                                     a_V, a_W, a_interface);
+  } else if (a_reconstruction_method == "SlicesTaubinLS") {
+    SlicesTaubinLS::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
+                                      a_V, a_W, a_interface);
+  } else if (a_reconstruction_method == "Hybrid") {
+    Hybrid::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                              a_interface);
   } else if (a_reconstruction_method == "SlicesParticle") {
     SlicesParticle::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
                                       a_V, a_W, a_interface);
@@ -1568,6 +1574,445 @@ void SlicesTaubin::getReconstruction(
   }
 }
 
+// ================ taubin line segment fit =================
+
+// moment matrix terms
+std::vector<double> getTaubinMomentTerms(const double& x0, const double& y0,
+                                         const double& dx, const double& dy) {
+  std::vector<double> terms(10, 0.0);
+
+  // length of line segment
+  double Le = std::sqrt(dx * dx + dy * dy);
+  // if (Le < 1e-14) return terms;  // degenerate segment
+
+  // Mzz
+  terms[0] = (dx * dx * dx * dx) / 5. + (2. * (dx * dx) * (dy * dy)) / 5. +
+             (dy * dy * dy * dy) / 5. + dx * dx * dx * x0 +
+             dx * (dy * dy) * x0 + 2. * (dx * dx) * (x0 * x0) +
+             (2. * (dy * dy) * (x0 * x0)) / 3. + 2. * dx * (x0 * x0 * x0) +
+             x0 * x0 * x0 * x0 + dx * dx * dy * y0 + dy * dy * dy * y0 +
+             (8. * dx * dy * x0 * y0) / 3. + 2. * dy * (x0 * x0) * y0 +
+             (2. * (dx * dx) * (y0 * y0)) / 3. + 2. * (dy * dy) * (y0 * y0) +
+             2. * dx * x0 * (y0 * y0) + 2. * (x0 * x0) * (y0 * y0) +
+             2. * dy * (y0 * y0 * y0) + y0 * y0 * y0 * y0;
+
+  // Mxz
+  terms[1] = (dx * dx * dx) / 4. + (dx * (dy * dy)) / 4. + dx * dx * x0 +
+             (dy * dy * x0) / 3. + (3. * dx * (x0 * x0)) / 2. + x0 * x0 * x0 +
+             (2. * dx * dy * y0) / 3. + dy * x0 * y0 + (dx * (y0 * y0)) / 2. +
+             x0 * (y0 * y0);
+
+  // Myz
+  terms[2] = (dx * dx * dy) / 4. + (dy * dy * dy) / 4. +
+             (2. * dx * dy * x0) / 3. + (dy * (x0 * x0)) / 2. +
+             (dx * dx * y0) / 3. + dy * dy * y0 + dx * x0 * y0 + x0 * x0 * y0 +
+             (3. * dy * (y0 * y0)) / 2. + y0 * y0 * y0;
+
+  // Mz
+  terms[3] =
+      (dx * dx) / 3. + (dy * dy) / 3. + dx * x0 + x0 * x0 + dy * y0 + y0 * y0;
+
+  // Mxx
+  terms[4] = (dx * dx) / 3. + dx * x0 + x0 * x0;
+
+  // Mxy
+  terms[5] = (dx * dy) / 3. + (dy * x0) / 2. + (dx * y0) / 2. + x0 * y0;
+
+  // Mx
+  terms[6] = dx / 2. + x0;
+
+  // Myy
+  terms[7] = (dy * dy) / 3. + dy * y0 + y0 * y0;
+
+  // My
+  terms[8] = dy / 2. + y0;
+
+  // Le
+  terms[9] = std::sqrt(dx * dx + dy * dy);
+
+  for (auto& term : terms) {
+    term *= Le;
+  }
+
+  return terms;
+}
+
+// building taubin moment and contraint matrix
+void getTaubinMatrices(
+    const std::vector<std::pair<IRL::Pt, IRL::Pt>>& end_points,
+    const std::vector<double>& weights, Eigen::Matrix4d* M,
+    Eigen::Matrix4d* C) {
+  M->setZero();                     // moment matrix
+  C->setZero();                     // constraint matrix
+  const int n = end_points.size();  // number of line segments
+
+  // building moment matrix
+  for (std::size_t i = 0; i < n; i++) {
+    // line segment end points
+    const IRL::Pt x0 = end_points[i].first;
+    const IRL::Pt x1 = end_points[i].second;
+
+    const double dx = x1[0] - x0[0];
+    const double dy = x1[1] - x0[1];
+
+    // moment terms
+    std::vector<double> terms = getTaubinMomentTerms(x0[0], x0[1], dx, dy);
+    // 0 -> Mzz, 1 -> Mxz, 2 -> Myz, 3 -> Mz, 4 -> Mxx, 5 -> Mxy,
+    // 6 -> Mx, 7 -> Myy, 8 -> My, 9 -> Le
+
+    // weight
+    const double w = weights[i];
+
+    // updating moment matrix
+    // M->operator()(0, 0) += w * terms[0];  // Mzz
+    // M->operator()(0, 1) += w * terms[1];  // Mxz
+    // M->operator()(0, 2) += w * terms[2];  // Myz
+    // M->operator()(0, 3) += w * terms[3];  // Mz
+    // M->operator()(1, 0) += w * terms[1];  // Mxz
+    // M->operator()(1, 1) += w * terms[4];  // Mxx
+    // M->operator()(1, 2) += w * terms[5];  // Mxy
+    // M->operator()(1, 3) += w * terms[6];  // Mx
+    // M->operator()(2, 0) += w * terms[2];  // Myz
+    // M->operator()(2, 1) += w * terms[5];  // Mxy
+    // M->operator()(2, 2) += w * terms[7];  // Myy
+    // M->operator()(2, 3) += w * terms[8];  // My
+    // M->operator()(3, 0) += w * terms[3];  // Mz
+    // M->operator()(3, 1) += w * terms[6];  // Mx
+    // M->operator()(3, 2) += w * terms[8];  // My
+    // M->operator()(3, 3) += w * terms[9];  // Le
+
+    M->operator()(0, 0) += terms[0];  // Mzz
+    M->operator()(0, 1) += terms[1];  // Mxz
+    M->operator()(0, 2) += terms[2];  // Myz
+    M->operator()(0, 3) += terms[3];  // Mz
+    M->operator()(1, 0) += terms[1];  // Mxz
+    M->operator()(1, 1) += terms[4];  // Mxx
+    M->operator()(1, 2) += terms[5];  // Mxy
+    M->operator()(1, 3) += terms[6];  // Mx
+    M->operator()(2, 0) += terms[2];  // Myz
+    M->operator()(2, 1) += terms[5];  // Mxy
+    M->operator()(2, 2) += terms[7];  // Myy
+    M->operator()(2, 3) += terms[8];  // My
+    M->operator()(3, 0) += terms[3];  // Mz
+    M->operator()(3, 1) += terms[6];  // Mx
+    M->operator()(3, 2) += terms[8];  // My
+    M->operator()(3, 3) += terms[9];  // Le
+  }
+
+  // building constraint matrix
+  C->operator()(0, 0) = 4.0 * M->operator()(0, 3);
+  C->operator()(0, 1) = 2.0 * M->operator()(1, 3);
+  C->operator()(0, 2) = 2.0 * M->operator()(2, 3);
+  C->operator()(1, 0) = C->operator()(0, 1);
+  C->operator()(1, 1) = M->operator()(3, 3);
+  C->operator()(2, 0) = C->operator()(0, 2);
+  C->operator()(2, 2) = M->operator()(3, 3);
+}
+
+// signed curvature
+double getSignedTaubinCurvatureLS(
+    const std::vector<std::pair<IRL::Pt, IRL::Pt>>& end_points,
+    const std::vector<double>& weights) {
+  // collinearity check
+  const int n = end_points.size();
+  if (n < 2) return 0.0;  // zero curvature if only one line segment
+
+  // moment and constraint matrices
+  Eigen::Matrix4d M, C;
+  getTaubinMatrices(end_points, weights, &M, &C);
+
+  // solving generalized eigenvalue problem
+  Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
+  ges.compute(M, C);
+
+  // eigen values/vectors
+  const auto& evals = ges.eigenvalues();
+  const auto& evecs = ges.eigenvectors();
+
+  // need to find eigenvector with smallest non-negative real eigenvalue
+  int bestIndex = -1;
+  double bestLambda = std::numeric_limits<double>::infinity();
+  for (int i = 0; i < 4; i++) {
+    const auto lam = evals(i);
+    if (std::abs(lam.imag()) > 1e-9) continue;
+    const double lambdaReal = lam.real();
+    if (lambdaReal <= 0.0) continue;
+    if (lambdaReal < bestLambda) {
+      bestLambda = lambdaReal;
+      bestIndex = i;
+    }
+  }
+  if (bestIndex < 0) {  // no eigenvalue found
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  // extracting eigenvector components
+  Eigen::Vector4cd v_c = evecs.col(bestIndex);
+  Eigen::Vector4d a = v_c.real();  // imaginary parts should be tiny
+  double A = a(0);
+  double B = a(1);
+  double Cc = a(2);
+  double D = a(3);
+
+  if (std::abs(A) < 1e-14) {
+    return 0.0;  // very small A is infinite radius again
+  }
+
+  // finding radius of curvature
+  const double num = B * B + Cc * Cc - 4.0 * A * D;
+  if (num <= 0.0) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  const double R = 0.5 * std::sqrt(num) / std::abs(A);
+
+  // signed curvature
+  double yc_local = -Cc / (2.0 * A);
+  double sign = (yc_local >= 0.0) ? -1.0 : +1.0;
+  return sign * (1.0 / R);
+}
+
+// to local
+IRL::Pt toLocal(const IRL::ReferenceFrame& local_frame,
+                const IRL::Pt& local_datum, const IRL::Pt& global_pt) {
+  // rotation matrix and origin
+  Eigen::Vector3d e1(local_frame[0][0], local_frame[0][1], local_frame[0][2]);
+  Eigen::Vector3d e2(local_frame[2][0], local_frame[2][1], local_frame[2][2]);
+  Eigen::Vector3d e3(local_frame[1][0], local_frame[1][1], local_frame[1][2]);
+  Eigen::Matrix3d R;
+  R.col(0) = e1;
+  R.col(1) = e2;
+  R.col(2) = e3;
+  Eigen::Vector3d o(local_datum[0], local_datum[1], local_datum[2]);
+
+  // point in local rotated frame
+  Eigen::Vector3d gpt(global_pt[0], global_pt[1], global_pt[2]);
+  Eigen::Vector3d pt_local = R.transpose() * (gpt - o);
+  return IRL::Pt(pt_local[0], pt_local[1], pt_local[2]);
+}
+
+void SlicesTaubinLS::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+  // PLIC
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface);
+  }
+
+  // clipped PLIC polygons
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+  Data<IRL::Polygon> polygon(&mesh);
+  Data<double> vf(&mesh);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        vf(i, j, k) = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            vf(i, j, k) > IRL::global_constants::VF_HIGH) {
+          continue;
+        }
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+            IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+        const auto planar_separator =
+            std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+        polygon(i, j, k) = IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+            cell, planar_separator, planar_separator[0]);
+      }
+    }
+  }
+  updatePolygonBorder(&polygon);
+
+  // slicing and circle fit params
+  const int nslices = 18;
+  const int nlayers = 2;
+
+  std::vector<std::pair<IRL::Polygon, double>> polygon_vfrac_list;
+  polygon_vfrac_list.reserve(125);
+  IRL::StackVector<IRL::Pt, 2> intersections;
+
+  // computing circle fit for each mixed cell (or each cell with polygon)
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (polygon(i, j, k).getNumberOfVertices() <= 2) continue;
+
+        // polygon local frame
+        const IRL::Normal polygon_normal =
+            calculatePolygonNormal(polygon(i, j, k));
+        IRL::ReferenceFrame polygon_frame =
+            referenceFrameFromNormal(polygon_normal);
+        const IRL::Pt polygon_centroid = polygon(i, j, k).calculateCentroid();
+
+        // stencil polygon and volume fraction data
+        polygon_vfrac_list.clear();
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() <= 2) continue;
+              polygon_vfrac_list.emplace_back(polygon(ii, jj, kk),
+                                              vf(ii, jj, kk));
+            }
+          }
+        }
+        const int num_polygons = polygon_vfrac_list.size();
+
+        // revert back to plane if there are no polygons in the neighboring
+        // stencil. Circle fit will fail if all points are collinear
+        if (num_polygons < 2) continue;  // back to LVIRA
+
+        // accumulator for prinical curvature and direction least squares
+
+        // slicing about local normal [0, pi)
+        std::vector<double> theta_list, k_theta_list;
+        for (int s = 0; s < nslices; s++) {
+          // rotation angle
+          double theta =
+              M_PI * static_cast<double>(s) / static_cast<double>(nslices);
+
+          // rotating local polygon frame
+          const IRL::UnitQuaternion rotation(theta, polygon_frame[2]);
+          const auto rotated_polygon_frame = rotation * polygon_frame;
+
+          // slicing plane
+          const IRL::Plane slicing_plane(
+              rotated_polygon_frame[1],
+              rotated_polygon_frame[1] * polygon_centroid);
+
+          // slicing polygon stencial with plane and collecting info
+          std::vector<std::pair<IRL::Pt, IRL::Pt>> end_points_list;
+          std::vector<double> weights;
+          for (int p = 0; p < num_polygons; p++) {
+            getIntersectionPts(polygon_vfrac_list[p].first, slicing_plane,
+                               &intersections);
+            if (intersections.size() != 2) continue;
+            // end points for sampling
+            IRL::Pt start_point = intersections[0];
+            IRL::Pt end_point = intersections[1];
+            end_points_list.push_back({start_point, end_point});
+            // computing weights
+            IRL::Normal neighbor_normal =
+                calculatePolygonNormal(polygon_vfrac_list[p].first);
+            IRL::Normal neighbor_centroid =
+                (polygon_vfrac_list[p].first).calculateCentroid();
+            double neighbor_weight =
+                getTotalWeight(polygon_vfrac_list[p].second,
+                               rotated_polygon_frame[2], neighbor_normal,
+                               polygon_centroid, neighbor_centroid, mesh.dx());
+            weights.push_back(neighbor_weight);
+          }
+
+          // end points in local frame
+          std::vector<std::pair<IRL::Pt, IRL::Pt>> end_points_local_frame;
+          for (const auto& ep : end_points_list) {
+            IRL::Pt p1_local =
+                toLocal(polygon_frame, polygon_centroid, ep.first);
+            IRL::Pt p2_local =
+                toLocal(polygon_frame, polygon_centroid, ep.second);
+            end_points_local_frame.push_back({p1_local, p2_local});
+          }
+
+          // taubin circle fit using points in local frame for curvature
+          double k_theta =
+              getSignedTaubinCurvatureLS(end_points_local_frame, weights);
+          if (std::isfinite(k_theta)) {
+            theta_list.push_back(theta);
+            k_theta_list.push_back(k_theta);
+          }
+        }
+        // principal curvatures and directions
+        auto [k1, k2, phi, ok] =
+            getPrincipalCurvatures(theta_list, k_theta_list);
+        if (!ok) continue;  // plane
+
+        // Darboux frame
+        const IRL::UnitQuaternion rotate_phi(phi, polygon_frame[2]);
+        const IRL::ReferenceFrame darboux_frame = rotate_phi * polygon_frame;
+
+        // new paraboloid
+        IRL::Paraboloid paraboloid(polygon_centroid, darboux_frame, 0.5 * k1,
+                                   0.5 * k2);
+
+        // volume fraction matching
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+            solver_distance(cell, vf(i, j, k), 1.0e-14, paraboloid);
+        paraboloid.setDatum(
+            IRL::Pt(polygon_centroid +
+                    solver_distance.getDistance() * darboux_frame[2]));
+        (*a_interface)(i, j, k) = paraboloid;
+      }
+    }
+  }
+}
+
+// ====================== Hybrid taubin and PU =======================
+void Hybrid::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                               const Data<IRL::VolumeMoments>& a_gas_moments,
+                               const double a_dt, const Data<double>& a_U,
+                               const Data<double>& a_V, const Data<double>& a_W,
+                               Data<IRL::SeparatorVariant>* a_interface,
+                               const bool a_plic_already_built) {
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface);
+  }
+  // taubin reconstruction
+  Data<IRL::SeparatorVariant> taubin_interface(&a_liq_moments.getMesh());
+  SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                  a_W, &taubin_interface, a_plic_already_built);
+
+  // PU reconstruction
+  Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
+  PU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                        &pu_interface, a_plic_already_built);
+
+  // using pu normal in taubin
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+        const auto* parabloid_taubin =
+            std::get_if<IRL::Paraboloid>(&(taubin_interface(i, j, k)));
+        const auto* parabloid_pu =
+            std::get_if<IRL::Paraboloid>(&(pu_interface(i, j, k)));
+        if (parabloid_taubin == nullptr || parabloid_pu == nullptr) continue;
+        // parab coefficients from taubin
+        const double a = parabloid_taubin->getAlignedParaboloid().a();
+        const double b = parabloid_taubin->getAlignedParaboloid().b();
+        // std::cout << "a: " << a << ", b: " << b << std::endl;
+        const IRL::Pt datum = parabloid_taubin->getDatum();
+        // reference frame from PU
+        const IRL::ReferenceFrame frame = parabloid_pu->getReferenceFrame();
+        // new paraboloid
+        IRL::Paraboloid paraboloid(datum, frame, a, b);
+        // volume fraction matching
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+            solver_distance(cell, vf, 1.0e-14, paraboloid);
+        paraboloid.setDatum(
+            IRL::Pt(datum + solver_distance.getDistance() * frame[2]));
+
+        (*a_interface)(i, j, k) = paraboloid;
+      }
+    }
+  }
+}
+
 // functions for particle method --------------------------------------
 
 bool isTargetSegment(const Eigen::Vector2d& p1, const Eigen::Vector2d& p2,
@@ -1635,8 +2080,8 @@ Eigen::Vector2d ComputeParticleForce(
         line_seg_endpoints,
     const double& eta) {
   // x: position of particle
-  // line_seg_endpoints: endpoints {a,b} of line segments that are cloest to the
-  // particle
+  // line_seg_endpoints: endpoints {a,b} of line segments that are cloest to
+  // the particle
 
   Eigen::Vector2d particle_force = Eigen::Vector2d::Zero();
 
@@ -1673,9 +2118,9 @@ Eigen::Vector2d ComputeParticleForce(
 std::vector<Eigen::Vector2d> InitializeParticlePositions(
     const std::pair<Eigen::Vector2d, Eigen::Vector2d>& target_endpoints,
     const double& hp, const int& N) {
-  // target_endpoints: end points of the target interface where curvature is to
-  // be estimated hp: spacing between particles along line segment N: number of
-  // particles (odd)
+  // target_endpoints: end points of the target interface where curvature is
+  // to be estimated hp: spacing between particles along line segment N:
+  // number of particles (odd)
 
   std::vector<Eigen::Vector2d> initial_particle_positions(
       N, Eigen::Vector2d::Zero());
@@ -1945,8 +2390,8 @@ double getParticleMethodCurvature(
     }
 
     if (iter == max_iter) {
-      // std::cout << "Maximum iterations reached for particle method. Residual
-      // = "
+      // std::cout << "Maximum iterations reached for particle method.
+      // Residual = "
       //           << residual << std::endl;
       break;
     }
