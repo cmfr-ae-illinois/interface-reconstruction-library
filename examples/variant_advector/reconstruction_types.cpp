@@ -26,6 +26,7 @@
 #include "irl/paraboloid_reconstruction/hessian_paraboloid.h"
 #include "irl/parameters/constants.h"
 #include "irl/planar_reconstruction/planar_separator.h"
+#include "irl/quadratic_reconstruction/gauss_legendre_integrator.h"
 
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
@@ -1280,6 +1281,7 @@ double getSignedTaubinCurvature(const std::vector<Eigen::Vector2d>& points,
     double xi = points[i].x(), yi = points[i].y();
     double zi = xi * xi + yi * yi;
     double w = weights[i];
+    w = 1.0;
     Eigen::Vector4d u;
     u << zi, xi, yi, 1.0;
     M += w * u * u.transpose();  // weighted outer product
@@ -1628,11 +1630,100 @@ std::vector<double> getTaubinMomentTerms(const double& x0, const double& y0,
   terms[8] = dy / 2. + y0;
 
   // Le
-  terms[9] = std::sqrt(dx * dx + dy * dy);
+  terms[9] = 1.0;
 
-  for (auto& term : terms) {
-    term *= Le;
-  }
+  // for (auto& term : terms) {
+  //   term *= Le;
+  // }
+
+  return terms;
+}
+
+// moment matrix terms using GL quadrature
+std::vector<double> getTaubinMomentTermsGL(const double& x0, const double& y0,
+                                           const double& dx, const double& dy) {
+  std::vector<double> terms(10, 0.0);
+
+  // quadrature params
+  const int nGL = 3;
+  const int a = 0.0;
+  const int b = 1.0;
+
+  // functions for integration
+  auto f_x = [&](const double& t) { return x0 + dx * t; };
+  auto f_y = [&](const double& t) { return y0 + dy * t; };
+  auto f_z = [&](const double& t) {
+    double x = f_x(t);
+    double y = f_y(t);
+    return x * x + y * y;
+  };
+
+  // first order moments
+  auto f_Mx = [&](const double& t) { return f_x(t); };
+  auto f_My = [&](const double& t) { return f_y(t); };
+  auto f_Mz = [&](const double& t) { return f_z(t); };
+
+  // second order moments
+  auto f_Mxx = [&](const double& t) {
+    double x = f_x(t);
+    return x * x;
+  };
+  auto f_Myy = [&](const double& t) {
+    double y = f_y(t);
+    return y * y;
+  };
+  auto f_Mzz = [&](const double& t) {
+    double z = f_z(t);
+    return z * z;
+  };
+  auto f_Mxy = [&](const double& t) {
+    double x = f_x(t);
+    double y = f_y(t);
+    return x * y;
+  };
+  auto f_Mxz = [&](const double& t) {
+    double x = f_x(t);
+    double z = f_z(t);
+    return x * z;
+  };
+  auto f_Myz = [&](const double& t) {
+    double y = f_y(t);
+    double z = f_z(t);
+    return y * z;
+  };
+
+  // GL integrator
+  IRL::GaussLegendreIntegrator<double, 1> integrator(nGL);
+
+  // Mzz
+  terms[0] = integrator.integrate(f_Mzz, a, b);
+
+  // Mxz
+  terms[1] = integrator.integrate(f_Mxz, a, b);
+
+  // Myz
+  terms[2] = integrator.integrate(f_Myz, a, b);
+
+  // Mz
+  terms[3] = integrator.integrate(f_Mz, a, b);
+
+  // Mxx
+  terms[4] = integrator.integrate(f_Mxx, a, b);
+
+  // Mxy
+  terms[5] = integrator.integrate(f_Mxy, a, b);
+
+  // Mx
+  terms[6] = integrator.integrate(f_Mx, a, b);
+
+  // Myy
+  terms[7] = integrator.integrate(f_Myy, a, b);
+
+  // My
+  terms[8] = integrator.integrate(f_My, a, b);
+
+  // Le
+  terms[9] = 1.0;
 
   return terms;
 }
@@ -1656,7 +1747,7 @@ void getTaubinMatrices(
     const double dy = x1[1] - x0[1];
 
     // moment terms
-    std::vector<double> terms = getTaubinMomentTerms(x0[0], x0[1], dx, dy);
+    std::vector<double> terms = getTaubinMomentTermsGL(x0[0], x0[1], dx, dy);
     // 0 -> Mzz, 1 -> Mxz, 2 -> Myz, 3 -> Mz, 4 -> Mxx, 5 -> Mxy,
     // 6 -> Mx, 7 -> Myy, 8 -> My, 9 -> Le
 
@@ -1681,22 +1772,26 @@ void getTaubinMatrices(
     // M->operator()(3, 2) += w * terms[8];  // My
     // M->operator()(3, 3) += w * terms[9];  // Le
 
-    M->operator()(0, 0) += terms[0];  // Mzz
-    M->operator()(0, 1) += terms[1];  // Mxz
-    M->operator()(0, 2) += terms[2];  // Myz
-    M->operator()(0, 3) += terms[3];  // Mz
-    M->operator()(1, 0) += terms[1];  // Mxz
-    M->operator()(1, 1) += terms[4];  // Mxx
-    M->operator()(1, 2) += terms[5];  // Mxy
-    M->operator()(1, 3) += terms[6];  // Mx
-    M->operator()(2, 0) += terms[2];  // Myz
-    M->operator()(2, 1) += terms[5];  // Mxy
-    M->operator()(2, 2) += terms[7];  // Myy
-    M->operator()(2, 3) += terms[8];  // My
-    M->operator()(3, 0) += terms[3];  // Mz
-    M->operator()(3, 1) += terms[6];  // Mx
-    M->operator()(3, 2) += terms[8];  // My
-    M->operator()(3, 3) += terms[9];  // Le
+    double Mzz = terms[0], Mxz = terms[1], Myz = terms[2], Mz = terms[3],
+           Mxx = terms[4], Mxy = terms[5], Mx = terms[6], Myy = terms[7],
+           My = terms[8];
+
+    M->operator()(0, 0) += Mzz;
+    M->operator()(0, 1) += Mxz;
+    M->operator()(0, 2) += Myz;
+    M->operator()(0, 3) += Mz;
+    M->operator()(1, 0) += Mxz;
+    M->operator()(1, 1) += Mxx;
+    M->operator()(1, 2) += Mxy;
+    M->operator()(1, 3) += Mx;
+    M->operator()(2, 0) += Myz;
+    M->operator()(2, 1) += Mxy;
+    M->operator()(2, 2) += Myy;
+    M->operator()(2, 3) += My;
+    M->operator()(3, 0) += Mz;
+    M->operator()(3, 1) += Mx;
+    M->operator()(3, 2) += My;
+    M->operator()(3, 3) += terms[9];
   }
 
   // building constraint matrix
