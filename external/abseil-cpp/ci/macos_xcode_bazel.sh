@@ -37,8 +37,8 @@ fi
 
 # Use Bazel Vendor mode to reduce reliance on external dependencies.
 if [[ ${KOKORO_GFILE_DIR:-} ]] && [[ -f "${KOKORO_GFILE_DIR}/distdir/abseil-cpp_vendor.tar.gz" ]]; then
-  tar -xf "${KOKORO_GFILE_DIR}/distdir/abseil-cpp_vendor.tar.gz" -C "${TMP}/"
-  BAZEL_EXTRA_ARGS="--vendor_dir=\"${TMP}/abseil-cpp_vendor\" ${BAZEL_EXTRA_ARGS:-}"
+  tar -xf "${KOKORO_GFILE_DIR}/distdir/abseil-cpp_vendor.tar.gz" -C "${HOME}/"
+  BAZEL_EXTRA_ARGS="--vendor_dir=${HOME}/abseil-cpp_vendor ${BAZEL_EXTRA_ARGS:-}"
 fi
 
 # Print the compiler and Bazel versions.
@@ -61,6 +61,7 @@ ${BAZEL_BIN} test ... \
   --enable_bzlmod=true \
   --features=external_include_paths \
   --keep_going \
+  --per_file_copt=external/.*@-w \
   --show_timestamps \
   --test_env="TZDIR=${ABSEIL_ROOT}/absl/time/internal/cctz/testdata/zoneinfo" \
   --test_output=errors \
