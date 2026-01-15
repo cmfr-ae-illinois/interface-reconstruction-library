@@ -21,13 +21,10 @@
 struct Deformation3D {
   static BasicMesh setMesh(const int a_nx);
 
-  static void initialize(Data<double>* a_U, Data<double>* a_V,
-                         Data<double>* a_W,
-                         Data<IRL::SeparatorVariant>* a_interface,
-                         const double a_time, const double final_time);
+  static void initialize(Data<double>* a_U, Data<double>* a_V, Data<double>* a_W,
+                         Data<IRL::SeparatorVariant>* a_interface, const double a_time, const double final_time);
 
-  static void setVelocity(const double a_time, Data<double>* a_U,
-                          Data<double>* a_V, Data<double>* a_W);
+  static void setVelocity(const double a_time, Data<double>* a_U, Data<double>* a_V, Data<double>* a_W);
 
   static double getTimeStep(const BasicMesh& a_mesh, const double a_max_cfl);
 };

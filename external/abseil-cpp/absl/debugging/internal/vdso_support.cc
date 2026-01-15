@@ -17,6 +17,7 @@
 // VDSOSupport -- a class representing kernel VDSO (if present).
 
 #include "absl/debugging/internal/vdso_support.h"
+#include "absl/base/attributes.h"
 
 #ifdef ABSL_HAVE_VDSO_SUPPORT     // defined in vdso_support.h
 
@@ -190,11 +191,15 @@ long VDSOSupport::InitAndGetCPU(unsigned *cpu,  // NOLINT(runtime/int)
 // This function must be very fast, and may be called from very
 // low level (e.g. tcmalloc). Hence I avoid things like
 // GoogleOnceInit() and ::operator new.
+// The destination in VDSO is unknown to CFI and VDSO does not set MSAN
+// shadow for the return value.
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI
 ABSL_ATTRIBUTE_NO_SANITIZE_MEMORY
 int GetCPU() {
   unsigned cpu;
-  int ret_code = (*VDSOSupport::getcpu_fn_)(&cpu, nullptr, nullptr);
-  return ret_code == 0 ? cpu : ret_code;
+  long ret_code =  // NOLINT(runtime/int)
+      (*VDSOSupport::getcpu_fn_)(&cpu, nullptr, nullptr);
+  return ret_code == 0 ? static_cast<int>(cpu) : static_cast<int>(ret_code);
 }
 
 }  // namespace debugging_internal

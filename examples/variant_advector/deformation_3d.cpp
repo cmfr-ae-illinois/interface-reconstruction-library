@@ -22,10 +22,8 @@ BasicMesh Deformation3D::setMesh(const int a_nx) {
   return mesh;
 }
 
-void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V,
-                               Data<double>* a_W,
-                               Data<IRL::SeparatorVariant>* a_interface,
-                               const double a_time, const double final_time) {
+void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V, Data<double>* a_W,
+                               Data<IRL::SeparatorVariant>* a_interface, const double a_time, const double final_time) {
   Deformation3D::setVelocity(a_time, a_U, a_V, a_W);
   const BasicMesh& mesh = a_U->getMesh();
   const IRL::Pt sphere_center(0.35, 0.35, 0.35);
@@ -36,8 +34,7 @@ void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V,
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
         const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-                                    mesh.z(k + 1));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
         const IRL::Pt mid_pt = 0.5 * (lower_cell_pt + upper_cell_pt);
         IRL::Pt disp = mid_pt - sphere_center;
         const auto mag = IRL::magnitude(disp);
@@ -48,8 +45,7 @@ void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V,
         } else {
           auto sphere_normal = IRL::Normal::fromPt(disp);
           sphere_normal.normalize();
-          (*a_interface)(i, j, k) =
-              details::fromSphere(sphere_center, sphere_radius, sphere_normal);
+          (*a_interface)(i, j, k) = details::fromSphere(sphere_center, sphere_radius, sphere_normal);
         }
       }
     }
@@ -60,17 +56,14 @@ void Deformation3D::initialize(Data<double>* a_U, Data<double>* a_V,
   correctInterfaceBorders(a_interface);
 }
 
-void Deformation3D::setVelocity(const double a_time, Data<double>* a_U,
-                                Data<double>* a_V, Data<double>* a_W) {
+void Deformation3D::setVelocity(const double a_time, Data<double>* a_U, Data<double>* a_V, Data<double>* a_W) {
   const BasicMesh& mesh = a_U->getMesh();
   for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
       for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-        const double sinpix = std::sin(M_PI * mesh.xm(i)),
-                     sinpiy = std::sin(M_PI * mesh.ym(j)),
+        const double sinpix = std::sin(M_PI * mesh.xm(i)), sinpiy = std::sin(M_PI * mesh.ym(j)),
                      sinpiz = std::sin(M_PI * mesh.zm(k));
-        const double sin2pix = std::sin(2.0 * M_PI * mesh.xm(i)),
-                     sin2piy = std::sin(2.0 * M_PI * mesh.ym(j)),
+        const double sin2pix = std::sin(2.0 * M_PI * mesh.xm(i)), sin2piy = std::sin(2.0 * M_PI * mesh.ym(j)),
                      sin2piz = std::sin(2.0 * M_PI * mesh.zm(k));
         const double cospit = std::cos(M_PI * (a_time) / T);
         (*a_U)(i, j, k) = 2.0 * sinpix * sinpix * sin2piy * sin2piz * cospit;
@@ -81,9 +74,7 @@ void Deformation3D::setVelocity(const double a_time, Data<double>* a_U,
   }
 }
 
-double Deformation3D::getTimeStep(const BasicMesh& a_mesh,
-                                  const double a_max_cfl) {
+double Deformation3D::getTimeStep(const BasicMesh& a_mesh, const double a_max_cfl) {
   const double Umax = 2.0, Vmax = 1.0, Wmax = 1.0;
-  return a_max_cfl * std::min(a_mesh.dx() / Umax,
-                              std::min(a_mesh.dy() / Vmax, a_mesh.dz() / Wmax));
+  return a_max_cfl * std::min(a_mesh.dx() / Umax, std::min(a_mesh.dy() / Vmax, a_mesh.dz() / Wmax));
 }

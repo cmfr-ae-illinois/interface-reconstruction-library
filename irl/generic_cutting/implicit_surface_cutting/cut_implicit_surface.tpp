@@ -15,27 +15,27 @@
 namespace IRL {
 
 // constructor definition
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType, CellType>::
-    ImplicitSurfaceCutter(const ImplicitSurfaceType& surface,
-                          const CellType& base_cell)
+template <class SurfaceType, class ReturnType, class CellType>
+ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::ImplicitSurfaceCutter(
+    const SurfaceType& surface, const CellType& base_cell)
     : m_surface(surface), m_cell(base_cell) {
   root_ = std::make_unique<Node>(base_cell, 0);
   divideCell(root_.get());
-  collectLeaves(root_.get());
+  collectMixedLeaves(root_.get());
+  m_moments = computeMoments();
 }
 
 // constructor definition for node of octree
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType, CellType>::Node::Node(
+template <class SurfaceType, class ReturnType, class CellType>
+ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::Node::Node(
     const CellType& c, int lvl)
     : cell(c), level(lvl), status(CellStatus::Mixed) {}
 
 // projecting point onto implicit surface
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-typename ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType, CellType>::Vec3
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                      CellType>::projectPointOnSurface(const Vec3& p) const {
+template <class SurfaceType, class ReturnType, class CellType>
+typename ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::Vec3
+ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::projectPointOnSurface(
+    const Vec3& p) const {
   const int max_iter = 200;
   const double tol = 1e-10;
   Vec3 x_proj = p;
@@ -55,13 +55,11 @@ ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
 }
 
 // sample pooints on/around surface for getting cell status
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-std::vector<typename ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                                           CellType>::Vec3>
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                      CellType>::getSamplePoints(const CellType& cell,
-                                                 const bool& use_stencil)
-    const {
+template <class SurfaceType, class ReturnType, class CellType>
+std::vector<
+    typename ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::Vec3>
+ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::getSamplePoints(
+    const CellType& cell, const bool& use_stencil) const {
   Pt x0 = cell.getLowerLimits();
   Pt x1 = cell.getUpperLimits();
   double dx = std::abs((x1 - x0)[0]);
@@ -98,11 +96,10 @@ ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
 }
 
 // cell status
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-typename ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                               CellType>::CellStatus
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                      CellType>::getCellStatusFor(const CellType& cell) const {
+template <class SurfaceType, class ReturnType, class CellType>
+typename ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::CellStatus
+ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::getCellStatusFor(
+    const CellType& cell) const {
   // check cell points
   std::vector<Vec3> pts = getSamplePoints(cell, false);
   bool all_pos = false, all_neg = false;
@@ -135,9 +132,9 @@ ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
 }
 
 // subdivide node if mixed and below max level
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-void ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                           CellType>::divideCell(Node* node) {
+template <class SurfaceType, class ReturnType, class CellType>
+void ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::divideCell(
+    Node* node) {
   node->status = getCellStatusFor(node->cell);
   if (node->status == CellStatus::Mixed &&
       node->level < static_cast<int>(maxRefineLevel)) {
@@ -160,29 +157,22 @@ void ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
   }
 }
 
-// pointers to above, below and mixed leaves
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-void ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                           CellType>::collectLeaves(Node* node) {
+// pointer to mixed leaves
+template <class SurfaceType, class ReturnType, class CellType>
+void ImplicitSurfaceCutter<SurfaceType, ReturnType,
+                           CellType>::collectMixedLeaves(Node* node) {
   if (node->isLeaf()) {
-    if (node->status == CellStatus::Mixed) {
-      mixed_leaves_.push_back(node);
-      m_paraboloids.push_back(makeParaboloidFor(node->cell));
-    } else if (node->status == CellStatus::Below) {
-      below_leaves_.push_back(node);
-    } else {
-      above_leaves_.push_back(node);
-    }
+    if (node->status == CellStatus::Mixed) mixed_leaves_.push_back(node);
   } else {
-    for (auto& c : node->children) collectLeaves(c.get());
+    for (auto& c : node->children) collectMixedLeaves(c.get());
   }
 }
 
 // project and construct paraboloid
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
+template <class SurfaceType, class ReturnType, class CellType>
 Paraboloid
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                      CellType>::makeParaboloidFor(const CellType& cell) const {
+ImplicitSurfaceCutter<SurfaceType, ReturnType, CellType>::makeParaboloidFor(
+    const CellType& cell) const {
   Pt x0 = cell.getLowerLimits();
   Pt x1 = cell.getUpperLimits();
   Pt xm = (x0 + x1) * 0.5;
@@ -195,127 +185,28 @@ ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
   return Paraboloid::fromDerivatives(x_proj_pt, g, H);
 }
 
-// accumulate volume moments
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-ReturnType ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                                 CellType>::computeVolumeMoments() const {
-  ReturnType sum{};  // accumulator
-  ReturnType c{};    // compensation
+// accumulate liquid moments
+template <class SurfaceType, class ReturnType, class CellType>
+ReturnType ImplicitSurfaceCutter<SurfaceType, ReturnType,
+                                 CellType>::computeMoments() const {
+  ReturnType moments_total;
 
-  auto kahan_add = [&](const ReturnType& x) {
-    const ReturnType y = x - c;
-    const ReturnType t = sum + y;
-    c = (t - sum) - y;
-    sum = t;
-  };
-
-  // mixed contribution
-  for (std::size_t i = 0; i < mixed_leaves_.size(); i++) {
-    const ReturnType moment_contribution =
-        getVolumeMoments<ReturnType>(mixed_leaves_[i]->cell, m_paraboloids[i]);
-    kahan_add(moment_contribution);
-
-    if constexpr (std::is_same_v<ReturnType, GeneralMoments3D<2>>) {
-      if (std::abs(moment_contribution[0]) > 1.0e200) {
-        std::cout << std::scientific << std::setprecision(30);
-
-        // --- Paraboloid data ---
-        const auto& parab = m_paraboloids[i];
-        const auto& datum = parab.getDatum();
-        const auto& frame = parab.getReferenceFrame();
-        const auto& aligned = parab.getAlignedParaboloid();
-
-        std::cout << "\n==== PARABOLOID INFO ====\n";
-        std::cout << "Datum:\n";
-        std::cout << "  x = " << datum[0] << "\n";
-        std::cout << "  y = " << datum[1] << "\n";
-        std::cout << "  z = " << datum[2] << "\n";
-
-        std::cout << "Frame rows:\n";
-        for (int r = 0; r < 3; ++r) {
-          std::cout << "  Frame[" << r << "] = (" << frame[r][0] << ", "
-                    << frame[r][1] << ", " << frame[r][2] << ")\n";
-        }
-
-        std::cout << "Aligned paraboloid parameters:\n";
-        std::cout << "  a = " << aligned.a() << "\n";
-        std::cout << "  b = " << aligned.b() << "\n";
-
-        // --- Cell data ---
-        const auto& cell = mixed_leaves_[i]->cell;
-        const int nvert = cell.getNumberOfVertices();
-
-        std::cout << "\n==== CELL INFO ====\n";
-        std::cout << "Number of vertices = " << nvert << "\n";
-
-        for (int v = 0; v < nvert; ++v) {
-          const auto& pt = cell[v];
-          std::cout << "  Vertex " << v << " : (" << pt[0] << ", " << pt[1]
-                    << ", " << pt[2] << ")\n";
-        }
-
-        std::cout << "====================\n\n";
+  // recursively traverse
+  std::function<void(const Node*)> traverse = [&](const Node* n) {
+    if (n->isLeaf()) {
+      if (n->status == CellStatus::Below) {
+        moments_total += getVolumeMoments<ReturnType>(n->cell);
+      } else if (n->status == CellStatus::Mixed) {
+        Paraboloid P = makeParaboloidFor(n->cell);
+        moments_total += getVolumeMoments<ReturnType>(n->cell, P);
       }
+    } else {
+      for (auto& c : n->children) traverse(c.get());
     }
-  }
-
-  // below contribution
-  for (std::size_t i = 0; i < below_leaves_.size(); i++) {
-    const ReturnType moment_contribution =
-        getVolumeMoments<ReturnType>(below_leaves_[i]->cell);
-    kahan_add(moment_contribution);
-  }
-
-  return sum;
-}
-
-// accumulate surface moments
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-template <std::size_t ORDER>
-GeneralSurfaceMoments3D<ORDER>
-ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType, CellType>::
-    computeSurfaceMoments(
-        const bool useAdaptive,
-        const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
-        const int npts) const {
-  using VolumeMomentsAndSurface =
-      AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
-
-  GeneralSurfaceMoments3D<ORDER> sum{};  // accumulator
-  GeneralSurfaceMoments3D<ORDER> c{};    // compensation
-
-  auto kahan_add = [&](const GeneralSurfaceMoments3D<ORDER>& x) {
-    const auto y = x - c;
-    const auto t = sum + y;
-    c = (t - sum) - y;
-    sum = t;
   };
 
-  for (std::size_t i = 0; i < mixed_leaves_.size(); i++) {
-    auto surface = getVolumeMoments<VolumeMomentsAndSurface>(
-                       mixed_leaves_[i]->cell, m_paraboloids[i])
-                       .getSurface();
-    const auto term = surface.template getSurfaceMoments<ORDER>(
-        useAdaptive, quadratureRule, npts);
-    kahan_add(term);
-  }
-
-  return sum;
-}
-
-// -1: below, 0: mixed, 1: above
-template <class ImplicitSurfaceType, class ReturnType, class CellType>
-int ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType,
-                          CellType>::getBaseCellStatus() const {
-  // auto cell = root_.get();
-  root_->status = getCellStatusFor(root_->cell);
-  if (root_->status == CellStatus::Above) {
-    return 1;
-  } else if (root_->status == CellStatus::Below) {
-    return -1;
-  } else {
-    return 0;
-  }
+  traverse(root_.get());
+  return moments_total;
 }
 
 }  // namespace IRL

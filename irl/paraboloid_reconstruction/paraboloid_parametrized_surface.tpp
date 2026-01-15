@@ -864,28 +864,6 @@ ParaboloidParametrizedSurfaceOutput::getGaussianCurvatureNonAligned(
   return this->getGaussianCurvatureAligned(aligned_pt);
 }
 
-inline double ParaboloidParametrizedSurfaceOutput::getCurvednessAligned(
-    const Pt a_pt) {
-  const double H = this->getMeanCurvatureAligned(a_pt);
-  const double K = this->getGaussianCurvatureAligned(a_pt);
-  if (!std::isfinite(H) || !std::isfinite(K))
-    return std::numeric_limits<double>::quiet_NaN();
-  const double curvedness_2 = 2.0 * H * H - K;
-  return std::sqrt(std::max(0.0, curvedness_2));
-}
-
-inline double ParaboloidParametrizedSurfaceOutput::getCurvednessNonAligned(
-    const Pt a_pt) {
-  const auto& datum = this->getParaboloid().getDatum();
-  const auto& ref_frame = this->getParaboloid().getReferenceFrame();
-  const Pt original_pt = a_pt - datum;
-  auto aligned_pt = a_pt;
-  for (std::size_t n = 0; n < 3; ++n) {
-    aligned_pt[n] = ref_frame[n] * original_pt;
-  }
-  return this->getCurvednessAligned(aligned_pt);
-}
-
 inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
     const F a_F, const bool useAdaptive,
     const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
@@ -967,69 +945,67 @@ inline double ParaboloidParametrizedSurfaceOutput::getIntegrator(
 }
 
 template <std::size_t ORDER>
-inline GeneralSurfaceMoments3D<ORDER>
-ParaboloidParametrizedSurfaceOutput::getSurfaceMoments(
-    const bool useAdaptive,
-    const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule,
-    const int npts) {
+inline GeneralMoments3D<ORDER>
+ParaboloidParametrizedSurfaceOutput::getSurfaceMoments() {
   static_assert(ORDER >= 0 && ORDER <= 2,
                 "ONLY ORDER = 0, 1, or 2 supported for paraboloids");
-  GeneralSurfaceMoments3D<ORDER> moments;
+  GeneralMoments3D<ORDER> moments;
 
   const auto& a = this->getParaboloid().getAlignedParaboloid().a();
   const auto& b = this->getParaboloid().getAlignedParaboloid().b();
   const auto& datum = this->getParaboloid().getDatum();
   const auto& ref_frame = this->getParaboloid().getReferenceFrame();
 
+  const Eigen::Matrix<double, 3, 1> D{datum[0], datum[1], datum[2]};
+  const Eigen::Matrix<double, 3, 3> R{
+      {ref_frame[0][0], ref_frame[1][0], ref_frame[2][0]},
+      {ref_frame[0][1], ref_frame[1][1], ref_frame[2][1]},
+      {ref_frame[0][2], ref_frame[1][2], ref_frame[2][2]}};
+
   auto z = [a, b](const Pt& p) { return -a * p[0] * p[0] - b * p[1] * p[1]; };
 
-  const double M0 = this->getIntegrator([](const Pt&) { return 1.0; },
-                                        useAdaptive, quadratureRule, npts);
+  const double M0 = this->getIntegrator([](const Pt&) { return 1.0; });
   moments[0] = M0;
-
   if constexpr (ORDER == 0) return moments;
 
-  const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; },
-                                         useAdaptive, quadratureRule, npts);
-  const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; },
-                                         useAdaptive, quadratureRule, npts);
-  const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); },
-                                         useAdaptive, quadratureRule, npts);
-  moments[1] = M1x;
-  moments[2] = M1y;
-  moments[3] = M1z;
+  const double M1x = this->getIntegrator([](const Pt& p) { return p[0]; });
+  const double M1y = this->getIntegrator([](const Pt& p) { return p[1]; });
+  const double M1z = this->getIntegrator([&](const Pt& p) { return z(p); });
 
-  if constexpr (ORDER == 1) {
-    moments.moveAndRotateMoments(datum, ref_frame);
-    return moments;
-  }
+  const Eigen::Matrix<double, 3, 1> M1prime{M1x, M1y, M1z};
+  const Eigen::Matrix<double, 3, 1> M1 = R * M1prime + M0 * D;
+
+  moments[1] = M1[0];
+  moments[2] = M1[1];
+  moments[3] = M1[2];
+  if constexpr (ORDER == 1) return moments;
 
   const double Mxx =
-      this->getIntegrator([](const Pt& p) { return p[0] * p[0]; }, useAdaptive,
-                          quadratureRule, npts);
+      this->getIntegrator([](const Pt& p) { return p[0] * p[0]; });
   const double Mxy =
-      this->getIntegrator([](const Pt& p) { return p[0] * p[1]; }, useAdaptive,
-                          quadratureRule, npts);
+      this->getIntegrator([](const Pt& p) { return p[0] * p[1]; });
   const double Mxz =
-      this->getIntegrator([&](const Pt& p) { return p[0] * z(p); }, useAdaptive,
-                          quadratureRule, npts);
+      this->getIntegrator([&](const Pt& p) { return p[0] * z(p); });
   const double Myy =
-      this->getIntegrator([](const Pt& p) { return p[1] * p[1]; }, useAdaptive,
-                          quadratureRule, npts);
+      this->getIntegrator([](const Pt& p) { return p[1] * p[1]; });
   const double Myz =
-      this->getIntegrator([&](const Pt& p) { return p[1] * z(p); }, useAdaptive,
-                          quadratureRule, npts);
+      this->getIntegrator([&](const Pt& p) { return p[1] * z(p); });
   const double Mzz =
-      this->getIntegrator([&](const Pt& p) { return z(p) * z(p); }, useAdaptive,
-                          quadratureRule, npts);
-  moments[4] = Mxx;
-  moments[5] = Mxy;
-  moments[6] = Mxz;
-  moments[7] = Myy;
-  moments[8] = Myz;
-  moments[9] = Mzz;
-  moments.moveAndRotateMoments(datum, ref_frame);
+      this->getIntegrator([&](const Pt& p) { return z(p) * z(p); });
 
+  const Eigen::Matrix<double, 3, 3> M2prime{
+      {Mxx, Mxy, Mxz}, {Mxy, Myy, Myz}, {Mxz, Myz, Mzz}};
+
+  const Eigen::Matrix<double, 3, 3> M2 =
+      R * M2prime * R.transpose() + R * (M1prime * D.transpose()) +
+      (D * M1prime.transpose()) * R.transpose() + M0 * (D * D.transpose());
+
+  moments[4] = M2(0, 0);
+  moments[5] = M2(0, 1);
+  moments[6] = M2(0, 2);
+  moments[7] = M2(1, 1);
+  moments[8] = M2(1, 2);
+  moments[9] = M2(2, 2);
   return moments;
 }
 

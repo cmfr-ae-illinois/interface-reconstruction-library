@@ -25,5 +25,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/moments/separated_volume_moments.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/moments/cell_grouped_moments.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/moments/general_moments.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/moments/general_moments.tpp)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/moments/general_surface_moments.h)
-target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/moments/general_surface_moments.tpp)
+
+
+

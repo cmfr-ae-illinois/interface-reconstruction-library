@@ -17,26 +17,24 @@
 #include <memory>
 #include <vector>
 
+#include "examples/variant_advector/basic_mesh.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
-#include "irl/moments/general_surface_moments.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/quadratic_reconstruction/parametrized_surface.h"
 
 namespace IRL {
 
 /// \brief Cutting cell by implicit surface
-template <class ImplicitSurfaceType, class ReturnType,
+template <class SurfaceType, class ReturnType,
           class CellType = RectangularCuboid>
 class ImplicitSurfaceCutter {
  public:
   using Vec3 = Eigen::Vector3d;
   using Mat3 = Eigen::Matrix3d;
 
-  static_assert(
-      std::is_same<typename ImplicitSurfaceType::Scalar, double>::value,
-      "ImplicitSurfaceType must use double as ScalarType");
+  static_assert(std::is_same<typename SurfaceType::Scalar, double>::value,
+                "SurfaceType must use double as ScalarType");
 
   static_assert(std::is_same<ReturnType, Volume>::value ||
                     std::is_same<ReturnType, VolumeMoments>::value ||
@@ -48,25 +46,14 @@ class ImplicitSurfaceCutter {
                 "ImplicitSurfaceCutter only supports "
                 "RectangularCuboid as CellType");
 
-  ImplicitSurfaceCutter(const ImplicitSurfaceType& surface,
-                        const CellType& base_cell);
+  ImplicitSurfaceCutter(const SurfaceType& surface, const CellType& base_cell);
 
-  ReturnType computeVolumeMoments() const;
-
-  template <std::size_t ORDER>
-  GeneralSurfaceMoments3D<ORDER> computeSurfaceMoments(
-      const bool useAdaptive = true,
-      const Eigen::Integrator<double, 2>::QuadratureRule quadratureRule =
-          Eigen::Integrator<double, 2>::GaussKronrod15,
-      const int npts = 50) const;
-
-  int getBaseCellStatus() const;
+  ReturnType getMoments() const { return m_moments; }
 
  private:
   enum class CellStatus { Above, Below, Mixed };
 
-  static constexpr size_t maxRefineLevel =
-      ImplicitSurfaceType::getMaxRefineLevel();
+  static constexpr size_t maxRefineLevel = SurfaceType::getMaxRefineLevel();
 
   struct Node {
     CellType cell;
@@ -80,7 +67,7 @@ class ImplicitSurfaceCutter {
 
   void divideCell(Node* node);
 
-  void collectLeaves(Node* node);
+  void collectMixedLeaves(Node* node);
 
   Vec3 projectPointOnSurface(const Vec3& p) const;
 
@@ -89,15 +76,15 @@ class ImplicitSurfaceCutter {
 
   CellStatus getCellStatusFor(const CellType& cell) const;
 
+  ReturnType computeMoments() const;
+
   Paraboloid makeParaboloidFor(const CellType& cell) const;
 
-  ImplicitSurfaceType m_surface;
+  SurfaceType m_surface;
   CellType m_cell;
   std::vector<Node*> mixed_leaves_;
-  std::vector<Node*> below_leaves_;
-  std::vector<Node*> above_leaves_;
-  std::vector<Paraboloid> m_paraboloids;
   std::unique_ptr<Node> root_;
+  ReturnType m_moments;
 };
 
 }  // namespace IRL
