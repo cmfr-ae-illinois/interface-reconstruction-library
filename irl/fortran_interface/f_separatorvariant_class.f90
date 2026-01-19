@@ -57,6 +57,7 @@ module f_SeparatorVariant_class
   end interface
   interface getParaboloid
     module procedure SeparatorVariant_class_getParaboloid,SeparatorVariant_class_getParaboloidObject
+  end interface
   interface setPrincipalCurvatures
     module procedure SeparatorVariant_class_setPrincipalCurvatures
   end interface
