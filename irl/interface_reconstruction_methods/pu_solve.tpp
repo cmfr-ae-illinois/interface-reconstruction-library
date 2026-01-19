@@ -648,8 +648,8 @@ PUImplicitSurface PU<CellType>::neighborhoodToImplicitSurface(double delta) {
 
 template <class CellType>
 Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
-                                 const double delta, const double Pressure,
-                                 const Normal& Marangoni) {
+                               const double delta, const double Pressure,
+                               const Normal& Marangoni) {
   // The Marangoni normal object holds the Xgradient, then the Y gradient, then
   // the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make Implicit
   // Surface std::cout << "In Solve Edge\n";
@@ -741,19 +741,9 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
         // alwaysacts inwards, so we multiply by the negative of the outwards
         // pointingnormal
         if (std::abs(Scale) >=
-            1e-10) {  // Ensure that in the undefinedareas, we
+            1e-10) {  // Ensure that in the undefined areas, we
           // // do not add pressure terms.
-          total = total - Scale * STCoeff * curv * L * denom * OutwardsNormal;
-          // std::cout << "======================= Pressure Force: "
-          //             << Scale * STCoeff * curv * L * denom << "\n";
-          // std::cout << "Scale = " << Scale << "\n";
-          // std::cout << "curv = " << curv << "\n";
-          // std::cout << "L = " << L << "\n";
-          // std::cout << "denom = " << denom << "\n";
-          // std::cout << "sx = " << L * denom << "\n";
-          // std::cout << "tangent = " << tangent << "\n";
-          // std::cout << "gradient = " << gradient << "\n";
-          // std::cout << "dPN = " << dPN << "\n";
+          total = total - STCoeff * curv * L * denom * OutwardsNormal;
         }
       }
     }
@@ -766,8 +756,8 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
 
 template <class CellType>
 Normal PU<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
-                                         double radius, Pt& center,
-                                         double delta) {
+                                       double radius, Pt& center,
+                                       double delta) {
   // Make Implicit Surface
   // std::cout << "In Solve Edge\n";
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
@@ -832,7 +822,7 @@ double PU<CellType>::getWeight(double x, double y, double z, double delta) {
 
 template <class CellType>
 double PU<CellType>::getValueCylinder(double x, double y, double z,
-                                        double radius, Pt center) {
+                                      double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   double retVal = 0;
@@ -843,7 +833,7 @@ double PU<CellType>::getValueCylinder(double x, double y, double z,
 
 template <class CellType>
 inline Normal PU<CellType>::getTangentCylinder(double x, double y, double z,
-                                                 double radius, Pt center) {
+                                               double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   Normal retVal = s.getTangentCylinder(in, radius, center);
@@ -853,7 +843,7 @@ inline Normal PU<CellType>::getTangentCylinder(double x, double y, double z,
 
 template <class CellType>
 double PU<CellType>::getWeightCylinder(double x, double y, double z,
-                                         double radius, Pt center) {
+                                       double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   double retVal = 1.0;
