@@ -96,8 +96,10 @@ function(absl_cc_library)
   endif()
 
   if(ABSL_ENABLE_INSTALL)
+    target_sources(absl_all PRIVATE ${ABSL_CC_LIB_SRCS})
     set(_NAME "${ABSL_CC_LIB_NAME}")
   else()
+    target_sources(absl_all PRIVATE ${ABSL_CC_LIB_SRCS})
     set(_NAME "absl_${ABSL_CC_LIB_NAME}")
   endif()
 
