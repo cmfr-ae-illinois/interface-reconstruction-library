@@ -165,9 +165,26 @@ if((BUILD_TESTING AND ABSL_BUILD_TESTING) OR ABSL_BUILD_TEST_HELPERS)
     endif()
     include(CMake/Googletest/DownloadGTest.cmake)
   endif()
+
+  check_target(GTest::gtest)
+  check_target(GTest::gtest_main)
+  check_target(GTest::gmock)
+  check_target(GTest::gmock_main)
 endif()
 
+
+if(BUILD_SHARED_LIBS)
+  add_library(absl_all SHARED)
+  if(APPLE)
+    target_link_libraries(absl_all "-framework CoreFoundation")
+  endif()
+else()
+  add_library(absl_all STATIC)
+endif()
+
+target_include_directories(absl_all PUBLIC ".")
 add_subdirectory(absl)
+install(TARGETS absl_all EXPORT "absl_all_exp" ARCHIVE DESTINATION "lib")
 
 if(ABSL_ENABLE_INSTALL)
   
