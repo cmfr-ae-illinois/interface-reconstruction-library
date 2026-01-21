@@ -606,7 +606,7 @@ inline double PUImplicitSurface::getCurvature(Pt& x) {
   double magGradF = std::sqrt(Fx * Fx + Fy * Fy);
   double denom = magGradF * magGradF * magGradF;
 
-  double kz = -numer / denom;
+  double kz = numer / denom;
 
   return kz;
 }
@@ -707,8 +707,10 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
                    0.0);  // Use this to get gradient so we don't have torecalc
         Normal dPN = {dP[0], dP[1], 0};  // Make dP into a vector
         dPN.normalize();
-        Scale = -gradient * dPN;                         // Dot Product
-        Scale = Scale / safelyEpsilon(std::abs(Scale));  // Sign
+        Scale = gradient * dPN;                          // Dot Product
+        Scale = Scale / safelyEpsilon(std::abs(Scale));  // Sign Only
+        // This scale tells me if, going along the edge from P0 to P1, we are
+        // going into the fluid (Scale >0) or out of the fluid (Scale <0).
 
         // Now we  have the sign. The domain that each intersection influences
         // is from the centerpoint out. This means that if the distance from P0
@@ -720,12 +722,11 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
         Pt dPI = intersections[j] - P0;
         double L = std::sqrt(dPI[0] * dPI[0] +
                              dPI[1] * dPI[1]);  // Calculated Distance
-        double Sx = L * denom;
-        if (L > 0.5 * D) {  // If MOre than 0.5D
-          L = D - L;        // Switch to other direction (Center Out)
+
+        double Sx = L * denom;  // Also definitely positive
+        if (L > 0.5 * D) {      // If More than 0.5D
+          L = L - D;            // Switch to other direction (Center Out)
         }
-        // Ensure Positive (although I am pretty sure it already is)
-        L = std::abs(L);
 
         // Now that we have the length of section, we just need to calculat
         // the curvature, then calculat the pressure jump, then multiply it
@@ -743,7 +744,15 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
         if (std::abs(Scale) >=
             1e-10) {  // Ensure that in the undefined areas, we
           // // do not add pressure terms.
-          total = total - STCoeff * curv * L * denom * OutwardsNormal;
+          total = total + Scale * STCoeff * curv * L * denom * OutwardsNormal;
+          std::cout << "Surface Tension Coeff: " << STCoeff << "\n"
+                    << "Curvature: " << curv << "\n"
+                    << "Length Segment: " << L << "\n"
+                    << "Pressure Contribution Scale: " << Scale << "\n"
+                    << "Intersection Point: " << intersections[j] << "\n"
+                    << "Point 1: " << P0 << "\n"
+                    << "Point 2: " << P1 << "\n"
+                    << "--------------------------------------\n";
         }
       }
     }
