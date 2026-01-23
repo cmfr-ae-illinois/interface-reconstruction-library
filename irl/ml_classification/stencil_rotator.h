@@ -50,7 +50,7 @@ static void repackStencil(std::vector<double>& flat,
 
 // Reflect across plane x -> -x  (mirror in x, i <-> N-1-i; mx -> -mx)
 inline void reflect_x(std::vector<CellData>& S, int N) {
-    std::vector<CellData> C = S;  // copy source
+    const std::vector<CellData> C = S;  // copy source
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
             for (int k = 0; k < N; ++k) {
@@ -64,7 +64,7 @@ inline void reflect_x(std::vector<CellData>& S, int N) {
 
 // Reflect across plane y -> -y  (mirror in y, j <-> N-1-j; my -> -my)
 inline void reflect_y(std::vector<CellData>& S, int N) {
-    std::vector<CellData> C = S;
+    const std::vector<CellData> C = S;
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
             for (int k = 0; k < N; ++k) {
@@ -76,7 +76,7 @@ inline void reflect_y(std::vector<CellData>& S, int N) {
 
 // Reflect across plane z -> -z  (mirror in z, k <-> N-1-k; mz -> -mz)
 inline void reflect_z(std::vector<CellData>& S, int N) {
-    std::vector<CellData> C = S;
+    const std::vector<CellData> C = S;
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
             for (int k = 0; k < N; ++k) {
@@ -89,7 +89,7 @@ inline void reflect_z(std::vector<CellData>& S, int N) {
 // 120° rotations about the (1,1,1) diagonal
 
 inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
-    std::vector<CellData> C = S;
+    const std::vector<CellData> C = S;
     if (type == 1) {
         // (x,y,z)->(y,z,x)
         for (int i=0;i<N;++i)
@@ -98,7 +98,7 @@ inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
                 // new(i,j,k) = old(k,i,j)
                 CellData d = C[cellIndex(k, i, j, N)];
 
-                double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
+                const double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
                 d.mx = my_old;
                 d.my = mz_old;
                 d.mz = mx_old;
@@ -113,7 +113,7 @@ inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
                 // new(i,j,k) = old(j,k,i)
                 CellData d = C[cellIndex(j, k, i, N)];
 
-                double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
+                const double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
                 d.mx = mz_old;
                 d.my = mx_old;
                 d.mz = my_old;
@@ -126,12 +126,12 @@ inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
 // Reflection across the diagonal plane x = y
 
 inline void swap_xy(std::vector<CellData>& S, int N) {
-    std::vector<CellData> C = S;
+    const std::vector<CellData> C = S;
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
             for (int k = 0; k < N; ++k) {
                 CellData d = C[cellIndex(j, i, k, N)];
-                double mx_old = d.mx, my_old = d.my;
+                const double mx_old = d.mx, my_old = d.my;
                 d.mx = my_old;  // x' component = old y
                 d.my = mx_old;  // y' component = old x
                 // z unchanged
@@ -153,15 +153,22 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
 
     // Compute global centroid of first moments
     double cx = 0.0, cy = 0.0, cz = 0.0;
-    const int stencil_volume = stencil_size * stencil_size * stencil_size;
+    double Vsum = 0.0;
+
     for (const auto& c : stencil) {
         cx += c.mx;
         cy += c.my;
         cz += c.mz;
+        Vsum += c.vfrac;
     }
-    cx /= stencil_volume;
-    cy /= stencil_volume;
-    cz /= stencil_volume;
+
+    if (Vsum > 0.0) {
+        cx /= Vsum;
+        cy /= Vsum;
+        cz /= Vsum;
+    } else {
+        cx = cy = cz = 0.0;
+    }
 
     // Reflect into first octant: ensure cx,cy,cz >= 0 using x/y/z reflections.
     if (cx < 0.0) {
@@ -184,9 +191,9 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
 
     // 120° rotations about (1,1,1) diagonal.
 
-    double z0 = cz;
-    double z1 = cx;
-    double z2 = cy;
+    const double z0 = cz;
+    const double z1 = cx;
+    const double z2 = cy;
 
     int best = 0;
     double bestz = z0;
@@ -196,14 +203,14 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
     if (best == 1) {
         permute_xyz(stencil, stencil_size, 1);
         // (cx,cy,cz) -> (cy,cz,cx)
-        double tmp = cx;
+        const double tmp = cx;
         cx = cy;
         cy = cz;
         cz = tmp;
     } else if (best == 2) {
         permute_xyz(stencil, stencil_size, 2);
         // (cx,cy,cz) -> (cz,cx,cy)
-        double tmp = cx;
+        const double tmp = cx;
         cx = cz;
         cz = cy;
         cy = tmp;
@@ -216,7 +223,8 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
     }
 
     // Mirror symmetry around diagonal x = y.
-    if (cy > cx + 1e-8) { 
+    if (cy > cx /*+ 1e-8*/) { 
+        // count small differences
         swap_xy(stencil, stencil_size);
     }
     // Pack back into flat storage

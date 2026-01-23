@@ -90,8 +90,117 @@ void evaluateMLClassifier(int stencil_size, int n_samples_per_class, IRL::MLClas
 */
 
 
+static std::string classNameFromType(int t) {
+    switch (t) {
+        case 1: return "Cylinder";
+        case 2: return "Sphere";
+        case 3: return "Sheet";
+        default: return "Paraboloid";
+    }
+}
+
+// Per-cell data: volume fraction and first moments
+struct CellData {
+    double vfrac;
+    double mx, my, mz;  // first moments in x, y, z
+};
+
+// Read one stencil from a flat [vfrac, mx, my, mz] array into CellData array
+static void unpackStencil(const std::vector<double>& flat,
+                          std::vector<CellData>& stencil, int N)
+{
+    const int nCells = N * N * N;
+    stencil.resize(nCells);
+
+    // Expect include_Moments >= 1, so layout is [vfrac, mx, my, mz] per cell
+    for (int idx = 0; idx < nCells; ++idx) {
+        stencil[idx].vfrac = flat[4 * idx + 0];
+        stencil[idx].mx    = flat[4 * idx + 1];
+        stencil[idx].my    = flat[4 * idx + 2];
+        stencil[idx].mz    = flat[4 * idx + 3];
+    }
+}
+
+
 int main(int argc, char* argv[]) {
-// Test e3nn
+    
+    IRL::Data_gen gen;
+
+    gen.generateState(4,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+
+    /*
+    For generating barycenter data
+    const int stencil_size = 5;
+    const int samples_per_class = 100;
+
+    IRL::Data_gen gen;
+
+    std::ofstream out("barycenters.csv");
+    if (!out) {
+        std::cerr << "Error: could not open barycenters.csv for writing\n";
+        return 1;
+    }
+
+    // Optional header (Excel will happily read this)
+    // For "two-line per sample" format, header is less meaningful; keep it simple:
+    out << "x,y,z\n";
+
+    // datapoint_type mapping based on your switch:
+    // 0 -> default -> Paraboloid
+    // 1 -> Cylinder
+    // 2 -> Sphere
+    // 3 -> Sheet
+    const std::vector<int> types = {0, 1, 2, 3};
+
+    for (int t : types) {
+        const std::string cname = classNameFromType(t);
+
+        for (int s = 0; s < samples_per_class; ++s) {
+            // include_Moments must be >= 1 so we get vfrac + (mx,my,mz) per cell
+            std::vector<double> flat = gen.generateState(
+                t,
+                stencil_size,
+                1,
+                false,
+            );
+
+            std::vector<CellData> stencil;
+            unpackStencil(flat, stencil, stencil_size);
+
+            // Compute global centroid of first moments (exactly like your snippet)
+            double cx = 0.0, cy = 0.0, cz = 0.0;
+            double Vsum = 0.0;
+
+            for (const auto& c : stencil) {
+                cx += c.mx;
+                cy += c.my;
+                cz += c.mz;
+                Vsum += c.vfrac;
+            }
+
+            if (Vsum > 0.0) {
+                cx /= Vsum;
+                cy /= Vsum;
+                cz /= Vsum;
+            } else {
+                cx = cy = cz = 0.0;
+            }
+
+            // --- Write "two lines per sample" (as you requested) ---
+            out << cx << "," << cy << "," << cz << "," << cname << "\n";
+
+            // --- Alternative (cleaner Excel): one row per sample ---
+            // out << cx << "," << cy << "," << cz << "," << cname << "\n";
+        }
+    }
+
+    std::cout << "Wrote barycenters.csv\n";
+    return 0;
+    */
+    
+    
+    /*
+    // Test e3nn
 
     torch::manual_seed(42);
 
@@ -142,6 +251,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Input 2 (rotated) logits:\n" << y2 << "\n";
     std::cout << "Absolute difference:\n" << (y1 - y2).abs() << "\n";
     std::cout << "Mean abs diff: " << (y1 - y2).abs().mean().item<double>() << std::endl;
+    */
 
 
 

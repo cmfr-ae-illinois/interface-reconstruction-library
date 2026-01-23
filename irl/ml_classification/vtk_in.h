@@ -26,7 +26,7 @@
 
 namespace IRL {
 
-void classify_simulation(IRL::Classifier& classifier, const std::string& filename, int cannonicalize_symmetries = 0) {
+void classify_simulation(IRL::Classifier& classifier, const std::string& filename, int cannonicalize_symmetries = 0, int preProcess = false) {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filename.c_str());
     //reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
@@ -292,6 +292,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     int no_cylinders = 0;
     int no_spheres = 0;
     int no_sheets = 0;
+    int no_isolated = 0; // for pre-processing
 
     double start_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
@@ -402,6 +403,55 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     }
                 }
 
+                if (preProcess == true) {
+                    // Preprocess: remove isolated non-central positive cells (6-neighbor connectivity)
+                    auto in_bounds = [&](int a, int b, int c) {
+                        return (a >= 0 && a < stencil_size_reader &&
+                                b >= 0 && b < stencil_size_reader &&
+                                c >= 0 && c < stencil_size_reader);
+                    };
+
+                    const int c = half;             // central index in stencil coords
+                    const double eps_iso = 1e-12;    // threshold for isolated cells
+
+                    static const int n6[6][3] = {
+                        {+1, 0, 0}, {-1, 0, 0},
+                        { 0,+1, 0}, { 0,-1, 0},
+                        { 0, 0,+1}, { 0, 0,-1}
+                    };
+
+                    for (int si = 0; si < stencil_size_reader; ++si) {
+                        for (int sj = 0; sj < stencil_size_reader; ++sj) {
+                            for (int sk = 0; sk < stencil_size_reader; ++sk) {
+
+                                // skip central cell
+                                if (si == c && sj == c && sk == c) continue;
+
+                                if (vfrac[si][sj][sk] <= eps_iso) continue;
+
+                                bool has_pos_neighbor = false;
+                                for (int n = 0; n < 6; ++n) {
+                                    int ai = si + n6[n][0];
+                                    int aj = sj + n6[n][1];
+                                    int ak = sk + n6[n][2];
+                                    if (!in_bounds(ai, aj, ak)) continue;
+                                    if (vfrac[ai][aj][ak] > eps_iso) {
+                                        has_pos_neighbor = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!has_pos_neighbor) {
+                                    vfrac[si][sj][sk] = 0.0;
+                                    firstMoment[si][sj][sk].setZero();
+                                    no_isolated++;
+                                }
+                            }
+                        }
+                    }
+
+                }
+
                 // Flatten stencil into 1D vector
                 std::vector<double> flattened_state;
                 for (int si = 0; si < stencil_size_reader; ++si) {
@@ -457,7 +507,9 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     double end_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     std::cout << "Classification time (s): " << (end_time - start_time) / 1e9 << std::endl;
-
+    if (preProcess == true) {
+        std::cout << "Preprocessing removed isolated cells instances: " << no_isolated << std::endl;
+    }
   
 
     std::cout << "\n=== Classification Summary ===" << std::endl;

@@ -62,8 +62,8 @@ int main (int argc, char* argv[]) {
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/From1/s5_1M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
+    bool preProcess = true;
     ml.canonicalize_data(canonicalize_symmetries);
-    
 
     ml.updateTrainingParameters(learning_rate, batch_size, epochs);
     ml.trainModel();
@@ -72,7 +72,7 @@ int main (int argc, char* argv[]) {
 
     // vtk reader
     std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    IRL::classify_simulation(ml, filename, canonicalize_symmetries);
+    IRL::classify_simulation(ml, filename, canonicalize_symmetries, preProcess);
 
     return 0;
 }
