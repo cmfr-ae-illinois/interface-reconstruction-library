@@ -34,7 +34,7 @@ int main (int argc, char* argv[]) {
     int epochs = 5;
 
     //Data parameters
-    int no_batches = 256;
+    int no_batches = 264;
     int include_Moments = 1;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -57,8 +57,8 @@ int main (int argc, char* argv[]) {
                             max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
                             max_sphere_radius, sphere_radius_stddev);                    
     
-    //ml.generateDataset();
-    ml.loadDataset("/home/quirin/mlcfd/Datasets/double/From1/NN/s5_131k/data/data.bin");
+    ml.generateDataset();
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/double/From1/NN/s5_131k/data/data.bin");
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/From1/s5_1M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;

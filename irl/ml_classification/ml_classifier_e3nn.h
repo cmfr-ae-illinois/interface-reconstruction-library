@@ -30,7 +30,7 @@ public:
                   << stencil << std::endl;
     }
 
-    int classify(const std::vector<double>& flattened_state,
+    int classify(const std::vector<float>& flattened_state,
                  std::vector<float>* out_probs = nullptr) override
     {
         torch::NoGradGuard no_grad;
@@ -67,13 +67,13 @@ public:
         const int train_end = static_cast<int>(total_samples * 0.7);
         const int test_end  = static_cast<int>(total_samples * 0.85);
 
-        std::vector<std::vector<double>> train_states(statesV.begin(), statesV.begin() + train_end);
+        std::vector<std::vector<float>> train_states(statesV.begin(), statesV.begin() + train_end);
         std::vector<int>                 train_labels(labelsV.begin(), labelsV.begin() + train_end);
 
-        std::vector<std::vector<double>> test_states(statesV.begin() + train_end, statesV.begin() + test_end);
+        std::vector<std::vector<float>> test_states(statesV.begin() + train_end, statesV.begin() + test_end);
         std::vector<int>                 test_labels(labelsV.begin() + train_end, labelsV.begin() + test_end);
 
-        std::vector<std::vector<double>> val_states(statesV.begin() + test_end, statesV.end());
+        std::vector<std::vector<float>> val_states(statesV.begin() + test_end, statesV.end());
         std::vector<int>                 val_labels(labelsV.begin() + test_end, labelsV.end());
 
         IRL::MyDataset train_dataset(&train_states, &train_labels);

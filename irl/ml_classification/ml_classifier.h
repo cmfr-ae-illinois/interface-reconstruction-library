@@ -45,7 +45,7 @@ protected:
     Net net;
     std::unique_ptr<torch::optim::Optimizer> optimizer;
     std::string dataset_path = "";
-    std::vector<std::vector<double>> statesV;
+    std::vector<std::vector<float>> statesV;
     std::vector<int> labelsV;
     size_t no_samples = batch_size * no_batches;
     double generation_time = 0.0;
@@ -121,7 +121,7 @@ public:
     void appendDataset(const std::string& existing_path, bool save_combined = false) {
         loadDataset(existing_path);
 
-        std::vector<std::vector<double>> new_states;
+        std::vector<std::vector<float>> new_states;
         std::vector<int> new_labels;
 
         IRL::Data_gen data_gen;
@@ -166,7 +166,7 @@ public:
         data_out.write(reinterpret_cast<const char*>(&num_samples), sizeof(size_t));
         data_out.write(reinterpret_cast<const char*>(&in_size), sizeof(size_t));
         for (const auto& s : statesV)
-            data_out.write(reinterpret_cast<const char*>(s.data()), s.size() * sizeof(double));
+            data_out.write(reinterpret_cast<const char*>(s.data()), s.size() * sizeof(float));
         data_out.write(reinterpret_cast<const char*>(labelsV.data()), labelsV.size() * sizeof(int));
         data_out.close();
 
@@ -203,10 +203,10 @@ public:
         size_t num_samples, in_size;
         data_in.read(reinterpret_cast<char*>(&num_samples), sizeof(size_t));
         data_in.read(reinterpret_cast<char*>(&in_size), sizeof(size_t));
-        statesV.resize(num_samples, std::vector<double>(in_size));
+        statesV.resize(num_samples, std::vector<float>(in_size));
         labelsV.resize(num_samples);
         for (size_t i = 0; i < num_samples; ++i)
-            data_in.read(reinterpret_cast<char*>(statesV[i].data()), in_size * sizeof(double));
+            data_in.read(reinterpret_cast<char*>(statesV[i].data()), in_size * sizeof(float));
         data_in.read(reinterpret_cast<char*>(labelsV.data()), num_samples * sizeof(int));
         data_in.close();
         dataset_path = dir_path;
@@ -251,11 +251,11 @@ public:
         int train_end = total_samples * 0.7;
         int test_end = total_samples * 0.85;
 
-        std::vector<std::vector<double>> train_states(statesV.begin(), statesV.begin() + train_end);
+        std::vector<std::vector<float>> train_states(statesV.begin(), statesV.begin() + train_end);
         std::vector<int> train_labels(labelsV.begin(), labelsV.begin() + train_end);
-        std::vector<std::vector<double>> test_states(statesV.begin() + train_end, statesV.begin() + test_end);
+        std::vector<std::vector<float>> test_states(statesV.begin() + train_end, statesV.begin() + test_end);
         std::vector<int> test_labels(labelsV.begin() + train_end, labelsV.begin() + test_end);
-        std::vector<std::vector<double>> val_states(statesV.begin() + test_end, statesV.end());
+        std::vector<std::vector<float>> val_states(statesV.begin() + test_end, statesV.end());
         std::vector<int> val_labels(labelsV.begin() + test_end, labelsV.end());
 
         IRL::MyDataset train_dataset(&train_states, &train_labels);
@@ -345,7 +345,7 @@ public:
         }
     }
 
-    int classify(const std::vector<double>& flattened_state,
+    int classify(const std::vector<float>& flattened_state,
                  std::vector<float>* out_probs = nullptr) override {
         torch::NoGradGuard no_grad;
         auto input = torch::tensor(flattened_state,

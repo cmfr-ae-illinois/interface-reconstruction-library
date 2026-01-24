@@ -22,10 +22,13 @@ public:
           sphere_tol(sphere_tol_),
           gap(gap_) {}
 
-    int classify(const std::vector<double>& flattened_state, std::vector<float>* out_probs = nullptr) override {
+    int classify(const std::vector<float>& flattened_state, std::vector<float>* out_probs = nullptr) override {
         // Compute inertia tensor
 
-        Eigen::Matrix3d I = computeInertiaTensor(flattened_state,
+        // make flattened_state a vector of doubles
+        std::vector<double> flattened_state_double(flattened_state.begin(), flattened_state.end());
+
+        Eigen::Matrix3d I = computeInertiaTensor(flattened_state_double,
                                                  stencil_size,
                                                  from_ith_moment);
 

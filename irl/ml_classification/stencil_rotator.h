@@ -6,8 +6,8 @@ namespace IRL {
 
 // Per-cell data: volume fraction and first moments
 struct CellData {
-    double vfrac;
-    double mx, my, mz;  // first moments in x, y, z
+    float vfrac;
+    float mx, my, mz;  // first moments in x, y, z
 };
 
 // Convert (i,j,k) to flat cell index in the 1D array of cells
@@ -16,7 +16,7 @@ inline int cellIndex(int i, int j, int k, int N) {
 }
 
 // Read one stencil from a flat [vfrac, mx, my, mz] array into CellData array
-static void unpackStencil(const std::vector<double>& flat,
+static void unpackStencil(const std::vector<float>& flat,
                           std::vector<CellData>& stencil, int N)
 {
     const int nCells = N * N * N;
@@ -30,7 +30,7 @@ static void unpackStencil(const std::vector<double>& flat,
 }
 
 // Write CellData stencil back into flat [vfrac, mx, my, mz] array
-static void repackStencil(std::vector<double>& flat,
+static void repackStencil(std::vector<float>& flat,
                           const std::vector<CellData>& stencil, int N)
 {
     const int nCells = N * N * N;
@@ -98,7 +98,7 @@ inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
                 // new(i,j,k) = old(k,i,j)
                 CellData d = C[cellIndex(k, i, j, N)];
 
-                const double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
+                const float mx_old=d.mx, my_old=d.my, mz_old=d.mz;
                 d.mx = my_old;
                 d.my = mz_old;
                 d.mz = mx_old;
@@ -113,7 +113,7 @@ inline void permute_xyz(std::vector<CellData>& S, int N, int type) {
                 // new(i,j,k) = old(j,k,i)
                 CellData d = C[cellIndex(j, k, i, N)];
 
-                const double mx_old=d.mx, my_old=d.my, mz_old=d.mz;
+                const float mx_old=d.mx, my_old=d.my, mz_old=d.mz;
                 d.mx = mz_old;
                 d.my = mx_old;
                 d.mz = my_old;
@@ -131,7 +131,7 @@ inline void swap_xy(std::vector<CellData>& S, int N) {
         for (int j = 0; j < N; ++j)
             for (int k = 0; k < N; ++k) {
                 CellData d = C[cellIndex(j, i, k, N)];
-                const double mx_old = d.mx, my_old = d.my;
+                const float mx_old = d.mx, my_old = d.my;
                 d.mx = my_old;  // x' component = old y
                 d.my = mx_old;  // y' component = old x
                 // z unchanged
@@ -140,7 +140,7 @@ inline void swap_xy(std::vector<CellData>& S, int N) {
 }
 
 
-inline void rotate_stencil(std::vector<double>& flat_stencil,
+inline void rotate_stencil(std::vector<float>& flat_stencil,
                            int stencil_size, int no_symmetries)
 {
     if (no_symmetries < 8) {
@@ -152,8 +152,8 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
     unpackStencil(flat_stencil, stencil, stencil_size);
 
     // Compute global centroid of first moments
-    double cx = 0.0, cy = 0.0, cz = 0.0;
-    double Vsum = 0.0;
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+    float Vsum = 0.0f;
 
     for (const auto& c : stencil) {
         cx += c.mx;
@@ -191,26 +191,26 @@ inline void rotate_stencil(std::vector<double>& flat_stencil,
 
     // 120° rotations about (1,1,1) diagonal.
 
-    const double z0 = cz;
-    const double z1 = cx;
-    const double z2 = cy;
+    const float z0 = cz;
+    const float z1 = cx;
+    const float z2 = cy;
 
     int best = 0;
-    double bestz = z0;
+    float bestz = z0;
     if (z1 > bestz) { best = 1; bestz = z1; }
     if (z2 > bestz) { best = 2; bestz = z2; }
 
     if (best == 1) {
         permute_xyz(stencil, stencil_size, 1);
         // (cx,cy,cz) -> (cy,cz,cx)
-        const double tmp = cx;
+        const float tmp = cx;
         cx = cy;
         cy = cz;
         cz = tmp;
     } else if (best == 2) {
         permute_xyz(stencil, stencil_size, 2);
         // (cx,cy,cz) -> (cz,cx,cy)
-        const double tmp = cx;
+        const float tmp = cx;
         cx = cz;
         cz = cy;
         cy = tmp;

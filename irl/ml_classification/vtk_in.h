@@ -469,14 +469,17 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     }
                 }
 
+                // Make flattened_state a float vector
+                std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
+
                 //Cannonicalize stencil
                 if (cannonicalize_symmetries > 0) {
-                    IRL::rotate_stencil(flattened_state, stencil_size_reader, cannonicalize_symmetries);
+                    IRL::rotate_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries);
                 }  
 
                 // Classify
                 std::vector<float> out_probs;
-                int predicted_class = classifier.classify(flattened_state, &out_probs);
+                int predicted_class = classifier.classify(flattened_state_float, &out_probs);
                 float max_prob = *std::max_element(out_probs.begin(), out_probs.end());
                 certainty->SetValue(centerCellId, max_prob);
 

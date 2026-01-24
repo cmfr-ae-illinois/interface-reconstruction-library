@@ -1265,7 +1265,7 @@ namespace IRL {
         }
 
 
-        std::vector<double> generateState(int datapoint_type, int stencil_size, int include_Moments = 0, bool include_truncated_cylinder = false,
+        std::vector<float> generateState(int datapoint_type, int stencil_size, int include_Moments = 0, bool include_truncated_cylinder = false,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
                                         double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
@@ -1377,11 +1377,12 @@ namespace IRL {
                 flattened_state.push_back(I3);
             }
 
-
-            return flattened_state;
+            // make flattened_state a vector of floats
+            std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
+            return flattened_state_float;
         }
 
-        void generateData (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
+        void generateData (std::vector<std::vector<float>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
                                         double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, bool include_truncated_cylinder = false,
