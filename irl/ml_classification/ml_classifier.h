@@ -251,16 +251,9 @@ public:
         int train_end = total_samples * 0.7;
         int test_end = total_samples * 0.85;
 
-        std::vector<std::vector<float>> train_states(statesV.begin(), statesV.begin() + train_end);
-        std::vector<int> train_labels(labelsV.begin(), labelsV.begin() + train_end);
-        std::vector<std::vector<float>> test_states(statesV.begin() + train_end, statesV.begin() + test_end);
-        std::vector<int> test_labels(labelsV.begin() + train_end, labelsV.begin() + test_end);
-        std::vector<std::vector<float>> val_states(statesV.begin() + test_end, statesV.end());
-        std::vector<int> val_labels(labelsV.begin() + test_end, labelsV.end());
-
-        IRL::MyDataset train_dataset(&train_states, &train_labels);
-        IRL::MyDataset test_dataset(&test_states, &test_labels);
-        IRL::MyDataset val_dataset(&val_states, &val_labels);
+        IRL::MyDataset train_dataset(&statesV, &labelsV, 0, train_end);
+        IRL::MyDataset test_dataset(&statesV, &labelsV, train_end, test_end);
+        IRL::MyDataset val_dataset(&statesV, &labelsV, test_end, total_samples);
 
         auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
             std::move(train_dataset).map(torch::data::transforms::Stack<>()), batch_size);

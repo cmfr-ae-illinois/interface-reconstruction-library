@@ -1,51 +1,91 @@
+#pragma once
 #include <torch/torch.h>
 #include <vector>
+#include <cstdint>
+#include <stdexcept>
 
 namespace IRL {
-    torch::Tensor read_states(std::vector<std::vector<float>>* statesV) {
-        // Flatten the 2D vector into a 1D vector
-        std::vector<float> flattened;
-        for (const auto& vec : *statesV) {
-            flattened.insert(flattened.end(), vec.begin(), vec.end());
+
+class MyDataset : public torch::data::datasets::Dataset<MyDataset> {
+private:
+    const std::vector<std::vector<float>>* statesV_;
+    const std::vector<int>* labelsV_;
+    size_t start_;
+    size_t end_;
+    size_t feature_dim_;
+
+public:
+    // Full dataset
+    explicit MyDataset(const std::vector<std::vector<float>>* statesV,
+                       const std::vector<int>* labelsV)
+        : MyDataset(statesV, labelsV, 0, statesV ? statesV->size() : 0) {}
+
+    // Range view: [start, end)
+    MyDataset(const std::vector<std::vector<float>>* statesV,
+              const std::vector<int>* labelsV,
+              size_t start, size_t end)
+        : statesV_(statesV),
+          labelsV_(labelsV),
+          start_(start),
+          end_(end),
+          feature_dim_(0)
+    {
+        if (!statesV_ || !labelsV_) {
+            throw std::runtime_error("MyDataset: statesV/labelsV is null");
+        }
+        if (statesV_->size() != labelsV_->size()) {
+            throw std::runtime_error("MyDataset: states and labels size mismatch");
+        }
+        if (start_ > end_ || end_ > statesV_->size()) {
+            throw std::runtime_error("MyDataset: invalid range [start,end)");
+        }
+        if (end_ > start_) {
+            feature_dim_ = (*statesV_)[start_].size();
+            if (feature_dim_ == 0) {
+                throw std::runtime_error("MyDataset: feature dimension is zero");
+            }
+            // Optional: validate all samples in range have same size (debug safety)
+            for (size_t i = start_; i < end_; ++i) {
+                if ((*statesV_)[i].size() != feature_dim_) {
+                    throw std::runtime_error("MyDataset: inconsistent feature vector size");
+                }
+            }
+        }
+    }
+
+    // Return one sample
+    torch::data::Example<> get(size_t index) override {
+        const size_t i = start_ + index;
+
+        const auto& x = (*statesV_)[i];
+        const int y = (*labelsV_)[i];
+
+        // Defensive check: targets for cross_entropy must be in [0, num_classes-1]
+        // (You can remove this once you're confident the pipeline is correct.)
+        if (y < 0) {
+            throw std::runtime_error("MyDataset: negative label encountered: " + std::to_string(y));
         }
 
-        // Convert the flattened vector to a 1D tensor, use float instead of double, otherwise: mat1 and mat2 must have the same dtype, but got Double and Float
-        torch::Tensor tStates = torch::tensor(flattened, torch::kFloat);
+        // from_blob would reference vector memory; clone() makes the tensor own its memory (safe for DataLoader workers)
+        auto data = torch::from_blob(
+                        (void*)x.data(),
+                        {(long)x.size()},
+                        torch::TensorOptions().dtype(torch::kFloat32)
+                    ).clone();
 
-        // Now reshape the tensor to match the shape of v (3 rows, 2 columns)
-        tStates = tStates.view({statesV->size(), statesV->at(0).size()});
-        return tStates;
-    };
+        auto target = torch::tensor((int64_t)y, torch::TensorOptions().dtype(torch::kInt64));
 
-    torch::Tensor read_labels(std::vector<int>* labelsV) {
-        torch::Tensor tLabels = torch::tensor(*labelsV, torch::kLong); // Use LongTensor as labels, it is equivalent to int. Otherwise no work 
-        return tLabels;    
-    };
+        return {data, target};
+    }
 
-    class MyDataset : public torch::data::Dataset<MyDataset>
-    {
-        private:
-            torch::Tensor states, labels;
+    // Number of samples in this view
+    torch::optional<size_t> size() const override {
+        return (end_ >= start_) ? (end_ - start_) : 0;
+    }
 
-        public:
-            explicit MyDataset(std::vector<std::vector<float>>* statesV, std::vector<int>* labelsV) 
-                : states(read_states(statesV)),
-                labels(read_labels(labelsV)) {   };
+    // Optional helper
+    size_t feature_dim() const { return feature_dim_; }
+};
 
-            //torch::data::Example<> get(size_t index) override;
+} // namespace IRL
 
-            // Implement the `get()` function to return an example
-            torch::data::Example<> get(size_t index) override {
-                return {states[index], labels[index]}; // Return state and label at the given index
-            }
-
-            // Implement the `size()` function to return the number of samples
-            torch::optional<size_t> size() const override {
-                return states.size(0);  // Number of rows in the `states` tensor (number of samples)
-            }
-    };
-
-    //torch::data::Example<> MyDataset::get(size_t index) {
-        //return {states[index], labels[index]};
-    //} 
-}
