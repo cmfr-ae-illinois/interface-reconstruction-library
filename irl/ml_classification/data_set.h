@@ -60,13 +60,11 @@ public:
         const auto& x = (*statesV_)[i];
         const int y = (*labelsV_)[i];
 
-        // Defensive check: targets for cross_entropy must be in [0, num_classes-1]
-        // (You can remove this once you're confident the pipeline is correct.)
+        // Targets for cross_entropy must be in [0, num_classes-1]
         if (y < 0) {
             throw std::runtime_error("MyDataset: negative label encountered: " + std::to_string(y));
         }
 
-        // from_blob would reference vector memory; clone() makes the tensor own its memory (safe for DataLoader workers)
         auto data = torch::from_blob(
                         (void*)x.data(),
                         {(long)x.size()},

@@ -26,7 +26,10 @@
 
 namespace IRL {
 
-void classify_simulation(IRL::Classifier& classifier, const std::string& filename, int cannonicalize_symmetries = 0, int preProcess = false) {
+void classify_simulation(IRL::Classifier& classifier, const std::string& filename, 
+    int cannonicalize_symmetries = 0, int preProcess = false, std::vector<int>* savedClasses = nullptr) 
+    {
+
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filename.c_str());
     //reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
@@ -404,15 +407,15 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 }
 
                 if (preProcess == true) {
-                    // Preprocess: remove isolated non-central positive cells (6-neighbor connectivity)
-                    auto in_bounds = [&](int a, int b, int c) {
+
+                    auto in_bounds = [&](int a, int b, int cidx) {
                         return (a >= 0 && a < stencil_size_reader &&
                                 b >= 0 && b < stencil_size_reader &&
-                                c >= 0 && c < stencil_size_reader);
+                                cidx >= 0 && cidx < stencil_size_reader);
                     };
 
-                    const int c = half;             // central index in stencil coords
-                    const double eps_iso = 1e-12;    // threshold for isolated cells
+                    const int c = half;               // central index in stencil coords
+                    const double eps = 1e-12;         // "positive" threshold
 
                     static const int n6[6][3] = {
                         {+1, 0, 0}, {-1, 0, 0},
@@ -420,37 +423,65 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         { 0, 0,+1}, { 0, 0,-1}
                     };
 
-                    for (int si = 0; si < stencil_size_reader; ++si) {
-                        for (int sj = 0; sj < stencil_size_reader; ++sj) {
-                            for (int sk = 0; sk < stencil_size_reader; ++sk) {
+                    // If center isn't positive, zeros all positives in the stencil.
+                    if (vfrac[c][c][c] <= epsilon) {
+                        continue;
+                    } else {
+                        // visited mask: 1 => belongs to central connected component
+                        std::vector<uint8_t> visited(stencil_size_reader * stencil_size_reader * stencil_size_reader, 0);
 
-                                // skip central cell
-                                if (si == c && sj == c && sk == c) continue;
+                        auto idx = [&](int si, int sj, int sk) -> int {
+                            return (si * stencil_size_reader + sj) * stencil_size_reader + sk;
+                        };
 
-                                if (vfrac[si][sj][sk] <= eps_iso) continue;
+                        // BFS queue
+                        std::vector<std::array<int,3>> q;
+                        q.reserve(stencil_size_reader * stencil_size_reader * stencil_size_reader);
 
-                                bool has_pos_neighbor = false;
-                                for (int n = 0; n < 6; ++n) {
-                                    int ai = si + n6[n][0];
-                                    int aj = sj + n6[n][1];
-                                    int ak = sk + n6[n][2];
-                                    if (!in_bounds(ai, aj, ak)) continue;
-                                    if (vfrac[ai][aj][ak] > eps_iso) {
-                                        has_pos_neighbor = true;
-                                        break;
-                                    }
+                        // seed with the center cell
+                        visited[idx(c,c,c)] = 1;
+                        q.push_back({c,c,c});
+
+                        // flood fill
+                        for (size_t qi = 0; qi < q.size(); ++qi) {
+                            int si = q[qi][0];
+                            int sj = q[qi][1];
+                            int sk = q[qi][2];
+
+                            for (int n = 0; n < 6; ++n) {
+                                int ai = si + n6[n][0];
+                                int aj = sj + n6[n][1];
+                                int ak = sk + n6[n][2];
+
+                                if (!in_bounds(ai, aj, ak)) continue;
+                                if (visited[idx(ai,aj,ak)]) continue;
+
+                                // only traverse through "positive" cells
+                                if (vfrac[ai][aj][ak] > epsilon) {
+                                    visited[idx(ai,aj,ak)] = 1;
+                                    q.push_back({ai,aj,ak});
                                 }
+                            }
+                        }
 
-                                if (!has_pos_neighbor) {
-                                    vfrac[si][sj][sk] = 0.0;
-                                    firstMoment[si][sj][sk].setZero();
-                                    no_isolated++;
+                        // Zero everything NOT in the connected component
+                        for (int si = 0; si < stencil_size_reader; ++si) {
+                            for (int sj = 0; sj < stencil_size_reader; ++sj) {
+                                for (int sk = 0; sk < stencil_size_reader; ++sk) {
+
+                                    if (visited[idx(si,sj,sk)]) continue; // keep central structure
+
+                                    if (vfrac[si][sj][sk] > eps) {
+                                        vfrac[si][sj][sk] = 0.0;
+                                        firstMoment[si][sj][sk].setZero();
+                                        no_isolated++;
+                                    }
                                 }
                             }
                         }
                     }
-
                 }
+
 
                 // Flatten stencil into 1D vector
                 std::vector<double> flattened_state;
@@ -503,6 +534,10 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     default:
                         std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;
                         break;
+                }
+
+                if (savedClasses) {
+                    savedClasses->push_back(predicted_class);
                 }
             }
         }

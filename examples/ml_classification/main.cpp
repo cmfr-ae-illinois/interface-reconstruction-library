@@ -34,7 +34,7 @@ int main (int argc, char* argv[]) {
     int epochs = 5;
 
     //Data parameters
-    int no_batches = 264;
+    int no_batches = 4096*4;
     int include_Moments = 1;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -57,18 +57,19 @@ int main (int argc, char* argv[]) {
                             max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
                             max_sphere_radius, sphere_radius_stddev);                    
     
-    ml.generateDataset();
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/double/From1/NN/s5_131k/data/data.bin");
-    //ml.appendDataset("/home/quirin/mlcfd/Datasets/From1/s5_1M/data/data.bin", false);
+    //ml.generateDataset();
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_3M/data/data.bin");
+    //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
-    bool preProcess = true;
-    ml.canonicalize_data(canonicalize_symmetries);
+    bool preProcess = false;
+    //ml.canonicalize_data(canonicalize_symmetries);
 
     ml.updateTrainingParameters(learning_rate, batch_size, epochs);
-    ml.trainModel();
-    ml.saveModel("model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/s5_260k/model1/ml_model.pt");
+    //ml.trainModel();
+    //ml.saveModel("model/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/float/From1/s5_3M/model/ml_model.pt");
+    
 
     // vtk reader
     std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
