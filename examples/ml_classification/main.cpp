@@ -62,7 +62,7 @@ int main (int argc, char* argv[]) {
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
-    bool preProcess = false;
+    bool preProcess = true;
     //ml.canonicalize_data(canonicalize_symmetries);
 
     ml.updateTrainingParameters(learning_rate, batch_size, epochs);

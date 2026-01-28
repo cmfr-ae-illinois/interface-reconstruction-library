@@ -289,6 +289,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     int stencil_size_reader = classifier.getStencilSize();
     int half = stencil_size_reader / 2;
     int from_Moments = 1; //classifier.getFromMoments(); or something similar later
+    double epsilon = 1e-10;
 
     int no_filled_cells = 0;
     int no_paraboloids = 0;
@@ -299,6 +300,71 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     double start_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
+    // Preprocessing Herrmann2010a below
+    std::vector<int> structure_id(newVOF->GetNumberOfTuples(), -1);
+
+    auto coarseId = [&](int ii, int jj, int kk) -> vtkIdType {
+        return ii + jj * nx + kk * nx * ny;
+    };
+
+    static const int n6[6][3] = {
+        {+1, 0, 0}, {-1, 0, 0},
+        { 0,+1, 0}, { 0,-1, 0},
+        { 0, 0,+1}, { 0, 0,-1}
+    };
+
+    int next_id = 0;
+
+    // Loop over all coarse cells and flood-fill each untagged liquid component
+    for (int i = 0; i < nx; ++i) {
+        for (int j = 0; j < ny; ++j) {
+            for (int k = 0; k < nz; ++k) {
+
+                vtkIdType seed = coarseId(i,j,k);
+                if (structure_id[seed] != -1) continue;
+
+                double a_seed = newVOF->GetComponent(seed, 0);
+                if (a_seed <= epsilon) continue;   // not in "liquid region" => no structure id
+
+                // Start BFS for this structure
+                const int my_id = next_id++;
+                structure_id[seed] = my_id;
+
+                std::vector<vtkIdType> q;
+                q.reserve(1024);
+                q.push_back(seed);
+
+                for (size_t qi = 0; qi < q.size(); ++qi) {
+                    vtkIdType cid = q[qi];
+
+                    // Convert cid -> (ci,cj,ck)
+                    int ck = static_cast<int>(cid / (nx * ny));
+                    int rem = static_cast<int>(cid - ck * nx * ny);
+                    int cj = rem / nx;
+                    int ci = rem - cj * nx;
+
+                    for (int n = 0; n < 6; ++n) {
+                        int ni = ci + n6[n][0];
+                        int nj = cj + n6[n][1];
+                        int nk = ck + n6[n][2];
+                        if (ni < 0 || ni >= nx || nj < 0 || nj >= ny || nk < 0 || nk >= nz) continue;
+
+                        vtkIdType nid = coarseId(ni,nj,nk);
+                        if (structure_id[nid] != -1) continue;
+
+                        if (newVOF->GetComponent(nid, 0) > epsilon) {
+                            structure_id[nid] = my_id;
+                            q.push_back(nid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    std::cout << "Global structure identification (coarse grid): "
+            << next_id << " structures tagged." << std::endl;
+
     // Loop through interior cells (excluding half-cell boundary)
     for (int i = half; i < nx - half; ++i) {
         for (int j = half; j < ny - half; ++j) {
@@ -307,11 +373,12 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 vtkIdType centerCellId = i + j * nx + k * nx * ny;
 
                 // Skip if no interface
-                double epsilon = 1e-10;
                 double vof_center = newVOF->GetComponent(centerCellId, 0);
                 if (vof_center <= epsilon || vof_center >= 1.0 - epsilon) {
                     continue;
                 }
+
+                int center_sid = structure_id[centerCellId]; // for pre-processing Herrmann style
 
                 no_filled_cells++;
 
@@ -372,9 +439,24 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                             double cz = 0.5 * (z0 + z1);
 
                             // Retrieve data
+                            int sid = structure_id[cellId];
+
+                            // If center has no structure id (shouldn't happen if vof_center is interface), skip cell
+                            // And if neighbor is not part of the same structure, ignore it for classification.
                             double alpha = newVOF->GetComponent(cellId, 0);
                             double bary[3];
                             newLiquidBarycenter->GetTuple(cellId, bary);
+
+                            if (preProcess) {
+                                if (center_sid < 0) {
+                                    // no liquid structure attached to center; safest is to skip classification. Should not happen.
+                                    continue; 
+                                }
+                                if (sid != center_sid) {
+                                    alpha = 0.0;
+                                    bary[0] = cx; bary[1] = cy; bary[2] = cz; // doesn't matter since alpha=0, but keeps physics correct
+                                }
+                            }
 
                             // Step 1: normalize position of cell center relative to central cell
                             // The cell centers form a grid in the training coordinate system
@@ -405,7 +487,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }
-
+                /* BFS preprocessing per stencil
                 if (preProcess == true) {
 
                     auto in_bounds = [&](int a, int b, int cidx) {
@@ -481,6 +563,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }
+                */
 
 
                 // Flatten stencil into 1D vector
