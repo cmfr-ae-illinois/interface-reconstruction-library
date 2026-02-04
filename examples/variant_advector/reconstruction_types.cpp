@@ -8,6 +8,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #include <mpi.h>
 #include <limits>
+#include <map>
 #include <tuple>
 
 #include "examples/variant_advector/reconstruction_types.h"
@@ -70,6 +71,18 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "SlicesTaubinLS") {
     SlicesTaubinLS::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
                                       a_V, a_W, a_interface);
+  } else if (a_reconstruction_method == "SlicesTaubinS") {
+    SlicesTaubinS::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
+                                     a_V, a_W, a_interface);
+  } else if (a_reconstruction_method == "PLICalign") {
+    PLICalign::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                 a_W, a_interface);
+  } else if (a_reconstruction_method == "PLICalign2") {
+    PLICalign2::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                  a_W, a_interface);
+  } else if (a_reconstruction_method == "MossoSwartz") {
+    MossoSwartz::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                   a_W, a_interface);
   } else if (a_reconstruction_method == "Hybrid") {
     Hybrid::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                               a_interface);
@@ -1281,7 +1294,7 @@ double getSignedTaubinCurvature(const std::vector<Eigen::Vector2d>& points,
     double xi = points[i].x(), yi = points[i].y();
     double zi = xi * xi + yi * yi;
     double w = weights[i];
-    w = 1.0;
+    // w = 1.0;
     Eigen::Vector4d u;
     u << zi, xi, yi, 1.0;
     M += w * u * u.transpose();  // weighted outer product
@@ -1747,7 +1760,9 @@ void getTaubinMatrices(
     const double dy = x1[1] - x0[1];
 
     // moment terms
-    std::vector<double> terms = getTaubinMomentTermsGL(x0[0], x0[1], dx, dy);
+    std::vector<double> terms = getTaubinMomentTerms(
+        x0[0], x0[1], dx,
+        dy);  // getTaubinMomentTermsGL for eval using Gauss-Legendre
     // 0 -> Mzz, 1 -> Mxz, 2 -> Myz, 3 -> Mz, 4 -> Mxx, 5 -> Mxy,
     // 6 -> Mx, 7 -> Myy, 8 -> My, 9 -> Le
 
@@ -1813,7 +1828,8 @@ double getSignedTaubinCurvatureLS(
   if (n < 2) return 0.0;  // zero curvature if only one line segment
 
   // moment and constraint matrices
-  Eigen::Matrix4d M, C;
+  Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
+  Eigen::Matrix4d C = Eigen::Matrix4d::Zero();
   getTaubinMatrices(end_points, weights, &M, &C);
 
   // solving generalized eigenvalue problem
@@ -2003,9 +2019,9 @@ void SlicesTaubinLS::getReconstruction(
           std::vector<std::pair<IRL::Pt, IRL::Pt>> end_points_local_frame;
           for (const auto& ep : end_points_list) {
             IRL::Pt p1_local =
-                toLocal(polygon_frame, polygon_centroid, ep.first);
+                toLocal(rotated_polygon_frame, polygon_centroid, ep.first);
             IRL::Pt p2_local =
-                toLocal(polygon_frame, polygon_centroid, ep.second);
+                toLocal(rotated_polygon_frame, polygon_centroid, ep.second);
             end_points_local_frame.push_back({p1_local, p2_local});
           }
 
@@ -2042,6 +2058,865 @@ void SlicesTaubinLS::getReconstruction(
             IRL::Pt(polygon_centroid +
                     solver_distance.getDistance() * darboux_frame[2]));
         (*a_interface)(i, j, k) = paraboloid;
+      }
+    }
+  }
+}
+
+// ====================== Taubin fit using sphere =======================
+
+// monomial integral for barycentric coordinates
+double monomialIntegral(const int& i, const int& j, const int& k,
+                        const double& area) {
+  auto factorial = [](int n) {
+    if (n < 0) throw std::invalid_argument("negative n");
+    double result = 1.0;
+    for (int i = 2; i <= n; ++i) result *= i;
+    return result;
+  };
+  return 2.0 * area * factorial(i) * factorial(j) * factorial(k) /
+         factorial(i + j + k + 2);
+}
+
+using Poly = std::map<std::tuple<int, int, int>, double>;  // (i, j, k) -> coeff
+
+Poly addPoly(const Poly& a, const Poly& b) {
+  Poly out = a;
+  for (auto& [e, c] : b) out[e] += c;
+  return out;
+}
+
+Poly mulPoly(const Poly& a, const Poly& b, int maxDeg = 4) {
+  Poly out;
+  for (auto& [ea, ca] : a) {
+    auto [ia, ja, ka] = ea;
+    for (auto& [eb, cb] : b) {
+      auto [ib, jb, kb] = eb;
+      int i = ia + ib, j = ja + jb, k = ka + kb;
+      if (i + j + k > maxDeg) continue;
+      out[{i, j, k}] += ca * cb;
+    }
+  }
+  return out;
+}
+
+double integratePoly(const Poly& p, const double& A) {
+  double I = 0.0;
+  for (auto& [e, c] : p) {
+    auto [i, j, k] = e;
+    I += c * monomialIntegral(i, j, k, A);
+  }
+  return I;
+}
+
+// barycentric coordinate formulation
+Poly makeX(const double& x1, const double& x2, const double& x3) {
+  Poly x;
+  x[{1, 0, 0}] = x1;
+  x[{0, 1, 0}] = x2;
+  x[{0, 0, 1}] = x3;
+  return x;
+}
+
+void getSphereFitMatrices(
+    Eigen::Matrix<double, 5, 5>* M, Eigen::Matrix<double, 5, 5>* C,
+    const std::vector<std::pair<IRL::Polygon, double>>& polygons) {
+  // loop over polygons
+  for (const auto& [poly, w] : polygons) {
+    const int n_simplices = poly.getNumberOfSimplicesInDecomposition();
+    double A_polygon = 0.0;
+
+    double Mx = 0.0, My = 0.0, Mz = 0.0;
+    double Mxx = 0.0, Myy = 0.0, Mzz = 0.0;
+    double Mxy = 0.0, Mxz = 0.0, Myz = 0.0;
+    double Ms = 0.0;
+    double Mxs = 0.0, Mys = 0.0, Mzs = 0.0;
+    double Mss = 0.0;
+
+    // loop over simplices
+    for (int t = 0; t < n_simplices; t++) {
+      const auto& triangle = poly.getSimplexFromDecomposition(t);
+
+      double A = triangle.calculateVolume();  // area of triangle
+      A_polygon += A;
+
+      // linear barycentric polynomials
+      Poly x = makeX(triangle[0][0], triangle[1][0], triangle[2][0]);
+      Poly y = makeX(triangle[0][1], triangle[1][1], triangle[2][1]);
+      Poly z = makeX(triangle[0][2], triangle[1][2], triangle[2][2]);
+      Poly s = addPoly(mulPoly(x, x), addPoly(mulPoly(y, y), mulPoly(z, z)));
+
+      Mx += integratePoly(x, A);
+      My += integratePoly(y, A);
+      Mz += integratePoly(z, A);
+
+      Mxx += integratePoly(mulPoly(x, x), A);
+      Myy += integratePoly(mulPoly(y, y), A);
+      Mzz += integratePoly(mulPoly(z, z), A);
+      Mxy += integratePoly(mulPoly(x, y), A);
+      Mxz += integratePoly(mulPoly(x, z), A);
+      Myz += integratePoly(mulPoly(y, z), A);
+
+      Ms += integratePoly(s, A);
+      Mxs += integratePoly(mulPoly(x, s), A);
+      Mys += integratePoly(mulPoly(y, s), A);
+      Mzs += integratePoly(mulPoly(z, s), A);
+      Mss += integratePoly(mulPoly(s, s), A);
+    }
+    // polygon moment matrix contribution
+    (*M)(0, 0) += Mss / A_polygon * w;
+    (*M)(0, 1) += Mxs / A_polygon * w;
+    (*M)(0, 2) += Mys / A_polygon * w;
+    (*M)(0, 3) += Mzs / A_polygon * w;
+    (*M)(0, 4) += Ms / A_polygon * w;
+    (*M)(1, 0) += Mxs / A_polygon * w;
+    (*M)(1, 1) += Mxx / A_polygon * w;
+    (*M)(1, 2) += Mxy / A_polygon * w;
+    (*M)(1, 3) += Mxz / A_polygon * w;
+    (*M)(1, 4) += Mx / A_polygon * w;
+    (*M)(2, 0) += Mys / A_polygon * w;
+    (*M)(2, 1) += Mxy / A_polygon * w;
+    (*M)(2, 2) += Myy / A_polygon * w;
+    (*M)(2, 3) += Myz / A_polygon * w;
+    (*M)(2, 4) += My / A_polygon * w;
+    (*M)(3, 0) += Mzs / A_polygon * w;
+    (*M)(3, 1) += Mxz / A_polygon * w;
+    (*M)(3, 2) += Myz / A_polygon * w;
+    (*M)(3, 3) += Mzz / A_polygon * w;
+    (*M)(3, 4) += Mz / A_polygon * w;
+    (*M)(4, 0) += Ms / A_polygon * w;
+    (*M)(4, 1) += Mx / A_polygon * w;
+    (*M)(4, 2) += My / A_polygon * w;
+    (*M)(4, 3) += Mz / A_polygon * w;
+    (*M)(4, 4) += 1.0 * w;
+  }
+  // constraint matrix
+  (*C)(0, 0) = 4.0 * ((*M)(0, 4));
+  (*C)(0, 1) = 2.0 * ((*M)(1, 4));
+  (*C)(0, 2) = 2.0 * ((*M)(2, 4));
+  (*C)(0, 3) = 2.0 * ((*M)(3, 4));
+  (*C)(1, 0) = 2.0 * ((*M)(1, 4));
+  (*C)(2, 0) = 2.0 * ((*M)(2, 4));
+  (*C)(3, 0) = 2.0 * ((*M)(3, 4));
+  (*C)(1, 1) = (*M)(4, 4);
+  (*C)(2, 2) = (*M)(4, 4);
+  (*C)(3, 3) = (*M)(4, 4);
+}
+
+std::pair<IRL::Pt, double> getSphereParams(
+    const std::vector<std::pair<IRL::Polygon, double>>& polygons) {  //,
+  // const std::vector<double>& weights) {
+  const int n = polygons.size();
+  if (n < 2) return {IRL::Pt(0.0, 0.0, 0.0), 0.0};  // only one polygon segment
+
+  // moment and constraint matrices
+  Eigen::Matrix<double, 5, 5> M = Eigen::Matrix<double, 5, 5>::Zero();
+  Eigen::Matrix<double, 5, 5> C = Eigen::Matrix<double, 5, 5>::Zero();
+  getSphereFitMatrices(&M, &C, polygons);
+
+  // solving generalized eigenvalue problem
+  Eigen::GeneralizedEigenSolver<Eigen::Matrix<double, 5, 5>> ges;
+  ges.compute(M, C);
+
+  // eigen values/vectors
+  const auto& evals = ges.eigenvalues();
+  const auto& evecs = ges.eigenvectors();
+
+  // need to find eigenvector with smallest non-negative real eigenvalue
+  int bestIndex = -1;
+  double bestLambda = std::numeric_limits<double>::infinity();
+  for (int i = 0; i < 5; i++) {
+    const auto lam = evals(i);
+    if (std::abs(lam.imag()) > 1e-9) continue;
+    const double lambdaReal = lam.real();
+    if (lambdaReal <= 0.0) continue;
+    if (lambdaReal < bestLambda) {
+      bestLambda = lambdaReal;
+      bestIndex = i;
+    }
+  }
+  if (bestIndex < 0) {  // no eigenvalue found
+    return std::numeric_limits<std::pair<IRL::Pt, double>>::quiet_NaN();
+  }
+
+  // extracting eigenvector components
+  Eigen::Matrix<std::complex<double>, 5, 1> v_c = evecs.col(bestIndex);
+  Eigen::Matrix<double, 5, 1> a = v_c.real();
+  double A = a(0);
+  double B = a(1);
+  double Cc = a(2);
+  double D = a(3);
+  double E = a(4);
+
+  if (std::abs(A) < 1e-14) {
+    return {IRL::Pt(0.0, 0.0, 0.0), 0.0};  // infinite radius
+  }
+
+  // finding radius of curvature
+  const double num = B * B + Cc * Cc + D * D - 4.0 * A * E;
+  if (num <= 0.0) {
+    return std::numeric_limits<std::pair<IRL::Pt, double>>::quiet_NaN();
+  }
+  const double R = 0.5 * std::sqrt(num) / std::abs(A);
+  IRL::Pt xc(-a(1) / (2.0 * A), -a(2) / (2.0 * A), -a(3) / (2.0 * A));
+
+  return {xc, R};
+}
+
+// normal from sphere
+IRL::Normal getNormalFromSphere(const IRL::Pt& center, const IRL::Pt& p,
+                                const IRL::Normal& n_plic) {
+  IRL::Pt v = p - center;
+  IRL::Normal n(v[0], v[1], v[2]);
+  n.normalize();
+
+  // changing orientation based on plic
+  if (n * n_plic < 0) {
+    return -n;
+  } else {
+    return n;
+  }
+}
+
+void localizePolygons(std::vector<std::pair<IRL::Polygon, double>>* polygons,
+                      const int& center_index) {
+  const IRL::Polygon& center_polygon = (*polygons)[center_index].first;
+  const IRL::Pt datum = center_polygon.calculateCentroid();
+  const IRL::ReferenceFrame frame = IRL::ReferenceFrame::fromNormal(
+      center_polygon.getPlaneOfExistence().normal());
+
+  for (auto& [polygon, weight] : *polygons) {
+    // moving vertices
+    for (auto& pt : polygon) {
+      const IRL::Pt tmp_pt = pt - datum;
+      for (int d = 0; d < 3; d++) {
+        pt[d] = frame[d] * tmp_pt;
+      }
+    }
+    if (polygon.getNumberOfVertices() > 0) {
+      // aligning normals
+      const auto& plane = polygon.getPlaneOfExistence();
+      IRL::Normal normal = plane.normal();
+      const IRL::Normal tmp_normal = plane.normal();
+      for (int d = 0; d < 3; ++d) {
+        normal[d] = frame[d] * tmp_normal;
+      }
+      polygon.setPlaneOfExistence(IRL::Plane(normal, normal * polygon[0]));
+    }
+  }
+}
+
+// Taubin's approximation to gradient weighted algrabric fit
+void SlicesTaubinS::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+  // PLIC
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface);
+  }
+
+  // clipped PLIC polygons
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+  Data<IRL::Polygon> polygon(&mesh);
+  Data<double> vf(&mesh);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        vf(i, j, k) = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            vf(i, j, k) > IRL::global_constants::VF_HIGH) {
+          continue;
+        }
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+            IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+        const auto planar_separator =
+            std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+        polygon(i, j, k) = IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+            cell, planar_separator, planar_separator[0]);
+      }
+    }
+  }
+  updatePolygonBorder(&polygon);
+
+  // storing normals
+  Data<IRL::Normal> aligned_normals(&mesh);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        if (vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        std::vector<std::pair<IRL::Polygon, double>> polygons;
+        const auto planar_separator =
+            std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+        IRL::Normal n_plic = planar_separator[0].normal();
+        IRL::Pt centroid = polygon(i, j, k).calculateCentroid();
+        const int nlayers = 2;
+        int center_index = 0;
+        int index_count = 0;
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() <= 2) continue;
+              const auto planar_separator_n =
+                  std::get<IRL::PlanarSeparator>((*a_interface)(ii, jj, kk));
+              IRL::Normal n_plic_n = planar_separator_n[0].normal();
+              IRL::Pt centroid_n = polygon(ii, jj, kk).calculateCentroid();
+              double weight = getTotalWeight(vf(ii, jj, kk), n_plic, n_plic_n,
+                                             centroid, centroid_n, mesh.dx());
+              // weight = 1.0;
+              polygons.push_back(std::make_pair(polygon(ii, jj, kk), weight));
+              if (kk == k && jj == j && ii == i) center_index = index_count;
+              index_count++;
+            }
+          }
+        }
+        localizePolygons(&polygons, center_index);
+
+        // sphere center and radius
+        std::pair<IRL::Pt, double> sphere_params = getSphereParams(polygons);
+
+        // sphere center to global frame
+        IRL::ReferenceFrame frame = IRL::ReferenceFrame::fromNormal(
+            polygon(i, j, k).getPlaneOfExistence().normal());
+        const IRL::Pt x0 = polygon(i, j, k).calculateCentroid();
+        IRL::Pt xc_global;
+        for (int e = 0; e < 3; e++) {
+          for (int d = 0; d < 3; d++) {
+            xc_global[e] += frame[d][e] * sphere_params.first[d];
+          }
+        }
+        xc_global += x0;
+
+        // normal from sphere
+        aligned_normals(i, j, k) = getNormalFromSphere(xc_global, x0, n_plic);
+
+        // const IRL::Pt p(0.0, 0.0, 0.0);  // localized plic centroid
+        // IRL::Normal n = getNormalFromSphere(sphere_params.first, p);
+        // // normal to global frame
+
+        // IRL::Normal temp_n = n;
+        // n[0] = frame[0][0] * temp_n[0] + frame[1][0] * temp_n[1] +
+        //        frame[2][0] * temp_n[2];
+        // n[1] = frame[0][1] * temp_n[0] + frame[1][1] * temp_n[1] +
+        //        frame[2][1] * temp_n[2];
+        // n[2] = frame[0][2] * temp_n[0] + frame[1][2] * temp_n[1] +
+        //        frame[2][2] * temp_n[2];
+        // if (n * n_plic < 0.0) {
+        //   n = -n;
+        // }
+        // aligned_normals(i, j, k) = n;
+      }
+    }
+  }
+
+  // slicing and circle fit params
+  const int nsamples_per_segment = 10;
+  const int nslices = 18;
+  const int nlayers = 2;
+
+  std::vector<std::pair<IRL::Polygon, double>> polygon_vfrac_list;
+  polygon_vfrac_list.reserve(125);
+  IRL::StackVector<IRL::Pt, 2> intersections;
+
+  // computing circle fit for each mixed cell (or each cell with polygon)
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (polygon(i, j, k).getNumberOfVertices() <= 2) continue;
+
+        // polygon local frame
+        // const IRL::Normal polygon_normal =
+        //     calculatePolygonNormal(polygon(i, j, k));
+        const IRL::Normal polygon_normal = aligned_normals(i, j, k);
+        IRL::ReferenceFrame polygon_frame =
+            referenceFrameFromNormal(polygon_normal);
+        const IRL::Pt polygon_centroid = polygon(i, j, k).calculateCentroid();
+
+        // stencil polygon and volume fraction data
+        polygon_vfrac_list.clear();
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() <= 2) continue;
+              polygon_vfrac_list.emplace_back(polygon(ii, jj, kk),
+                                              vf(ii, jj, kk));
+            }
+          }
+        }
+        const int num_polygons = polygon_vfrac_list.size();
+
+        // revert back to plane if there are no polygons in the neighboring
+        // stencil. Circle fit will fail if all points are collinear
+        if (num_polygons < 2) continue;  // back to LVIRA
+
+        // accumulator for prinical curvature and direction least squares
+
+        // slicing about local normal [0, pi)
+        std::vector<double> theta_list, k_theta_list;
+        for (int s = 0; s < nslices; s++) {
+          // rotation angle
+          double theta =
+              M_PI * static_cast<double>(s) / static_cast<double>(nslices);
+
+          // rotating local polygon frame
+          const IRL::UnitQuaternion rotation(theta, polygon_frame[2]);
+          const auto rotated_polygon_frame = rotation * polygon_frame;
+
+          // slicing plane
+          const IRL::Plane slicing_plane(
+              rotated_polygon_frame[1],
+              rotated_polygon_frame[1] * polygon_centroid);
+
+          // slicing polygon stencial with plane and collecting info
+          std::vector<std::pair<IRL::Pt, IRL::Pt>> end_points_list;
+          std::vector<double> weights;
+          for (int p = 0; p < num_polygons; p++) {
+            getIntersectionPts(polygon_vfrac_list[p].first, slicing_plane,
+                               &intersections);
+            if (intersections.size() != 2) continue;
+            // end points for sampling
+            IRL::Pt start_point = intersections[0];
+            IRL::Pt end_point = intersections[1];
+            end_points_list.push_back({start_point, end_point});
+            // computing weights
+            IRL::Normal neighbor_normal =
+                calculatePolygonNormal(polygon_vfrac_list[p].first);
+            IRL::Normal neighbor_centroid =
+                (polygon_vfrac_list[p].first).calculateCentroid();
+            double neighbor_weight =
+                getTotalWeight(polygon_vfrac_list[p].second,
+                               rotated_polygon_frame[2], neighbor_normal,
+                               polygon_centroid, neighbor_centroid, mesh.dx());
+            weights.insert(weights.end(), nsamples_per_segment,
+                           neighbor_weight);  // all points sampled on a
+                                              // segment have the same weight
+          }
+
+          // getting points in local frame
+          const int num_points = end_points_list.size() * nsamples_per_segment;
+          std::vector<Eigen::Vector2d> points_rotated_frame;
+          points_rotated_frame.reserve(num_points);
+          sampleLocalPoints(rotated_polygon_frame, polygon_centroid,
+                            end_points_list, nsamples_per_segment,
+                            &points_rotated_frame);
+
+          // taubin circle fit using points in local frame for curvature
+          double k_theta =
+              getSignedTaubinCurvature(points_rotated_frame, weights);
+          if (std::isfinite(k_theta)) {
+            theta_list.push_back(theta);
+            k_theta_list.push_back(k_theta);
+          }
+        }
+        // principal curvatures and directions
+        auto [k1, k2, phi, ok] =
+            getPrincipalCurvatures(theta_list, k_theta_list);
+        if (!ok) continue;  // plane
+
+        // Darboux frame
+        const IRL::UnitQuaternion rotate_phi(phi, polygon_frame[2]);
+        const IRL::ReferenceFrame darboux_frame = rotate_phi * polygon_frame;
+
+        // new paraboloid
+        IRL::Paraboloid paraboloid(polygon_centroid, darboux_frame, 0.5 * k1,
+                                   0.5 * k2);
+
+        // volume fraction matching
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+            solver_distance(cell, vf(i, j, k), 1.0e-14, paraboloid);
+        paraboloid.setDatum(
+            IRL::Pt(polygon_centroid +
+                    solver_distance.getDistance() * darboux_frame[2]));
+        (*a_interface)(i, j, k) = paraboloid;
+      }
+    }
+  }
+}
+
+// ====================== Relaligning PLIC normals =======================
+// normal of projecting point on paraboloid
+IRL::Normal getNormalAtProjectedPoint(const IRL::Pt& a_point,
+                                      const IRL::Paraboloid& a_paraboloid,
+                                      const int max_iter = 100,
+                                      const double tol = 1.0e-10) {
+  // reference frame and datum
+  const IRL::ReferenceFrame frame = a_paraboloid.getReferenceFrame();
+  const IRL::Pt datum = a_paraboloid.getDatum();
+
+  // coefficients
+  const double a = a_paraboloid.getAlignedParaboloid().a();
+  const double b = a_paraboloid.getAlignedParaboloid().b();
+
+  auto F = [&](const double& x, const double& y, const double& z) -> double {
+    return z + a * x * x + b * y * y;
+  };
+
+  auto gradF = [&](const double& x, const double& y,
+                   const double& z) -> Eigen::Vector3d {
+    return Eigen::Vector3d(2.0 * a * x, 2.0 * b * y, 1.0);
+  };
+
+  // point in local frame
+  IRL::Pt local_pt = toLocal(frame, datum, a_point);
+  Eigen::Vector3d x_proj(local_pt[0], local_pt[1], local_pt[2]);
+
+  // newton iterations
+  for (int i = 0; i < max_iter; i++) {
+    const double f = F(x_proj[0], x_proj[1], x_proj[2]);
+    const Eigen::Vector3d g = gradF(x_proj[0], x_proj[1], x_proj[2]);
+    const double g_norm2 = g.squaredNorm();
+    if (g_norm2 < 1.0e-14) break;
+    x_proj -= (f / g_norm2) * g;
+    if (std::abs(f) < tol) break;
+    if (i == max_iter - 1) {
+      std::cout << "Max iterations reached. Projection incomplete. "
+                << "f = " << std::abs(f) << std::endl;
+    }
+  }
+
+  // normal at projected point
+  Eigen::Vector3d normal_vec = gradF(x_proj[0], x_proj[1], x_proj[2]);
+  normal_vec.normalize();
+
+  // bring it back to global frame
+  Eigen::Vector3d e1(frame[0][0], frame[0][1], frame[0][2]);
+  Eigen::Vector3d e2(frame[2][0], frame[2][1], frame[2][2]);
+  Eigen::Vector3d e3(frame[1][0], frame[1][1], frame[1][2]);
+  Eigen::Matrix3d R;
+  R.col(0) = e1;
+  R.col(1) = e2;
+  R.col(2) = e3;
+  Eigen::Vector3d normal_global = R * normal_vec;
+
+  return IRL::Normal(normal_global[0], normal_global[1], normal_global[2]);
+}
+
+// ===================== normal averaging =============================
+void PLICalign::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                  const Data<IRL::VolumeMoments>& a_gas_moments,
+                                  const double a_dt, const Data<double>& a_U,
+                                  const Data<double>& a_V,
+                                  const Data<double>& a_W,
+                                  Data<IRL::SeparatorVariant>* a_interface,
+                                  const bool a_plic_already_built) {
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface);
+  }
+
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+
+  // planar interface that will be updated iteratively
+  Data<IRL::SeparatorVariant> plic_interface(&mesh);
+  plic_interface = *a_interface;
+
+  using VolumeMomentsAndSurface =
+      IRL::AddSurfaceOutput<IRL::VolumeMoments,
+                            IRL::ParaboloidParametrizedSurfaceOutput>;
+
+  const int n_iters = 100;  // iterations of realigning normals
+
+  for (int it = 0; it < n_iters; ++it) {
+    // taubin paraboloid fit
+    Data<IRL::SeparatorVariant> taubin_interface(&mesh);
+    taubin_interface = plic_interface;
+    SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
+                                    a_V, a_W, &taubin_interface, true);
+
+    // realigning plic normals using taubin paraboloid
+    for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+        for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+          double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+          if (vf < IRL::global_constants::VF_LOW ||
+              vf > IRL::global_constants::VF_HIGH)
+            continue;
+          auto cell = IRL::RectangularCuboid::fromBoundingPts(
+              IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+              IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+
+          const auto* parab =
+              std::get_if<IRL::Paraboloid>(&(taubin_interface(i, j, k)));
+          if (!parab) continue;
+          auto* planar =
+              std::get_if<IRL::PlanarSeparator>(&(plic_interface(i, j, k)));
+          if (!planar) continue;
+
+          // parameterized paraboloid surface
+          auto surface =
+              IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, *parab)
+                  .getSurface();
+
+          // average normal on paraboloid surface
+          IRL::Normal n_avg = surface.getAverageNormalNonAligned();
+
+          IRL::Pt cell_center(mesh.xm(i), mesh.ym(j), mesh.zm(k));
+          IRL::Plane updated_plane(n_avg, n_avg * cell_center);
+
+          IRL::PlanarSeparator updated_ps =
+              IRL::PlanarSeparator::fromOnePlane(updated_plane);
+
+          IRL::setDistanceToMatchVolumeFraction(cell, vf, &updated_ps);
+
+          plic_interface(i, j, k) = updated_ps;
+        }
+      }
+    }
+  }
+
+  // taubin paraboloid with new plics
+  SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                  a_W, &plic_interface, true);
+
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        (*a_interface)(i, j, k) = plic_interface(i, j, k);
+      }
+    }
+  }
+}
+
+void PLICalign2::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface);
+  }
+
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+
+  // planar interface that will be updated iteratively
+  Data<IRL::SeparatorVariant> plic_interface(&mesh);
+  plic_interface = *a_interface;
+
+  // taubin fit
+  Data<IRL::SeparatorVariant> taubin_interface(&mesh);
+  taubin_interface = *a_interface;
+  SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                  a_W, &taubin_interface, true);
+
+  using VolumeMomentsAndSurface =
+      IRL::AddSurfaceOutput<IRL::VolumeMoments,
+                            IRL::ParaboloidParametrizedSurfaceOutput>;
+
+  Data<std::pair<IRL::Normal, int>> normal_contribution(&mesh);
+
+  const int nlayers = 2;
+
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              double vf_neighbor =
+                  a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+              if (vf_neighbor < IRL::global_constants::VF_LOW ||
+                  vf_neighbor > IRL::global_constants::VF_HIGH)
+                continue;
+
+              const auto* parab =
+                  std::get_if<IRL::Paraboloid>(&(taubin_interface(ii, jj, kk)));
+              if (!parab) continue;
+
+              auto cell = IRL::RectangularCuboid::fromBoundingPts(
+                  IRL::Pt(mesh.x(ii), mesh.y(jj), mesh.z(kk)),
+                  IRL::Pt(mesh.x(ii + 1), mesh.y(jj + 1), mesh.z(kk + 1)));
+
+              // parameterized paraboloid surface
+              auto surface =
+                  IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, *parab)
+                      .getSurface();
+
+              // average normal on paraboloid surface
+              IRL::Normal n_avg = surface.getAverageNormalNonAligned();
+
+              normal_contribution(ii, jj, kk).first += n_avg;
+              normal_contribution(ii, jj, kk).second += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // updating plic normals
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+            IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+        IRL::Normal n_avg =
+            normal_contribution(i, j, k).first /
+            static_cast<double>(normal_contribution(i, j, k).second);
+        n_avg.normalize();
+        IRL::Pt cell_center(mesh.xm(i), mesh.ym(j), mesh.zm(k));
+        IRL::Plane plane(n_avg, n_avg * cell_center);
+        IRL::PlanarSeparator updated_ps =
+            IRL::PlanarSeparator::fromOnePlane(plane);
+        IRL::setDistanceToMatchVolumeFraction(cell, vf, &updated_ps);
+        taubin_interface(i, j, k) = updated_ps;
+      }
+    }
+  }
+  // final taubin paraboloid with new plics
+  SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                                  a_W, &taubin_interface, true);
+
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        (*a_interface)(i, j, k) = taubin_interface(i, j, k);
+      }
+    }
+  }
+}
+
+// ====================== Mosso Swartz =======================
+// function to rotate a vector about an axis
+Eigen::Vector3d rotate_about_axis(const Eigen::Vector3d& v,
+                                  const Eigen::Vector3d& axis,
+                                  const double& theta) {
+  return v + std::sin(theta) * axis.cross(v) +
+         (1.0 - std::cos(theta)) * axis.cross(axis.cross(v));
+}
+
+void MossoSwartz::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface);
+  }
+
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+
+  const int max_iter = 4;
+
+  for (int iter = 0; iter < max_iter; ++iter) {
+    Data<IRL::SeparatorVariant> updated_interfaces(&mesh);
+    updated_interfaces = *a_interface;
+
+    for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+        for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+          double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+          if (vf < IRL::global_constants::VF_LOW ||
+              vf > IRL::global_constants::VF_HIGH)
+            continue;
+          auto cell = IRL::RectangularCuboid::fromBoundingPts(
+              IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+              IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+          const auto planar_separator =
+              std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+          IRL::Polygon target_polygon =
+              IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                  cell, planar_separator, planar_separator[0]);
+          IRL::Pt targ_centroid = target_polygon.calculateCentroid();
+          IRL::Normal targ_normal = planar_separator[0].normal();
+          Eigen::Vector3d target_centroid(targ_centroid[0], targ_centroid[1],
+                                          targ_centroid[2]);
+          Eigen::Vector3d target_normal(targ_normal[0], targ_normal[1],
+                                        targ_normal[2]);
+          std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>
+              stencil_quantities;  // centroids and normals
+
+          // gathering stencil quantities
+          for (int kk = k - 1; kk <= k + 1; ++kk) {
+            for (int jj = j - 1; jj <= j + 1; ++jj) {
+              for (int ii = i - 1; ii <= i + 1; ++ii) {
+                if (i == ii && j == jj && k == kk) continue;
+                double vf_neighbor =
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+                if (vf_neighbor < IRL::global_constants::VF_LOW ||
+                    vf_neighbor > IRL::global_constants::VF_HIGH)
+                  continue;
+                auto neighbor_cell = IRL::RectangularCuboid::fromBoundingPts(
+                    IRL::Pt(mesh.x(ii), mesh.y(jj), mesh.z(kk)),
+                    IRL::Pt(mesh.x(ii + 1), mesh.y(jj + 1), mesh.z(kk + 1)));
+                const auto neighbor_planar_separator =
+                    std::get<IRL::PlanarSeparator>((*a_interface)(ii, jj, kk));
+                IRL::Polygon neighbor_polygon =
+                    IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                        neighbor_cell, neighbor_planar_separator,
+                        neighbor_planar_separator[0]);
+                IRL::Pt neighbor_centroid =
+                    neighbor_polygon.calculateCentroid();
+                IRL::Normal neighbor_normal =
+                    neighbor_planar_separator[0].normal();
+                stencil_quantities.push_back(
+                    {Eigen::Vector3d(neighbor_centroid[0], neighbor_centroid[1],
+                                     neighbor_centroid[2]),
+                     Eigen::Vector3d(neighbor_normal[0], neighbor_normal[1],
+                                     neighbor_normal[2])});
+              }
+            }
+          }
+          // Mosso swartz update
+          std::vector<Eigen::Vector3d> rotated_normals;
+          Eigen::Vector3d rotated_normal_sum = Eigen::Vector3d::Zero();
+          for (const auto& sq : stencil_quantities) {
+            Eigen::Vector3d d = sq.first - target_centroid;
+            if (d.norm() < 1e-12) continue;
+            d.normalize();
+            Eigen::Vector3d axis = d.cross(target_normal);
+            if (axis.norm() < 1e-12) continue;
+            axis.normalize();
+            double angle = M_PI / 2.0;
+            Eigen::Vector3d rotated_normal = rotate_about_axis(d, axis, angle);
+            rotated_normal.normalize();
+            if (rotated_normal.dot(target_normal) < 0.0) {
+              rotated_normal = -rotated_normal;
+            }
+            rotated_normal_sum += rotated_normal;
+            rotated_normals.push_back(rotated_normal);
+          }
+          IRL::Normal new_normal(rotated_normal_sum[0], rotated_normal_sum[1],
+                                 rotated_normal_sum[2]);
+          if (rotated_normals.empty()) continue;
+          new_normal /= rotated_normals.size();
+          new_normal.normalize();
+
+          // plane with new normal
+          IRL::Pt cell_center(mesh.xm(i), mesh.ym(j), mesh.zm(k));
+          IRL::Plane plane(new_normal, new_normal * cell_center);
+          IRL::PlanarSeparator updated_ps =
+              IRL::PlanarSeparator::fromOnePlane(plane);
+          IRL::setDistanceToMatchVolumeFraction(cell, vf, &updated_ps);
+          updated_interfaces(i, j, k) = updated_ps;
+        }
+      }
+    }
+    for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+        for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+          (*a_interface)(i, j, k) = updated_interfaces(i, j, k);
+        }
       }
     }
   }
