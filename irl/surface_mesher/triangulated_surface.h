@@ -146,6 +146,8 @@ class MixedPolygonBezierSurface {
   void clearBoundaries(void);
   void clearAll(void);
   void write(const std::string& filename, const bool a_write_boundary = false);
+  void addCellData(const std::string& filename, const std::string& fieldname,
+                   const std::vector<double>& data);
 
  private:
   PointStorage points_m;

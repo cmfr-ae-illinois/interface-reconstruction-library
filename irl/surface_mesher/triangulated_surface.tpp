@@ -619,6 +619,60 @@ inline void MixedPolygonBezierSurface::write(const std::string& filename,
   }
 }
 
+inline void MixedPolygonBezierSurface::addCellData(
+    const std::string& filename, const std::string& fieldname,
+    const std::vector<double>& data) {
+  const UnsignedIndex_t number_of_polygons = polygons_m.first.size();
+  const UnsignedIndex_t number_of_triangles = bezier_triangles_m.size();
+
+  std::ifstream in(std::string(filename + ".vtu"));
+  std::ofstream out("temp.vtu");
+  std::string line;
+
+  // First, figure out if CellData has already been defined
+  bool celldata_exists = false;
+  while (std::getline(in, line) && !celldata_exists) {
+    if (line.find(std::string("<CellData>")) != std::string::npos) {
+      celldata_exists = true;
+    }
+  }
+
+  // Rewind file
+  in.clear();                  // 1. Clear the error/EOF flags
+  in.seekg(0, std::ios::beg);  // 2. Move the pointer to start
+
+  // Second, go through file and add cell data
+  while (std::getline(in, line)) {
+    if (celldata_exists &&
+        line.find(std::string("</CellData>")) != std::string::npos) {
+      out << "<DataArray type=\"Float64\" Name=\"" << fieldname
+          << "\" format=\"ascii\">\n";
+      for (UnsignedIndex_t i = 0; i < number_of_triangles + number_of_polygons;
+           ++i) {
+        out << std::scientific << std::setprecision(6) << data[i] << '\n';
+      }
+      out << "</DataArray>\n";
+
+    } else if (!celldata_exists &&
+               line.find(std::string("</Piece>")) != std::string::npos) {
+      out << "<CellData>\n<DataArray type=\"Float64\" Name=\"" << fieldname
+          << "\" format=\"ascii\">\n";
+      for (UnsignedIndex_t i = 0; i < number_of_triangles + number_of_polygons;
+           ++i) {
+        out << std::scientific << std::setprecision(6) << data[i] << '\n';
+      }
+      out << "</DataArray>\n</CellData>\n";
+    }
+    out << line << '\n';
+  }
+
+  in.close();
+  out.close();
+
+  std::remove(std::string(filename + ".vtu").c_str());
+  std::rename("temp.vtu", std::string(filename + ".vtu").c_str());
+}
+
 inline std::ostream& operator<<(
     std::ostream& out,
     const TriangulatedSurfaceOutput& a_triangulated_surface) {
