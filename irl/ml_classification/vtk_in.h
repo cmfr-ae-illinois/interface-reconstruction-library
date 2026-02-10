@@ -27,9 +27,8 @@
 namespace IRL {
 
 void classify_simulation(IRL::Classifier& classifier, const std::string& filename, 
-    int cannonicalize_symmetries = 0, int preProcess = false, std::vector<int>* savedClasses = nullptr) 
+    int cannonicalize_symmetries = 0, int preProcess = false, int include_Moments = 1, std::vector<int>* savedClasses = nullptr) 
     {
-
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filename.c_str());
     //reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
@@ -288,7 +287,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     int stencil_size_reader = classifier.getStencilSize();
     int half = stencil_size_reader / 2;
-    int from_Moments = 1; //classifier.getFromMoments(); or something similar later
+
     double epsilon = 1e-10;
 
     int no_filled_cells = 0;
@@ -301,6 +300,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     double start_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
     // Preprocessing Herrmann2010a below
+    /*
     std::vector<int> structure_id(newVOF->GetNumberOfTuples(), -1);
 
     auto coarseId = [&](int ii, int jj, int kk) -> vtkIdType {
@@ -364,6 +364,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     std::cout << "Global structure identification (coarse grid): "
             << next_id << " structures tagged." << std::endl;
+    */
 
     // Loop through interior cells (excluding half-cell boundary)
     for (int i = half; i < nx - half; ++i) {
@@ -378,7 +379,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     continue;
                 }
 
-                int center_sid = structure_id[centerCellId]; // for pre-processing Herrmann style
+                //int center_sid = structure_id[centerCellId]; // for pre-processing Herrmann style
 
                 no_filled_cells++;
 
@@ -438,15 +439,17 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                             double cy = 0.5 * (y0 + y1);
                             double cz = 0.5 * (z0 + z1);
 
-                            // Retrieve data
-                            int sid = structure_id[cellId];
+                            // Retrieve data for Herrmann2010a preprocessing
+                            //int sid = structure_id[cellId];
 
                             // If center has no structure id (shouldn't happen if vof_center is interface), skip cell
                             // And if neighbor is not part of the same structure, ignore it for classification.
                             double alpha = newVOF->GetComponent(cellId, 0);
                             double bary[3];
                             newLiquidBarycenter->GetTuple(cellId, bary);
-
+                            
+                            // Below is Herrmann2010a preprocessing
+                            /*
                             if (preProcess) {
                                 if (center_sid < 0) {
                                     // no liquid structure attached to center; safest is to skip classification. Should not happen.
@@ -457,6 +460,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                                     bary[0] = cx; bary[1] = cy; bary[2] = cz; // doesn't matter since alpha=0, but keeps physics correct
                                 }
                             }
+                            */
 
                             // Step 1: normalize position of cell center relative to central cell
                             // The cell centers form a grid in the training coordinate system
@@ -487,7 +491,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }
-                /* BFS preprocessing per stencil
+                // BFS preprocessing per stencil
                 if (preProcess == true) {
 
                     auto in_bounds = [&](int a, int b, int cidx) {
@@ -563,18 +567,16 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }
-                */
-
 
                 // Flatten stencil into 1D vector
                 std::vector<double> flattened_state;
                 for (int si = 0; si < stencil_size_reader; ++si) {
                     for (int sj = 0; sj < stencil_size_reader; ++sj) {
                         for (int sk = 0; sk < stencil_size_reader; ++sk) {
-                            if (from_Moments >= 0) {
+                            if (include_Moments >= 0) {
                                 flattened_state.push_back(vfrac[si][sj][sk]);
                             }
-                            if (from_Moments >= 1) {
+                            if (include_Moments >= 1) {
                                 flattened_state.push_back(firstMoment[si][sj][sk].x());
                                 flattened_state.push_back(firstMoment[si][sj][sk].y());
                                 flattened_state.push_back(firstMoment[si][sj][sk].z());
@@ -582,13 +584,22 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }
+                if (include_Moments >= 2) {
+                    Eigen::Matrix3d secondMoment = IRL::compute2ndMoment(flattened_state, stencil_size_reader, /*from_ith_moment=*/1);
+                    flattened_state.push_back(secondMoment(0, 0)); // xx
+                    flattened_state.push_back(secondMoment(1, 1)); // yy
+                    flattened_state.push_back(secondMoment(2, 2)); // zz
+                    flattened_state.push_back(secondMoment(0, 1)); // xy
+                    flattened_state.push_back(secondMoment(0, 2)); // xz
+                    flattened_state.push_back(secondMoment(1, 2)); // yz
+                }
 
                 // Make flattened_state a float vector
                 std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
 
                 //Cannonicalize stencil
                 if (cannonicalize_symmetries > 0) {
-                    IRL::rotate_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries);
+                    IRL::rotate_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments);
                 }  
 
                 // Classify

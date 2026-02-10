@@ -160,8 +160,8 @@ void simulation_stability_analysis() {
                             max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
                             max_sphere_radius, sphere_radius_stddev);                    
     
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin");
-    ml.generateDataset();
+    ml.loadDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_3M/data/data.bin");
+    //ml.generateDataset();
     int canonicalize_symmetries = 48;
     bool preProcess = true;
     ml.canonicalize_data(canonicalize_symmetries);
@@ -209,11 +209,21 @@ void simulation_stability_analysis() {
 
 int main(int argc, char* argv[]) {
     
-    simulation_stability_analysis();
+    //simulation_stability_analysis();
 
-    //IRL::Data_gen gen;
+    IRL::Data_gen gen;
 
-    //gen.generateState(4,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    //gen.generateState(5,5,2,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    int num_tests = 100;
+    for (int i=0; i<4; i++) {
+        float error = 0.0f;
+        for (int j=0; j<num_tests; j++) {
+            std::vector<float> errorVectorOut = gen.generateState(i,5,2,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,false,true);
+            error += errorVectorOut[0];  // The first element is the error
+        }
+        error = error / static_cast<float>(num_tests);
+        std::cout << "Class " << classNameFromType(i) << " average frobenius error: " << error << std::endl;
+    }
 
     /*
     For generating barycenter data

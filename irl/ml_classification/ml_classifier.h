@@ -40,6 +40,7 @@ protected:
     bool include_truncated_cylinder = false;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
+    bool exact_2nd_moment = false;
 
     //Internals
     Net net;
@@ -70,7 +71,8 @@ public:
                               double parab_std, double sheet_std,
                               double max_sheet_th, double sheet_th_std,
                               double max_cyl_r, double cyl_r_std, bool incl_trunc_cyl,
-                              double max_sph_r, double sph_r_std) {
+                              double max_sph_r, double sph_r_std,
+                              bool exact_2nd_mom) {
         no_batches = nb;
         include_Moments = incMoments;
         paraboloid_coeff_stddev = parab_std;
@@ -82,6 +84,7 @@ public:
         include_truncated_cylinder = incl_trunc_cyl;
         max_sphere_radius = max_sph_r;
         sphere_radius_stddev = sph_r_std;
+        exact_2nd_moment = exact_2nd_mom;
     }
 
     void generateDataset() {
@@ -189,6 +192,7 @@ public:
         meta << "include_truncated_cylinder " << include_truncated_cylinder << "\n";
         meta << "max_sphere_radius " << max_sphere_radius << "\n";
         meta << "sphere_radius_stddev " << sphere_radius_stddev << "\n";
+        meta << "exact_2nd_moment " << exact_2nd_moment << "\n";
         meta.close();
 
         std::cout << "💾 Dataset and parameters saved to " << dir_path << std::endl;
@@ -219,9 +223,6 @@ public:
             std::cerr << "⚠ No data loaded. Cannot canonicalize." << std::endl;
             return;
         }
-        const int cells_per_stencil = stencil_size * stencil_size * stencil_size;
-
-        const int stencil_flat_size = cells_per_stencil * 4;  // always 4 values per cell
 
         std::cout << "🔄 Canonicalizing " << statesV.size()
                 << " samples using " << no_symmetries << " symmetries..." << std::endl;
@@ -229,23 +230,23 @@ public:
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            if (flat.size() != stencil_flat_size) {
-                throw std::runtime_error(
-                    "Error: stencil size mismatch in canonicalize_data(). "
-                    "Expected " + std::to_string(stencil_flat_size) +
-                    " but got " + std::to_string(flat.size()));
-            }
-
-            IRL::rotate_stencil(flat, stencil_size, no_symmetries);
+            IRL::rotate_stencil(flat, stencil_size, no_symmetries, include_Moments);
         }
+        std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
         std::cout << "✅ Canonicalization complete!" << std::endl;
+
     }
 
 
     void trainModel() {
-        optimizer = std::make_unique<torch::optim::Adam>(
-            net.parameters(), torch::optim::AdamOptions(learning_rate));
+        optimizer = std::make_unique<torch::optim::AdamW>(
+            net.parameters(),
+            torch::optim::AdamWOptions(learning_rate)
+                .weight_decay(1e-4)     // start here
+                .betas(std::make_tuple(0.9, 0.999))
+                .eps(1e-8)
+        );
 
         int total_samples = statesV.size();
         int train_end = total_samples * 0.7;

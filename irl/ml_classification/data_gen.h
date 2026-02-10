@@ -66,6 +66,210 @@ namespace IRL {
                                 z);
         }
 
+        // Moment helpers below
+
+        inline std::vector<double> makeCenteredCoords(int stencil_size) {
+            std::vector<double> coords(stencil_size + 1);
+            for (int i = 0; i <= stencil_size; ++i) {
+                coords[i] = -0.5 * static_cast<double>(stencil_size) + static_cast<double>(i);
+            }
+            return coords;
+        }
+
+        inline std::vector<double> flattenVfrac(const std::vector<std::vector<std::vector<double>>>& vfrac,
+                                                int stencil_size) {
+            std::vector<double> flattened;
+            flattened.reserve(static_cast<size_t>(stencil_size) * stencil_size * stencil_size);
+            for (int i = 0; i < stencil_size; ++i)
+                for (int j = 0; j < stencil_size; ++j)
+                    for (int k = 0; k < stencil_size; ++k)
+                        flattened.push_back(vfrac[i][j][k]);
+            return flattened;
+        }
+
+        inline bool centerCellIsCut(const std::vector<std::vector<std::vector<double>>>& vfrac,
+                                    int stencil_size,
+                                    double machineZero) {
+            int mid = stencil_size / 2;
+            const double a = vfrac[mid][mid][mid];
+            return (a > machineZero && a < 1.0 - machineZero);
+        }
+
+        // Accumulate moments and fill vfrac/firstMoment using GeneralMoments
+        template <class CellType, class ReconstructionType>
+        inline void fillCellFromGeneralMoments2(const CellType& cell,
+                                                const ReconstructionType& recon,
+                                                double cell_volume,
+                                                double& out_vfrac,
+                                                Eigen::Vector3d& out_firstMoment,
+                                                IRL::GeneralMoments3D<2>& io_totalMoments) {
+            auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, recon);
+
+            const double vol = gm.volume();
+            out_vfrac = vol / cell_volume;
+
+            out_firstMoment << gm[1], gm[2], gm[3];
+
+            io_totalMoments += gm; // accumulate for stencil -> calculate 2nd moment later
+        }
+
+        // Fill vfrac/firstMoment using VolumeMoments
+        template <class VolumeMomentsAndSurfaceType, class CellType, class ReconstructionType>
+        inline void fillCellFromVolumeMomentsAndSurface(const CellType& cell,
+                                                        const ReconstructionType& recon,
+                                                        double cell_volume,
+                                                        double& out_vfrac,
+                                                        Eigen::Vector3d& out_firstMoment) {
+            auto vas = IRL::getVolumeMoments<VolumeMomentsAndSurfaceType>(cell, recon);
+            out_vfrac = vas.getMoments().volume() / cell_volume;
+            out_firstMoment << vas.getMoments().centroid().x(),
+                            vas.getMoments().centroid().y(),
+                            vas.getMoments().centroid().z();
+        }
+
+        // Compute stencil-centered (about global liquid centroid) 2nd moment tensor from the accumulated 2nd moments
+        inline Eigen::Matrix3d centeredSecondMomentFromTotal(IRL::GeneralMoments3D<2> totalMoments) {
+            const double V = totalMoments.volume();
+
+            // global centroid of stencil liquid in the SAME coordinate system as moments were computed
+            IRL::Pt C(0.0, 0.0, 0.0);
+            if (V > 0.0) {
+                C = IRL::Pt(totalMoments[1] / V, totalMoments[2] / V, totalMoments[3] / V);
+            }
+
+            // Shift moments so origin becomes centroid: x_new = x_old - C  -> datum = -C
+            totalMoments.moveMoments(IRL::Pt(-C[0], -C[1], -C[2]));
+
+            Eigen::Matrix3d M2;
+            M2 << totalMoments[4], totalMoments[5], totalMoments[6],
+                totalMoments[5], totalMoments[7], totalMoments[8],
+                totalMoments[6], totalMoments[8], totalMoments[9];
+            return M2;
+        }
+        
+        
+        std::vector<double> generateParaboloid(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, double coeff_stddev = 0.1, bool visualize = false,
+            Eigen::Matrix3d* secondMoment = nullptr) 
+        {
+            // repeat until center cell is cut by surface
+            while (true) {
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                // Defining cell coordinates
+                auto coords = makeCenteredCoords(stencil_size);
+                const double cell_volume = 1.0;
+
+                // Random paraboloid parameters
+                Eigen::Vector3d datumVec = generateRandomPoint(
+                    -0.5*static_cast<double>(stencil_size),
+                    0.5*static_cast<double>(stencil_size), eng);
+
+                Eigen::Vector3d direction = generateRandomDirection(eng);
+
+                // Build orthonormal frame aligned with direction
+                Eigen::Vector3d helper = generateRandomDirection(eng); // safe random helper
+                Eigen::Vector3d paraboloid_x = direction.cross(helper);
+                if (paraboloid_x.norm() < 1e-12) {
+                    // fallback: pick fixed axis if helper was parallel
+                    paraboloid_x = direction.cross(Eigen::Vector3d(1,0,0));
+                }
+                paraboloid_x.normalize();
+                Eigen::Vector3d paraboloid_y = direction.cross(paraboloid_x);
+                paraboloid_y.normalize();
+                Eigen::Vector3d paraboloid_z = direction;
+
+                const auto frame = IRL::ReferenceFrame(
+                    IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
+                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
+                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+
+                IRL::Pt datum(datumVec.x(), datumVec.y(), datumVec.z());
+
+                std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
+                double coeff1 = random_coeff(eng);
+                double coeff2 = random_coeff(eng);
+
+                const auto paraboloid = Paraboloid(datum, frame, coeff1, coeff2);
+
+                // Initialize field
+                std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                IRL::GeneralMoments3D<2> totalMoments = IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For 2nd moment shift later
+
+                // Loop over cells in stencil
+                for (int i = 0; i < stencil_size; i++) {
+                    for (int j = 0; j < stencil_size; j++) {
+                        for (int k = 0; k < stencil_size; k++) {
+                            auto cell = RectangularCuboid::fromBoundingPts(
+                                Pt(coords[i], coords[j], coords[k]),
+                                Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                            // auto volume_and_surface = getVolumeMoments<
+                             //   AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
+                              //  cell, paraboloid);
+
+                            if (secondMoment != nullptr) {
+                                fillCellFromGeneralMoments2(
+                                    cell, paraboloid, cell_volume,
+                                    vfrac[i][j][k],
+                                    firstMoment[i][j][k],
+                                    totalMoments
+                                );
+
+                            } else {
+                                auto volume_and_surface = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid);
+                                vfrac[i][j][k] = volume_and_surface.getMoments().volume() / cell_volume;
+                                firstMoment[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                        volume_and_surface.getMoments().centroid().y(),
+                                                        volume_and_surface.getMoments().centroid().z();
+                            }
+
+                            if (visualize) {
+                                auto surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+                                //surfaces.push_back(volume_and_surface.getSurface());
+                                surfaces.push_back(surface);
+
+                                centroid[i][j][k] = computeCentroidFromFirstMoment(
+                                    firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
+                            }
+                        }
+                    }
+                }
+
+                // Check central cell
+                if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
+                    // Accept this sample
+                    
+                    // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments);
+                    }
+
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                        printCentroids(centroid);
+                    }
+
+                    // Flatten the 3D vector vfrac into a 1D vector
+                    return flattenVfrac(vfrac, stencil_size);
+                }
+
+                // else: reject and try again (loop restarts)
+            }
+        }
+        /* OLD paraboloid generation function using VolumeMoments
         std::vector<double> generateParaboloid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
@@ -182,6 +386,8 @@ namespace IRL {
                 // else: reject and try again (loop restarts)
             }
         }
+        */
+
 
         double sample_truncated_normal(double mean, double stddev,
                                double lower, double upper)
@@ -198,7 +404,8 @@ namespace IRL {
         std::vector<double> generateSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false) 
+            int stencil_size, double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
+            Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
                 // make centroid, only used for visualization
@@ -211,10 +418,7 @@ namespace IRL {
                 );
 
                 // Defining cell coordinates
-                auto coords = std::vector<double>(stencil_size+1);
-                for (int i = 0; i < stencil_size+1; i++) {
-                    coords[i] = -0.5*static_cast<double>(stencil_size) + static_cast<double>(i);
-                }
+                auto coords = makeCenteredCoords(stencil_size);
                 const double cell_volume = 1.0;
 
                 // Random datum anywhere in stencil
@@ -268,6 +472,8 @@ namespace IRL {
                 // Initialize field
                 using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
                 std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
+                IRL::GeneralMoments3D<2> totalMoments = IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For 2nd moment shift later
+
                 for (int i = 0; i < stencil_size; i++) {
                     for (int j = 0; j < stencil_size; j++) {
                         for (int k = 0; k < stencil_size; k++) {
@@ -283,43 +489,68 @@ namespace IRL {
                                 AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
                                 cell, paraboloid2);
                             */
+                            if (secondMoment != nullptr) {
+                                auto gm1 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid1);
+                                auto gm2 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid2);
+                                auto gmSheet = gm2 - gm1;
 
-                            auto volume_and_surface1 = getVolumeMoments<
-                                VolumeMomentsAndSurface>(cell, paraboloid1);
+                                // 0th moment
+                                double vol = gmSheet.volume();
 
-                            auto surface1 = getVolumeMoments<
-                                VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+                                vfrac[i][j][k] = vol / cell_volume;
 
-                            auto volume_and_surface2 = getVolumeMoments<
-                                VolumeMomentsAndSurface>(cell, paraboloid2);
+                                // 1st moments
+                                firstMoment[i][j][k] << gmSheet[1], gmSheet[2], gmSheet[3];
 
-                            auto surface2 = getVolumeMoments<
-                                VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+                                if (vol < 0.0) {
+                                    vol = 0.0;
+                                    firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                                    //secondMoment[i][j][k] = Eigen::Matrix3d::Zero(); Causes issues
+                                }
 
-                            //surfaces.push_back(volume_and_surface1.getSurface());
-                            //surfaces.push_back(volume_and_surface2.getSurface());
-                            surfaces.push_back(surface1);
-                            surfaces.push_back(surface2);
+                                // accumulate for stencil-centered 2nd moment later
+                                totalMoments += gmSheet;
 
-                            double V1 = volume_and_surface1.getMoments().volume();
-                            double V2 = volume_and_surface2.getMoments().volume();
-                            double Vdiff = V2 - V1;
+                            } else {
+                                auto volume_and_surface1 = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid1);
 
-                            if (Vdiff < 0.0) Vdiff = 0.0;
+                                auto volume_and_surface2 = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid2);
 
-                            vfrac[i][j][k] = Vdiff / cell_volume;
+                                double V1 = volume_and_surface1.getMoments().volume();
+                                double V2 = volume_and_surface2.getMoments().volume();
+                                double Vdiff = V2 - V1;
 
-                            Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
-                                            volume_and_surface1.getMoments().centroid().y(),
-                                            volume_and_surface1.getMoments().centroid().z());
 
-                            Eigen::Vector3d M2(volume_and_surface2.getMoments().centroid().x(),
-                                            volume_and_surface2.getMoments().centroid().y(),
-                                            volume_and_surface2.getMoments().centroid().z());
 
-                            firstMoment[i][j][k] = M2 - M1;
+                                Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
+                                                volume_and_surface1.getMoments().centroid().y(),
+                                                volume_and_surface1.getMoments().centroid().z());
+
+                                Eigen::Vector3d M2(volume_and_surface2.getMoments().centroid().x(),
+                                                volume_and_surface2.getMoments().centroid().y(),
+                                                volume_and_surface2.getMoments().centroid().z());
+
+
+                                if (Vdiff <= 0.0) {
+                                    vfrac[i][j][k] = 0.0;
+                                    firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                                } else {
+                                    vfrac[i][j][k] = Vdiff / cell_volume;
+                                    firstMoment[i][j][k] = M2 - M1;
+                                }
+                            }
 
                             if (visualize) {
+                                auto surface1 = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+                                auto surface2 = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+                                //surfaces.push_back(volume_and_surface1.getSurface());
+                                //surfaces.push_back(volume_and_surface2.getSurface());
+                                surfaces.push_back(surface1);
+                                surfaces.push_back(surface2);
                                 centroid[i][j][k] = computeCentroidFromFirstMoment(
                                     firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
                             }
@@ -327,25 +558,23 @@ namespace IRL {
                     }
                 }
 
-                // --- check central cell ---
-                int mid = stencil_size / 2;
-                double center_vfrac = vfrac[mid][mid][mid];
-                if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
+                // Check central cell
+                if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
+                    // Accept this sample
+                    
+                    // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments);
+                    }
+
                     if (visualize) {
                         WriteField(stencil_size, coords, vfrac, "vfrac");
                         WriteSurface(surfaces, "surface");
                         printCentroids(centroid);
                     }
 
-                    std::vector<double> flattened_vfrac;
-                    for (int i = 0; i < stencil_size; ++i) {
-                        for (int j = 0; j < stencil_size; ++j) {
-                            for (int k = 0; k < stencil_size; ++k) {
-                                flattened_vfrac.push_back(vfrac[i][j][k]);
-                            }
-                        }
-                    }
-                    return flattened_vfrac; // accept this sample
+                    // Flatten the 3D vector vfrac into a 1D vector
+                    return flattenVfrac(vfrac, stencil_size);
                 }
 
                 // else: reject and regenerate
@@ -760,7 +989,7 @@ namespace IRL {
         */
 
 
-        std::vector<double> generateCylinder(
+        std::vector<double> generateCylinderOLD(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false) 
@@ -921,10 +1150,195 @@ namespace IRL {
             }   
         }
 
+        std::vector<double> generateCylinder(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
+            Eigen::Matrix3d* secondMoment = nullptr) 
+        {
+            while (true) { // keep trying until center cell has surface crossing
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                // for visualization option
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+
+                const double cell_volume = 1.0;
+                int refinement_factor = 3;
+                double refinement_factor_double = static_cast<double>(refinement_factor);
+
+                Eigen::Vector3d axis_origin = generateRandomPoint(
+                    -0.5 * stencil_size, 0.5 * stencil_size, eng);
+                Eigen::Vector3d axis_direction = generateRandomDirection(eng);
+                //TESTING 
+                axis_direction = Eigen::Vector3d(1.0, 0.0, 0.0);
+                axis_origin = Eigen::Vector3d(0.0, 0.0, 0.0);
+
+                // Random radius
+                double radius = max_radius;
+                if (radius_stddev > 0.0) {
+                    radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                }else{
+                    std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
+                    radius = random_thickness(eng);
+                }
+                
+                // Compute distance from stencil center (0,0,0) to cylinder axis
+                Eigen::Vector3d center(0.0, 0.0, 0.0);
+                Eigen::Vector3d origin_to_center = axis_origin - center;
+                double projection = origin_to_center.dot(axis_direction);
+                Eigen::Vector3d closest_point = axis_origin - projection * axis_direction;
+                double distance_to_axis = (closest_point - center).norm();
+
+                // Quick reject: if axis is too far from center, skip this attempt
+                
+                if (std::abs(distance_to_axis - radius) > 0.8661) {
+                    continue; // try again
+                }
+                
+
+                // Refined mesh
+                int refined_stencil_size = refinement_factor*stencil_size;
+                std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                    std::vector<std::vector<double>>(refined_stencil_size,
+                    std::vector<double>(refined_stencil_size)));
+
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                    std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+
+                // Refined cell coordinates
+                auto coords = std::vector<double>(refined_stencil_size+1);
+                for (int i = 0; i <= refined_stencil_size; i++) {
+                    coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
+                }
+
+                // Fill refined stencil
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+
+                IRL::GeneralMoments3D<2> totalMoments_refined =
+                    IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For exact 2nd moment shift later
+
+                for (int i = 0; i < refined_stencil_size; i++) {
+                    for (int j = 0; j < refined_stencil_size; j++) {
+                        for (int k = 0; k < refined_stencil_size; k++) {
+                            auto cell = IRL::RectangularCuboid::fromBoundingPts(
+                                IRL::Pt(coords[i], coords[j], coords[k]),
+                                IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                            // Find center of cell
+                            Eigen::Vector3d cell_center((coords[i+1]+coords[i])/2.0,
+                                                        (coords[j+1]+coords[j])/2.0,
+                                                        (coords[k+1]+coords[k])/2.0);
+
+                            // Projection of cell center onto cylinder axis
+                            Eigen::Vector3d axis_to_cell = cell_center - axis_origin;
+                            double projection_factor = axis_to_cell.dot(axis_direction) / axis_direction.squaredNorm();
+                            Eigen::Vector3d closest_point_on_axis = axis_origin + projection_factor * axis_direction;
+
+                            // Datum on paraboloid representation of cylinder
+                            Eigen::Vector3d datum_paraboloid_eVec =
+                                closest_point_on_axis + radius * (cell_center - closest_point_on_axis).normalized();
+                            IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(), datum_paraboloid_eVec.y(), datum_paraboloid_eVec.z());
+
+                            // Frame aligned with axis
+                            Eigen::Vector3d paraboloid_x = axis_direction.normalized();
+                            Eigen::Vector3d paraboloid_z = (cell_center - closest_point_on_axis).normalized();
+                            Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
+                            paraboloid_y.normalize();
+
+                            const auto frame = IRL::ReferenceFrame(
+                                IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
+                                IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
+                                IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+
+                            // Cylinder = paraboloid with coeffs (0, 1/(2R))
+                            const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1/(2*radius));
+
+                            /*
+                            auto volume_and_surface = IRL::getVolumeMoments<
+                                IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
+                                cell, paraboloid);
+                            */
+                            auto volume_and_surface = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid);
+
+                            volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
+                            firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                            volume_and_surface.getMoments().centroid().y(),
+                                                            volume_and_surface.getMoments().centroid().z();
+
+                            if (secondMoment != nullptr) {
+                                // Exact raw 0th/1st/2nd moments about global origin, accumulated on refined grid
+                                auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
+                                totalMoments_refined += gm;
+                            }
+
+                            if (visualize) {
+                                auto surface = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+                                surfaces.push_back(surface);
+                            }
+                        }
+                    }
+                }
+
+                // Compress refined → coarse stencil
+                compressStencilRefinedToCoarse(
+                    volumes_refined,
+                    firstMoments_refined,
+                    vfrac,
+                    firstMoment,
+                    stencil_size,
+                    refinement_factor,
+                    cell_volume,
+                    visualize,
+                    &centroid
+                );
+
+                // --- check central cell ---
+                int mid = stencil_size / 2;
+                double center_vfrac = vfrac[mid][mid][mid];
+                if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
+
+                    // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        // liquid-centered (about global liquid centroid) second moment matrix from refined accumulated moments
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                    }
+
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                        printCentroids(centroid);
+                    }
+
+                    std::vector<double> flattened_vfrac;
+                    for (int i = 0; i < stencil_size; ++i) {
+                        for (int j = 0; j < stencil_size; ++j) {
+                            for (int k = 0; k < stencil_size; ++k) {
+                                flattened_vfrac.push_back(vfrac[i][j][k]);
+                            }
+                        }
+                    }
+                    return flattened_vfrac; // accept this sample
+                }
+                // else: reject and regenerate
+            }   
+        }
+
+
         std::vector<double> generateTruncatedCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false) 
+            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
+            Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
                 // make centroid, only used for visualization
@@ -995,6 +1409,9 @@ namespace IRL {
 
                 // Fill refined stencil
                 using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                IRL::GeneralMoments3D<2> totalMoments_refined =
+                    IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For exact 2nd moment shift later
+
                 for (int i = 0; i < refined_stencil_size; i++) {
                     for (int j = 0; j < refined_stencil_size; j++) {
                         for (int k = 0; k < refined_stencil_size; k++) {
@@ -1052,6 +1469,12 @@ namespace IRL {
                                                             volume_and_surface.getMoments().centroid().y(),
                                                             volume_and_surface.getMoments().centroid().z();
 
+                            if (secondMoment != nullptr) {
+                                // Exact raw 0th/1st/2nd moments about global origin, accumulated on refined grid
+                                auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
+                                totalMoments_refined += gm;
+                            }
+
                             if (visualize) {
                                 auto surface = getVolumeMoments<
                                     VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
@@ -1078,6 +1501,12 @@ namespace IRL {
                 int mid = stencil_size / 2;
                 double center_vfrac = vfrac[mid][mid][mid];
                 if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
+                                        // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        // liquid-centered (about global liquid centroid) second moment matrix from refined accumulated moments
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                    }
+
                     if (visualize) {
                         WriteField(stencil_size, coords, vfrac, "vfrac");
                         WriteSurface(surfaces, "surface");
@@ -1102,7 +1531,8 @@ namespace IRL {
         std::vector<double> generateSphere (
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false) 
+            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
+            Eigen::Matrix3d* secondMoment = nullptr) 
             {
                 while (true) { // keep trying until center cell has surface crossing
                 
@@ -1155,6 +1585,8 @@ namespace IRL {
                     }
 
                     using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                    IRL::GeneralMoments3D<2> totalMoments_refined =
+                        IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For exact 2nd moment shift later
 
                     for (int i = 0; i < refined_stencil_size; i++) {
                         for (int j = 0; j < refined_stencil_size; j++) {
@@ -1216,10 +1648,15 @@ namespace IRL {
                                                                 volume_and_surface.getMoments().centroid().y(),
                                                                 volume_and_surface.getMoments().centroid().z();
 
+                                if (secondMoment != nullptr) {
+                                    // Exact raw 0th/1st/2nd moments about global origin, accumulated on refined grid
+                                    auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
+                                    totalMoments_refined += gm;
+                                }
+
                                 if (visualize) {
                                     auto surface = getVolumeMoments<
                                         VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
-
                                     surfaces.push_back(surface);
                                 }
                             }
@@ -1243,6 +1680,13 @@ namespace IRL {
                     int mid = stencil_size / 2;
                     double center_vfrac = vfrac[mid][mid][mid];
                     if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
+                        
+                        // Now calc stencil 2nd moments if requested
+                        if (secondMoment != nullptr) {
+                            // liquid-centered (about global liquid centroid) second moment matrix from refined accumulated moments
+                            *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                        }
+                        
                         if (visualize) {
                             WriteField(stencil_size, coords, vfrac, "vfrac");
                             WriteSurface(surfaces, "surface");
@@ -1270,7 +1714,7 @@ namespace IRL {
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
                                         double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
                                         double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0,
-                                        bool visualize = false)
+                                        bool visualize = false, bool exact_2nd_moments = false)
         {
             // Create a vector of volume fractions and first moments
             std::vector<std::vector<std::vector<double>>> vfrac(
@@ -1291,6 +1735,13 @@ namespace IRL {
                 )
             );
 
+            Eigen::Matrix3d secondMoment;
+            Eigen::Matrix3d* secondMomentPtr = nullptr;    // default: disabled using exact 2nd moment
+
+            if (exact_2nd_moments) {
+                secondMomentPtr = &secondMoment; // This enables calculation of exact 2nd moments for all switch cases below
+            }
+
             switch (datapoint_type) {
                 case 1:
                     if (include_truncated_cylinder) {
@@ -1301,29 +1752,29 @@ namespace IRL {
                             // 20% chance → truncated cylinder
                             generateTruncatedCylinder(
                                 vfrac, firstMoment, stencil_size,
-                                max_cylinder_radius, cylinder_radius_stddev, visualize);
+                                max_cylinder_radius, cylinder_radius_stddev, visualize, &secondMoment);
                         } else {
                             // 80% chance → normal cylinder
                             generateCylinder(
                                 vfrac, firstMoment, stencil_size,
-                                max_cylinder_radius, cylinder_radius_stddev, visualize);
+                                max_cylinder_radius, cylinder_radius_stddev, visualize, &secondMoment);
                         }
                     } else {
-                        generateCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize);
+                        generateCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, &secondMoment);
                     }
                     break;
                 case 2:
-                    generateSphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize);
+                    generateSphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize, &secondMoment);
                     break;
                 case 3:
-                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize);
+                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, &secondMoment);
                     break;
                 case 4:
                     std::cout<<"Cut-Sheet generation not implemented yet."<<std::endl;
                     //generate_Cut_Sheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize);
                     break;
                 default:
-                    generateParaboloid(vfrac, firstMoment, stencil_size, paraboloid_coeff_stddev, visualize);
+                    generateParaboloid(vfrac, firstMoment, stencil_size, paraboloid_coeff_stddev, visualize, &secondMoment);
                     break;
             }
 
@@ -1345,14 +1796,24 @@ namespace IRL {
             }
 
             if (include_Moments >= 2) {
-                Eigen::Matrix3d inertia = IRL::computeInertiaTensor(flattened_state, stencil_size, 1);
-
-                flattened_state.push_back(inertia(0, 0)); // Ixx
-                flattened_state.push_back(inertia(1, 1)); // Iyy
-                flattened_state.push_back(inertia(2, 2)); // Izz
-                flattened_state.push_back(inertia(0, 1)); // Ixy
-                flattened_state.push_back(inertia(0, 2)); // Ixz
-                flattened_state.push_back(inertia(1, 2)); // Iyz
+                if (exact_2nd_moments) {
+                    // Append exact 2nd moments to flattened_state
+                    flattened_state.push_back(secondMoment(0, 0)); // Ixx
+                    flattened_state.push_back(secondMoment(1, 1)); // Iyy
+                    flattened_state.push_back(secondMoment(2, 2)); // Izz
+                    flattened_state.push_back(secondMoment(0, 1)); // Ixy
+                    flattened_state.push_back(secondMoment(0, 2)); // Ixz
+                    flattened_state.push_back(secondMoment(1, 2)); // Iyz
+                } else {
+                    // Append approximate 2nd moments to flattened_state
+                    Eigen::Matrix3d approxSecondMoment = IRL::compute2ndMoment(flattened_state, stencil_size, 1);
+                    flattened_state.push_back(approxSecondMoment(0, 0)); // Ixx
+                    flattened_state.push_back(approxSecondMoment(1, 1)); // Iyy
+                    flattened_state.push_back(approxSecondMoment(2, 2)); // Izz
+                    flattened_state.push_back(approxSecondMoment(0, 1)); // Ixy
+                    flattened_state.push_back(approxSecondMoment(0, 2)); // Ixz
+                    flattened_state.push_back(approxSecondMoment(1, 2)); // Iyz
+                }
             }
 
             if (include_Moments >= 3) {
@@ -1375,6 +1836,27 @@ namespace IRL {
                 flattened_state.push_back(I1);
                 flattened_state.push_back(I2);
                 flattened_state.push_back(I3);
+            }
+
+            if (include_Moments >= 4) {
+                // This is for testing: compute approximate 2nd moments from flattened_state and compare to exact 2nd moments
+
+                // Compare exact vs approximate 2nd moments
+                Eigen::Matrix3d secondMomentFrom1 = IRL::compute2ndMoment(flattened_state, stencil_size, 1);
+                
+                double frobeniusError = (secondMoment - secondMomentFrom1).norm() / (secondMoment.norm() + 1e-12);
+                // Since this in only used for comparison, return a vector with only the fabrenius error as component
+                return std::vector<float>(1, static_cast<float>(frobeniusError));
+                
+
+                /*
+                flattened_state.push_back(inertia(0, 0)); // Ixx
+                flattened_state.push_back(inertia(1, 1)); // Iyy
+                flattened_state.push_back(inertia(2, 2)); // Izz
+                flattened_state.push_back(inertia(0, 1)); // Ixy
+                flattened_state.push_back(inertia(0, 2)); // Ixz
+                flattened_state.push_back(inertia(1, 2)); // Iyz
+                */
             }
 
             // make flattened_state a vector of floats
