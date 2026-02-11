@@ -158,7 +158,7 @@ void simulation_stability_analysis() {
                             sheet_coeff_stddev,
                             max_sheet_thickness, sheet_thickness_stddev,
                             max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
-                            max_sphere_radius, sphere_radius_stddev);                    
+                            max_sphere_radius, sphere_radius_stddev, false);                    
     
     ml.loadDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_3M/data/data.bin");
     //ml.generateDataset();
@@ -176,7 +176,7 @@ void simulation_stability_analysis() {
         ml.trainModel();
 
         std::vector<int> savedClasses;
-        IRL::classify_simulation(ml, filename, canonicalize_symmetries, preProcess, &savedClasses);
+        //IRL::classify_simulation(ml, filename, canonicalize_symmetries, preProcess, &savedClasses);
 
         if (r > 0 && savedClasses.size() != preds[0].size()) {
             throw std::runtime_error("Saved class vector size differs between runs. "
@@ -213,7 +213,9 @@ int main(int argc, char* argv[]) {
 
     IRL::Data_gen gen;
 
-    //gen.generateState(5,5,2,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    gen.generateState(4,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    
+    /*
     int num_tests = 100;
     for (int i=0; i<4; i++) {
         float error = 0.0f;
@@ -224,6 +226,7 @@ int main(int argc, char* argv[]) {
         error = error / static_cast<float>(num_tests);
         std::cout << "Class " << classNameFromType(i) << " average frobenius error: " << error << std::endl;
     }
+    */
 
     /*
     For generating barycenter data
