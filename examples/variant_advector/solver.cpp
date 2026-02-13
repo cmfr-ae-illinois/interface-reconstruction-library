@@ -215,26 +215,25 @@ void printError(const BasicMesh& mesh,
         for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
           const double liquid_volume_fraction =
               liq_moments(i, j, k).volume() / mesh.cell_volume();
-          if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-              liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-            auto mom_err =
-                (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
-            linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.volume()));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
-            l1_error_m0 += std::abs(mom_err.volume());
-            l1_error_m1 += std::abs(mom_err.centroid()[0]);
-            l1_error_m1 += std::abs(mom_err.centroid()[1]);
-            l1_error_m1 += std::abs(mom_err.centroid()[2]);
-            l2_error_m0 += mom_err.volume() * mom_err.volume();
-            l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
-            l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
-            l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
-          }
+          // if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          //     liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          auto mom_err = (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
+          linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.volume()));
+          linf_error_m1 =
+              std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
+          linf_error_m1 =
+              std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
+          linf_error_m1 =
+              std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
+          l1_error_m0 += std::abs(mom_err.volume());
+          l1_error_m1 += std::abs(mom_err.centroid()[0]);
+          l1_error_m1 += std::abs(mom_err.centroid()[1]);
+          l1_error_m1 += std::abs(mom_err.centroid()[2]);
+          l2_error_m0 += mom_err.volume() * mom_err.volume();
+          l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
+          l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
+          l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
+          // }
         }
       }
     }

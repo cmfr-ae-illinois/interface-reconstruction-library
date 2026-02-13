@@ -223,7 +223,7 @@ void FullLagrangianCorrected::advectVOF(
             const auto preimage =
                 constructCorrectedPreimage(i, j, k, a_dt, a_U, a_V, a_W);
             // Now perform the actual cutting.
-            const auto moments = IRL::getNormalizedVolumeMoments<
+            const auto moments = IRL::getVolumeMoments<
                 IRL::SeparatedMoments<IRL::VolumeMoments>>(
                 preimage, (*a_link_localized_interface)(i, j, k));
             IRL::Pt l_centroid =
