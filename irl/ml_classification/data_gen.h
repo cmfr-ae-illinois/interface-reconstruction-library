@@ -921,7 +921,9 @@ namespace IRL {
         std::vector<double> generateBentCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
+            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0,
+            double radius_circle_min = 2.5, double radius_circle_max = 10.0,
+            bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr)
         {
             while (true) { // keep trying until center cell has surface crossing
@@ -987,9 +989,7 @@ namespace IRL {
                     }
                 }
 
-                // Make a random circle_radius between 2.5 and 10
-                double radius_circle_min = 2.5;
-                double radius_circle_max = 10.0;
+                // Make a random circle_radius 
                 std::uniform_real_distribution<double> dist_radius_circle(radius_circle_min, radius_circle_max);
                 double radius_circle = dist_radius_circle(eng);
 
@@ -1022,8 +1022,6 @@ namespace IRL {
                 closestPointAndTangentOnArc(center, closest_center, tangent_center);
                 double distance_to_centerline = (closest_center - center).norm();
 
-                // Keep the same acceptance band idea as your straight-cylinder version.
-                // (0.8661 ~ half-diagonal of a unit cell; you used it as a “near surface-crossing” heuristic)
                 if (std::abs(distance_to_centerline - radius) > 0.8661) {
                     continue; // try again
                 }
@@ -1186,6 +1184,378 @@ namespace IRL {
             }
         }
 
+        inline double wrapToPi(double a) {
+            while (a <= -M_PI) a += 2.0 * M_PI;
+            while (a >   M_PI) a -= 2.0 * M_PI;
+            return a;
+        }
+
+        // Shift angle a by ±2π so that it's as close as possible to ref.
+        inline double unwrapNear(double a, double ref) {
+            return ref + wrapToPi(a - ref);
+        }
+
+        inline double angleOnCirclePlane(const Eigen::Vector3d& p,
+                                        const Eigen::Vector3d& c0,
+                                        const Eigen::Vector3d& u,
+                                        const Eigen::Vector3d& v)
+        {
+            Eigen::Vector3d q = p - c0;
+            double qu = q.dot(u);
+            double qv = q.dot(v);
+            return std::atan2(qv, qu);
+        }
+
+        std::vector<double> generateBentTruncatedCylinder(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            int stencil_size, bool truncateInsideCentralCell, double max_radius = 0.5, double radius_stddev = 0.0, 
+            double radius_circle_min = 2.5, double radius_circle_max = 10.0,
+            bool visualize = false,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            while (true) { // keep trying until center cell has surface crossing
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                // for visualization option
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+
+                const double cell_volume = 1.0;
+                int refinement_factor = 3;
+
+                // Random tube radius in [0, max_radius], with optional stddev for truncated normal sampling
+                double tube_radius = max_radius;
+                if (radius_stddev > 0.0) {
+                    tube_radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                } else {
+                    std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
+                    tube_radius = random_thickness(eng);
+                }
+
+                // random circle plane (u,v)
+                Eigen::Vector3d u = generateRandomDirection(eng).normalized();
+                Eigen::Vector3d tmp = generateRandomDirection(eng).normalized();
+                tmp -= tmp.dot(u) * u;
+                if (tmp.squaredNorm() < 1e-14) {
+                    tmp = (std::abs(u.x()) < 0.9 ? Eigen::Vector3d(1, 0, 0) : Eigen::Vector3d(0, 1, 0));
+                    tmp -= tmp.dot(u) * u;
+                }
+                Eigen::Vector3d v = tmp.normalized();
+                Eigen::Vector3d plane_normal = u.cross(v).normalized();
+
+                // plane offset h near origin
+                const double half_diag = 0.8661; // diagonal distance from center to corner of unit cube
+
+                std::uniform_real_distribution<double> dist_h(-(half_diag + tube_radius), (half_diag + tube_radius));
+                double h = dist_h(eng);
+                double plane_dist = std::abs(h);
+                Eigen::Vector3d p_plane_closest = h * plane_normal;
+
+                double cut_central_cell_radius = 0.0;
+                {
+                    double inside = half_diag * half_diag - plane_dist * plane_dist;
+                    if (inside > 0.0) cut_central_cell_radius = std::sqrt(inside);
+                    else continue; // plane misses the central "sphere"
+                }
+
+                // circle/bend radius
+                double radius_circle_min = 2.5;
+                double radius_circle_max = 10.0;
+                std::uniform_real_distribution<double> dist_radius_circle(radius_circle_min, radius_circle_max);
+                double radius_circle = dist_radius_circle(eng);
+
+                // place c0 in the plane along a random in-plane direction
+                Eigen::Vector3d circle_center_direction = generateRandomDirection(eng).normalized();
+                Eigen::Vector3d dir_plane = circle_center_direction - circle_center_direction.dot(plane_normal) * plane_normal;
+                if (dir_plane.squaredNorm() < 1e-14) dir_plane = u;
+                else dir_plane.normalize();
+
+                double d_min = radius_circle - (tube_radius + cut_central_cell_radius);
+                double d_max = radius_circle + tube_radius + cut_central_cell_radius;
+                std::uniform_real_distribution<double> dist_d(d_min, d_max);
+                double d = dist_d(eng);
+
+                Eigen::Vector3d c0 = p_plane_closest + d * dir_plane;
+
+                // create sphere radius
+                double sphere_radius = tube_radius;
+                {
+                    double sphere_radius_min = tube_radius;
+                    double sphere_radius_max = max_radius;
+                    std::uniform_real_distribution<double> dist_sr(sphere_radius_min, sphere_radius_max);
+                    sphere_radius = dist_sr(eng);
+                }
+
+                // pick random theta_cut on full circle and accept only if it satisfies your constraints
+                double theta_cut = 0.0;
+                Eigen::Vector3d sphere_origin = Eigen::Vector3d::Zero();
+
+                // distance from origin to closest point on the circle (d_min_circle)
+                // (use closest-point angle for origin)
+                {
+                    Eigen::Vector3d O(0.0, 0.0, 0.0);
+                    double theta_star_O = angleOnCirclePlane(O, c0, u, v);
+                    Eigen::Vector3d closest_O = centerlinePoint(theta_star_O, c0, radius_circle, u, v);
+                    double d_min_circle = closest_O.norm();
+
+                    // Try a few theta samples; if none work, restart outer while(true)
+                    bool found = false;
+                    std::uniform_real_distribution<double> dist_theta(-M_PI, M_PI);
+                    for (int tries = 0; tries < 64; ++tries) {
+                        double t = dist_theta(eng);
+                        Eigen::Vector3d p_cut = centerlinePoint(t, c0, radius_circle, u, v);
+
+                        // within stencil + sphere_radius (use infinity norm / bounding cube check)
+                        double half = 0.5 * static_cast<double>(stencil_size);
+                        double maxAbs = std::max({std::abs(p_cut.x()), std::abs(p_cut.y()), std::abs(p_cut.z())});
+                        if (maxAbs > half + sphere_radius) continue;
+
+                        // If truncateInsideCentralCell == false: require OUTSIDE  => ||p_cut|| > d_min_circle + sphere_radius
+                        // If truncateInsideCentralCell == true : require INSIDE   => ||p_cut|| <= d_min_circle + sphere_radius
+                        const double thresh = d_min_circle + sphere_radius;
+                        const double r_cut  = p_cut.norm();
+                        if (!truncateInsideCentralCell) {
+                            if (r_cut <= thresh) continue;     // want outside, but it's inside
+                        } else {
+                            if (r_cut >  thresh) continue;     // want inside, but it's outside
+                        }
+
+                        theta_cut = t;
+                        sphere_origin = p_cut;
+                        found = true;
+                        break;
+                    }
+                    if (!found) continue;
+                }
+
+                // range of theta for tube in [theta_start, theta_cut]
+                // Randomize span to get diverse truncation lengths.
+                double tube_theta_span = 0.0;
+                {
+                    std::uniform_real_distribution<double> dist_span(0.5 * M_PI, 1.75 * M_PI);
+                    tube_theta_span = dist_span(eng);
+                }
+                double theta_start = theta_cut - tube_theta_span;
+
+                auto thetaInTubeRange = [&](double theta) -> bool {
+                    // unwrap theta close to theta_cut so interval comparison works
+                    double t = unwrapNear(theta, theta_cut);
+                    return (t >= theta_start && t <= theta_cut);
+                };
+
+                // --- refined mesh ---
+                int refined_stencil_size = refinement_factor * stencil_size;
+
+                std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                    std::vector<std::vector<double>>(refined_stencil_size,
+                    std::vector<double>(refined_stencil_size)));
+
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                    std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+
+                // Refined cell coordinates
+                auto coords = std::vector<double>(refined_stencil_size + 1);
+                for (int i = 0; i <= refined_stencil_size; i++) {
+                    coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
+                }
+
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+
+                IRL::GeneralMoments3D<2> totalMoments_refined =
+                    IRL::GeneralMoments3D<2>::fromScalarConstant(0.0);
+
+                for (int i = 0; i < refined_stencil_size; i++) {
+                    for (int j = 0; j < refined_stencil_size; j++) {
+                        for (int k = 0; k < refined_stencil_size; k++) {
+
+                            auto cell = IRL::RectangularCuboid::fromBoundingPts(
+                                IRL::Pt(coords[i], coords[j], coords[k]),
+                                IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                            Eigen::Vector3d cell_center((coords[i + 1] + coords[i]) / 2.0,
+                                                        (coords[j + 1] + coords[j]) / 2.0,
+                                                        (coords[k + 1] + coords[k]) / 2.0);
+
+                            // Compute theta of this cell projection in the circle plane
+                            double theta_cell = angleOnCirclePlane(cell_center, c0, u, v);
+
+                            // Always compute closest point on circle for tube distance and tube frame if needed
+                            Eigen::Vector3d closest_point_on_circle;
+                            Eigen::Vector3d circle_tangent;
+                            closestPointAndTangentOnCircle(
+                                cell_center,
+                                c0,
+                                radius_circle,
+                                u,
+                                v,
+                                closest_point_on_circle,
+                                circle_tangent
+                            );
+
+                            double dist_to_circle_centerline = (cell_center - closest_point_on_circle).norm();
+                            double d2 = dist_to_circle_centerline - tube_radius; // tube signed-ish
+
+                            double d1 = (cell_center - sphere_origin).norm() - sphere_radius; // sphere signed-ish
+
+                            bool use_sphere = false;
+
+                            // Rule 1: theta outside tube range => sphere
+                            if (!thetaInTubeRange(theta_cell)) {
+                                use_sphere = true;
+                            } else {
+                                // Rule 2: compare distance-to-surface values
+                                if (d1 < d2) use_sphere = true;
+                                else use_sphere = false;
+                            }
+
+                            // Build the surface for this cell
+                            IRL::Paraboloid paraboloid = IRL::Paraboloid(
+                                IRL::Pt(0,0,0),
+                                IRL::ReferenceFrame(IRL::Normal(1,0,0), IRL::Normal(0,1,0), IRL::Normal(0,0,1)),
+                                0, 0
+                            );
+
+                            if (use_sphere) {
+                                // --- Sphere interface ---
+                                Eigen::Vector3d z = (cell_center - sphere_origin);
+                                double zn = z.norm();
+                                if (zn < 1e-14) {
+                                    z = Eigen::Vector3d(1, 0, 0);
+                                } else {
+                                    z /= zn;
+                                }
+
+                                // pick a helper not parallel to z
+                                Eigen::Vector3d helper = (std::abs(z.x()) < 0.9 ? Eigen::Vector3d(1,0,0) : Eigen::Vector3d(0,1,0));
+                                Eigen::Vector3d x = z.cross(helper);
+                                double xn = x.norm();
+                                if (xn < 1e-14) {
+                                    helper = Eigen::Vector3d(0,0,1);
+                                    x = z.cross(helper);
+                                    xn = x.norm();
+                                }
+                                x /= xn;
+                                Eigen::Vector3d y = z.cross(x).normalized();
+
+                                Eigen::Vector3d datum_e = sphere_origin + sphere_radius * z;
+                                IRL::Pt datum(datum_e.x(), datum_e.y(), datum_e.z());
+
+                                const auto frame = IRL::ReferenceFrame(
+                                    IRL::Normal(x.x(), x.y(), x.z()),
+                                    IRL::Normal(y.x(), y.y(), y.z()),
+                                    IRL::Normal(z.x(), z.y(), z.z())
+                                );
+
+                                paraboloid = IRL::Paraboloid(datum, frame,
+                                                            1.0 / (2.0 * sphere_radius),
+                                                            1.0 / (2.0 * sphere_radius));
+                            } else {
+                                // --- Tube interface (local cylinder) ---
+                                Eigen::Vector3d radial_dir = (cell_center - closest_point_on_circle);
+                                double rn = radial_dir.norm();
+                                if (rn < 1e-14) {
+                                    radial_dir = u - u.dot(circle_tangent) * circle_tangent;
+                                    if (radial_dir.squaredNorm() < 1e-14)
+                                        radial_dir = v - v.dot(circle_tangent) * circle_tangent;
+                                    radial_dir.normalize();
+                                } else {
+                                    radial_dir /= rn;
+                                }
+
+                                Eigen::Vector3d x = circle_tangent.normalized();
+                                Eigen::Vector3d z = radial_dir;
+                                Eigen::Vector3d y = z.cross(x);
+                                double y2 = y.squaredNorm();
+                                if (y2 < 1e-14) {
+                                    Eigen::Vector3d cand = u - u.dot(x) * x;
+                                    if (cand.squaredNorm() < 1e-14) cand = v - v.dot(x) * x;
+                                    z = cand.normalized();
+                                    y = z.cross(x).normalized();
+                                } else {
+                                    y /= std::sqrt(y2);
+                                }
+
+                                Eigen::Vector3d datum_e = closest_point_on_circle + tube_radius * z;
+                                IRL::Pt datum(datum_e.x(), datum_e.y(), datum_e.z());
+
+                                const auto frame = IRL::ReferenceFrame(
+                                    IRL::Normal(x.x(), x.y(), x.z()),
+                                    IRL::Normal(y.x(), y.y(), y.z()),
+                                    IRL::Normal(z.x(), z.y(), z.z())
+                                );
+
+                                paraboloid = IRL::Paraboloid(datum, frame, 0.0, 1.0 / (2.0 * tube_radius));
+                            }
+
+                            auto volume_and_surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid);
+
+                            volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
+                            firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                            volume_and_surface.getMoments().centroid().y(),
+                                                            volume_and_surface.getMoments().centroid().z();
+
+                            if (secondMoment != nullptr) {
+                                auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
+                                totalMoments_refined += gm;
+                            }
+
+                            if (visualize) {
+                                auto surface = volume_and_surface.getSurface();
+                                surfaces.push_back(surface);
+                            }
+                        }
+                    }
+                }
+
+                // Compress refined to coarse stencil
+                compressStencilRefinedToCoarse(
+                    volumes_refined,
+                    firstMoments_refined,
+                    vfrac,
+                    firstMoment,
+                    stencil_size,
+                    refinement_factor,
+                    cell_volume,
+                    visualize,
+                    &centroid
+                );
+
+                // --- check central cell ---
+                int mid = stencil_size / 2;
+                double center_vfrac = vfrac[mid][mid][mid];
+                if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
+
+                    if (secondMoment != nullptr) {
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                    }
+
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                        printCentroids(centroid);
+                    }
+
+                    std::vector<double> flattened_vfrac;
+                    flattened_vfrac.reserve(stencil_size * stencil_size * stencil_size);
+                    for (int ii = 0; ii < stencil_size; ++ii)
+                        for (int jj = 0; jj < stencil_size; ++jj)
+                            for (int kk = 0; kk < stencil_size; ++kk)
+                                flattened_vfrac.push_back(vfrac[ii][jj][kk]);
+
+                    return flattened_vfrac;
+                }
+
+                // else: reject and regenerate
+            }
+        }
 
 
         std::vector<double> generateTruncatedCylinder(
@@ -1597,6 +1967,13 @@ namespace IRL {
             }
             std::cout<<"Generating data point of type "<<datapoint_type<<std::endl;
             std::cout<<"Visualize: "<<visualize<<std::endl;
+
+            // Testing
+            bool truncateInsideCentrCell = true;
+            double radius_circ_min = 2.5;
+            double radius_circ_max = 10.0;
+
+
             switch (datapoint_type) {
                 case 1:
                     if (include_truncated_cylinder) {
@@ -1626,7 +2003,8 @@ namespace IRL {
                     break;
                 case 4:
                     std::cout<<"Generating Cut Sheet"<<std::endl;
-                    generateBentCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, &secondMoment);
+                    //generateBentCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, &secondMoment);
+                    generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, truncateInsideCentrCell, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, &secondMoment);
                     //generateCutSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, &secondMoment);
                     break;
                 default:
