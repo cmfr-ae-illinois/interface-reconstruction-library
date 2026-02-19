@@ -8,7 +8,7 @@ endif()
 # Listing the version is nice here since it sets lots of useful variables
 project(IRL VERSION 0.1.0
   DESCRIPTION "Interface Reconstruction Library"
-  LANGUAGES CXX Fortran)
+  LANGUAGES C CXX Fortran)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -127,6 +127,15 @@ endif()
 # endif()
 # target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.h")
 # target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.cpp")
+
+if(IRL_BUILD_AMREX_INTERFACE)
+  if((DEFINED ENV{AMREX_DIR}) AND ((NOT DEFINED ENV{AMReX_DIR}) OR (NOT DEFINED ENV{AMReX_ROOT})))
+    set(AMReX_ROOT "$ENV{AMREX_DIR}")
+  endif()
+  set(IRL_CXX_FLAGS "${IRL_CXX_FLAGS} -D IRL_BUILD_AMREX_INTERFACE")
+  find_package(AMReX REQUIRED)
+  target_link_libraries(irl PUBLIC AMReX::amrex)
+endif()
 
 # C++ IRL Base
 target_include_directories(irl PUBLIC "${PROJECT_SOURCE_DIR}")

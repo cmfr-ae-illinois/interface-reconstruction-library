@@ -83,6 +83,32 @@ __attribute__((pure)) __attribute__((hot)) inline ReturnType getVolumeMoments(
       throw std::runtime_error(
           "Unrecognized reconstruction variant type in getVolumeMoments");
     }
+  } else if constexpr (std::is_same_v<ReconstructionType, SeparatorUnion>) {
+    switch (a_reconstruction.type()) {
+      case SeparatorUnion::SeparatorType::OnePlane:
+        return getVolumeMoments<ReturnType, CuttingMethod>(
+            a_encompassing_polyhedron,
+            PlanarSeparator::fromOnePlane(a_reconstruction.getPlane()));
+        break;
+      case SeparatorUnion::SeparatorType::TwoPlanes:
+        return getVolumeMoments<ReturnType, CuttingMethod>(
+            a_encompassing_polyhedron,
+            PlanarSeparator::fromTwoPlanes(a_reconstruction.getPlanes()[0],
+                                           a_reconstruction.getPlanes()[1],
+                                           1.0));
+        break;
+      case SeparatorUnion::SeparatorType::Paraboloid:
+        return getVolumeMoments<ReturnType, CuttingMethod>(
+            a_encompassing_polyhedron, a_reconstruction.getParaboloid());
+        break;
+      case SeparatorUnion::SeparatorType::Cylinder:
+        return getVolumeMoments<ReturnType, CuttingMethod>(
+            a_encompassing_polyhedron, a_reconstruction.getCylinder());
+        break;
+      default:
+        throw std::runtime_error(
+            "Unrecognized reconstruction union type in getVolumeMoments");
+    }
   } else {
     assert(generic_cutting_details::polytopeIsValid(a_encompassing_polyhedron));
     return generic_cutting_details::getVolumeMoments<
@@ -161,6 +187,52 @@ __attribute__((hot)) inline ReturnType getVolumeMoments(
     } else {
       throw std::runtime_error(
           "Unrecognized reconstruction variant type in getVolumeMoments");
+    }
+  } else if constexpr (std::is_same_v<ReconstructionType, SeparatorUnion>) {
+    switch (a_reconstruction.type()) {
+      case SeparatorUnion::SeparatorType::OnePlane:
+        assert(generic_cutting_details::polytopeIsValid(a_polytope));
+        return generic_cutting_details::getVolumeMomentsProvidedStorage<
+            ReturnType, CuttingMethod, SegmentedPolytopeType,
+            HalfEdgePolytopeType, PlanarSeparator>::
+            getVolumeMomentsImplementation(
+                a_polytope, a_complete_polytope,
+                PlanarSeparator::fromOnePlane(a_reconstruction.getPlane()));
+        break;
+      case SeparatorUnion::SeparatorType::TwoPlanes:
+        assert(generic_cutting_details::polytopeIsValid(a_polytope));
+        return generic_cutting_details::getVolumeMomentsProvidedStorage<
+            ReturnType, CuttingMethod, SegmentedPolytopeType,
+            HalfEdgePolytopeType, PlanarSeparator>::
+            getVolumeMomentsImplementation(
+                a_polytope, a_complete_polytope,
+                PlanarSeparator::fromTwoPlanes(a_reconstruction.getPlanes()[0],
+                                               a_reconstruction.getPlanes()[1],
+                                               1.0));
+        break;
+      case SeparatorUnion::SeparatorType::Paraboloid:
+        assert(generic_cutting_details::polytopeIsValid(a_polytope));
+        return generic_cutting_details::getVolumeMomentsProvidedStorage<
+            ReturnType, CuttingMethod, SegmentedPolytopeType,
+            HalfEdgePolytopeType,
+            Paraboloid>::getVolumeMomentsImplementation(a_polytope,
+                                                        a_complete_polytope,
+                                                        a_reconstruction
+                                                            .getParaboloid());
+        break;
+      case SeparatorUnion::SeparatorType::Cylinder:
+        assert(generic_cutting_details::polytopeIsValid(a_polytope));
+        return generic_cutting_details::getVolumeMomentsProvidedStorage<
+            ReturnType, CuttingMethod, SegmentedPolytopeType,
+            HalfEdgePolytopeType,
+            Cylinder>::getVolumeMomentsImplementation(a_polytope,
+                                                      a_complete_polytope,
+                                                      a_reconstruction
+                                                          .getCylinder());
+        break;
+      default:
+        throw std::runtime_error(
+            "Unrecognized reconstruction union type in getVolumeMoments");
     }
   } else {
     assert(generic_cutting_details::polytopeIsValid(a_polytope));

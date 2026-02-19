@@ -7,12 +7,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
-#define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
+#ifndef IRL_SEPARATOR_VARIANT_H_
+#define IRL_SEPARATOR_VARIANT_H_
 
-#include <variant>
 #include <tuple>
-
+#include <variant>
 
 #include "irl/generic_cutting/general/class_classifications.h"
 
@@ -52,4 +51,4 @@ struct is_reconstruction_link<LocalizedSeparatorVariantLink> : std::true_type {
 
 #include "irl/variant_reconstruction/separator_variant.tpp"
 
-#endif  // IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
+#endif  // IRL_SEPARATOR_VARIANT_H_

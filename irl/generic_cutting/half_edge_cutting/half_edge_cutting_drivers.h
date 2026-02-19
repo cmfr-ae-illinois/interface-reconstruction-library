@@ -13,6 +13,7 @@
 #include "irl/generic_cutting/general/class_classifications.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting.h"
 #include "irl/helpers/SFINAE_boiler_plate.h"
+#include "irl/variant_reconstruction/separator_union.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
