@@ -7,12 +7,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// #define DEBUG_CYL_IRL
-// #define NUDGE_REGION
-
-#include "irl/geometry/general/pt.h"
-#include "irl/geometry/general/rotations.h"
-
 #include <sys/time.h>
 #include <cmath>
 #include <random>
@@ -21,19 +15,28 @@
 #include "gtest/gtest.h"
 
 #include "irl/generic_cutting/generic_cutting.h"
-
-#include "irl/generic_cutting/cylinder_intersection/cylinder_intersection.h"
-#include "irl/moments/general_moments.h"
-
-#include "irl/cylinder_reconstruction/cylinder.h"
-#include "irl/interface_reconstruction_methods/progressive_radius_solver_cylinder.h"
-#include "irl/quadratic_reconstruction/parametrized_surface.h"
-
 #include "irl/variant_reconstruction/separator_union.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 namespace {
 using namespace IRL;
+
+TEST(SeparatorUnion, MemoryFootprint) {
+  const auto size_plane = sizeof(Plane);
+  const auto size_paraboloid = sizeof(Paraboloid);
+  const auto size_cylinder = sizeof(Cylinder);
+  const auto size_sepunion = sizeof(SeparatorUnion);
+
+  std::cout << "         sizeof(IRL::Plane) = " << size_plane << std::endl;
+  std::cout << "    sizeof(IRL::Paraboloid) = " << size_paraboloid << std::endl;
+  std::cout << "      sizeof(IRL::Cylinder) = " << size_cylinder << std::endl;
+  std::cout << "sizeof(IRL::SeparatorUnion) = " << size_sepunion << std::endl;
+
+  EXPECT_GE(
+      size_sepunion,
+      sizeof(SeparatorUnion::SeparatorType) +
+          std::max(std::max(2 * size_plane, size_paraboloid), size_cylinder));
+}
 
 TEST(SeparatorUnion, getVolumeMoments) {
   const auto datum = Pt(0, 0, 0);

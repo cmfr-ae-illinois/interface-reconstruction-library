@@ -7,9 +7,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_AMREX_BASEFAB_TPP_
-#define IRL_AMREX_BASEFAB_TPP_
+#ifndef IRL_SEPUMULTIFAB_H_
+#define IRL_SEPUMULTIFAB_H_
 
-namespace IRL {}  // namespace IRL
+#include <AMReX_FabArray.H>
 
-#endif  // IRL_AMREX_BASEFAB_TPP_
+#include "irl/amrex/sepunion_arraybox.h"
+
+namespace amrex {
+using SepUnionMultiFab = FabArray<SepUnionArrayBox>;
+}  // namespace amrex
+
+#include "irl/amrex/sepunion_multifab.tpp"
+
+#endif  // IRL_SEPUMULTIFAB_H_
