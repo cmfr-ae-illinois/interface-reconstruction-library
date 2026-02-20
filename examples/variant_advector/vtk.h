@@ -21,6 +21,16 @@
 #include "examples/variant_advector/basic_mesh.h"
 #include "examples/variant_advector/data.h"
 
+struct InterfaceScalarField {
+  std::string name;
+  std::vector<double> polygon;
+  std::vector<double> paraboloid;
+
+  InterfaceScalarField() = default;
+
+  InterfaceScalarField(const std::string& n) : name(n) {}
+};
+
 class VTKOutput {
   struct DataIO {
     DataIO(const std::string& a_name, const Data<double>& a_data)
@@ -44,6 +54,13 @@ class VTKOutput {
       std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
       const bool a_print_info = false);
 
+  void writeVTKInterfaceWithScalar(
+      const double a_time, std::vector<IRL::Polygon>& a_polygons,
+      std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_paraboloids,
+      std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
+      const std::vector<InterfaceScalarField>& a_scalar_fields,
+      const bool a_print_info = false);
+
   void writeParametrizedInterface(
       const double a_time,
       std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_surface);
@@ -63,11 +80,10 @@ void writeCellsVTK(const std::string& path,
 bool writeScatterVTK(const std::vector<IRL::Pt>& points,
                      const std::string& filename);
 
-void writePolygonVTK(const std::string& filename,
-                     const std::vector<IRL::Pt>& poly);
+void writePolygonVTK(const std::string& filename, const IRL::Polygon& poly);
 
 void writePolygonsVTK(const std::string& filename,
-                      const std::vector<std::vector<IRL::Pt>>& polygons);
+                      const std::vector<IRL::Polygon>& polygons);
 
 void writeVectorsVTK(const std::string& file, const std::vector<IRL::Pt>& pts,
                      const std::vector<IRL::Normal>& vecs);

@@ -311,6 +311,11 @@ inline void MixedPolygonBezierSurface::addPolygons(
   }
 }
 
+inline void MixedPolygonBezierSurface::addCellScalar(
+    const std::string& name, const std::vector<double>& values) {
+  cell_scalar_data_m.emplace_back(name, values);
+}
+
 template <class ContainerPoints>
 inline void MixedPolygonBezierSurface::addBezierTriangle(
     const ContainerPoints& a_points) {
@@ -477,6 +482,10 @@ inline void MixedPolygonBezierSurface::clearAll(void) {
   boundary_m.second.clear();
 }
 
+inline void MixedPolygonBezierSurface::clearCellData(void) {
+  cell_scalar_data_m.clear();
+}
+
 inline void MixedPolygonBezierSurface::write(const std::string& filename,
                                              const bool a_write_boundary) {
   FILE* file;
@@ -546,6 +555,35 @@ inline void MixedPolygonBezierSurface::write(const std::string& filename,
   }
   fprintf(file, "\n</DataArray>\n");
   fprintf(file, "</Cells>\n");
+
+  // scalars per cell
+  const UnsignedIndex_t ncells = number_of_triangles + number_of_polygons;
+
+  if (!cell_scalar_data_m.empty()) {
+    fprintf(file, "<CellData Scalars=\"%s\">\n",
+            cell_scalar_data_m.front().first.c_str());
+
+    for (const auto& kv : cell_scalar_data_m) {
+      const std::string& name = kv.first;
+      const std::vector<double>& vals = kv.second;
+
+      // optional safety
+      if (vals.size() != ncells) continue;
+
+      fprintf(file,
+              "<DataArray type=\"Float64\" Name=\"%s\" "
+              "NumberOfComponents=\"1\" format=\"ascii\">\n",
+              name.c_str());
+
+      for (UnsignedIndex_t i = 0; i < ncells; ++i) {
+        fprintf(file, "%15.8E ", vals[i]);
+      }
+      fprintf(file, "\n</DataArray>\n");
+    }
+
+    fprintf(file, "</CellData>\n");
+  }
+
   fprintf(file, "</Piece>\n</UnstructuredGrid>\n</VTKFile>\n");
   fclose(file);
 

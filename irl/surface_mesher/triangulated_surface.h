@@ -104,6 +104,8 @@ class MixedPolygonBezierSurface {
                  const std::vector<double>& a_weights = std::vector<double>(0));
   void addPolygon(const Polygon& a_polygon);
   void addPolygons(const std::vector<Polygon>& a_polygons);
+  void addCellScalar(const std::string& name,
+                     const std::vector<double>& values);
 
   template <class ContainerPoints>
   void addBezierTriangle(const ContainerPoints& a_points);
@@ -145,6 +147,7 @@ class MixedPolygonBezierSurface {
   void clearBezierTriangles(void);
   void clearBoundaries(void);
   void clearAll(void);
+  void clearCellData(void);
   void write(const std::string& filename, const bool a_write_boundary = false);
 
  private:
@@ -152,6 +155,7 @@ class MixedPolygonBezierSurface {
   PolygonStorage polygons_m;
   BezierTriangleStorage bezier_triangles_m;
   BoundaryStorage boundary_m;
+  std::vector<std::pair<std::string, std::vector<double>>> cell_scalar_data_m;
 };
 
 inline std::ostream& operator<<(

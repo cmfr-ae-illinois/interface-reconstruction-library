@@ -193,6 +193,57 @@ void VTKOutput::writeVTKInterface(
   ++interface_files_written_m;
 }
 
+void VTKOutput::writeVTKInterfaceWithScalar(
+    const double a_time, std::vector<IRL::Polygon>& a_polygons,
+    std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_paraboloids,
+    std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
+    const std::vector<InterfaceScalarField>& a_scalar_fields,
+    const bool a_print_info) {
+  const auto surface_file_name = directory_m + "/" + file_name_base_m +
+                                 "_interface_" +
+                                 std::to_string(interface_files_written_m);
+  IRL::MixedPolygonBezierSurface surface_output;
+
+  std::vector<std::vector<double>> cell_data(a_scalar_fields.size());
+
+  // paraboloids
+  for (int i = 0; i < a_paraboloids.size(); ++i) {
+    int oldNTri = surface_output.nBezierTriangles();
+    surface_output.addSurface(
+        a_paraboloids[i].getQuadraticBezierTriangleApprox());
+    int newNTri = surface_output.nBezierTriangles();
+    for (int t = oldNTri; t < newNTri; t++) {
+      for (int f = 0; f < a_scalar_fields.size(); f++) {
+        cell_data[f].push_back(a_scalar_fields[f].paraboloid[i]);
+      }
+    }
+  }
+
+  // cylinders
+  for (int i = 0; i < a_cylinders.size(); ++i) {
+    // surface_output.addSurface(
+    //   a_cylinders[i].getQuadraticBezierTriangleApprox());
+  }
+
+  // polygons
+  surface_output.addPolygons(a_polygons);
+  for (int i = 0; i < a_polygons.size(); i++) {
+    for (int f = 0; f < a_scalar_fields.size(); f++) {
+      cell_data[f].push_back(a_scalar_fields[f].polygon[i]);
+    }
+  }
+
+  // writing scalar data
+  for (int f = 0; f < a_scalar_fields.size(); f++) {
+    surface_output.addCellScalar(a_scalar_fields[f].name, cell_data[f]);
+  }
+
+  // writing vtk file
+  surface_output.write(surface_file_name);
+
+  ++interface_files_written_m;
+}
+
 void writeCellsVTK(const std::string& path,
                    const std::vector<std::pair<IRL::Pt, IRL::Pt>>& cells) {
   const int pts_per_cell = 8;
@@ -274,39 +325,111 @@ bool writeScatterVTK(const std::vector<IRL::Pt>& points,
   return true;
 }
 
-void writePolygonVTK(const std::string& filename,
-                     const std::vector<IRL::Pt>& poly) {
+// void writePolygonVTK(const std::string& filename,
+//                      const std::vector<IRL::Pt>& poly) {
+//   std::ofstream out(filename);
+//   out << "# vtk DataFile Version 4.2\n";
+//   out << "Plane patch inside cell\n";
+//   out << "ASCII\n";
+//   out << "DATASET POLYDATA\n";
+//   out << "POINTS " << poly.size() << " float\n";
+//   for (auto& p : poly) {
+//     out << p.x() << " " << p.y() << " " << p.z() << "\n";
+//   }
+
+//   out << "POLYGONS 1 " << poly.size() + 1 << "\n";
+//   out << poly.size();
+//   for (size_t i = 0; i < poly.size(); ++i) {
+//     out << " " << i;
+//   }
+//   out << "\n";
+// }
+
+void writePolygonVTK(const std::string& filename, const IRL::Polygon& poly) {
+  const std::size_t n = poly.getNumberOfVertices();
+  if (n < 3) return;
+
   std::ofstream out(filename);
+  if (!out) return;
+
   out << "# vtk DataFile Version 4.2\n";
   out << "Plane patch inside cell\n";
   out << "ASCII\n";
   out << "DATASET POLYDATA\n";
-  out << "POINTS " << poly.size() << " float\n";
-  for (auto& p : poly) {
+
+  // ---------------- POINTS ----------------
+  out << "POINTS " << n << " float\n";
+  for (std::size_t i = 0; i < n; ++i) {
+    const IRL::Pt& p = poly[i];
     out << p.x() << " " << p.y() << " " << p.z() << "\n";
   }
 
-  out << "POLYGONS 1 " << poly.size() + 1 << "\n";
-  out << poly.size();
-  for (size_t i = 0; i < poly.size(); ++i) {
-    out << " " << i;
-  }
+  // ---------------- POLYGON ----------------
+  out << "POLYGONS 1 " << (n + 1) << "\n";
+
+  out << n;
+  for (std::size_t i = 0; i < n; ++i) out << " " << i;
+
   out << "\n";
 }
 
+// void writePolygonsVTK(const std::string& filename,
+//                       const std::vector<IRL::Polygon>& polygons) {
+//   std::vector<std::vector<IRL::Pt>> polys;
+//   polys.reserve(polygons.size());
+//   for (const auto& poly : polygons)
+//     if (poly.size() >= 3) polys.push_back(poly);
+
+//   // Count totals
+//   std::size_t totalPoints = 0;
+//   std::size_t totalPolyRecs = 0;  // sum of (1 + n_i)
+//   for (const auto& poly : polys) {
+//     totalPoints += poly.size();
+//     totalPolyRecs += 1 + poly.size();
+//   }
+
+//   std::ofstream out(filename);
+//   if (!out) return;
+
+//   out << "# vtk DataFile Version 4.2\n";
+//   out << "Multiple plane patches\n";
+//   out << "ASCII\n";
+//   out << "DATASET POLYDATA\n";
+
+//   // POINTS block
+//   out << "POINTS " << totalPoints << " float\n";
+//   for (const auto& poly : polys) {
+//     for (const auto& p : poly) {
+//       out << p.x() << " " << p.y() << " " << p.z() << "\n";
+//     }
+//   }
+
+//   // POLYGONS block
+//   out << "POLYGONS " << polys.size() << " " << totalPolyRecs << "\n";
+//   std::size_t offset = 0;
+//   for (const auto& poly : polys) {
+//     out << poly.size();
+//     for (std::size_t k = 0; k < poly.size(); ++k) out << " " << (offset + k);
+//     out << "\n";
+//     offset += poly.size();
+//   }
+// }
+
 void writePolygonsVTK(const std::string& filename,
-                      const std::vector<std::vector<IRL::Pt>>& polygons) {
-  std::vector<std::vector<IRL::Pt>> polys;
+                      const std::vector<IRL::Polygon>& polygons) {
+  std::vector<const IRL::Polygon*> polys;
   polys.reserve(polygons.size());
   for (const auto& poly : polygons)
-    if (poly.size() >= 3) polys.push_back(poly);
+    if (poly.getNumberOfVertices() >= 3) polys.push_back(&poly);
 
   // Count totals
   std::size_t totalPoints = 0;
-  std::size_t totalPolyRecs = 0;  // sum of (1 + n_i)
-  for (const auto& poly : polys) {
-    totalPoints += poly.size();
-    totalPolyRecs += 1 + poly.size();
+  std::size_t totalPolyRecs = 0;
+
+  for (const auto* poly : polys) {
+    const std::size_t n = poly->getNumberOfVertices();
+    totalPoints += n;
+    totalPolyRecs += 1 + n;
   }
 
   std::ofstream out(filename);
@@ -317,22 +440,29 @@ void writePolygonsVTK(const std::string& filename,
   out << "ASCII\n";
   out << "DATASET POLYDATA\n";
 
-  // POINTS block
+  // -------------------- POINTS --------------------
   out << "POINTS " << totalPoints << " float\n";
-  for (const auto& poly : polys) {
-    for (const auto& p : poly) {
+
+  for (const auto* poly : polys) {
+    const std::size_t n = poly->getNumberOfVertices();
+    for (std::size_t i = 0; i < n; ++i) {
+      const IRL::Pt& p = (*poly)[i];
       out << p.x() << " " << p.y() << " " << p.z() << "\n";
     }
   }
 
-  // POLYGONS block
+  // -------------------- POLYGONS --------------------
   out << "POLYGONS " << polys.size() << " " << totalPolyRecs << "\n";
+
   std::size_t offset = 0;
-  for (const auto& poly : polys) {
-    out << poly.size();
-    for (std::size_t k = 0; k < poly.size(); ++k) out << " " << (offset + k);
+  for (const auto* poly : polys) {
+    const std::size_t n = poly->getNumberOfVertices();
+
+    out << n;
+    for (std::size_t k = 0; k < n; ++k) out << " " << (offset + k);
+
     out << "\n";
-    offset += poly.size();
+    offset += n;
   }
 }
 
