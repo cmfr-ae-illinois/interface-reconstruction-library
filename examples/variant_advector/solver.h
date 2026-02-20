@@ -75,6 +75,12 @@ void writeInterfaceToFile(
     const Data<IRL::SeparatorVariant>& a_liquid_gas_interface,
     const double a_time, VTKOutput* a_output, const bool print);
 
+void writeInterfaceWithScalarToFile(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::SeparatorVariant>& a_liquid_gas_interface,
+    const std::vector<InterfaceScalarField>& a_scalar_fields,
+    const double a_time, VTKOutput* a_output, const bool print);
+
 void printError(const BasicMesh& mesh,
                 const Data<IRL::VolumeMoments>& liq_moments,
                 const Data<IRL::VolumeMoments>& starting_liq_moments);
@@ -166,11 +172,21 @@ int runSimulation(const std::string& a_case_name,
   if (rank == 0) {
     vtk_io.writeVTKFile(simulation_time);
   }
+
+  std::vector<InterfaceScalarField> scalar_fields;
   getReconstruction(a_reconstruction_method, liq_moments, gas_moments, 0.0,
-                    velU, velV, velW, &interface);
+                    velU, velV, velW, &interface, &scalar_fields);
+
   resetMoments(link_localized_interface, &liq_moments, &gas_moments);
 
-  writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io, true);
+  if (a_reconstruction_method == "JibbenM") {
+    writeInterfaceWithScalarToFile(liq_moments, interface, scalar_fields,
+                                   simulation_time, &vtk_io, true);
+  } else {
+    writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
+                         true);
+  }
+
   if (rank == 0) {
     writeDiagnosticsHeader();
   }
@@ -185,6 +201,11 @@ int runSimulation(const std::string& a_case_name,
                         write_time);
     // printError(cc_mesh, liq_moments, starting_liq_moments);
   }
+
+  // jibben interface output
+  std::string output_dir = "/home/parinht2/Desktop/jibben_pu_hybrid/debugging/";
+  int output_count = 1;
+
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
         std::fmin(timestep, a_end_time - simulation_time);
@@ -229,8 +250,14 @@ int runSimulation(const std::string& a_case_name,
 
     auto advect_end = std::chrono::system_clock::now();
     advect_VOF_time = advect_end - start;
+
+    std::vector<InterfaceScalarField> scalar_fields;
     getReconstruction(a_reconstruction_method, liq_moments, gas_moments,
-                      time_step_to_use, velU, velV, velW, &interface);
+                      time_step_to_use, velU, velV, velW, &interface,
+                      &scalar_fields);
+
+    // outputting interfaces based on Jibben metrics
+
     auto recon_end = std::chrono::system_clock::now();
     recon_time = recon_end - advect_end;
 
@@ -238,8 +265,14 @@ int runSimulation(const std::string& a_case_name,
       if (rank == 0) {
         vtk_io.writeVTKFile(simulation_time);
       }
-      writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
-                           simulation_time + time_step_to_use >= a_end_time);
+      if (a_reconstruction_method == "JibbenM") {
+        writeInterfaceWithScalarToFile(
+            liq_moments, interface, scalar_fields, simulation_time, &vtk_io,
+            simulation_time + time_step_to_use >= a_end_time);
+      } else {
+        writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
+                             simulation_time + time_step_to_use >= a_end_time);
+      }
     }
     auto write_end = std::chrono::system_clock::now();
     write_time = write_end - recon_end;

@@ -197,6 +197,75 @@ void writeInterfaceToFile(
   a_output->writeVTKInterface(a_time, polygons, paraboloids, cylinders);
 }
 
+void writeInterfaceWithScalarToFile(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::SeparatorVariant>& a_liquid_gas_interface,
+    const std::vector<InterfaceScalarField>& a_scalar_fields,
+    const double a_time, VTKOutput* a_output, const bool print) {
+  using VolumeAndParaboloid =
+      IRL::AddSurfaceOutput<IRL::Volume,
+                            IRL::ParaboloidParametrizedSurfaceOutput>;
+  using VolumeAndCylinder =
+      IRL::AddSurfaceOutput<IRL::Volume,
+                            IRL::CylinderParametrizedSurfaceOutput>;
+
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+
+  std::vector<IRL::Polygon> polygons;
+  std::vector<IRL::ParaboloidParametrizedSurfaceOutput> paraboloids;
+  std::vector<IRL::CylinderParametrizedSurfaceOutput> cylinders;
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        const double liquid_volume_fraction =
+            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+          const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                      mesh.z(k + 1));
+          const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+              lower_cell_pt, upper_cell_pt);
+          if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
+                  &a_liquid_gas_interface(i, j, k))) {
+            const auto polygon =
+                IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(cell, *ptr,
+                                                                     (*ptr)[0]);
+            polygons.push_back(polygon);
+
+          } else if (const auto ptr = std::get_if<IRL::Paraboloid>(
+                         &a_liquid_gas_interface(i, j, k))) {
+            auto volume_and_surface =
+                IRL::getVolumeMoments<VolumeAndParaboloid>(cell, *ptr);
+            auto surface = volume_and_surface.getSurface();
+            double length_scale = std::min(0.25 * mesh.dx(), 1.0e-2);
+            surface.setLengthScale(length_scale);
+            if (surface.getSurfaceArea() >
+                1.0e-6 * length_scale * length_scale) {
+              paraboloids.push_back(surface);
+            }
+          } else if (const auto ptr = std::get_if<IRL::Cylinder>(
+                         &a_liquid_gas_interface(i, j, k))) {
+            auto volume_and_surface =
+                IRL::getVolumeMoments<VolumeAndCylinder>(cell, *ptr);
+            auto surface = volume_and_surface.getSurface();
+            double length_scale = std::min(0.25 * mesh.dx(), 1.0e-2);
+            surface.setLengthScale(length_scale);
+            if (surface.getSurfaceArea() >
+                1.0e-6 * length_scale * length_scale) {
+              cylinders.push_back(surface);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  a_output->writeVTKInterfaceWithScalar(a_time, polygons, paraboloids,
+                                        cylinders, a_scalar_fields);
+}
+
 void printError(const BasicMesh& mesh,
                 const Data<IRL::VolumeMoments>& liq_moments,
                 const Data<IRL::VolumeMoments>& starting_liq_moments) {
@@ -215,26 +284,25 @@ void printError(const BasicMesh& mesh,
         for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
           const double liquid_volume_fraction =
               liq_moments(i, j, k).volume() / mesh.cell_volume();
-          if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-              liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-            auto mom_err =
-                (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
-            linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.volume()));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
-            linf_error_m1 =
-                std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
-            l1_error_m0 += std::abs(mom_err.volume());
-            l1_error_m1 += std::abs(mom_err.centroid()[0]);
-            l1_error_m1 += std::abs(mom_err.centroid()[1]);
-            l1_error_m1 += std::abs(mom_err.centroid()[2]);
-            l2_error_m0 += mom_err.volume() * mom_err.volume();
-            l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
-            l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
-            l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
-          }
+          // if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+          //     liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          auto mom_err = (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
+          linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.volume()));
+          linf_error_m1 =
+              std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
+          linf_error_m1 =
+              std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
+          linf_error_m1 =
+              std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
+          l1_error_m0 += std::abs(mom_err.volume());
+          l1_error_m1 += std::abs(mom_err.centroid()[0]);
+          l1_error_m1 += std::abs(mom_err.centroid()[1]);
+          l1_error_m1 += std::abs(mom_err.centroid()[2]);
+          l2_error_m0 += mom_err.volume() * mom_err.volume();
+          l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
+          l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
+          l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
+          // }
         }
       }
     }
