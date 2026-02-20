@@ -32,6 +32,16 @@ class Jibben_3D {
   /// \brief Getting fitting error
   const double getFittingError(void) const;
 
+  /// \brief Get volume error
+  const double getVolumeError(const double& dx) const;
+
+  /// \brief Get volume error squared
+  const double getVolumeErrorSquared(const double& dx) const;
+
+  const double getVolumeErrorSquared_w1(const double& dx) const;
+
+  const double getVolumeErrorSquared_w2(const double& dx) const;
+
   /// \brief Default destructor.
   ~Jibben_3D(void) = default;
 
@@ -45,6 +55,8 @@ class Jibben_3D {
   double error_m;
   /// \brief Weighting function radius
   double delta_m;
+  /// \brief Paraboloid coefficients
+  std::array<double, 6> coefficients_m;
 };
 
 }  // namespace IRL
