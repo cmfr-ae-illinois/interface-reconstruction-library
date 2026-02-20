@@ -1,0 +1,45 @@
+// This file is part of the Interface Reconstruction Library (IRL),
+// a library for interface reconstruction and computational geometry operations.
+//
+// Copyright (C) 2026 Fabien Evrard <fa.evrard@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#ifndef EXAMPLES_AMREX_ADVECTOR_VTK_H_
+#define EXAMPLES_AMREX_ADVECTOR_VTK_H_
+
+#include <string>
+#include <vector>
+
+#include "irl/cylinder_reconstruction/cylinder_parametrized_surface.h"
+#include "irl/geometry/polygons/polygon.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
+#include "irl/surface_mesher/triangulated_surface.h"
+
+class VTKOutput {
+ public:
+  VTKOutput(const std::string& a_directory,
+            const std::string& a_file_name_base);
+
+  void writeVTKFile(const double a_time);
+
+  void writeVTKInterface(
+      const double a_time, std::vector<IRL::Polygon>& a_polygons,
+      std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_paraboloids,
+      std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
+      const bool a_print_info = false);
+
+  void writeParametrizedInterface(
+      const double a_time,
+      std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_surface);
+
+ private:
+  std::string directory_m;
+  std::string file_name_base_m;
+  std::size_t data_files_written_m;
+  std::size_t interface_files_written_m;
+};
+
+#endif  // EXAMPLES_AMREX_ADVECTOR_VTK_H_
