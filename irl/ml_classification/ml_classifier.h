@@ -51,6 +51,17 @@ protected:
     size_t no_samples = batch_size * no_batches;
     double generation_time = 0.0;
 
+    //Training logs
+    std::vector<double> train_loss;
+    std::vector<double> val_loss;
+    std::vector<double> test_accuracy_vec;
+    std::vector<double> val_accuracy_vec;
+
+    double final_test_loss = 0.0;
+    double final_test_accuracy = 0.0;
+
+    std::vector<std::vector<int64_t>> confusion_matrix;
+
 public:
     MLClassifier(int stencil = 3, int input = 27,
                  int h1 = 128, int h2 = 64, int h3 = 32, int out = 4)
@@ -263,11 +274,57 @@ public:
         auto val_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
             std::move(val_dataset).map(torch::data::transforms::Stack<>()), batch_size);
 
+        
         using Loader = std::remove_reference_t<decltype(*train_loader)>;
         IRL::Trainer<IRL::Net, Loader> trainer(
-            net, *optimizer, train_loader.get(), test_loader.get(), val_loader.get(), epochs);
+            net, *optimizer,
+            train_loader.get(), test_loader.get(), val_loader.get(),
+            epochs,
+            &train_loss,
+            &val_loss,
+            &test_accuracy_vec,
+            &val_accuracy_vec,
+            &final_test_loss,
+            &final_test_accuracy,
+            &confusion_matrix
+        );
+
         trainer.train();
     }
+
+    void outputTrainingResults() const {
+        std::cout << "=== Training Results ===" << std::endl;
+
+        std::cout << "train_loss:" << std::endl;
+        for (double v : train_loss) std::cout << v << std::endl;
+
+        std::cout << "val_loss:" << std::endl;
+        for (double v : val_loss) std::cout << v << std::endl;
+
+        std::cout << "test_accuracy_vec:" << std::endl;
+        for (double v : test_accuracy_vec) std::cout << v << std::endl;
+
+        std::cout << "val_accuracy_vec:" << std::endl;
+        for (double v : val_accuracy_vec) std::cout << v << std::endl;
+
+        std::cout << "final_test_loss:" << std::endl;
+        std::cout << final_test_loss << std::endl;
+
+        std::cout << "final_test_accuracy:" << std::endl;
+        std::cout << final_test_accuracy << std::endl;
+
+        std::cout << "confusion_matrix:" << std::endl;
+
+        for (size_t i = 0; i < confusion_matrix.size(); ++i) {
+            for (size_t j = 0; j < confusion_matrix[i].size(); ++j) {
+                std::cout << confusion_matrix[i][j];
+                if (j + 1 < confusion_matrix[i].size())
+                    std::cout << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
 
     void saveModel(const std::string& path, bool save_optimizer_state = false) {
         namespace fs = std::filesystem;
@@ -314,10 +371,39 @@ public:
         param_out << "hidden_size3 " << hidden_size3 << "\n";
         param_out << "output_size " << output_size << "\n\n";
 
-        param_out << "[Training]\n";
+        param_out << "[TrainingParameters]\n";
         param_out << "learning_rate " << learning_rate << "\n";
         param_out << "batch_size " << batch_size << "\n";
         param_out << "epochs " << epochs << "\n\n";
+
+        param_out << "[TrainingResults]\n";
+        param_out << "train_loss:\n";
+        for (double v : train_loss)
+            param_out << v << "\n";
+        param_out << "val_loss:\n";
+        for (double v : val_loss)
+            param_out << v << "\n";
+        param_out << "test_accuracy_vec:\n";
+        for (double v : test_accuracy_vec)
+            param_out << v << "\n";
+        param_out << "val_accuracy_vec:\n";
+        for (double v : val_accuracy_vec)
+            param_out << v << "\n";
+        param_out << "final_test_loss:\n";
+        param_out << final_test_loss << "\n";
+        param_out << "final_test_accuracy:\n";
+        param_out << final_test_accuracy << "\n";
+        param_out << "confusion_matrix:\n";
+        for (size_t i = 0; i < confusion_matrix.size(); ++i) {
+            for (size_t j = 0; j < confusion_matrix[i].size(); ++j) {
+                param_out << confusion_matrix[i][j];
+                if (j + 1 < confusion_matrix[i].size())
+                    param_out << " ";
+            }
+            param_out << "\n";
+        }
+
+        param_out << "\n";
 
         param_out.close();
         std::cout << "📝 Saved model parameters to " << param_file << std::endl;

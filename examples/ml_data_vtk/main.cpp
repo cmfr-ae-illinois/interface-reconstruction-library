@@ -213,7 +213,7 @@ int main(int argc, char* argv[]) {
 
     IRL::Data_gen gen;
 
-    gen.generateState(4,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    gen.generateState(3,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
     
     /*
     int num_tests = 100;

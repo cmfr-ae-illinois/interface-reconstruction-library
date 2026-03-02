@@ -4,6 +4,7 @@
 #include <random>
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/ml_classification/vtk_out.h"
@@ -76,17 +77,6 @@ namespace IRL {
             return coords;
         }
 
-        inline std::vector<double> flattenVfrac(const std::vector<std::vector<std::vector<double>>>& vfrac,
-                                                int stencil_size) {
-            std::vector<double> flattened;
-            flattened.reserve(static_cast<size_t>(stencil_size) * stencil_size * stencil_size);
-            for (int i = 0; i < stencil_size; ++i)
-                for (int j = 0; j < stencil_size; ++j)
-                    for (int k = 0; k < stencil_size; ++k)
-                        flattened.push_back(vfrac[i][j][k]);
-            return flattened;
-        }
-
         inline bool centerCellIsCut(const std::vector<std::vector<std::vector<double>>>& vfrac,
                                     int stencil_size,
                                     double machineZero) {
@@ -148,7 +138,7 @@ namespace IRL {
         }
         
         
-        std::vector<double> generateParaboloid(
+        void generateParaboloid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double coeff_stddev = 0.1, bool visualize = false,
@@ -261,9 +251,7 @@ namespace IRL {
                         WriteSurface(surfaces, "surface");
                         printCentroids(centroid);
                     }
-
-                    // Flatten the 3D vector vfrac into a 1D vector
-                    return flattenVfrac(vfrac, stencil_size);
+                    return; // done with this function, exit
                 }
 
                 // else: reject and try again (loop restarts)
@@ -283,7 +271,7 @@ namespace IRL {
         }
 
 
-        std::vector<double> generateSheet(
+        void generateSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
@@ -456,40 +444,34 @@ namespace IRL {
                     }
 
                     // Flatten the 3D vector vfrac into a 1D vector
-                    return flattenVfrac(vfrac, stencil_size);
+                    return;
                 }
 
                 // else: reject and regenerate
             }
         }
-
-        std::vector<double> generateCutSheet(
+        /*
+        void generateCutSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
+            int stencil_size, bool cutInsideCentralCell,
+            double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
-                // make centroid, only used for visualization
-                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
-                    stencil_size,
-                    std::vector<std::vector<Eigen::Vector3d>>(
-                        stencil_size,
-                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
-                    )
-                );
 
                 // Defining cell coordinates
                 auto coords = makeCenteredCoords(stencil_size);
                 const double cell_volume = 1.0;
 
                 // Random datum anywhere in stencil
-                Eigen::Vector3d datum = generateRandomPoint(
+                const auto datum = Pt::fromRawDoublePointer(generateRandomPoint(
                     -0.5*static_cast<double>(stencil_size),
-                    0.5*static_cast<double>(stencil_size), eng);
+                    0.5*static_cast<double>(stencil_size), eng).data());
 
                 // Random unbiased direction
-                Eigen::Vector3d direction = generateRandomDirection(eng);
+                auto direction = Normal::fromRawDoublePointer(generateRandomDirection(eng).data());
+                direction.normalize();
 
                 // Random sheet thickness
                 double thickness = max_thickness;
@@ -501,35 +483,50 @@ namespace IRL {
                 }
 
                 // Two paraboloid datums offset along the direction
-                Eigen::Vector3d datum_paraboloid1_eVec = datum - direction.normalized() * (thickness/2.0);
-                Eigen::Vector3d datum_paraboloid2_eVec = datum + direction.normalized() * (thickness/2.0);
+                const auto datum_paraboloid1 = Pt(datum - direction * (thickness/2.0));
+                const auto datum_paraboloid2 = Pt(datum + direction * (thickness/2.0));
 
                 // Build orthonormal frame aligned with direction
-                Eigen::Vector3d helper = generateRandomDirection(eng);
-                Eigen::Vector3d paraboloid_x = direction.cross(helper);
-                if (paraboloid_x.norm() < 1e-12) {
-                    paraboloid_x = direction.cross(Eigen::Vector3d(1,0,0));
-                }
-                paraboloid_x.normalize();
-                Eigen::Vector3d paraboloid_y = direction.cross(paraboloid_x);
-                paraboloid_y.normalize();
-                Eigen::Vector3d paraboloid_z = direction;
-
-                const auto frame = IRL::ReferenceFrame(
-                    IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
-                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
-                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
-
-                IRL::Pt datum_paraboloid1(datum_paraboloid1_eVec.x(), datum_paraboloid1_eVec.y(), datum_paraboloid1_eVec.z());
-                IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
+                const auto frame = ReferenceFrame::fromNormal(direction);
 
                 // Random coefficients
                 std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
                 double coeff1 = random_coeff(eng);
                 double coeff2 = random_coeff(eng);
-
                 const auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1, coeff2);
                 const auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1, coeff2);
+
+                // Random point anywhere in stencil
+                const auto sample_pt = Pt::fromRawDoublePointer(generateRandomPoint(
+                    -0.5*static_cast<double>(stencil_size),
+                    0.5*static_cast<double>(stencil_size), eng).data());
+
+                // Project sample point onto paraboloid 2
+                auto tmp_paraboloid = paraboloid2;
+                tmp_paraboloid.regenerateAtLocation(sample_pt);
+                const auto new_datum = tmp_paraboloid.getDatum();
+                const double alpha = 0.5; // Make that random
+                auto new_normal = (1 - alpha) * tmp_paraboloid.getReferenceFrame()[0] + alpha * tmp_paraboloid.getReferenceFrame()[1];
+                new_normal.normalize();
+
+                // Quick check if the central cell will be cut with this new plane, if not, reject and try again
+                const double half_width = 0.5;                   // inscribed sphere radius of unit cube
+                const double half_diag  = 0.86618;                // half diagonal of unit cube
+                double dist = std::abs(new_normal.dot(Eigen::Vector3d(new_datum.x(), new_datum.y(), new_datum.z())));
+                bool definitely_cut = (dist < half_width);
+                bool definitely_not_cut = (dist > half_diag);
+                if (definitely_cut && !cutInsideCentralCell) {
+                    continue; // violates condition, reject early
+                }
+                if (definitely_not_cut && cutInsideCentralCell) {
+                    continue; // violates condition, reject early
+                }
+
+
+                // Create localizer plane that will cut both paraboloids
+                const auto localizer = PlanarLocalizer::fromOnePlane(Plane(new_normal, new_normal * new_datum));
+                const auto paraboloid1_and_plane = LocalizedParaboloid<double>(&localizer, &paraboloid1);
+                const auto paraboloid2_and_plane = LocalizedParaboloid<double>(&localizer, &paraboloid2);
 
                 // Initialize field
                 using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
@@ -543,17 +540,9 @@ namespace IRL {
                                 Pt(coords[i], coords[j], coords[k]),
                                 Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
 
-                            /*
-                            auto volume_and_surface1 = getVolumeMoments<
-                                AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
-                                cell, paraboloid1);
-                            auto volume_and_surface2 = getVolumeMoments<
-                                AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
-                                cell, paraboloid2);
-                            */
                             if (secondMoment != nullptr) {
-                                auto gm1 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid1);
-                                auto gm2 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid2);
+                                auto gm1 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid1_and_plane);
+                                auto gm2 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid2_and_plane);
                                 auto gmSheet = gm2 - gm1;
 
                                 // 0th moment
@@ -575,24 +564,24 @@ namespace IRL {
 
                             } else {
                                 auto volume_and_surface1 = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid1);
+                                    VolumeMoments>(cell, paraboloid1_and_plane);
 
                                 auto volume_and_surface2 = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid2);
+                                    VolumeMoments>(cell, paraboloid2_and_plane);
 
-                                double V1 = volume_and_surface1.getMoments().volume();
-                                double V2 = volume_and_surface2.getMoments().volume();
+                                double V1 = volume_and_surface1.volume();
+                                double V2 = volume_and_surface2.volume();
                                 double Vdiff = V2 - V1;
 
 
 
-                                Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
-                                                volume_and_surface1.getMoments().centroid().y(),
-                                                volume_and_surface1.getMoments().centroid().z());
+                                Eigen::Vector3d M1(volume_and_surface1.centroid().x(),
+                                                volume_and_surface1.centroid().y(),
+                                                volume_and_surface1.centroid().z());
 
-                                Eigen::Vector3d M2(volume_and_surface2.getMoments().centroid().x(),
-                                                volume_and_surface2.getMoments().centroid().y(),
-                                                volume_and_surface2.getMoments().centroid().z());
+                                Eigen::Vector3d M2(volume_and_surface2.centroid().x(),
+                                                volume_and_surface2.centroid().y(),
+                                                volume_and_surface2.centroid().z());
 
 
                                 if (Vdiff <= 0.0) {
@@ -613,8 +602,6 @@ namespace IRL {
                                 //surfaces.push_back(volume_and_surface2.getSurface());
                                 surfaces.push_back(surface1);
                                 surfaces.push_back(surface2);
-                                centroid[i][j][k] = computeCentroidFromFirstMoment(
-                                    firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
                             }
                         }
                     }
@@ -623,7 +610,7 @@ namespace IRL {
                 // Check central cell
                 if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
                     // Accept this sample
-                    
+
                     // Now calc stencil 2nd moments if requested
                     if (secondMoment != nullptr) {
                         *secondMoment = centeredSecondMomentFromTotal(totalMoments);
@@ -632,16 +619,14 @@ namespace IRL {
                     if (visualize) {
                         WriteField(stencil_size, coords, vfrac, "vfrac");
                         WriteSurface(surfaces, "surface");
-                        printCentroids(centroid);
                     }
-
-                    // Flatten the 3D vector vfrac into a 1D vector
-                    return flattenVfrac(vfrac, stencil_size);
+                    return;
                 }
 
                 // else: reject and regenerate
             }
         }
+        */
 
         // Function to generate a random vector within given bounds
         Eigen::Vector3d generateRandomPoint(double min_bound, double max_bound, std::mt19937_64& eng) {
@@ -698,7 +683,7 @@ namespace IRL {
             }
         }
 
-        std::vector<double> generateCylinder(
+        void generateCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
@@ -716,10 +701,6 @@ namespace IRL {
 
                 // for visualization option
                 std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
-
-                const double cell_volume = 1.0;
-                int refinement_factor = 3;
-                double refinement_factor_double = static_cast<double>(refinement_factor);
 
                 Eigen::Vector3d axis_origin = generateRandomPoint(
                     -0.5 * stencil_size, 0.5 * stencil_size, eng);
@@ -752,7 +733,12 @@ namespace IRL {
                 
 
                 // Refined mesh
-                int refined_stencil_size = refinement_factor*stencil_size;
+                const double cell_volume = 1.0;
+                double refinement_factor_double = std::min(std::ceil(3.0/(2.0*radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                // REMOVE LATER
+                refinement_factor_double = 3.0;
+                int refinement_factor = static_cast<int>(refinement_factor_double);
+                int refined_stencil_size = refinement_factor * stencil_size;
                 std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
                     std::vector<std::vector<double>>(refined_stencil_size,
                     std::vector<double>(refined_stencil_size)));
@@ -866,16 +852,7 @@ namespace IRL {
                         WriteSurface(surfaces, "surface");
                         printCentroids(centroid);
                     }
-
-                    std::vector<double> flattened_vfrac;
-                    for (int i = 0; i < stencil_size; ++i) {
-                        for (int j = 0; j < stencil_size; ++j) {
-                            for (int k = 0; k < stencil_size; ++k) {
-                                flattened_vfrac.push_back(vfrac[i][j][k]);
-                            }
-                        }
-                    }
-                    return flattened_vfrac; // accept this sample
+                    return; // accept this sample
                 }
                 // else: reject and regenerate
             }   
@@ -918,7 +895,7 @@ namespace IRL {
         }
 
 
-        std::vector<double> generateBentCylinder(
+        void generateBentCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0,
@@ -939,10 +916,6 @@ namespace IRL {
                 // for visualization option
                 std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
 
-                const double cell_volume = 1.0;
-                int refinement_factor = 3;
-                double refinement_factor_double = static_cast<double>(refinement_factor);
-
                 // Make a random tube radius
                 double tube_radius = max_radius;
                 if (radius_stddev > 0.0) {
@@ -955,9 +928,9 @@ namespace IRL {
                 // Random plane (u, v) in which the arc lies
                 Eigen::Vector3d u = generateRandomDirection(eng).normalized();
                 Eigen::Vector3d tmp = generateRandomDirection(eng).normalized();
-                tmp -= tmp.dot(u) * u; // make tmp orthogonal to u
+                tmp -= tmp.dot(u) * u; // make tmp orthogonal to u: Gram–Schmidt orthogonalization
                 if (tmp.squaredNorm() < 1e-14) {
-                    // rare degeneracy: choose a deterministic perpendicular
+                    // rare degeneracy: choose a deterministic perpendicular: x or y, then make orthogonal to u just in case
                     tmp = (std::abs(u.x()) < 0.9 ? Eigen::Vector3d(1, 0, 0) : Eigen::Vector3d(0, 1, 0));
                     tmp -= tmp.dot(u) * u;
                 }
@@ -1015,19 +988,10 @@ namespace IRL {
                 // Final circle center (c0)
                 Eigen::Vector3d c0 = p_plane_closest + d * dir_plane;
 
-                // Quick reject: check distance from stencil center to centerline (arc segment)
-                /*
-                Eigen::Vector3d center(0.0, 0.0, 0.0);
-                Eigen::Vector3d closest_center, tangent_center;
-                closestPointAndTangentOnArc(center, closest_center, tangent_center);
-                double distance_to_centerline = (closest_center - center).norm();
-
-                if (std::abs(distance_to_centerline - radius) > 0.8661) {
-                    continue; // try again
-                }
-                */
-
                 // Refined mesh
+                const double cell_volume = 1.0;
+                double refinement_factor_double = std::min(std::ceil(3.0/(2.0*tube_radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                int refinement_factor = static_cast<int>(refinement_factor_double);
                 int refined_stencil_size = refinement_factor * stencil_size;
 
                 std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
@@ -1116,7 +1080,7 @@ namespace IRL {
                                 IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()),
                                 IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
 
-                            // Tube = paraboloid with coeffs (0, 1/(2R)) in the local frame
+                            // Tube approx with paraboloid with coeffs (0, 1/(2R)) in the local frame- cylinder pieces
                             const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1 / (2 * tube_radius));
 
                             auto volume_and_surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid);
@@ -1169,16 +1133,7 @@ namespace IRL {
                         WriteSurface(surfaces, "surface");
                         printCentroids(centroid);
                     }
-
-                    std::vector<double> flattened_vfrac;
-                    for (int ii = 0; ii < stencil_size; ++ii) {
-                        for (int jj = 0; jj < stencil_size; ++jj) {
-                            for (int kk = 0; kk < stencil_size; ++kk) {
-                                flattened_vfrac.push_back(vfrac[ii][jj][kk]);
-                            }
-                        }
-                    }
-                    return flattened_vfrac; // accept this sample
+                    return; // accept this sample
                 }
                 // else: reject and regenerate
             }
@@ -1206,7 +1161,7 @@ namespace IRL {
             return std::atan2(qv, qu);
         }
 
-        std::vector<double> generateBentTruncatedCylinder(
+        void generateBentTruncatedCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, bool truncateInsideCentralCell, double max_radius = 0.5, double radius_stddev = 0.0, 
@@ -1319,12 +1274,13 @@ namespace IRL {
 
                         // If truncateInsideCentralCell == false: require OUTSIDE  => ||p_cut|| > d_min_circle + sphere_radius
                         // If truncateInsideCentralCell == true : require INSIDE   => ||p_cut|| <= d_min_circle + sphere_radius
-                        const double thresh = d_min_circle + sphere_radius;
-                        const double r_cut  = p_cut.norm();
+                        const double thresh_outside = half_diag;
+                        const double thresh_inside = 0.5;
+                        const double dist_p_cut  = p_cut.norm(); // distance from origin to point on circle at theta_cut, which is the center of the spherical truncation cap
                         if (!truncateInsideCentralCell) {
-                            if (r_cut <= thresh) continue;     // want outside, but it's inside
+                            if (dist_p_cut + sphere_radius < thresh_outside) continue; // want outside, but it's inside
                         } else {
-                            if (r_cut >  thresh) continue;     // want inside, but it's outside
+                            if (dist_p_cut + sphere_radius > thresh_inside) continue; // want inside, but it's outside
                         }
 
                         theta_cut = t;
@@ -1338,10 +1294,10 @@ namespace IRL {
                 // range of theta for tube in [theta_start, theta_cut]
                 // Randomize span to get diverse truncation lengths.
                 double tube_theta_span = 0.0;
-                {
-                    std::uniform_real_distribution<double> dist_span(0.5 * M_PI, 1.75 * M_PI);
-                    tube_theta_span = dist_span(eng);
-                }
+                
+                std::uniform_real_distribution<double> dist_span(0.5 * M_PI, 1.75 * M_PI);
+                tube_theta_span = dist_span(eng);
+                
                 double theta_start = theta_cut - tube_theta_span;
 
                 auto thetaInTubeRange = [&](double theta) -> bool {
@@ -1387,7 +1343,7 @@ namespace IRL {
                             // Compute theta of this cell projection in the circle plane
                             double theta_cell = angleOnCirclePlane(cell_center, c0, u, v);
 
-                            // Always compute closest point on circle for tube distance and tube frame if needed
+                            // Compute closest point and tangent on the full circle (not truncated) for this cell center
                             Eigen::Vector3d closest_point_on_circle;
                             Eigen::Vector3d circle_tangent;
                             closestPointAndTangentOnCircle(
@@ -1401,9 +1357,8 @@ namespace IRL {
                             );
 
                             double dist_to_circle_centerline = (cell_center - closest_point_on_circle).norm();
-                            double d2 = dist_to_circle_centerline - tube_radius; // tube signed-ish
-
-                            double d1 = (cell_center - sphere_origin).norm() - sphere_radius; // sphere signed-ish
+                            double d2 = dist_to_circle_centerline - tube_radius; // tube
+                            double d1 = (cell_center - sphere_origin).norm() - sphere_radius; // sphere
 
                             bool use_sphere = false;
 
@@ -1424,7 +1379,7 @@ namespace IRL {
                             );
 
                             if (use_sphere) {
-                                // --- Sphere interface ---
+                                // Sphere interface
                                 Eigen::Vector3d z = (cell_center - sphere_origin);
                                 double zn = z.norm();
                                 if (zn < 1e-14) {
@@ -1458,7 +1413,7 @@ namespace IRL {
                                                             1.0 / (2.0 * sphere_radius),
                                                             1.0 / (2.0 * sphere_radius));
                             } else {
-                                // --- Tube interface (local cylinder) ---
+                                // Tube interface (local cylinder)
                                 Eigen::Vector3d radial_dir = (cell_center - closest_point_on_circle);
                                 double rn = radial_dir.norm();
                                 if (rn < 1e-14) {
@@ -1528,7 +1483,7 @@ namespace IRL {
                     &centroid
                 );
 
-                // --- check central cell ---
+                // Check central cell
                 int mid = stencil_size / 2;
                 double center_vfrac = vfrac[mid][mid][mid];
                 if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
@@ -1542,15 +1497,7 @@ namespace IRL {
                         WriteSurface(surfaces, "surface");
                         printCentroids(centroid);
                     }
-
-                    std::vector<double> flattened_vfrac;
-                    flattened_vfrac.reserve(stencil_size * stencil_size * stencil_size);
-                    for (int ii = 0; ii < stencil_size; ++ii)
-                        for (int jj = 0; jj < stencil_size; ++jj)
-                            for (int kk = 0; kk < stencil_size; ++kk)
-                                flattened_vfrac.push_back(vfrac[ii][jj][kk]);
-
-                    return flattened_vfrac;
+                    return;
                 }
 
                 // else: reject and regenerate
@@ -1558,7 +1505,7 @@ namespace IRL {
         }
 
 
-        std::vector<double> generateTruncatedCylinder(
+        void generateTruncatedCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
@@ -1576,10 +1523,6 @@ namespace IRL {
 
                 // for visualization option
                 std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
-
-                const double cell_volume = 1.0;
-                int refinement_factor = 3;
-                double refinement_factor_double = static_cast<double>(refinement_factor);
 
                 Eigen::Vector3d axis_origin = generateRandomPoint(
                     -0.5 * stencil_size, 0.5 * stencil_size, eng);
@@ -1616,7 +1559,13 @@ namespace IRL {
                 
 
                 // Refined mesh
-                int refined_stencil_size = refinement_factor*stencil_size;
+                const double cell_volume = 1.0;
+                double refinement_factor_double = std::min(std::ceil(3.0/(2.0*radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                // REMOVE LATER
+                refinement_factor_double = 3.0;
+                int refinement_factor = static_cast<int>(refinement_factor_double);
+                int refined_stencil_size = refinement_factor * stencil_size;
+
                 std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
                     std::vector<std::vector<double>>(refined_stencil_size,
                     std::vector<double>(refined_stencil_size)));
@@ -1736,23 +1685,14 @@ namespace IRL {
                         WriteSurface(surfaces, "surface");
                         printCentroids(centroid);
                     }
-
-                    std::vector<double> flattened_vfrac;
-                    for (int i = 0; i < stencil_size; ++i) {
-                        for (int j = 0; j < stencil_size; ++j) {
-                            for (int k = 0; k < stencil_size; ++k) {
-                                flattened_vfrac.push_back(vfrac[i][j][k]);
-                            }
-                        }
-                    }
-                    return flattened_vfrac; // accept this sample
+                    return; // accept this sample
                 }
                 // else: reject and regenerate
             }
                 
         }
 
-        std::vector<double> generateSphere (
+        void generateSphere (
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
@@ -1773,12 +1713,6 @@ namespace IRL {
                     // for visualization option:
                     std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
 
-                    // define parameters
-                    //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
-                    const double cell_volume = 1.0;
-                    int refinement_factor = 3;
-                    double refinement_factor_double = static_cast<double>(refinement_factor);
-
                     // Random radius
                     double radius = max_radius;
                     if (radius_stddev > 0.0) {
@@ -1791,7 +1725,44 @@ namespace IRL {
                     Eigen::Vector3d origin = generateRandomPoint(-0.5 - radius , 0.5 + radius, eng);
 
                     // Create refined cells
-                    int refined_stencil_size = refinement_factor*stencil_size;
+                    const double cell_volume = 1.0;
+                    double refinement_factor_double = std::min(std::ceil(3.0/(2.0*radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                    // REMOVE LATER
+                    refinement_factor_double = 3.0;
+                    int refinement_factor = static_cast<int>(refinement_factor_double);
+                    int refined_stencil_size = refinement_factor * stencil_size;
+
+                    // Analytical description for sphere case: if the sphere is fully contained within the central cell, we can directly set the volume fraction and moments 
+                    const double maxAbs = std::max({std::abs(origin.x()), std::abs(origin.y()), std::abs(origin.z())});
+                    bool sphereFullyInsideCentralCell = (maxAbs + radius <= 0.5);
+                    if (sphereFullyInsideCentralCell) {
+                        // zero everything
+                        for (int i = 0; i < stencil_size; ++i) {
+                            for (int j = 0; j < stencil_size; ++j) {
+                                for (int k = 0; k < stencil_size; ++k) {
+                                    vfrac[i][j][k] = 0.0;
+                                    firstMoment[i][j][k].setZero();
+                                }
+                            }
+                        }
+                        const int mid = stencil_size / 2;
+
+                        const double V = (4.0 / 3.0) * M_PI * radius * radius * radius; // cell volume is 1
+                        vfrac[mid][mid][mid] = V;
+
+                        firstMoment[mid][mid][mid] = V * origin;
+
+                        if (secondMoment != nullptr) {
+                            // centered second moment tensor for a solid sphere: (V r^2 / 5) * I
+                            *secondMoment = (V * radius * radius / 5.0) * Eigen::Matrix3d::Identity();
+                        }
+                        if (visualize) {
+                            std::cout<<"Sphere fully inside central cell, skipping refined intersection and using analytical values."<<std::endl;
+                        }
+                        return; // accept this sample
+                    }
+
+                    // Create refined variables
                     std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
                         std::vector<std::vector<double>>(refined_stencil_size,
                         std::vector<double>(refined_stencil_size)));
@@ -1916,16 +1887,7 @@ namespace IRL {
                             WriteSurface(surfaces, "surface");
                             printCentroids(centroid);
                         }
-
-                        std::vector<double> flattened_vfrac;
-                        for (int i = 0; i < stencil_size; ++i) {
-                            for (int j = 0; j < stencil_size; ++j) {
-                                for (int k = 0; k < stencil_size; ++k) {
-                                    flattened_vfrac.push_back(vfrac[i][j][k]);
-                                }
-                            }
-                        }
-                        return flattened_vfrac; // accept this sample
+                        return; // accept this sample
                     }
                     // else: reject and regenerate
                     
@@ -1965,8 +1927,6 @@ namespace IRL {
             if (exact_2nd_moments) {
                 secondMomentPtr = &secondMoment; // This enables calculation of exact 2nd moments for all switch cases below
             }
-            std::cout<<"Generating data point of type "<<datapoint_type<<std::endl;
-            std::cout<<"Visualize: "<<visualize<<std::endl;
 
             // Testing
             bool truncateInsideCentrCell = true;
@@ -2115,7 +2075,6 @@ namespace IRL {
                 // Generate the data, init with a random number 0 or 1, 0=paraboloid, 1=cylinder, 2=sphere, 3=sheet
 
                 int datapoint_type = std::rand() % no_datapoint_types_in;
-                //std::cout << "Generating datapoint " << i << " of type " << datapoint_type << std::endl;
 
                 labelsV->push_back(datapoint_type);
                 statesV->push_back(generateState(datapoint_type, stencil_size, include_Moments, include_truncated_cylinder,

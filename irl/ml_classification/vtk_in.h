@@ -501,7 +501,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     };
 
                     const int c = half;               // central index in stencil coords
-                    const double eps = 1e-12;         // "positive" threshold
+                    const double eps = 1e-10;         // "positive" threshold
 
                     static const int n6[6][3] = {
                         {+1, 0, 0}, {-1, 0, 0},
@@ -543,7 +543,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                                 if (visited[idx(ai,aj,ak)]) continue;
 
                                 // only traverse through "positive" cells
-                                if (vfrac[ai][aj][ak] > epsilon) {
+                                if (vfrac[ai][aj][ak] > eps) {
                                     visited[idx(ai,aj,ak)] = 1;
                                     q.push_back({ai,aj,ak});
                                 }
@@ -557,7 +557,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
                                     if (visited[idx(si,sj,sk)]) continue; // keep central structure
 
-                                    if (vfrac[si][sj][sk] > eps) {
+                                    if (vfrac[si][sj][sk] > 0.0) {
                                         vfrac[si][sj][sk] = 0.0;
                                         firstMoment[si][sj][sk].setZero();
                                         no_isolated++;

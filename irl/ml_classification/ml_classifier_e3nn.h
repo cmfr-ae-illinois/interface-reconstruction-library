@@ -88,21 +88,20 @@ public:
             std::move(val_dataset).map(torch::data::transforms::Stack<>()), batch_size);
 
         using Loader = std::remove_reference_t<decltype(*train_loader)>;
+        IRL::Trainer<IRL::Net, Loader> trainer(
+            net, *optimizer,
+            train_loader.get(), test_loader.get(), val_loader.get(),
+            epochs,
+            &train_loss,
+            &val_loss,
+            &test_accuracy_vec,
+            &val_accuracy_vec,
+            &final_test_loss,
+            &final_test_accuracy,
+            &confusion_matrix
+        );
 
-        IRL::Trainer<IRL::e3nnImpl, Loader> trainer(
-            *equivariant_net, *optimizer,
-            train_loader.get(), test_loader.get(), val_loader.get(), epochs);
-
-        // Measure training time
-        using namespace std::chrono;
-        auto start_time = high_resolution_clock::now();
-
-        final_validation_accuracy = trainer.train();
-
-        auto end_time = high_resolution_clock::now();
-        training_time = duration_cast<duration<double>>(end_time - start_time).count();
-
-        std::cout << "⏳ Training completed in " << training_time << " seconds." << std::endl;
+        trainer.train();
     }
 
     void saveModel(const std::string& path, bool save_optimizer_state = false) {
