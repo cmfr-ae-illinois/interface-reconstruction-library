@@ -23,12 +23,15 @@
 
 struct InterfaceScalarField {
   std::string name;
-  std::vector<double> polygon;
-  std::vector<double> paraboloid;
+  Data<double> polygon_scalar_data;
+  Data<double> paraboloid_scalar_data;
+  std::vector<double> flattened_polygon_scalar_data;
+  std::vector<double> flattened_paraboloid_scalar_data;
 
   InterfaceScalarField() = default;
 
-  InterfaceScalarField(const std::string& n) : name(n) {}
+  InterfaceScalarField(const std::string& n, const BasicMesh* mesh)
+      : name(n), polygon_scalar_data(mesh), paraboloid_scalar_data(mesh) {}
 };
 
 class VTKOutput {
@@ -58,7 +61,7 @@ class VTKOutput {
       const double a_time, std::vector<IRL::Polygon>& a_polygons,
       std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_paraboloids,
       std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
-      const std::vector<InterfaceScalarField>& a_scalar_fields,
+      std::vector<InterfaceScalarField>* a_scalar_fields,
       const bool a_print_info = false);
 
   void writeParametrizedInterface(
@@ -94,5 +97,10 @@ bool writeLinesVTK(const std::vector<std::pair<IRL::Pt, IRL::Pt>>& lines,
 bool writePlanePatchVTK(const Eigen::Vector3d& origin,
                         const Eigen::Vector3d& normal, double h,
                         const std::string& filename);
+
+void writeParaboloidVTK(const std::string& filename,
+                        const IRL::Paraboloid& paraboloid, const int& Nx,
+                        const int& Ny, const double& xmin, const double& xmax,
+                        const double& ymin, const double& ymax);
 
 #endif  // EXAMPLES_SIMPLE_VARIANT_ADVECTOR_VTK_H_

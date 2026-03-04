@@ -248,7 +248,7 @@ const double Jibben_3D::getVolumeErrorSquared(const double& dx) const {
       // ∫y^2 dA
       integrals[5] += (xv - xvn) * (yv + yvn) * (yv * yv + yvn * yvn) / 12.0;
 
-      // ∫x^3 dA CHANGE
+      // ∫x^3 dA
       integrals[6] +=
           (dyv * ((dxv * dxv * dxv * dxv) / 5. + dxv * dxv * dxv * xv +
                   2. * (dxv * dxv) * (xv * xv) + 2. * dxv * (xv * xv * xv) +
@@ -365,10 +365,8 @@ const double Jibben_3D::getVolumeErrorSquared(const double& dx) const {
   }
 
   // non-dimensionalization
-  I = I / (projected_area * dx *
-           dx);  // CHANGE EITHER SQUARE ROOT NUM OR dx^2 IN DENOM
+  I = I / (projected_area * dx * dx);
 
-  // I = std::sqrt(I) / (projected_area * dx);
   return I;
 }
 
@@ -438,7 +436,7 @@ const double Jibben_3D::getVolumeErrorSquared_w1(const double& dx) const {
       integrals[5] +=
           weight * (xv - xvn) * (yv + yvn) * (yv * yv + yvn * yvn) / 12.0;
 
-      // ∫x^3 dA CHANGE
+      // ∫x^3 dA
       integrals[6] +=
           weight *
           (dyv * ((dxv * dxv * dxv * dxv) / 5. + dxv * dxv * dxv * xv +
@@ -571,10 +569,7 @@ const double Jibben_3D::getVolumeErrorSquared_w1(const double& dx) const {
   }
 
   // non-dimensionalization
-  I = I / (projected_area * dx *
-           dx);  // CHANGE EITHER SQUARE ROOT NUM OR dx^2 IN DENOM
-
-  // I = std::sqrt(I) / (projected_area * dx);
+  I = I / (projected_area * dx * dx);
   return I;
 }
 
@@ -644,7 +639,7 @@ const double Jibben_3D::getVolumeErrorSquared_w2(const double& dx) const {
       integrals[5] +=
           weight * (xv - xvn) * (yv + yvn) * (yv * yv + yvn * yvn) / 12.0;
 
-      // ∫x^3 dA CHANGE
+      // ∫x^3 dA
       integrals[6] +=
           weight *
           (dyv * ((dxv * dxv * dxv * dxv) / 5. + dxv * dxv * dxv * xv +
@@ -781,10 +776,7 @@ const double Jibben_3D::getVolumeErrorSquared_w2(const double& dx) const {
   }
 
   // non-dimensionalization
-  I = I /
-      (weight_sum * dx * dx);  // CHANGE EITHER SQUARE ROOT NUM OR dx^2 IN DENOM
-
-  // I = std::sqrt(I) / (projected_area * dx);
+  I = I / (weight_sum * dx * dx);
   return I;
 }
 

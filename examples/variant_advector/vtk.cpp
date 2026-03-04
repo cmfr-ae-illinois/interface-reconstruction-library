@@ -197,48 +197,58 @@ void VTKOutput::writeVTKInterfaceWithScalar(
     const double a_time, std::vector<IRL::Polygon>& a_polygons,
     std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& a_paraboloids,
     std::vector<IRL::CylinderParametrizedSurfaceOutput>& a_cylinders,
-    const std::vector<InterfaceScalarField>& a_scalar_fields,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
     const bool a_print_info) {
   const auto surface_file_name = directory_m + "/" + file_name_base_m +
                                  "_interface_" +
                                  std::to_string(interface_files_written_m);
   IRL::MixedPolygonBezierSurface surface_output;
+  std::vector<std::vector<double>> scalar_data(a_scalar_fields->size());
 
-  std::vector<std::vector<double>> cell_data(a_scalar_fields.size());
+  if (!a_scalar_fields) {
+    throw std::runtime_error("a_scalar_fields is null");
+  }
 
-  // paraboloids
-  for (int i = 0; i < a_paraboloids.size(); ++i) {
-    int oldNTri = surface_output.nBezierTriangles();
-    surface_output.addSurface(
-        a_paraboloids[i].getQuadraticBezierTriangleApprox());
-    int newNTri = surface_output.nBezierTriangles();
-    for (int t = oldNTri; t < newNTri; t++) {
-      for (int f = 0; f < a_scalar_fields.size(); f++) {
-        cell_data[f].push_back(a_scalar_fields[f].paraboloid[i]);
-      }
+  const int n_paraboloids = a_paraboloids.size();
+  const int n_polygons = a_polygons.size();
+  const int n_scalar_fields = a_scalar_fields->size();
+  for (int k = 0; k < n_scalar_fields; k++) {
+    if ((*a_scalar_fields)[k].flattened_paraboloid_scalar_data.size() !=
+            n_paraboloids ||
+        (*a_scalar_fields)[k].flattened_polygon_scalar_data.size() !=
+            n_polygons) {
+      throw std::runtime_error(
+          "Size of scalar data does not match number of surfaces");
     }
   }
 
-  // cylinders
+  for (int i = 0; i < a_paraboloids.size(); ++i) {
+    int ntriangles = surface_output.nBezierTriangles();
+    surface_output.addSurface(
+        a_paraboloids[i].getQuadraticBezierTriangleApprox());
+    for (int j = ntriangles; j < surface_output.nBezierTriangles(); j++) {
+      for (int k = 0; k < a_scalar_fields->size(); k++) {
+        scalar_data[k].push_back(
+            (*a_scalar_fields)[k].flattened_paraboloid_scalar_data[i]);
+      }
+    }
+  }
   for (int i = 0; i < a_cylinders.size(); ++i) {
     // surface_output.addSurface(
     //   a_cylinders[i].getQuadraticBezierTriangleApprox());
   }
-
-  // polygons
   surface_output.addPolygons(a_polygons);
   for (int i = 0; i < a_polygons.size(); i++) {
-    for (int f = 0; f < a_scalar_fields.size(); f++) {
-      cell_data[f].push_back(a_scalar_fields[f].polygon[i]);
+    for (int k = 0; k < a_scalar_fields->size(); k++) {
+      scalar_data[k].push_back(
+          (*a_scalar_fields)[k].flattened_polygon_scalar_data[i]);
     }
   }
 
-  // writing scalar data
-  for (int f = 0; f < a_scalar_fields.size(); f++) {
-    surface_output.addCellScalar(a_scalar_fields[f].name, cell_data[f]);
+  for (int k = 0; k < a_scalar_fields->size(); k++) {
+    surface_output.addCellScalar((*a_scalar_fields)[k].name, scalar_data[k]);
   }
 
-  // writing vtk file
   surface_output.write(surface_file_name);
 
   ++interface_files_written_m;
@@ -554,4 +564,13 @@ bool writePlanePatchVTK(const Eigen::Vector3d& origin,
      << static_cast<float>(n.z()) << "\n";
 
   return true;
+}
+
+void writeParaboloidVTK(const std::string& filename,
+                        const IRL::Paraboloid& paraboloid, const int& Nx,
+                        const int& Ny, const double& xmin, const double& xmax,
+                        const double& ymin, const double& ymax) {
+  const int nPts = Nx * Ny;
+
+  // paraboloid params
 }

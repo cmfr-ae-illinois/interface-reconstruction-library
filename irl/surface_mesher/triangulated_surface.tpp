@@ -567,9 +567,6 @@ inline void MixedPolygonBezierSurface::write(const std::string& filename,
       const std::string& name = kv.first;
       const std::vector<double>& vals = kv.second;
 
-      // optional safety
-      if (vals.size() != ncells) continue;
-
       fprintf(file,
               "<DataArray type=\"Float64\" Name=\"%s\" "
               "NumberOfComponents=\"1\" format=\"ascii\">\n",

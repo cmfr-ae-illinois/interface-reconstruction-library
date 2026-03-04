@@ -200,8 +200,8 @@ void writeInterfaceToFile(
 void writeInterfaceWithScalarToFile(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::SeparatorVariant>& a_liquid_gas_interface,
-    const std::vector<InterfaceScalarField>& a_scalar_fields,
-    const double a_time, VTKOutput* a_output, const bool print) {
+    std::vector<InterfaceScalarField>* a_scalar_fields, const double a_time,
+    VTKOutput* a_output, const bool print) {
   using VolumeAndParaboloid =
       IRL::AddSurfaceOutput<IRL::Volume,
                             IRL::ParaboloidParametrizedSurfaceOutput>;
@@ -233,7 +233,13 @@ void writeInterfaceWithScalarToFile(
                 IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(cell, *ptr,
                                                                      (*ptr)[0]);
             polygons.push_back(polygon);
-
+            // scalar data
+            if (a_scalar_fields) {
+              for (auto& f : *a_scalar_fields) {
+                f.flattened_polygon_scalar_data.push_back(
+                    f.polygon_scalar_data(i, j, k));
+              }
+            }
           } else if (const auto ptr = std::get_if<IRL::Paraboloid>(
                          &a_liquid_gas_interface(i, j, k))) {
             auto volume_and_surface =
@@ -244,6 +250,13 @@ void writeInterfaceWithScalarToFile(
             if (surface.getSurfaceArea() >
                 1.0e-6 * length_scale * length_scale) {
               paraboloids.push_back(surface);
+              // scalar data
+              if (a_scalar_fields) {
+                for (auto& f : *a_scalar_fields) {
+                  f.flattened_paraboloid_scalar_data.push_back(
+                      f.paraboloid_scalar_data(i, j, k));
+                }
+              }
             }
           } else if (const auto ptr = std::get_if<IRL::Cylinder>(
                          &a_liquid_gas_interface(i, j, k))) {

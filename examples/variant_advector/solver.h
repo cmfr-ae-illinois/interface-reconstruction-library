@@ -32,6 +32,8 @@
 
 #include "examples/variant_advector/translation_3d.h"
 
+// #include "irl/interface_reconstruction_methods/jibben_neighborhood.h"
+
 /// \brief Handles running and advancing the solution according to provided
 /// static functions in structs.
 template <class SimulationType>
@@ -78,8 +80,8 @@ void writeInterfaceToFile(
 void writeInterfaceWithScalarToFile(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::SeparatorVariant>& a_liquid_gas_interface,
-    const std::vector<InterfaceScalarField>& a_scalar_fields,
-    const double a_time, VTKOutput* a_output, const bool print);
+    std::vector<InterfaceScalarField>* a_scalar_fields, const double a_time,
+    VTKOutput* a_output, const bool print);
 
 void printError(const BasicMesh& mesh,
                 const Data<IRL::VolumeMoments>& liq_moments,
@@ -179,8 +181,9 @@ int runSimulation(const std::string& a_case_name,
 
   resetMoments(link_localized_interface, &liq_moments, &gas_moments);
 
-  if (a_reconstruction_method == "JibbenM") {
-    writeInterfaceWithScalarToFile(liq_moments, interface, scalar_fields,
+  if (a_reconstruction_method == "JibbenM" ||
+      a_reconstruction_method == "Hybrid") {
+    writeInterfaceWithScalarToFile(liq_moments, interface, &scalar_fields,
                                    simulation_time, &vtk_io, true);
   } else {
     writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
@@ -203,8 +206,64 @@ int runSimulation(const std::string& a_case_name,
   }
 
   // jibben interface output
-  std::string output_dir = "/home/parinht2/Desktop/jibben_pu_hybrid/debugging/";
-  int output_count = 1;
+  // std::string output_dir =
+  // "/home/parinht2/Desktop/jibben_pu_hybrid/debugging/"; int output_count = 1;
+
+  // outputting plane neighborhood
+  // if (a_reconstruction_method == "LVIRA") {
+  //   int count = 0;
+  //   std::vector<IRL::Polygon> polygons;
+  //   std::vector<IRL::Pt> plic_centroids;
+  //   std::vector<IRL::Normal> plic_normals;
+  //   std::string plane_output_dir =
+  //   "/home/parinht2/Desktop/plane_neighborhood/"; for (int i =
+  //   cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+  //     for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+  //       for (int k = cc_mesh.kmin(); k <= cc_mesh.kmax(); ++k) {
+  //         const double vf =
+  //             liq_moments(i, j, k).volume() / cc_mesh.cell_volume();
+  //         if (vf < IRL::global_constants::VF_LOW ||
+  //             vf > IRL::global_constants::VF_HIGH) {
+  //           continue;
+  //         }
+  //         // only want to do this for one mixed cell
+  //         if (count > 0) {
+  //           continue;
+  //         }
+  //         const int nlayers = 2;
+  //         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+  //           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+  //             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+  //               if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
+  //                       &interface(ii, jj, kk))) {
+  //                 const auto polygon =
+  //                     IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+  //                         IRL::RectangularCuboid::fromBoundingPts(
+  //                             IRL::Pt(cc_mesh.x(ii), cc_mesh.y(jj),
+  //                                     cc_mesh.z(kk)),
+  //                             IRL::Pt(cc_mesh.x(ii + 1), cc_mesh.y(jj + 1),
+  //                                     cc_mesh.z(kk + 1))),
+  //                         *ptr, (*ptr)[0]);
+  //                 IRL::Pt centroid = polygon.calculateCentroid();
+  //                 IRL::Normal normal =
+  //                 polygon.getPlaneOfExistence().normal();
+  //                 polygons.push_back(polygon);
+  //                 plic_centroids.push_back(centroid);
+  //                 plic_normals.push_back(normal);
+  //               }
+  //             }
+  //           }
+  //         }
+  //         count++;
+  //       }
+  //     }
+  //   }
+  //   writePolygonsVTK(plane_output_dir + "plane_neighborhood.vtk", polygons);
+  //   writeScatterVTK(plic_centroids,
+  //                   plane_output_dir + "plane_neighborhood_scatter.vtk");
+  //   writeVectorsVTK(plane_output_dir + "plane_neighborhood_normals.vtk",
+  //                   plic_centroids, plic_normals);
+  // }
 
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
@@ -265,9 +324,10 @@ int runSimulation(const std::string& a_case_name,
       if (rank == 0) {
         vtk_io.writeVTKFile(simulation_time);
       }
-      if (a_reconstruction_method == "JibbenM") {
+      if (a_reconstruction_method == "JibbenM" ||
+          a_reconstruction_method == "Hybrid") {
         writeInterfaceWithScalarToFile(
-            liq_moments, interface, scalar_fields, simulation_time, &vtk_io,
+            liq_moments, interface, &scalar_fields, simulation_time, &vtk_io,
             simulation_time + time_step_to_use >= a_end_time);
       } else {
         writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
@@ -279,6 +339,44 @@ int runSimulation(const std::string& a_case_name,
 
     simulation_time += time_step_to_use;
     ++iteration;
+
+    // if (iteration == 113) {
+    //   std::vector<IRL::Polygon> polygons;
+    //   std::vector<IRL::ParaboloidParametrizedSurfaceOutput> paraboloids;
+    //   std::vector<IRL::CylinderParametrizedSurfaceOutput> cylinders;
+    //   if (const auto ptr =
+    //           std::get_if<IRL::Paraboloid>(&(interface(35, 34, 28)))) {
+    //     std::cout << "Paraboloid detected" << std::endl;
+    //     IRL::Paraboloid paraboloid = *ptr;
+    //     using VolumeAndParaboloid =
+    //         IRL::AddSurfaceOutput<IRL::Volume,
+    //                               IRL::ParaboloidParametrizedSurfaceOutput>;
+    //     auto cell = IRL::RectangularCuboid::fromBoundingPts(
+    //         IRL::Pt(cc_mesh.x(34), cc_mesh.y(33), cc_mesh.z(27)),
+    //         IRL::Pt(cc_mesh.x(36 + 1), cc_mesh.y(35 + 1), cc_mesh.z(29 +
+    //         1)));
+    //     auto volume_and_surface =
+    //         IRL::getVolumeMoments<VolumeAndParaboloid>(cell, *ptr);
+    //     auto surface = volume_and_surface.getSurface();
+    //     paraboloids.push_back(surface);
+    //   }
+    //   // outputting paraboloid
+    //   std::cout << "Number of polygons = " << polygons.size() << std::endl;
+    //   std::cout << "Number of paraboloids = " << paraboloids.size()
+    //             << std::endl;
+    //   std::cout << "Number of cylinders = " << cylinders.size() << std::endl;
+    //   std::string output =
+    //       "/home/parinht2/Desktop/jibben_pu_hybrid/debugging/paraboloid";
+    //   VTKOutput vtk_parab(output, "viz", cc_mesh);
+    //   vtk_parab.writeVTKFile(simulation_time);
+    //   vtk_parab.writeVTKInterface(
+    //       simulation_time, polygons, paraboloids, cylinders,
+    //       simulation_time + time_step_to_use >= a_end_time);
+    // }
+
+    // if (iteration == 113) {
+    //   break;
+    // }
   }
 
   return 0;
