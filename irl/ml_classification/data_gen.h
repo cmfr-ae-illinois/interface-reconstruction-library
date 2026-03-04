@@ -450,7 +450,7 @@ namespace IRL {
                 // else: reject and regenerate
             }
         }
-        /*
+        
         void generateCutSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
@@ -505,14 +505,21 @@ namespace IRL {
                 auto tmp_paraboloid = paraboloid2;
                 tmp_paraboloid.regenerateAtLocation(sample_pt);
                 const auto new_datum = tmp_paraboloid.getDatum();
-                const double alpha = 0.5; // Make that random
-                auto new_normal = (1 - alpha) * tmp_paraboloid.getReferenceFrame()[0] + alpha * tmp_paraboloid.getReferenceFrame()[1];
+
+                // Now choose a random theta
+                std::uniform_real_distribution<double> angle_dist(0.0, 2.0 * M_PI);
+                double theta = angle_dist(eng);
+
+                IRL::Normal new_normal =
+                    std::cos(theta) * tmp_paraboloid.getReferenceFrame()[0] +
+                    std::sin(theta) * tmp_paraboloid.getReferenceFrame()[1];
+
                 new_normal.normalize();
 
                 // Quick check if the central cell will be cut with this new plane, if not, reject and try again
                 const double half_width = 0.5;                   // inscribed sphere radius of unit cube
                 const double half_diag  = 0.86618;                // half diagonal of unit cube
-                double dist = std::abs(new_normal.dot(Eigen::Vector3d(new_datum.x(), new_datum.y(), new_datum.z())));
+                double dist = std::abs(new_normal * new_datum); 
                 bool definitely_cut = (dist < half_width);
                 bool definitely_not_cut = (dist > half_diag);
                 if (definitely_cut && !cutInsideCentralCell) {
@@ -626,7 +633,7 @@ namespace IRL {
                 // else: reject and regenerate
             }
         }
-        */
+        
 
         // Function to generate a random vector within given bounds
         Eigen::Vector3d generateRandomPoint(double min_bound, double max_bound, std::mt19937_64& eng) {
@@ -1182,9 +1189,6 @@ namespace IRL {
                 // for visualization option
                 std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
 
-                const double cell_volume = 1.0;
-                int refinement_factor = 3;
-
                 // Random tube radius in [0, max_radius], with optional stddev for truncated normal sampling
                 double tube_radius = max_radius;
                 if (radius_stddev > 0.0) {
@@ -1306,7 +1310,10 @@ namespace IRL {
                     return (t >= theta_start && t <= theta_cut);
                 };
 
-                // --- refined mesh ---
+                // Refined mesh
+                const double cell_volume = 1.0;
+                double refinement_factor_double = std::min(std::ceil(3.0/(2.0*tube_radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                int refinement_factor = static_cast<int>(refinement_factor_double);
                 int refined_stencil_size = refinement_factor * stencil_size;
 
                 std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
@@ -1561,8 +1568,6 @@ namespace IRL {
                 // Refined mesh
                 const double cell_volume = 1.0;
                 double refinement_factor_double = std::min(std::ceil(3.0/(2.0*radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
-                // REMOVE LATER
-                refinement_factor_double = 3.0;
                 int refinement_factor = static_cast<int>(refinement_factor_double);
                 int refined_stencil_size = refinement_factor * stencil_size;
 
@@ -1700,7 +1705,6 @@ namespace IRL {
             {
                 while (true) { // keep trying until center cell has surface crossing
                 
-
                     // make centroid, only used for visualization
                     std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
                         stencil_size,
@@ -1723,14 +1727,6 @@ namespace IRL {
                     }
 
                     Eigen::Vector3d origin = generateRandomPoint(-0.5 - radius , 0.5 + radius, eng);
-
-                    // Create refined cells
-                    const double cell_volume = 1.0;
-                    double refinement_factor_double = std::min(std::ceil(3.0/(2.0*radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
-                    // REMOVE LATER
-                    refinement_factor_double = 3.0;
-                    int refinement_factor = static_cast<int>(refinement_factor_double);
-                    int refined_stencil_size = refinement_factor * stencil_size;
 
                     // Analytical description for sphere case: if the sphere is fully contained within the central cell, we can directly set the volume fraction and moments 
                     const double maxAbs = std::max({std::abs(origin.x()), std::abs(origin.y()), std::abs(origin.z())});
@@ -1762,116 +1758,212 @@ namespace IRL {
                         return; // accept this sample
                     }
 
-                    // Create refined variables
-                    std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
-                        std::vector<std::vector<double>>(refined_stencil_size,
-                        std::vector<double>(refined_stencil_size)));
+                    // Analytical is not possible, need to do refined intersection
 
-                    std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
-                        std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
-                        std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+                    const int min_refined_cells_across_diameter = 5;
 
-                    //std::vector<std::vector<std::vector<double>>> volumes(refined_stencil_size, std::vector<std::vector<double>>(refined_stencil_size, std::vector<double>(refined_stencil_size)));
+                    // Coarse stencil coordinate range (coarse cell size is 1.0)
+                    const double coarse_stencil_min = -0.5 * static_cast<double>(stencil_size);
 
-                    // Defining cell coordinates
-                    auto coords = std::vector<double>(refined_stencil_size+1);
-                    for (int i = 0; i <= refined_stencil_size; i++) {
-                        coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
+                    // Choose refinement so that (2*radius) / (1/refinement_factor) >= min_refined_cells_across_diameter
+                    const int refinement_factor = std::max(
+                        1,
+                        static_cast<int>(std::ceil(static_cast<double>(min_refined_cells_across_diameter) / (2.0 * radius)))
+                    );
+                    const double refined_cell_size = 1.0 / static_cast<double>(refinement_factor);
+
+                    // Coarse coordinates
+                    std::vector<double> coarse_coords(stencil_size + 1);
+                    for (int coarse_index = 0; coarse_index <= stencil_size; ++coarse_index) {
+                        coarse_coords[coarse_index] = coarse_stencil_min + static_cast<double>(coarse_index);
                     }
 
-                    using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
-                    IRL::GeneralMoments3D<2> totalMoments_refined =
-                        IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For exact 2nd moment shift later
-
-                    for (int i = 0; i < refined_stencil_size; i++) {
-                        for (int j = 0; j < refined_stencil_size; j++) {
-                            for (int k = 0; k < refined_stencil_size; k++) {
-                                // Create cell
-                                auto cell = IRL::RectangularCuboid::fromBoundingPts(
-                                    IRL::Pt(coords[i], coords[j], coords[k]),
-                                    IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
-
-                                // Create paraboloid for this cell in the steps below
-                                // Find center point of cell
-                                Eigen::Vector3d cell_center((coords[i+1]+coords[i])/2.0,
-                                            (coords[j+1]+coords[j])/2.0,
-                                            (coords[k+1]+coords[k])/2.0);
-
-                                // Find datum of paraboloid
-                                Eigen::Vector3d origin_to_cell_center = cell_center - origin;
-                                Eigen::Vector3d datum_paraboloid_eVec = origin + radius * (cell_center - origin).normalized();
-                                IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(), datum_paraboloid_eVec.y(), datum_paraboloid_eVec.z());
-
-                                // Create frame
-                                Eigen::Vector3d paraboloid_z = cell_center-origin;
-                                paraboloid_z.normalize();
-                                Eigen::Vector3d helper (paraboloid_z.x(), paraboloid_z.y()+1, paraboloid_z.z());
-                                Eigen::Vector3d paraboloid_x = paraboloid_z.cross(helper);
-                                paraboloid_x.normalize();
-                                Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
-                                paraboloid_y.normalize();
-                                //frame[1] = IRL::crossProduct(frame[2],frame[0]); frame2 is normal, frame0 is axis
-                                //frame[1].normalize();
-
-                                const auto frame = IRL::ReferenceFrame(IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
-                                                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
-                                                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
-                                // Create paraboloid
-                                const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 1/(2*radius), 1/(2*radius));
-
-                                // Intersect cell with paraboloid -- return volume and surface
-                                //auto volume_fraction = IRL::getVolumeFraction(cell, paraboloid);
-                                /*
-                                auto volume_and_surface = IRL::getVolumeMoments<
-                                    IRL::AddSurfaceOutput<IRL::VolumeMoments, IRL::ParametrizedSurfaceOutput>>(
-                                    cell, paraboloid);
-                                */
-                                auto volume_and_surface = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid);
-
-                                
-                                //auto allMoments = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
-                                
-                                volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
-                                                //volume_and_surface.getMoments().centroid() / vol
-
-                                Eigen::Vector3d m1(volume_and_surface.getMoments().centroid().x(),
-                                                volume_and_surface.getMoments().centroid().y(),
-                                                volume_and_surface.getMoments().centroid().z());
-
-                                firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
-                                                                volume_and_surface.getMoments().centroid().y(),
-                                                                volume_and_surface.getMoments().centroid().z();
-
-                                if (secondMoment != nullptr) {
-                                    // Exact raw 0th/1st/2nd moments about global origin, accumulated on refined grid
-                                    auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
-                                    totalMoments_refined += gm;
-                                }
-
+                    // Zero out coarse outputs before accumulation
+                    for (int coarse_i = 0; coarse_i < stencil_size; ++coarse_i) {
+                        for (int coarse_j = 0; coarse_j < stencil_size; ++coarse_j) {
+                            for (int coarse_k = 0; coarse_k < stencil_size; ++coarse_k) {
+                                vfrac[coarse_i][coarse_j][coarse_k] = 0.0;
+                                firstMoment[coarse_i][coarse_j][coarse_k].setZero();
                                 if (visualize) {
-                                    auto surface = getVolumeMoments<
-                                        VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
-                                    surfaces.push_back(surface);
+                                    centroid[coarse_i][coarse_j][coarse_k].setZero();
                                 }
                             }
                         }
                     }
 
-                    // Compress refined mesh into original stencil size
-                    compressStencilRefinedToCoarse(
-                        volumes_refined,
-                        firstMoments_refined,
-                        vfrac,
-                        firstMoment,
-                        stencil_size,
-                        refinement_factor,
-                        cell_volume,
-                        visualize,
-                        &centroid
-                    );
+                    // Initialize IRL outputs
+                    using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                    IRL::GeneralMoments3D<2> total_general_moments =
+                        IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // exact raw 0th/1st/2nd about global origin
 
-                    // --- check central cell ---
+                    // Sphere Axis aligned bounding box (AABB) in global coordinates
+                    const double sphere_min_x = origin.x() - radius;
+                    const double sphere_max_x = origin.x() + radius;
+                    const double sphere_min_y = origin.y() - radius;
+                    const double sphere_max_y = origin.y() + radius;
+                    const double sphere_min_z = origin.z() - radius;
+                    const double sphere_max_z = origin.z() + radius;
+
+                    auto clamp_coarse_index = [&](int index_value) {
+                        return std::max(0, std::min(stencil_size - 1, index_value));
+                    };
+
+                    // Coarse cell index range that intersects sphere AABB
+                    int coarse_i_start = clamp_coarse_index(static_cast<int>(std::floor(sphere_min_x - coarse_stencil_min)));
+                    int coarse_i_end   = clamp_coarse_index(static_cast<int>(std::floor(sphere_max_x - coarse_stencil_min)));
+                    int coarse_j_start = clamp_coarse_index(static_cast<int>(std::floor(sphere_min_y - coarse_stencil_min)));
+                    int coarse_j_end   = clamp_coarse_index(static_cast<int>(std::floor(sphere_max_y - coarse_stencil_min)));
+                    int coarse_k_start = clamp_coarse_index(static_cast<int>(std::floor(sphere_min_z - coarse_stencil_min)));
+                    int coarse_k_end   = clamp_coarse_index(static_cast<int>(std::floor(sphere_max_z - coarse_stencil_min)));
+
+                    auto clamp_refined_index = [&](int index_value) {
+                        return std::max(0, std::min(refinement_factor - 1, index_value));
+                    };
+
+                    for (int coarse_i = coarse_i_start; coarse_i <= coarse_i_end; ++coarse_i) {
+                        // Coarse cell bounds in x for this coarse_i
+                        const double coarse_x0 = coarse_stencil_min + static_cast<double>(coarse_i);
+                        const double coarse_x1 = coarse_x0 + 1.0;
+
+                        // Refined index range in x within this coarse cell whose subcells overlap the sphere AABB
+                        int refined_i_start = clamp_refined_index(
+                            static_cast<int>(std::floor((sphere_min_x - coarse_x0) / refined_cell_size))
+                        );
+                        int refined_i_end = clamp_refined_index(
+                            static_cast<int>(std::floor((sphere_max_x - coarse_x0) / refined_cell_size))
+                        );
+                        // If no refined cells in this coarse cell overlap the sphere AABB, skip to next coarse cell
+                        if (refined_i_end < refined_i_start) continue;
+
+                        for (int coarse_j = coarse_j_start; coarse_j <= coarse_j_end; ++coarse_j) {
+                            const double coarse_y0 = coarse_stencil_min + static_cast<double>(coarse_j);
+                            const double coarse_y1 = coarse_y0 + 1.0;
+
+                            int refined_j_start = clamp_refined_index(
+                                static_cast<int>(std::floor((sphere_min_y - coarse_y0) / refined_cell_size))
+                            );
+                            int refined_j_end = clamp_refined_index(
+                                static_cast<int>(std::floor((sphere_max_y - coarse_y0) / refined_cell_size))
+                            );
+                            if (refined_j_end < refined_j_start) continue;
+
+                            for (int coarse_k = coarse_k_start; coarse_k <= coarse_k_end; ++coarse_k) {
+                                const double coarse_z0 = coarse_stencil_min + static_cast<double>(coarse_k);
+                                const double coarse_z1 = coarse_z0 + 1.0;
+
+                                int refined_k_start = clamp_refined_index(
+                                    static_cast<int>(std::floor((sphere_min_z - coarse_z0) / refined_cell_size))
+                                );
+                                int refined_k_end = clamp_refined_index(
+                                    static_cast<int>(std::floor((sphere_max_z - coarse_z0) / refined_cell_size))
+                                );
+                                if (refined_k_end < refined_k_start) continue;
+
+                                // Refine only the relevant subcell index box inside this coarse cell
+                                // from knowing refined_i_start/end, refined_j_start/end, refined_k_start/end
+                                for (int refined_i_in_coarse = refined_i_start; refined_i_in_coarse <= refined_i_end; ++refined_i_in_coarse) {
+                                    // Refined cell bounds in x for this refined_i_in_coarse
+                                    const double refined_x0 = coarse_x0 + static_cast<double>(refined_i_in_coarse) * refined_cell_size;
+                                    const double refined_x1 = refined_x0 + refined_cell_size;
+
+                                    for (int refined_j_in_coarse = refined_j_start; refined_j_in_coarse <= refined_j_end; ++refined_j_in_coarse) {
+                                        // Refined cell bounds in y for this refined_j_in_coarse
+                                        const double refined_y0 = coarse_y0 + static_cast<double>(refined_j_in_coarse) * refined_cell_size;
+                                        const double refined_y1 = refined_y0 + refined_cell_size;
+
+                                        for (int refined_k_in_coarse = refined_k_start; refined_k_in_coarse <= refined_k_end; ++refined_k_in_coarse) {
+                                            // Refined cell bounds in z for this refined_k_in_coarse
+                                            const double refined_z0 = coarse_z0 + static_cast<double>(refined_k_in_coarse) * refined_cell_size;
+                                            const double refined_z1 = refined_z0 + refined_cell_size;
+
+                                            // Create refined subcell
+                                            auto refined_cell = IRL::RectangularCuboid::fromBoundingPts(
+                                                IRL::Pt(refined_x0, refined_y0, refined_z0),
+                                                IRL::Pt(refined_x1, refined_y1, refined_z1)
+                                            );
+
+                                            // Use refined subcell center for paraboloid construction
+                                            const Eigen::Vector3d refined_cell_center(
+                                                0.5 * (refined_x0 + refined_x1),
+                                                0.5 * (refined_y0 + refined_y1),
+                                                0.5 * (refined_z0 + refined_z1)
+                                            );
+
+                                            const Eigen::Vector3d sphere_center_to_cell_center = refined_cell_center - origin;
+
+                                            // Datum point on the sphere in the direction of the cell center
+                                            const Eigen::Vector3d datum_paraboloid_eigen =
+                                                origin + radius * sphere_center_to_cell_center.normalized();
+
+                                            const IRL::Pt datum_paraboloid(
+                                                datum_paraboloid_eigen.x(),
+                                                datum_paraboloid_eigen.y(),
+                                                datum_paraboloid_eigen.z()
+                                            );
+
+                                            // Local frame for paraboloid
+                                            Eigen::Vector3d paraboloid_z_axis = sphere_center_to_cell_center;
+                                            paraboloid_z_axis.normalize();
+
+                                            const Eigen::Vector3d helper_vector(
+                                                paraboloid_z_axis.x(),
+                                                paraboloid_z_axis.y() + 1.0,
+                                                paraboloid_z_axis.z()
+                                            );
+
+                                            Eigen::Vector3d paraboloid_x_axis = paraboloid_z_axis.cross(helper_vector);
+                                            paraboloid_x_axis.normalize();
+
+                                            Eigen::Vector3d paraboloid_y_axis = paraboloid_z_axis.cross(paraboloid_x_axis);
+                                            paraboloid_y_axis.normalize();
+
+                                            const auto reference_frame = IRL::ReferenceFrame(
+                                                IRL::Normal(paraboloid_x_axis.x(), paraboloid_x_axis.y(), paraboloid_x_axis.z()),
+                                                IRL::Normal(paraboloid_y_axis.x(), paraboloid_y_axis.y(), paraboloid_y_axis.z()),
+                                                IRL::Normal(paraboloid_z_axis.x(), paraboloid_z_axis.y(), paraboloid_z_axis.z())
+                                            );
+
+                                            const auto paraboloid = IRL::Paraboloid(
+                                                datum_paraboloid,
+                                                reference_frame,
+                                                1.0 / (2.0 * radius), // curvature in x direction
+                                                1.0 / (2.0 * radius)  // curvature in y direction, same as x for sphere
+                                            );
+
+                                            // Intersect refined cell with paraboloid -> moments (+ surface for visualization)
+                                            auto volume_and_surface = getVolumeMoments<VolumeMomentsAndSurface>(refined_cell, paraboloid);
+
+                                            const double refined_volume = volume_and_surface.getMoments().volume();
+
+                                            // IMPORTANT: this assumes getMoments().centroid() returns raw first moments (∫x dV, ∫y dV, ∫z dV)
+                                            const Eigen::Vector3d refined_first_moment(
+                                                volume_and_surface.getMoments().centroid().x(),
+                                                volume_and_surface.getMoments().centroid().y(),
+                                                volume_and_surface.getMoments().centroid().z()
+                                            );
+
+                                            // Accumulate directly into the parent coarse cell
+                                            vfrac[coarse_i][coarse_j][coarse_k] += refined_volume;
+                                            firstMoment[coarse_i][coarse_j][coarse_k] += refined_first_moment;
+
+                                            // Accumulate exact raw 0th/1st/2nd moments if requested
+                                            if (secondMoment != nullptr) {
+                                                auto refined_general_moments =
+                                                    IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(refined_cell, paraboloid);
+                                                total_general_moments += refined_general_moments;
+                                            }
+
+                                            if (visualize) {
+                                                surfaces.push_back(volume_and_surface.getSurface());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Check central cell
                     int mid = stencil_size / 2;
                     double center_vfrac = vfrac[mid][mid][mid];
                     if (center_vfrac > machineZero && center_vfrac < 1.0-machineZero) {
@@ -1879,13 +1971,13 @@ namespace IRL {
                         // Now calc stencil 2nd moments if requested
                         if (secondMoment != nullptr) {
                             // liquid-centered (about global liquid centroid) second moment matrix from refined accumulated moments
-                            *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                            *secondMoment = centeredSecondMomentFromTotal(total_general_moments);
                         }
                         
                         if (visualize) {
-                            WriteField(stencil_size, coords, vfrac, "vfrac");
+                            WriteField(stencil_size, coarse_coords, vfrac, "vfrac");
                             WriteSurface(surfaces, "surface");
-                            printCentroids(centroid);
+                            //printCentroids(centroid); this doesnt work anymore, could be adapted but no need
                         }
                         return; // accept this sample
                     }
@@ -1962,11 +2054,12 @@ namespace IRL {
                     generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, &secondMoment);
                     break;
                 case 4:
-                    std::cout<<"Generating Cut Sheet"<<std::endl;
                     //generateBentCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, &secondMoment);
                     generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, truncateInsideCentrCell, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, &secondMoment);
                     //generateCutSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, &secondMoment);
+                    //generateSphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize, &secondMoment);
                     break;
+
                 default:
                     generateParaboloid(vfrac, firstMoment, stencil_size, paraboloid_coeff_stddev, visualize, &secondMoment);
                     break;
