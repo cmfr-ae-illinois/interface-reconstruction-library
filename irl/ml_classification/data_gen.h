@@ -922,6 +922,8 @@ namespace IRL {
 
                 // for visualization option
                 std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+                // Center cell
+                int mid = stencil_size / 2;
 
                 // Make a random tube radius
                 double tube_radius = max_radius;
@@ -997,142 +999,298 @@ namespace IRL {
 
                 // Refined mesh
                 const double cell_volume = 1.0;
-                double refinement_factor_double = std::min(std::ceil(3.0/(2.0*tube_radius)), 6.0); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                double max_refinement_factor = 6.0;
+                double refinement_factor_double = std::ceil(3.0/(2.0*tube_radius)); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
                 int refinement_factor = static_cast<int>(refinement_factor_double);
                 int refined_stencil_size = refinement_factor * stencil_size;
 
-                std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
-                    std::vector<std::vector<double>>(refined_stencil_size,
-                    std::vector<double>(refined_stencil_size)));
+                // If the tube radius is too small, approximate the circle by lines
+                if (refinement_factor_double > max_refinement_factor) {
+                    visualize = false;
+                    const double max_line_segment_length = 0.25;
 
-                std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
-                    std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
-                    std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+                    // Build coarse coordinates
+                    std::vector<double> coords_coarse(stencil_size + 1);
+                    for (int ii = 0; ii <= stencil_size; ++ii) {
+                        coords_coarse[ii] = -0.5 * stencil_size + static_cast<double>(ii);
+                    }
 
-                // Refined cell coordinates
-                auto coords = std::vector<double>(refined_stencil_size + 1);
-                for (int i = 0; i <= refined_stencil_size; i++) {
-                    coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
-                }
+                    // polyline approximation of the circle centerline (full 2*pi)
+                    const double circumference = 2.0 * M_PI * radius_circle;
+                    const int nSeg = std::max(8, static_cast<int>(std::ceil(circumference / maxSegLen)));
 
-                // Fill refined stencil
-                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                    auto circlePoint = [&](double theta) -> Eigen::Vector3d {
+                        // circle lies in plane spanned by u,v with center c0
+                        return c0 + radius_circle * (std::cos(theta) * u + std::sin(theta) * v);
+                    };
 
-                IRL::GeneralMoments3D<2> totalMoments_refined =
-                    IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For exact 2nd moment
+                    // What part of a line segment is within the cell AABB?
+                    auto clipSegmentToCell = [&](const Eigen::Vector3d& p0,
+                                                const Eigen::Vector3d& p1,
+                                                const Eigen::Vector3d& bmin,
+                                                const Eigen::Vector3d& bmax,
+                                                double& t0, double& t1) -> bool
+                    {
+                        // Liang–Barsky style parametric clip in 3D for segment p(t)=p0+t*(p1-p0), t in [0,1]
+                        t0 = 0.0; t1 = 1.0;
+                        Eigen::Vector3d d = p1 - p0;
 
-                for (int i = 0; i < refined_stencil_size; i++) {
-                    for (int j = 0; j < refined_stencil_size; j++) {
-                        for (int k = 0; k < refined_stencil_size; k++) {
-                            auto cell = IRL::RectangularCuboid::fromBoundingPts(
-                                IRL::Pt(coords[i], coords[j], coords[k]),
-                                IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+                        for (int ax = 0; ax < 3; ++ax) {
+                            const double p = d[ax];
+                            const double q0 = p0[ax];
 
-                            // Find center of cell
-                            Eigen::Vector3d cell_center((coords[i + 1] + coords[i]) / 2.0,
-                                                        (coords[j + 1] + coords[j]) / 2.0,
-                                                        (coords[k + 1] + coords[k]) / 2.0);
-
-                            // Find closest point on circle + tangent at that point
-                            Eigen::Vector3d closest_point_on_circle;
-                            Eigen::Vector3d circle_tangent;
-                            closestPointAndTangentOnCircle(
-                                cell_center,
-                                c0,
-                                radius_circle,
-                                u,
-                                v,
-                                closest_point_on_circle,
-                                circle_tangent
-                            );
-
-
-                            // Local radial direction from circle to cell center
-                            Eigen::Vector3d radial_dir = (cell_center - closest_point_on_circle);
-                            double rn = radial_dir.norm();
-                            if (rn < 1e-14) {
-                                // pick any direction perpendicular to tangent
-                                radial_dir = u - u.dot(circle_tangent) * circle_tangent;
-                                if (radial_dir.squaredNorm() < 1e-14)
-                                    radial_dir = v - v.dot(circle_tangent) * circle_tangent;
-                                radial_dir.normalize();
+                            if (std::abs(p) < 1e-14) {
+                                // segment parallel to slab: must be within bounds
+                                if (q0 < bmin[ax] || q0 > bmax[ax]) return false;
                             } else {
-                                radial_dir.normalize();
+                                double invp = 1.0 / p;
+                                double tNear = (bmin[ax] - q0) * invp;
+                                double tFar  = (bmax[ax] - q0) * invp;
+                                if (tNear > tFar) std::swap(tNear, tFar);
+                                t0 = std::max(t0, tNear);
+                                t1 = std::min(t1, tFar);
+                                if (t0 > t1) return false;
+                            }
+                        }
+                        return true;
+                    };
+
+                    auto cylinderCentralSecondMoment = [&](double V, double L, const Eigen::Vector3d& axis_unit) -> Eigen::Matrix3d {
+                        // Central second moment (unnormalized): ∫ (x-c)(x-c)^T dV for a solid cylinder.
+                        // For axis a, projector P = I - aa^T
+                        // C2 = V*(L^2/12) * aa^T + V*(r^2/4) * P
+                        Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+                        Eigen::Matrix3d aaT = axis_unit * axis_unit.transpose();
+                        Eigen::Matrix3d P = I - aaT;
+                        const double L2 = L * L;
+                        const double r2 = tube_radius * tube_radius;
+
+                        return (V * (L2 / 12.0)) * aaT + (V * (r2 / 4.0)) * P;
+                    };
+                    
+
+                    // Clear coarse outputs
+                    for (int i = 0; i < stencil_size; ++i)
+                        for (int j = 0; j < stencil_size; ++j)
+                            for (int k = 0; k < stencil_size; ++k) {
+                                vfrac[i][j][k] = 0.0;
+                                firstMoment[i][j][k].setZero();
                             }
 
-                            // Datum on paraboloid representation of cylinder (local)
-                            Eigen::Vector3d datum_paraboloid_eVec = closest_point_on_circle + tube_radius * radial_dir;
-                            IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(),
-                                                    datum_paraboloid_eVec.y(),
-                                                    datum_paraboloid_eVec.z());
+                    // If we want stencil-level 2nd moments (liquid-centered), accumulate raw moments across the whole stencil
+                    double totalV = 0.0;
+                    Eigen::Vector3d totalM1 = Eigen::Vector3d::Zero(); // raw first moment = ∑ V*c
+                    Eigen::Matrix3d totalM2 = Eigen::Matrix3d::Zero(); // raw second moment = ∑ ∫ x x^T dV
 
-                            // Frame aligned with local tangent
-                            Eigen::Vector3d paraboloid_x = circle_tangent.normalized(); // local axis
-                            Eigen::Vector3d paraboloid_z = radial_dir; // local radial
-                            Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
-                            double y2 = paraboloid_y.squaredNorm();
-                            if (y2 < 1e-14) {
-                                // Fallback if radial accidentally parallel to tangent
-                                Eigen::Vector3d cand = u - u.dot(paraboloid_x) * paraboloid_x;
-                                if (cand.squaredNorm() < 1e-14) cand = v - v.dot(paraboloid_x) * paraboloid_x;
-                                paraboloid_z = cand.normalized();
-                                paraboloid_y = paraboloid_z.cross(paraboloid_x);
-                                paraboloid_y.normalize();
-                            } else {
-                                paraboloid_y /= std::sqrt(y2);
-                            }
+                    // Iterate coarse cells and add contributions from clipped segments
+                    for (int i = 0; i < stencil_size; ++i) {
+                        for (int j = 0; j < stencil_size; ++j) {
+                            for (int k = 0; k < stencil_size; ++k) {
 
-                            const auto frame = IRL::ReferenceFrame(
-                                IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()),
-                                IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()),
-                                IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+                                const Eigen::Vector3d bmin(coords_coarse[i],   coords_coarse[j],   coords_coarse[k]);
+                                const Eigen::Vector3d bmax(coords_coarse[i+1], coords_coarse[j+1], coords_coarse[k+1]);
 
-                            // Tube approx with paraboloid with coeffs (0, 1/(2R)) in the local frame- cylinder pieces
-                            const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1 / (2 * tube_radius));
+                                double cellV = 0.0;
+                                Eigen::Vector3d cellM1 = Eigen::Vector3d::Zero(); // ∑ V*c within cell
+                                Eigen::Matrix3d cellM2 = Eigen::Matrix3d::Zero(); // ∑ ∫ x x^T dV within cell
 
-                            auto volume_and_surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid);
+                                for (int s = 0; s < nSeg; ++s) {
+                                    const double tA = (2.0 * M_PI) * (static_cast<double>(s) / nSeg);
+                                    const double tB = (2.0 * M_PI) * (static_cast<double>(s + 1) / nSeg);
 
-                            volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
-                            firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
-                                                            volume_and_surface.getMoments().centroid().y(),
-                                                            volume_and_surface.getMoments().centroid().z();
+                                    const Eigen::Vector3d p0 = circlePoint(tA);
+                                    const Eigen::Vector3d p1 = circlePoint(tB);
 
-                            if (secondMoment != nullptr) {
-                                // Exact raw 0th/1st/2nd moments about global origin, accumulated on refined grid
-                                auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
-                                totalMoments_refined += gm;
-                            }
+                                    // "Line passes through the cell" => centerline segment intersects the Cell AABB
+                                    double ta, tb;
+                                    if (!clipSegmentToCell(p0, p1, bmin, bmax, ta, tb)) continue;
 
-                            if (visualize) {
-                                auto surface = volume_and_surface.getSurface();
-                                surfaces.push_back(surface);
+                                    // Use only the part of the segment inside the cell
+                                    Eigen::Vector3d q0 = p0 + ta * (p1 - p0);
+                                    Eigen::Vector3d q1 = p0 + tb * (p1 - p0);
+
+                                    const Eigen::Vector3d d = q1 - q0;
+                                    const double L = d.norm();
+                                    if (L < 1e-14) continue;
+
+                                    const Eigen::Vector3d axis = d / L;
+
+                                    // Solid cylinder approximation for this clipped piece
+                                    const double V = M_PI * tube_radius * tube_radius * L;
+                                    const Eigen::Vector3d c = 0.5 * (q0 + q1);
+
+                                    // Central 2nd moment about centroid, then convert to raw about origin
+                                    const Eigen::Matrix3d C2 = cylinderCentralSecondMoment(V, L, axis);
+                                    const Eigen::Matrix3d raw2 = C2 + V * (c * c.transpose());
+
+                                    cellV  += V;
+                                    cellM1 += V * c;
+                                    cellM2 += raw2;
+                                }
+
+                                // Convert to your stored per-cell format:
+                                // vfrac = volume fraction (cell volume = 1)
+                                // firstMoment stores centroid (your refinement code does that)
+                                if (cellV > 0.0) {
+                                    const double vf = std::min(cellV / cell_volume, 1.0);
+                                    vfrac[i][j][k] = vf;
+
+                                    // centroid of union-of-cylinders approximation in this cell
+                                    firstMoment[i][j][k] = cellM1 / cellV;
+
+                                    if (secondMoment != nullptr) {
+                                        // accumulate second moments to get them for the whole stencil
+                                        totalV  += cellV;
+                                        totalM1 += cellM1;
+                                        totalM2 += cellM2;
+                                    }
+                                } else {
+                                    vfrac[i][j][k] = 0.0;
+                                    firstMoment[i][j][k].setZero();
+                                }
                             }
                         }
                     }
+                } else {
+                // need to refine now
+                    std::vector<std::vector<std::vector<double>>> volumes_refined(refined_stencil_size,
+                        std::vector<std::vector<double>>(refined_stencil_size,
+                        std::vector<double>(refined_stencil_size)));
+
+                    std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
+                        std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
+                        std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+
+                    // Refined cell coordinates
+                    auto coords = std::vector<double>(refined_stencil_size + 1);
+                    for (int i = 0; i <= refined_stencil_size; i++) {
+                        coords[i] = -0.5 * stencil_size + (static_cast<double>(i) / refinement_factor);
+                    }
+
+                    // Fill refined stencil
+                    using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+
+                    IRL::GeneralMoments3D<2> totalMoments_refined =
+                        IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For exact 2nd moment
+
+                    for (int i = 0; i < refined_stencil_size; i++) {
+                        for (int j = 0; j < refined_stencil_size; j++) {
+                            for (int k = 0; k < refined_stencil_size; k++) {
+                                auto cell = IRL::RectangularCuboid::fromBoundingPts(
+                                    IRL::Pt(coords[i], coords[j], coords[k]),
+                                    IRL::Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                                // Find center of cell
+                                Eigen::Vector3d cell_center((coords[i + 1] + coords[i]) / 2.0,
+                                                            (coords[j + 1] + coords[j]) / 2.0,
+                                                            (coords[k + 1] + coords[k]) / 2.0);
+
+                                // Find closest point on circle + tangent at that point
+                                Eigen::Vector3d closest_point_on_circle;
+                                Eigen::Vector3d circle_tangent;
+                                closestPointAndTangentOnCircle(
+                                    cell_center,
+                                    c0,
+                                    radius_circle,
+                                    u,
+                                    v,
+                                    closest_point_on_circle,
+                                    circle_tangent
+                                );
+
+
+                                // Local radial direction from circle to cell center
+                                Eigen::Vector3d radial_dir = (cell_center - closest_point_on_circle);
+                                double rn = radial_dir.norm();
+                                if (rn < 1e-14) {
+                                    // pick any direction perpendicular to tangent
+                                    radial_dir = u - u.dot(circle_tangent) * circle_tangent;
+                                    if (radial_dir.squaredNorm() < 1e-14)
+                                        radial_dir = v - v.dot(circle_tangent) * circle_tangent;
+                                    radial_dir.normalize();
+                                } else {
+                                    radial_dir.normalize();
+                                }
+
+                                // Datum on paraboloid representation of cylinder (local)
+                                Eigen::Vector3d datum_paraboloid_eVec = closest_point_on_circle + tube_radius * radial_dir;
+                                IRL::Pt datum_paraboloid(datum_paraboloid_eVec.x(),
+                                                        datum_paraboloid_eVec.y(),
+                                                        datum_paraboloid_eVec.z());
+
+                                // Frame aligned with local tangent
+                                Eigen::Vector3d paraboloid_x = circle_tangent.normalized(); // local axis
+                                Eigen::Vector3d paraboloid_z = radial_dir; // local radial
+                                Eigen::Vector3d paraboloid_y = paraboloid_z.cross(paraboloid_x);
+                                double y2 = paraboloid_y.squaredNorm();
+                                if (y2 < 1e-14) {
+                                    // Fallback if radial accidentally parallel to tangent
+                                    Eigen::Vector3d cand = u - u.dot(paraboloid_x) * paraboloid_x;
+                                    if (cand.squaredNorm() < 1e-14) cand = v - v.dot(paraboloid_x) * paraboloid_x;
+                                    paraboloid_z = cand.normalized();
+                                    paraboloid_y = paraboloid_z.cross(paraboloid_x);
+                                    paraboloid_y.normalize();
+                                } else {
+                                    paraboloid_y /= std::sqrt(y2);
+                                }
+
+                                const auto frame = IRL::ReferenceFrame(
+                                    IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()),
+                                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()),
+                                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+
+                                // Tube approx with paraboloid with coeffs (0, 1/(2R)) in the local frame- cylinder pieces
+                                const auto paraboloid = IRL::Paraboloid(datum_paraboloid, frame, 0, 1 / (2 * tube_radius));
+
+                                auto volume_and_surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid);
+
+                                volumes_refined[i][j][k] = volume_and_surface.getMoments().volume();
+                                firstMoments_refined[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                                volume_and_surface.getMoments().centroid().y(),
+                                                                volume_and_surface.getMoments().centroid().z();
+
+                                if (secondMoment != nullptr) {
+                                    // Exact raw 0th/1st/2nd moments about global origin, accumulated on refined grid
+                                    auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
+                                    totalMoments_refined += gm;
+                                }
+
+                                if (visualize) {
+                                    auto surface = volume_and_surface.getSurface();
+                                    surfaces.push_back(surface);
+                                }
+                            }
+                        }
+                    }
+
+                    // Compress refined to coarse stencil
+                    compressStencilRefinedToCoarse(
+                        volumes_refined,
+                        firstMoments_refined,
+                        vfrac,
+                        firstMoment,
+                        stencil_size,
+                        refinement_factor,
+                        cell_volume,
+                        visualize,
+                        &centroid
+                    );
                 }
 
-                // Compress refined to coarse stencil
-                compressStencilRefinedToCoarse(
-                    volumes_refined,
-                    firstMoments_refined,
-                    vfrac,
-                    firstMoment,
-                    stencil_size,
-                    refinement_factor,
-                    cell_volume,
-                    visualize,
-                    &centroid
-                );
-
-                // --- check central cell ---
-                int mid = stencil_size / 2;
+                // check central cell
                 double center_vfrac = vfrac[mid][mid][mid];
                 if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
 
                     // Now calc stencil 2nd moments if requested
                     if (secondMoment != nullptr) {
-                        // liquid-centered (about global liquid centroid) second moment matrix from refined accumulated moments
-                        *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                        if (refinement_factor_double > max_refinement_factor) {
+                            const Eigen::Vector3d xc = totalM1 / totalV;
+                            const Eigen::Matrix3d central = totalM2 - totalV * (xc * xc.transpose());
+                            *secondMoment = central; // or: central / totalV
+                        } else {
+                            // liquid-centered (about global liquid centroid) second moment matrix from refined accumulated moments
+                            *secondMoment = centeredSecondMomentFromTotal(totalMoments_refined);
+                        }
                     }
 
                     if (visualize) {
