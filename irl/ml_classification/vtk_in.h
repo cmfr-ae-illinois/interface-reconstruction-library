@@ -26,11 +26,11 @@
 
 namespace IRL {
 
-void classify_simulation(IRL::Classifier& classifier, const std::string& filename, 
+void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
     int cannonicalize_symmetries = 0, int preProcess = false, int include_Moments = 1, std::vector<int>* savedClasses = nullptr) 
     {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
-    reader->SetCaseFileName(filename.c_str());
+    reader->SetCaseFileName(filenameNGA.c_str());
     //reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/nga.case");
     //reader->SetCaseFileName("/home/quirin/jet/nga.case");
     reader->UpdateInformation();
@@ -67,7 +67,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     // Read PLIC file
     auto plic_reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     // plic_reader->SetCaseFileName("/home/quirin/jet/plic.case");
-    plic_reader->SetCaseFileName("/home/quirin/mlcfd/Repositories/jet/plic.case");
+    plic_reader->SetCaseFileName(filenamePlic.c_str());
     plic_reader->UpdateInformation();
 
     vtkInformation* plic_info = plic_reader->GetOutputInformation(0);
@@ -295,6 +295,8 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     int no_cylinders = 0;
     int no_spheres = 0;
     int no_sheets = 0;
+    int no_cut_sheets = 0;
+    int no_ligament_tip = 0;
     int no_isolated = 0; // for pre-processing
 
     double start_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
@@ -625,6 +627,14 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         no_sheets++;
                         interface_type->SetValue(centerCellId, 3);
                         break;
+                    case 4:
+                        no_ligament_tip++;
+                        interface_type->SetValue(centerCellId, 4);
+                        break;
+                    case 5:
+                        no_cut_sheets++;
+                        interface_type->SetValue(centerCellId, 5);
+                        break;
                     default:
                         std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;
                         break;
@@ -650,6 +660,8 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     std::cout << "Cylinders:            " << no_cylinders << std::endl;
     std::cout << "Spheres:              " << no_spheres << std::endl;
     std::cout << "Sheets:               " << no_sheets << std::endl;
+    std::cout << "Ligament tips:        " << no_ligament_tip << std::endl;
+    std::cout << "Sheet Edges:          " << no_cut_sheets << std::endl;
 
     // Write Grid file
     grid->GetCellData()->AddArray(interface_type);
