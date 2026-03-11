@@ -745,14 +745,14 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
             1e-10) {  // Ensure that in the undefined areas, we
           // // do not add pressure terms.
           total = total + Scale * STCoeff * curv * L * denom * OutwardsNormal;
-          std::cout << "Surface Tension Coeff: " << STCoeff << "\n"
-                    << "Curvature: " << curv << "\n"
-                    << "Length Segment: " << L << "\n"
-                    << "Pressure Contribution Scale: " << Scale << "\n"
-                    << "Intersection Point: " << intersections[j] << "\n"
-                    << "Point 1: " << P0 << "\n"
-                    << "Point 2: " << P1 << "\n"
-                    << "--------------------------------------\n";
+          // std::cout << "Surface Tension Coeff: " << STCoeff << "\n"
+          //           << "Curvature: " << curv << "\n"
+          //           << "Length Segment: " << L << "\n"
+          //           << "Pressure Contribution Scale: " << Scale << "\n"
+          //           << "Intersection Point: " << intersections[j] << "\n"
+          //           << "Point 1: " << P0 << "\n"
+          //           << "Point 2: " << P1 << "\n"
+          //           << "--------------------------------------\n";
         }
       }
     }
