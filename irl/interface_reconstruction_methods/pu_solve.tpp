@@ -902,10 +902,14 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       startPoint = intersectionsSet[pairs[j][0]][0];
       endPoint = intersectionsSet[pairs[j][1]][0];
       normal1 = s.getNormal(startPoint);
+      normal1.normalize();
       normal2 = s.getNormal(endPoint);
+      normal2.normalize();
       // Make tangent by crossing normal with face  normal
-      tangentStart = IRL::crossProduct(normal1, faceNormal);  // Keep Magnitudes
-      tangentEnd = IRL::crossProduct(normal2, faceNormal);    // Keep Magnitudes
+      tangentStart = IRL::crossProduct(faceNormal, normal1);  // Keep Magnitudes
+      tangentStart.normalize();
+      tangentEnd = IRL::crossProduct(faceNormal, normal2);  // Keep Magnitudes
+      tangentEnd.normalize();
       // Now we have tangents, find the intersection of tangnents to get the
       // control point.
       const Normal edge_vector = endPoint - startPoint;
@@ -970,150 +974,152 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       const Normal f1 = ST_1 * IRL::crossProduct(tan_1, normal_1);
       const Normal f2 = ST_2 * IRL::crossProduct(tan_2, normal_2);
 
-      total = total + (w0 * f0 + w1 * f1 + w2 * f2) * arc.length();
+      total = total + (w0 * f0 + w1 * f1 + w2 * f2) * arc.arc_length();
     }
   }
   return total;
+}
 
-  template <class CellType>
-  Normal PU<CellType>::solveEdgeCylinder(
-      double STCoeff, Pt& P0, Pt& P1, double radius, Pt& center, double delta) {
-    // Make Implicit Surface
-    // std::cout << "In Solve Edge\n";
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
-    // Find Intersection with edge
-    std::vector<Pt> intersections =
-        s.intersectEdgeCylinder(P0, P1, radius, center, 10);
+template <class CellType>
+Normal PU<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
+                                       double radius, Pt& center,
+                                       double delta) {
+  // Make Implicit Surface
+  // std::cout << "In Solve Edge\n";
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  // Find Intersection with edge
+  std::vector<Pt> intersections =
+      s.intersectEdgeCylinder(P0, P1, radius, center, 10);
 
-    // Calculate some edge properties
-    Pt dP = P1 - P0;
-    Normal OutwardsNormal = {dP[1], -dP[0], 0};
-    double D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1]);
-    double denom = 1.0 / (safelyEpsilon(D));
-    // Give space for working variables
-    Normal tangent;
-    Normal total = {0.0, 0.0, 0.0};  // Total force
+  // Calculate some edge properties
+  Pt dP = P1 - P0;
+  Normal OutwardsNormal = {dP[1], -dP[0], 0};
+  double D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1]);
+  double denom = 1.0 / (safelyEpsilon(D));
+  // Give space for working variables
+  Normal tangent;
+  Normal total = {0.0, 0.0, 0.0};  // Total force
 
-    // Loop over intersections and add tangents to force
-    if (intersections.size() > 0) {
-      for (int j = 0; j < intersections.size(); j++) {
-        tangent = s.getTangentCylinder(intersections[j], radius, center);
-        tangent.normalize();
-        // If facing inside, multiply by negative
-        // If facing outside, leave the same
-        double Scale = OutwardsNormal * tangent;
+  // Loop over intersections and add tangents to force
+  if (intersections.size() > 0) {
+    for (int j = 0; j < intersections.size(); j++) {
+      tangent = s.getTangentCylinder(intersections[j], radius, center);
+      tangent.normalize();
+      // If facing inside, multiply by negative
+      // If facing outside, leave the same
+      double Scale = OutwardsNormal * tangent;
 
-        tangent *= Scale / safelyEpsilon(std::abs(Scale));
-        // Add
-        total = total + STCoeff * denom * tangent;
-      }
+      tangent *= Scale / safelyEpsilon(std::abs(Scale));
+      // Add
+      total = total + STCoeff * denom * tangent;
     }
-    return total;
+  }
+  return total;
+}
+
+template <class CellType>
+double PU<CellType>::getValue(double x, double y, double z, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  Pt in = {x, y, z};
+  double retVal = 0;
+  s.evaluate(in, &retVal);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+Normal PU<CellType>::getTangent(double x, double y, double z, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  Pt in = {x, y, z};
+  Normal retVal = s.getTangent(in);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+double PU<CellType>::getWeight(double x, double y, double z, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  Pt in = {x, y, z};
+  double retVal;
+  s.getTotalWeight(in, &retVal);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+double PU<CellType>::getValueCylinder(double x, double y, double z,
+                                      double radius, Pt center) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
+  Pt in = {x, y, z};
+  double retVal = 0;
+  s.evaluateCylinder(in, radius, center, &retVal);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+inline Normal PU<CellType>::getTangentCylinder(double x, double y, double z,
+                                               double radius, Pt center) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
+  Pt in = {x, y, z};
+  Normal retVal = s.getTangentCylinder(in, radius, center);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+double PU<CellType>::getWeightCylinder(double x, double y, double z,
+                                       double radius, Pt center) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
+  Pt in = {x, y, z};
+  double retVal = 1.0;
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+void PU<CellType>::printSolver() {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(1);
+  // First Print Solver
+  s.printSurface();
+  std::cout << "> Threshold = " << intersection_threshold_m << "\n";
+}
+
+template <class CellType>
+void PU<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
+  stencil_m = stencil_;
+}
+
+template <class CellType>
+void PU<CellType>::setThreshold(double thresh_) {
+  intersection_threshold_m = thresh_;
+}
+
+template <class CellType>
+Paraboloid PU<CellType>::solve(
+    const PUNeighborhood<CellType>* a_neighborhood_pointer,
+    const Pt& a_centroid, const double a_delta) {
+  double delta = a_delta;
+  if (delta < 0.0) {
+    const auto cell = a_neighborhood_pointer->getCenterCell();
+    delta = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
   }
 
-  template <class CellType>
-  double PU<CellType>::getValue(double x, double y, double z, double delta) {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
-    Pt in = {x, y, z};
-    double retVal = 0;
-    s.evaluate(in, &retVal);
-    // std::cout << "==== Return Value: " << retVal << std::endl;
-    return retVal;
-  }
+  this->setNeighborhood(*a_neighborhood_pointer);
+  auto PUSurface = this->neighborhoodToImplicitSurface(delta);
 
-  template <class CellType>
-  Normal PU<CellType>::getTangent(double x, double y, double z, double delta) {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
-    Pt in = {x, y, z};
-    Normal retVal = s.getTangent(in);
-    // std::cout << "==== Return Value: " << retVal << std::endl;
-    return retVal;
-  }
+  // Project provided point onto the PU surface
+  const auto pt_on_PU = PUSurface.projectOntoPU(a_centroid);
 
-  template <class CellType>
-  double PU<CellType>::getWeight(double x, double y, double z, double delta) {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
-    Pt in = {x, y, z};
-    double retVal;
-    s.getTotalWeight(in, &retVal);
-    // std::cout << "==== Return Value: " << retVal << std::endl;
-    return retVal;
-  }
+  // Compute local gradient and hessian of PU approximation
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
+  PUSurface.evaluate(pt_on_PU, &holdsGradAndHessian);
+  const auto gradF = std::get<1>(holdsGradAndHessian);
+  const auto hessF = std::get<2>(holdsGradAndHessian);
 
-  template <class CellType>
-  double PU<CellType>::getValueCylinder(double x, double y, double z,
-                                        double radius, Pt center) {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
-    Pt in = {x, y, z};
-    double retVal = 0;
-    s.evaluateCylinder(in, radius, center, &retVal);
-    // std::cout << "==== Return Value: " << retVal << std::endl;
-    return retVal;
-  }
-
-  template <class CellType>
-  inline Normal PU<CellType>::getTangentCylinder(double x, double y, double z,
-                                                 double radius, Pt center) {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
-    Pt in = {x, y, z};
-    Normal retVal = s.getTangentCylinder(in, radius, center);
-    // std::cout << "==== Return Value: " << retVal << std::endl;
-    return retVal;
-  }
-
-  template <class CellType>
-  double PU<CellType>::getWeightCylinder(double x, double y, double z,
-                                         double radius, Pt center) {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
-    Pt in = {x, y, z};
-    double retVal = 1.0;
-    // std::cout << "==== Return Value: " << retVal << std::endl;
-    return retVal;
-  }
-
-  template <class CellType>
-  void PU<CellType>::printSolver() {
-    PUImplicitSurface s = this->neighborhoodToImplicitSurface(1);
-    // First Print Solver
-    s.printSurface();
-    std::cout << "> Threshold = " << intersection_threshold_m << "\n";
-  }
-
-  template <class CellType>
-  void PU<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
-    stencil_m = stencil_;
-  }
-
-  template <class CellType>
-  void PU<CellType>::setThreshold(double thresh_) {
-    intersection_threshold_m = thresh_;
-  }
-
-  template <class CellType>
-  Paraboloid PU<CellType>::solve(
-      const PUNeighborhood<CellType>* a_neighborhood_pointer,
-      const Pt& a_centroid, const double a_delta) {
-    double delta = a_delta;
-    if (delta < 0.0) {
-      const auto cell = a_neighborhood_pointer->getCenterCell();
-      delta = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
-    }
-
-    this->setNeighborhood(*a_neighborhood_pointer);
-    auto PUSurface = this->neighborhoodToImplicitSurface(delta);
-
-    // Project provided point onto the PU surface
-    const auto pt_on_PU = PUSurface.projectOntoPU(a_centroid);
-
-    // Compute local gradient and hessian of PU approximation
-    std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
-    PUSurface.evaluate(pt_on_PU, &holdsGradAndHessian);
-    const auto gradF = std::get<1>(holdsGradAndHessian);
-    const auto hessF = std::get<2>(holdsGradAndHessian);
-
-    // Return paraboloid computed from derivatives
-    return IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
-  }
+  // Return paraboloid computed from derivatives
+  return IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
+}
 
 }  // End Namespace IRL
 
