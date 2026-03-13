@@ -41,20 +41,21 @@ void c_PU_RectCub_solveFace(c_PU_RectCub* a_self, double* STCoeff, double* P0,
 
   IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
   IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P1);
-  IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P2);
-  IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P3);
+  IRL::Pt P2temp = IRL::Pt::fromRawDoublePointer(P2);
+  IRL::Pt P3temp = IRL::Pt::fromRawDoublePointer(P3);
 
   IRL::Normal MarangoniTemp = IRL::Normal::fromRawDoublePointer(Marangoni);
 
-  IRL::Normal force = a_self->obj_ptr->solveEdge(
-      *STCoeff, P0temp, P1temp, *delta, *Pressure, MarangoniTemp);
+  IRL::Normal force =
+      a_self->obj_ptr->solveFace(*STCoeff, P0temp, P1temp, P2temp, P3temp,
+                                 *delta, *Pressure, MarangoniTemp);
 
   for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
     *(a_force + n) = force[n];
   }
 }
 
-void c_PU_RectCub_solveFace(c_PU_RectCub* a_self, double* STCoeff, double* P0,
+void c_PU_RectCub_solveEdge(c_PU_RectCub* a_self, double* STCoeff, double* P0,
                             double* P1, double* delta, double* Pressure,
                             double* Marangoni, double* a_force) {
   assert(a_self != nullptr);

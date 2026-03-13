@@ -19,41 +19,45 @@ void c_PU_RectCub_new(c_PU_RectCub* a_self);
 void c_PU_RectCub_delete(c_PU_RectCub* a_self);
 
 void c_PU_RectCub_setNeighborhood(c_PU_RectCub* a_self,
-                                    c_PUNeigh_RectCub* a_neighborhood);
+                                  c_PUNeigh_RectCub* a_neighborhood);
 
 void c_PU_RectCub_setTreshold(c_PU_RectCub* a_self, double* a_tresh);
 
-void c_PU_RectCub_solveEdge(c_PU_RectCub* a_self, double* STCoeff,
-                              double* P0, double* P1, double* delta,
-                              double* Pressure, double* Marangoni,
-                              double* a_force);
+void c_PU_RectCub_solveEdge(c_PU_RectCub* a_self, double* STCoeff, double* P0,
+                            double* P1, double* delta, double* Pressure,
+                            double* Marangoni, double* a_force);
+
+void c_PU_RectCub_solveFace(c_PU_RectCub* a_self, double* STCoeff, double* P0,
+                            double* P1, double* P2, double* P3, double* delta,
+                            double* Pressure, double* Marangoni,
+                            double* a_force);
 
 void c_PU_RectCub_getValue(c_PU_RectCub* a_self, double* x, double* y,
-                             double* z, double* delta, double* value);
+                           double* z, double* delta, double* value);
 
 void c_PU_RectCub_getTangent(c_PU_RectCub* a_self, double* x, double* y,
-                               double* z, double* delta, double* tangent);
+                             double* z, double* delta, double* tangent);
 
 void c_PU_RectCub_getWeight(c_PU_RectCub* a_self, double* x, double* y,
-                              double* z, double* delta, double* value);
+                            double* z, double* delta, double* value);
 
 // Cylinder Versions
 void c_PU_RectCub_solveEdgeCylinder(c_PU_RectCub* a_self, double* STCoeff,
-                                      double* P0, double* P1, double* radius,
-                                      double* center, double* delta,
-                                      double* a_force);
+                                    double* P0, double* P1, double* radius,
+                                    double* center, double* delta,
+                                    double* a_force);
 
-void c_PU_RectCub_getValueCylinder(c_PU_RectCub* a_self, double* x,
-                                     double* y, double* z, double* radius,
-                                     double* center, double* value);
+void c_PU_RectCub_getValueCylinder(c_PU_RectCub* a_self, double* x, double* y,
+                                   double* z, double* radius, double* center,
+                                   double* value);
 
-void c_PU_RectCub_getTangentCylinder(c_PU_RectCub* a_self, double* x,
-                                       double* y, double* z, double* radius,
-                                       double* center, double* tangent);
+void c_PU_RectCub_getTangentCylinder(c_PU_RectCub* a_self, double* x, double* y,
+                                     double* z, double* radius, double* center,
+                                     double* tangent);
 
-void c_PU_RectCub_getWeightCylinder(c_PU_RectCub* a_self, double* x,
-                                      double* y, double* z, double* radius,
-                                      double* center, double* value);
+void c_PU_RectCub_getWeightCylinder(c_PU_RectCub* a_self, double* x, double* y,
+                                    double* z, double* radius, double* center,
+                                    double* value);
 
 // Debug
 void c_PU_RectCub_printSolver(c_PU_RectCub* a_self);
