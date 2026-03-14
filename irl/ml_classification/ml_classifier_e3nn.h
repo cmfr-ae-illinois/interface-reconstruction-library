@@ -92,6 +92,8 @@ public:
             net, *optimizer,
             train_loader.get(), test_loader.get(), val_loader.get(),
             epochs,
+            reduce_lr_patience,
+            early_stop_patience,
             &train_loss,
             &val_loss,
             &test_accuracy_vec,

@@ -186,8 +186,10 @@ namespace IRL {
                 IRL::Pt datum(datumVec.x(), datumVec.y(), datumVec.z());
 
                 std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
-                double coeff1 = random_coeff(eng);
-                double coeff2 = random_coeff(eng);
+                //double coeff1 = random_coeff(eng);
+                //double coeff2 = random_coeff(eng);
+                double coeff1 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
+                double coeff2 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
 
                 const auto paraboloid = Paraboloid(datum, frame, coeff1, coeff2);
 
@@ -332,9 +334,8 @@ namespace IRL {
                 IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
 
                 // Random coefficients
-                std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
-                double coeff1 = random_coeff(eng);
-                double coeff2 = random_coeff(eng);
+                double coeff1 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
+                double coeff2 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
 
                 const auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1, coeff2);
                 const auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1, coeff2);
@@ -1935,8 +1936,7 @@ namespace IRL {
                 {
                     double sphere_radius_min = tube_radius;
                     double sphere_radius_max = max_radius;
-                    std::uniform_real_distribution<double> dist_sr(sphere_radius_min, sphere_radius_max);
-                    sphere_radius = dist_sr(eng);
+                    sphere_radius = sample_truncated_normal(sphere_radius_min, 0.4*sphere_radius_min, sphere_radius_min, sphere_radius_max);
                 }
 
                 // pick random theta_cut on full circle and accept only if it satisfies your constraints
@@ -1969,7 +1969,7 @@ namespace IRL {
                         const double thresh_inside = 0.5;
                         const double dist_p_cut  = p_cut.norm(); // distance from origin to point on circle at theta_cut, which is the center of the spherical truncation cap
                         if (!truncateInsideCentralCell) {
-                            if (dist_p_cut + sphere_radius < thresh_outside) continue; // want outside, but it's inside
+                            if (dist_p_cut - sphere_radius < thresh_outside) continue; // want outside, but it's inside
                         } else {
                             if (dist_p_cut + sphere_radius > thresh_inside) continue; // want inside, but it's outside
                         }
@@ -1995,7 +1995,7 @@ namespace IRL {
 
                 // Refined mesh
                 const double cell_volume = 1.0;
-                double max_refinement_factor = 6.0;
+                double max_refinement_factor = 8.0;
                 double refinement_factor_double = std::ceil(3.0/(2.0*tube_radius)); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
                 int refinement_factor = static_cast<int>(refinement_factor_double);
                 int refined_stencil_size = refinement_factor * stencil_size;

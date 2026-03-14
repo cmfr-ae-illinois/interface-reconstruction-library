@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include <cmath>
+#include <random>
+#include <algorithm>
 
 namespace IRL {
 
@@ -299,11 +301,36 @@ static void approximateCentroidFromVfrac(const std::vector<CellData>& stencil,
     }
 }
 
-inline void rotate_stencil(std::vector<float>& flat_stencil,
-                           int stencil_size, int no_symmetries, int include_moments = 1)
+inline float clampf(float x, float lo, float hi) {
+    return std::max(lo, std::min(x, hi));
+}
+
+inline std::mt19937& globalNoiseRng() {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    return rng;
+}
+
+inline int sampleNoiseCategory() {
+    // 0: none (50%)
+    // 1: mild (30%)
+    // 2: moderate (15%)
+    // 3: strong (5%)
+    static thread_local std::discrete_distribution<int> dist{25, 25, 25, 25};
+    return dist(globalNoiseRng());
+}
+
+inline float sampleGaussian(float sigma) {
+    if (sigma <= 0.0f) return 0.0f;
+    std::normal_distribution<float> dist(0.0f, sigma);
+    return dist(globalNoiseRng());
+}
+
+
+inline void preprocess_stencil(std::vector<float>& flat_stencil,
+                           int stencil_size, int no_symmetries, int include_moments = 1, float noise_stddev = 0.0f)
 {
-    if (no_symmetries < 8) {
-        return; // no rotation
+    if (no_symmetries < 8 && noise_stddev <= 0.0f) {
+        return;
     }
 
     // Unpack the flat vector into structured cells
@@ -311,6 +338,131 @@ inline void rotate_stencil(std::vector<float>& flat_stencil,
     SecondMoments I{};
     SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
     unpackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+
+    if (noise_stddev > 0.0f)
+    {
+        const float epsilon_noise = 1.0e-4f;
+
+        // If there are no first moments, only vfrac can be perturbed.
+        const float c0 = 0.5f * (static_cast<float>(stencil_size) - 1.0f);
+
+        for (int i = 0; i < stencil_size; ++i) {
+            for (int j = 0; j < stencil_size; ++j) {
+                for (int k = 0; k < stencil_size; ++k) {
+                    auto& c = stencil[cellIndex(i, j, k, stencil_size)];
+
+                    // skip cells with epsilon_noise < vfrac < 1-epsilon_noise
+                    if (c.vfrac > epsilon_noise && c.vfrac < (1.0f - epsilon_noise)) {
+                        continue;
+                    }
+
+                    const float v_old = c.vfrac;
+
+                    // perturb volume fraction first
+                    const float v_new = clampf(
+                        v_old + sampleGaussian(noise_stddev),
+                        1e-12f,
+                        1.0f - 1e-12f
+                    );
+
+                    if (include_moments < 1) {
+                        c.vfrac = v_new;
+                        continue;
+                    }
+
+                    // If original cell is essentially empty, centroid is undefined.
+                    if (v_old <= epsilon_noise) {
+                        c.vfrac = v_new;
+                        c.mx = 0.0f;
+                        c.my = 0.0f;
+                        c.mz = 0.0f;
+                        continue;
+                    }
+
+                    // recover centroid from original data (global stencil coordinates)
+                    float cx_cell = c.mx / v_old;
+                    float cy_cell = c.my / v_old;
+                    float cz_cell = c.mz / v_old;
+
+                    // bounds of this specific cell in global stencil coordinates
+                    const float x_center = static_cast<float>(i) - c0;
+                    const float y_center = static_cast<float>(j) - c0;
+                    const float z_center = static_cast<float>(k) - c0;
+
+                    const float x_min = x_center - 0.5f;
+                    const float x_max = x_center + 0.5f;
+                    const float y_min = y_center - 0.5f;
+                    const float y_max = y_center + 0.5f;
+                    const float z_min = z_center - 0.5f;
+                    const float z_max = z_center + 0.5f;
+
+                    // perturb centroid, then clip to this cell's bounds
+                    cx_cell = clampf(cx_cell + sampleGaussian(noise_stddev), x_min, x_max);
+                    cy_cell = clampf(cy_cell + sampleGaussian(noise_stddev), y_min, y_max);
+                    cz_cell = clampf(cz_cell + sampleGaussian(noise_stddev), z_min, z_max);
+
+                    // reconstruct first moments using new vfrac
+                    c.vfrac = v_new;
+                    c.mx = v_new * cx_cell;
+                    c.my = v_new * cy_cell;
+                    c.mz = v_new * cz_cell;
+                }
+            }
+        }
+
+
+        for (auto& c : stencil) {
+
+            // skip cells with epsilon_noise < vfrac < 1-epsilon_noise
+            if (c.vfrac > epsilon_noise && c.vfrac < (1.0f - epsilon_noise)) {
+                continue;
+            }
+
+            const float v_old = c.vfrac;
+
+            // perturb volume fraction first
+            const float v_new = clampf(v_old + sampleGaussian(noise_stddev), 1e-12f, 1.0f - 1e-12f);
+
+            if (include_moments < 1) {
+                c.vfrac = v_new;
+                continue;
+            }
+
+            // If original cell is essentially empty, centroid is undefined.
+            // In that case just update vfrac and zero moments.
+            if (v_old <= epsilon_noise) {
+                c.vfrac = v_new;
+                c.mx = 0.0f;
+                c.my = 0.0f;
+                c.mz = 0.0f;
+                continue;
+            }
+
+            // recover centroid from original data
+            float cx_cell = c.mx / v_old;
+            float cy_cell = c.my / v_old;
+            float cz_cell = c.mz / v_old;
+
+            // perturb centroid
+            cx_cell = clampf(cx_cell + sampleGaussian(noise_stddev), -0.5f, 0.5f);
+            cy_cell = clampf(cy_cell + sampleGaussian(noise_stddev), -0.5f, 0.5f);
+            cz_cell = clampf(cz_cell + sampleGaussian(noise_stddev), -0.5f, 0.5f);
+
+            // reconstruct first moments using new vfrac
+            c.vfrac = v_new;
+            c.mx = v_new * cx_cell;
+            c.my = v_new * cy_cell;
+            c.mz = v_new * cz_cell;
+        }
+        
+    }
+
+    
+
+    if (no_symmetries < 8) {
+        repackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+        return;
+    }
 
     // Compute global centroid of first moments
     float cx = 0.0f, cy = 0.0f, cz = 0.0f;

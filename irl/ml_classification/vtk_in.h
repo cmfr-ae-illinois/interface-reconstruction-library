@@ -288,7 +288,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     int stencil_size_reader = classifier.getStencilSize();
     int half = stencil_size_reader / 2;
 
-    double epsilon = 1e-10;
+    double epsilon = 1e-10; // threshold for considering a cell as "interface" (0 < vfrac < 1) vs "empty" (vfrac=0) or "full" (vfrac=1)
 
     int no_filled_cells = 0;
     int no_paraboloids = 0;
@@ -503,7 +503,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     };
 
                     const int c = half;               // central index in stencil coords
-                    const double eps = 1e-10;         // "positive" threshold
+                    const double eps = 1e-2;         // "positive" threshold
 
                     static const int n6[6][3] = {
                         {+1, 0, 0}, {-1, 0, 0},
@@ -601,7 +601,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
                 //Cannonicalize stencil
                 if (cannonicalize_symmetries > 0) {
-                    IRL::rotate_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments);
+                    IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, false);
                 }  
 
                 // Classify

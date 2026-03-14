@@ -98,13 +98,13 @@ static double compute_mean_instability(const std::vector<std::vector<int>>& pred
 
     return (N > 0) ? (sum_u / static_cast<double>(N)) : 0.0;
 }
-/*
+
 void stable_classification() {
     int stencil_size = 5;
 
     // Data parameters
     int no_batches = 4096*4;
-    int include_Moments = 0;
+    int include_Moments = 1;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 0.5;
@@ -126,12 +126,14 @@ void stable_classification() {
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
-    int output_size = 4;
+    int output_size = 6;
 
     // Training parameters
     double learning_rate = 0.001;
     int batch_size = 64;
-    int epochs = 10;
+    int max_epochs = 50;
+    int reduce_lr_patience = 4;
+    int early_stop_patience = 8;
 
     // Classification parameters
     int canonicalize_symmetries = 48;
@@ -139,10 +141,11 @@ void stable_classification() {
     const int no_runs = 10;
 
     // Simulation file
-    std::string filename = "/home/quirin/mlcfd/Repositories/jet/nga.case";
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
 
     // Dataset
-    //std::string dataset_path = "/home/quirin/mlcfd/Datasets/float/ZeroethMoment/s5_1M/data/data.bin";
+    std::string dataset_path = "/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_1M/data/data.bin";
 
     // Output directory for this whole experiment (distinct per call)
     // Example: stable_run_models/2026-02-25_153012/
@@ -192,7 +195,7 @@ void stable_classification() {
 
         ml.loadDataset(dataset_path);
         ml.canonicalize_data(canonicalize_symmetries);
-        ml.updateTrainingParameters(learning_rate, batch_size, epochs);
+        ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
 
         // In the future, could use seed setter
         // ml.setSeed(1234 + r);
@@ -200,7 +203,7 @@ void stable_classification() {
         ml.trainModel();
 
         std::vector<int> savedClasses;
-        IRL::classify_simulation(ml, filename, canonicalize_symmetries, preProcess, include_Moments, &savedClasses);
+        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments, &savedClasses);
 
         if (r > 0 && savedClasses.size() != predictions[0].size()) {
             throw std::runtime_error("Saved class vector size differs between runs!");
@@ -235,7 +238,7 @@ void stable_classification() {
         std::ofstream out(selection_file);
         if (!out) throw std::runtime_error("Failed to open " + selection_file.string());
 
-        out << "simulation_file " << filename << "\n";
+        out << "simulation_file " << filenameNGA << "\n";
         out << "no_runs " << no_runs << "\n";
         out << "most_agreeing_model_run " << most_agreeing_run << "\n";
         out << "most_agreeing_model_path " << most_agreeing_model_path.string() << "\n";
@@ -245,7 +248,7 @@ void stable_classification() {
 
     std::cout << "\n=== Model selection ===\n";
     std::cout << "Selection file: " << selection_file.string() << "\n";
-    std::cout << "simulation_file: " << filename << "\n";
+    std::cout << "simulation_file: " << filenameNGA << "\n";
     std::cout << "no_runs: " << no_runs << "\n";
     std::cout << "most_agreeing_model_run: " << most_agreeing_run << "\n";
     std::cout << "most_agreeing_model_path: " << most_agreeing_model_path.string() << "\n";
@@ -259,10 +262,10 @@ void stable_classification() {
         most_agreeing.loadModel(most_agreeing_model_path.string(), false);
 
         // Classify again using the most agreeing model
-        IRL::classify_simulation(most_agreeing, filename, canonicalize_symmetries, preProcess, include_Moments, nullptr);
+        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments, nullptr);
     }
 }
-*/
+
 
 
 
@@ -272,7 +275,7 @@ int main (int argc, char* argv[]) {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096*4;
+    int no_batches = 4096*2;
     int include_Moments = 1;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -298,7 +301,9 @@ int main (int argc, char* argv[]) {
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int epochs = 5;
+    int max_epochs = 30;
+    int reduce_lr_patience = 4;
+    int early_stop_patience = 8;
 
     //IRL::InertiaClassifier inertia_classifier(stencil_size, 1, 0.85, 1.5);
     //IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
@@ -312,31 +317,30 @@ int main (int argc, char* argv[]) {
                             max_sphere_radius, sphere_radius_stddev,
                             exact_2nd_moment);                    
     
-    ml.generateDataset();
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/float/FirstMoment/s5_1M/data/data.bin");
+    //ml.generateDataset();
+    ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_500kM/data/data.bin");
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
-    ml.saveDataset("data");
+    //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
     bool preProcess = true;
-    ml.canonicalize_data(canonicalize_symmetries);
+    ml.preprocess_data(canonicalize_symmetries, 0.1f);
 
-    ml.updateTrainingParameters(learning_rate, batch_size, epochs);
+    ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     ml.trainModel();
     ml.outputTrainingResults();
     ml.saveModel("model/ml_model.pt");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/float/SecondFrom1/s5_1M/model/ml_model.pt");
-    
 
     // vtk reader
-    std::string filenameNGA = "/home/qfb2/mlcfd/Repositories/jet/nga.case";
-    std::string filenamePlic = "/home/qfb2/mlcfd/Repositories/jet/plic.case";
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
     IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments);
 
     //stable_classification();
 
-    IRL::Data_gen gen;
+    //IRL::Data_gen gen;
 
-    gen.generateState(2,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    //gen.generateState(2,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
 
     return 0;
 }

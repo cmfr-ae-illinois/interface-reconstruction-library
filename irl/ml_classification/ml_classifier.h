@@ -27,6 +27,8 @@ protected:
     double learning_rate = 0.001; // was 0.01 for SGD
     int batch_size = 64;
     int epochs = 20;
+    int reduce_lr_patience = 4;
+    int early_stop_patience = 8;
 
     //Data Parameters
     int no_batches = 256;
@@ -72,10 +74,12 @@ public:
           output_size(out),
           net(input, h1, h2, h3, out) {}
 
-    void updateTrainingParameters(double lr, int bs, int ep) {
+    void updateTrainingParameters(double lr, int bs, int ep, int reduce_lr_pat = 4, int early_stop_pat = 8) {
         learning_rate = lr;
         batch_size = bs;
         epochs = ep;
+        reduce_lr_patience = reduce_lr_pat;
+        early_stop_patience = early_stop_pat;
     }
 
     void updateDataParameters(int nb, int incMoments,
@@ -229,7 +233,7 @@ public:
         std::cout << "📂 Loaded " << num_samples << " samples from " << dir_path << std::endl;
     }
 
-    void canonicalize_data(int no_symmetries) {
+    void canonicalize_data(int no_symmetries) { //OLD kept for compatability
         if (statesV.empty()) {
             std::cerr << "⚠ No data loaded. Cannot canonicalize." << std::endl;
             return;
@@ -241,12 +245,29 @@ public:
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::rotate_stencil(flat, stencil_size, no_symmetries, include_Moments);
+            IRL::preprocess_stencil(flat, stencil_size, no_symmetries, include_Moments, false);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
         std::cout << "✅ Canonicalization complete!" << std::endl;
+    }
 
+    void preprocess_data(int no_canonical_symmetries, bool add_noise = false) {
+        if (statesV.empty()) {
+            std::cerr << "⚠ No data loaded. Cannot preprocess." << std::endl;
+            return;
+        }
+
+        std::cout << "🔧 Preprocessing " << statesV.size() << " samples..." << std::endl;
+
+        for (size_t sample = 0; sample < statesV.size(); sample++) {
+            auto& flat = statesV[sample];
+
+            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, add_noise);
+        }
+        std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
+
+        std::cout << "✅ Preprocessing complete!" << std::endl;
     }
 
 
@@ -280,6 +301,8 @@ public:
             net, *optimizer,
             train_loader.get(), test_loader.get(), val_loader.get(),
             epochs,
+            reduce_lr_patience,
+            early_stop_patience,
             &train_loss,
             &val_loss,
             &test_accuracy_vec,

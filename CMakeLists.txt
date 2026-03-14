@@ -60,7 +60,7 @@ message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
 find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
 find_package(Torch REQUIRED)
 include_directories(SYSTEM ${TORCH_INCLUDE_DIRS})
-set(CMAKE_PREFIX_PATH "/home/qfb2/mlcfd/Repositories/libtorch/share/cmake/Torch")
+set(CMAKE_PREFIX_PATH "/home/quirin/mlcfd/Repositories/libtorch/share/cmake/Torch")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 
