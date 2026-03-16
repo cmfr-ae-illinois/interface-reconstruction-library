@@ -104,10 +104,10 @@ void stable_classification() {
 
     // Data parameters
     int no_batches = 4096*4;
-    int include_Moments = 1;
+    int include_Moments = 0;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 0.5;
+    double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
@@ -126,12 +126,12 @@ void stable_classification() {
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
-    int output_size = 6;
+    int output_size = 4; //CHANGED 4 to 6
 
     // Training parameters
     double learning_rate = 0.001;
     int batch_size = 64;
-    int max_epochs = 50;
+    int max_epochs = 20;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
@@ -145,7 +145,8 @@ void stable_classification() {
     std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
 
     // Dataset
-    std::string dataset_path = "/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_1M/data/data.bin";
+    //std::string dataset_path = "/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_1M/data/data.bin";
+    std::string dataset_path = "/home/quirin/mlcfd/Datasets/float/ZeroethMoment/s5_1M/data/data.bin";
 
     // Output directory for this whole experiment (distinct per call)
     // Example: stable_run_models/2026-02-25_153012/
@@ -275,11 +276,11 @@ int main (int argc, char* argv[]) {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096*2;
-    int include_Moments = 1;
+    int no_batches = 4096*4;
+    int include_Moments = 0;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 0.5;
+    double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
@@ -296,12 +297,12 @@ int main (int argc, char* argv[]) {
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
-    int output_size = 6; //CHANGED 4 to 6
+    int output_size = 4; //CHANGED 4 to 6
 
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int max_epochs = 30;
+    int max_epochs = 10;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
@@ -318,25 +319,26 @@ int main (int argc, char* argv[]) {
                             exact_2nd_moment);                    
     
     //ml.generateDataset();
-    ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_500kM/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_500kM/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/float/ZeroethMoment/s5_1M/data/data.bin");
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
     bool preProcess = true;
-    ml.preprocess_data(canonicalize_symmetries, 0.1f);
+    //ml.preprocess_data(canonicalize_symmetries, 0.0f);
 
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
-    ml.trainModel();
-    ml.outputTrainingResults();
-    ml.saveModel("model/ml_model.pt");
+    //ml.trainModel();
+    //ml.outputTrainingResults();
+    //ml.saveModel("model/ml_model.pt");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/float/SecondFrom1/s5_1M/model/ml_model.pt");
 
     // vtk reader
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
     std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
-    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments);
+    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments);
 
-    //stable_classification();
+    stable_classification();
 
     //IRL::Data_gen gen;
 
