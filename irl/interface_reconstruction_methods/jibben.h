@@ -42,6 +42,21 @@ class Jibben_3D {
 
   const double getVolumeErrorSquared_w2(const double& dx) const;
 
+  const double getNormalMetric(void) const;
+
+  const double getNormalEigenMetric(void) const;
+
+  const double getNormalVarianceMetric(void) const;
+
+  /// \brief Jibben formulation with squared difference in volume
+  Paraboloid solve2(const JibbenNeighborhood* a_neighborhood_pointer,
+                    const double a_delta = -1.0);
+
+  /// \brief Jibben formulation with squared difference in volume and paraboloid
+  /// sampled from cubic surface
+  Paraboloid solveCubic(const JibbenNeighborhood* a_neighborhood_pointer,
+                        const double a_delta = -1.0);
+
   /// \brief Default destructor.
   ~Jibben_3D(void) = default;
 
