@@ -2894,9 +2894,9 @@ namespace IRL {
                                         sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
                                         max_cylinder_radius, cylinder_radius_stddev, 
                                         max_sphere_radius, sphere_radius_stddev));
-                if (i % 1000 == 0) {
-                    std::cout << "Generated " << i << " datapoints." << std::endl;
-                }
+                //if (i % 1000 == 0) {
+                //    std::cout << "Generated " << i << " datapoints." << std::endl;
+                //}
             }
         }
     };

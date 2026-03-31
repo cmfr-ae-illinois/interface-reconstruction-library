@@ -14,8 +14,157 @@
 #include <stdexcept>
 #include <algorithm>
 #include <filesystem>
+#include <iomanip>
 
 namespace fs = std::filesystem;
+
+
+void find_dataset_size() {
+    int stencil_size = 5;
+
+    // Data parameters
+    int include_Moments = 1;
+    double paraboloid_coeff_stddev = 0.1;
+    double sheet_coeff_stddev = 0.1;
+    double max_sheet_thickness = 1.0;
+    double sheet_thickness_stddev = 0.0;
+    double max_cylinder_radius = 0.5;
+    double cylinder_radius_stddev = 0.0;
+    bool include_truncated_cylinder = true;
+    double max_sphere_radius = 0.5;
+    double sphere_radius_stddev = 0.0;
+    bool exact_2nd_moment = true;
+
+    // Net parameters
+    int input_size = stencil_size * stencil_size * stencil_size
+        * (include_Moments >= 1 ? 4 : 1)
+        + (include_Moments >= 2 ? 6 : 0)
+        + (include_Moments >= 3 ? 3 : 0);
+
+    int hidden_size1 = 512;
+    int hidden_size2 = 512;
+    int hidden_size3 = 128;
+    int output_size = 6;
+
+    // Training parameters
+    double learning_rate = 0.001;
+    int batch_size = 64;
+    int max_epochs = 50;
+    int reduce_lr_patience = 4;
+    int early_stop_patience = 6;
+
+    // Preprocessing
+    int canonicalize_symmetries = 48;
+    float noise_stddev = 0.0f;
+
+    // Study parameters
+    const int batch_increment = 1024;
+    const int max_steps = 20;
+    const double min_improvement = 0.005; // absolute accuracy improvement
+
+    const std::string base_dir =
+        "/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/DatasetSizeStudy/";
+    fs::create_directories(base_dir);
+
+    std::vector<double> accuracies;
+    std::vector<int> batch_counts;
+    std::vector<long long> sample_counts;
+
+    std::string previous_dataset_file;
+
+    for (int step = 1; step <= max_steps; ++step) {
+        const int total_batches = step * batch_increment;
+        const long long total_samples =
+            static_cast<long long>(total_batches) * batch_size;
+
+        const std::string dataset_name =
+            "s5size" + std::to_string(total_batches) + "x" + std::to_string(batch_size);
+        const std::string dataset_dir = base_dir + dataset_name;
+        const std::string dataset_file = dataset_dir + "/data.bin";
+
+        std::cout << "\n========================================\n";
+        std::cout << "Step " << step << " / " << max_steps << "\n";
+        std::cout << "Dataset       : " << dataset_name << "\n";
+        std::cout << "Total batches : " << total_batches << "\n";
+        std::cout << "Total samples : " << total_samples << "\n";
+        std::cout << "========================================\n";
+
+        double final_acc = 0.0;
+
+        {
+            IRL::MLClassifier ml(
+                stencil_size, input_size,
+                hidden_size1, hidden_size2, hidden_size3, output_size
+            );
+
+            // For generation/appending, no_batches is only the increment
+            ml.updateDataParameters(
+                batch_increment, include_Moments,
+                paraboloid_coeff_stddev,
+                sheet_coeff_stddev,
+                max_sheet_thickness, sheet_thickness_stddev,
+                max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
+                max_sphere_radius, sphere_radius_stddev,
+                exact_2nd_moment
+            );
+
+            ml.updateTrainingParameters(
+                learning_rate, batch_size, max_epochs,
+                reduce_lr_patience, early_stop_patience
+            );
+
+            if (step == 1) {
+                ml.generateDataset();        // generates 2048 * 64 samples
+            } else {
+                ml.appendDataset(previous_dataset_file, false); // load old + append 2048*64
+            }
+
+            ml.saveDataset(dataset_dir);     // save current full dataset under new name
+            previous_dataset_file = dataset_file;
+
+            ml.preprocess_data(canonicalize_symmetries, noise_stddev);
+            final_acc = ml.trainModel();
+
+            std::cout << "Final test accuracy: " << final_acc << "\n";
+        } // ml destroyed here, freeing dataset/model memory
+
+        accuracies.push_back(final_acc);
+        batch_counts.push_back(total_batches);
+        sample_counts.push_back(total_samples);
+
+        {
+            std::ofstream out(base_dir + "dataset_size_results.txt");
+            out << std::fixed << std::setprecision(6);
+            out << "step total_batches total_samples final_test_accuracy\n";
+            for (size_t i = 0; i < accuracies.size(); ++i) {
+                out << (i + 1) << " "
+                    << batch_counts[i] << " "
+                    << sample_counts[i] << " "
+                    << accuracies[i] << "\n";
+            }
+        }
+
+        if (accuracies.size() >= 2) {
+            const double improvement =
+                accuracies.back() - accuracies[accuracies.size() - 2];
+
+            std::cout << "Improvement over previous size: "
+                      << improvement << "\n";
+
+            if (improvement < min_improvement) {
+                std::cout << "Stopping criterion reached.\n";
+                break;
+            }
+        }
+    }
+
+    std::cout << "\n=== Dataset size study finished ===\n";
+    for (size_t i = 0; i < accuracies.size(); ++i) {
+        std::cout << "Batches: " << batch_counts[i]
+                  << ", Samples: " << sample_counts[i]
+                  << ", Final test accuracy: " << accuracies[i] << "\n";
+    }
+}
 
 // Fraction of equal entries between two prediction vectors
 static double agreement_fraction(const std::vector<int>& a, const std::vector<int>& b) {
@@ -277,7 +426,7 @@ int main (int argc, char* argv[]) {
 
     //Data parameters
     int no_batches = 4096*4;
-    int include_Moments = 0;
+    int include_Moments = 1;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 1.0;
@@ -297,12 +446,12 @@ int main (int argc, char* argv[]) {
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
-    int output_size = 4; //CHANGED 4 to 6
+    int output_size = 6; //CHANGED 4 to 6
 
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int max_epochs = 10;
+    int max_epochs = 20;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
@@ -324,8 +473,8 @@ int main (int argc, char* argv[]) {
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
-    bool preProcess = true;
-    //ml.preprocess_data(canonicalize_symmetries, 0.0f);
+    float noise_stddev = 0.01f;
+    //ml.preprocess_data(canonicalize_symmetries, noise_stddev);
 
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     //ml.trainModel();
@@ -336,13 +485,15 @@ int main (int argc, char* argv[]) {
     // vtk reader
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
     std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
-    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments);
+    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, noise_stddev);
 
-    stable_classification();
+    //stable_classification();
 
     //IRL::Data_gen gen;
 
     //gen.generateState(2,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+
+    find_dataset_size();
 
     return 0;
 }

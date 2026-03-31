@@ -133,7 +133,7 @@ public:
         auto end_time = high_resolution_clock::now();
         generation_time = duration_cast<seconds>(end_time - start_time).count();
 
-        saveDataset("data");
+        //saveDataset("data");
     }
 
     void appendDataset(const std::string& existing_path, bool save_combined = false) {
@@ -145,18 +145,17 @@ public:
         IRL::Data_gen data_gen;
 
         using namespace std::chrono;
-        // Record start time
         auto start_time = high_resolution_clock::now();
 
-        data_gen.generateData(&statesV, &labelsV,
-                               no_batches * batch_size,
-                               stencil_size, output_size,
-                               include_Moments,
-                               paraboloid_coeff_stddev,
-                               sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                               max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
-                               max_sphere_radius, sphere_radius_stddev);
-        // Record end time
+        data_gen.generateData(&new_states, &new_labels,
+                            no_batches * batch_size,
+                            stencil_size, output_size,
+                            include_Moments,
+                            paraboloid_coeff_stddev,
+                            sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
+                            max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
+                            max_sphere_radius, sphere_radius_stddev);
+
         auto end_time = high_resolution_clock::now();
         generation_time = duration_cast<seconds>(end_time - start_time).count();
 
@@ -164,7 +163,7 @@ public:
         labelsV.insert(labelsV.end(), new_labels.begin(), new_labels.end());
 
         std::cout << "✅ Appended " << new_states.size()
-                  << " new samples. Total: " << statesV.size() << std::endl;
+                << " new samples. Total: " << statesV.size() << std::endl;
 
         if (save_combined)
             saveDataset("data");
@@ -252,7 +251,7 @@ public:
         std::cout << "✅ Canonicalization complete!" << std::endl;
     }
 
-    void preprocess_data(int no_canonical_symmetries, bool add_noise = false) {
+    void preprocess_data(int no_canonical_symmetries, float noise_stddev = 0.0f) {
         if (statesV.empty()) {
             std::cerr << "⚠ No data loaded. Cannot preprocess." << std::endl;
             return;
@@ -263,7 +262,7 @@ public:
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, add_noise);
+            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, noise_stddev);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
@@ -271,7 +270,7 @@ public:
     }
 
 
-    void trainModel() {
+    double trainModel() {
         optimizer = std::make_unique<torch::optim::AdamW>(
             net.parameters(),
             torch::optim::AdamWOptions(learning_rate)
@@ -313,6 +312,7 @@ public:
         );
 
         trainer.train();
+        return final_test_accuracy;
     }
 
     void outputTrainingResults() const {

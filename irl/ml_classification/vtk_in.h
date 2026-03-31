@@ -27,7 +27,7 @@
 namespace IRL {
 
 void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
-    int cannonicalize_symmetries = 0, int preProcess = false, int include_Moments = 1, std::vector<int>* savedClasses = nullptr) 
+    int cannonicalize_symmetries = 0, int include_Moments = 1, float noise_stddev = 0.0f, std::vector<int>* savedClasses = nullptr) 
     {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filenameNGA.c_str());
@@ -493,82 +493,6 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }
-                // BFS preprocessing per stencil
-                if (preProcess == true) {
-
-                    auto in_bounds = [&](int a, int b, int cidx) {
-                        return (a >= 0 && a < stencil_size_reader &&
-                                b >= 0 && b < stencil_size_reader &&
-                                cidx >= 0 && cidx < stencil_size_reader);
-                    };
-
-                    const int c = half;               // central index in stencil coords
-                    const double eps = 1e-2;         // "positive" threshold
-
-                    static const int n6[6][3] = {
-                        {+1, 0, 0}, {-1, 0, 0},
-                        { 0,+1, 0}, { 0,-1, 0},
-                        { 0, 0,+1}, { 0, 0,-1}
-                    };
-
-                    // If center isn't positive, zeros all positives in the stencil.
-                    if (vfrac[c][c][c] <= epsilon) {
-                        continue;
-                    } else {
-                        // visited mask: 1 => belongs to central connected component
-                        std::vector<uint8_t> visited(stencil_size_reader * stencil_size_reader * stencil_size_reader, 0);
-
-                        auto idx = [&](int si, int sj, int sk) -> int {
-                            return (si * stencil_size_reader + sj) * stencil_size_reader + sk;
-                        };
-
-                        // BFS queue
-                        std::vector<std::array<int,3>> q;
-                        q.reserve(stencil_size_reader * stencil_size_reader * stencil_size_reader);
-
-                        // seed with the center cell
-                        visited[idx(c,c,c)] = 1;
-                        q.push_back({c,c,c});
-
-                        // flood fill
-                        for (size_t qi = 0; qi < q.size(); ++qi) {
-                            int si = q[qi][0];
-                            int sj = q[qi][1];
-                            int sk = q[qi][2];
-
-                            for (int n = 0; n < 6; ++n) {
-                                int ai = si + n6[n][0];
-                                int aj = sj + n6[n][1];
-                                int ak = sk + n6[n][2];
-
-                                if (!in_bounds(ai, aj, ak)) continue;
-                                if (visited[idx(ai,aj,ak)]) continue;
-
-                                // only traverse through "positive" cells
-                                if (vfrac[ai][aj][ak] > eps) {
-                                    visited[idx(ai,aj,ak)] = 1;
-                                    q.push_back({ai,aj,ak});
-                                }
-                            }
-                        }
-
-                        // Zero everything NOT in the connected component
-                        for (int si = 0; si < stencil_size_reader; ++si) {
-                            for (int sj = 0; sj < stencil_size_reader; ++sj) {
-                                for (int sk = 0; sk < stencil_size_reader; ++sk) {
-
-                                    if (visited[idx(si,sj,sk)]) continue; // keep central structure
-
-                                    if (vfrac[si][sj][sk] > 0.0) {
-                                        vfrac[si][sj][sk] = 0.0;
-                                        firstMoment[si][sj][sk].setZero();
-                                        no_isolated++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
 
                 // Flatten stencil into 1D vector
                 std::vector<double> flattened_state;
@@ -599,10 +523,9 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 // Make flattened_state a float vector
                 std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
 
-                //Cannonicalize stencil
-                if (cannonicalize_symmetries > 0) {
-                    IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, false);
-                }  
+                //Preprocess stencil
+                IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, noise_stddev, 1e-2f);
+                
 
                 // Classify
                 std::vector<float> out_probs;
@@ -649,9 +572,6 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     double end_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     std::cout << "Classification time (s): " << (end_time - start_time) / 1e9 << std::endl;
-    if (preProcess == true) {
-        std::cout << "Preprocessing removed isolated cells instances: " << no_isolated << std::endl;
-    }
   
 
     std::cout << "\n=== Classification Summary ===" << std::endl;

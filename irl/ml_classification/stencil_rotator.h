@@ -325,138 +325,199 @@ inline float sampleGaussian(float sigma) {
     return dist(globalNoiseRng());
 }
 
-
 inline void preprocess_stencil(std::vector<float>& flat_stencil,
-                           int stencil_size, int no_symmetries, int include_moments = 1, float noise_stddev = 0.0f)
+                           int stencil_size, int no_symmetries, int include_moments = 1, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
 {
-    if (no_symmetries < 8 && noise_stddev <= 0.0f) {
-        return;
-    }
 
-    // Unpack the flat vector into structured cells
+    // Unpack
     std::vector<CellData> stencil;
     SecondMoments I{};
     SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
     unpackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
 
-    if (noise_stddev > 0.0f)
-    {
-        const float epsilon_noise = 1.0e-4f;
-
-        // If there are no first moments, only vfrac can be perturbed.
+    if (noise_stddev > 1e-10f) {
+        const float epsilon_noise = 1.0e-6f;
         const float c0 = 0.5f * (static_cast<float>(stencil_size) - 1.0f);
+
+        // Probability to inject small noise into an empty cell
+        const float empty_cell_probability = 1.0f / 6.0f;
+
+        // Keep synthetic empty-cell noise small
+        const float empty_vfrac_scale    = 0.25f;
+        const float empty_centroid_scale = 0.25f;
+
+        std::bernoulli_distribution add_empty_noise(empty_cell_probability);
+
+        auto shapeFactor = [](float v) -> float {
+            // max at v=0.5, zero at v=0 and v=1
+            return 4.0f * v * (1.0f - v);
+        };
 
         for (int i = 0; i < stencil_size; ++i) {
             for (int j = 0; j < stencil_size; ++j) {
                 for (int k = 0; k < stencil_size; ++k) {
+
                     auto& c = stencil[cellIndex(i, j, k, stencil_size)];
-
-                    // skip cells with epsilon_noise < vfrac < 1-epsilon_noise
-                    if (c.vfrac > epsilon_noise && c.vfrac < (1.0f - epsilon_noise)) {
-                        continue;
-                    }
-
                     const float v_old = c.vfrac;
 
-                    // perturb volume fraction first
-                    const float v_new = clampf(
-                        v_old + sampleGaussian(noise_stddev),
-                        1e-12f,
-                        1.0f - 1e-12f
-                    );
-
-                    if (include_moments < 1) {
-                        c.vfrac = v_new;
-                        continue;
-                    }
-
-                    // If original cell is essentially empty, centroid is undefined.
-                    if (v_old <= epsilon_noise) {
-                        c.vfrac = v_new;
-                        c.mx = 0.0f;
-                        c.my = 0.0f;
-                        c.mz = 0.0f;
-                        continue;
-                    }
-
-                    // recover centroid from original data (global stencil coordinates)
-                    float cx_cell = c.mx / v_old;
-                    float cy_cell = c.my / v_old;
-                    float cz_cell = c.mz / v_old;
-
-                    // bounds of this specific cell in global stencil coordinates
+                    // cell-center coordinates in global stencil frame
                     const float x_center = static_cast<float>(i) - c0;
                     const float y_center = static_cast<float>(j) - c0;
                     const float z_center = static_cast<float>(k) - c0;
 
-                    const float x_min = x_center - 0.5f;
-                    const float x_max = x_center + 0.5f;
-                    const float y_min = y_center - 0.5f;
-                    const float y_max = y_center + 0.5f;
-                    const float z_min = z_center - 0.5f;
-                    const float z_max = z_center + 0.5f;
+                    // Case 1: cell already has liquid
+                    if (v_old > epsilon_noise) {
 
-                    // perturb centroid, then clip to this cell's bounds
-                    cx_cell = clampf(cx_cell + sampleGaussian(noise_stddev), x_min, x_max);
-                    cy_cell = clampf(cy_cell + sampleGaussian(noise_stddev), y_min, y_max);
-                    cz_cell = clampf(cz_cell + sampleGaussian(noise_stddev), z_min, z_max);
+                        // Multiply the sampled Gaussian by f(v)
+                        const float v_new = clampf(
+                            v_old + sampleGaussian(noise_stddev) * shapeFactor(v_old),
+                            1e-12f,
+                            1.0f - 1e-12f
+                        );
 
-                    // reconstruct first moments using new vfrac
-                    c.vfrac = v_new;
-                    c.mx = v_new * cx_cell;
-                    c.my = v_new * cy_cell;
-                    c.mz = v_new * cz_cell;
+                        c.vfrac = v_new;
+
+                        if (include_moments >= 1) {
+                            // recover centroid in global stencil coordinates
+                            float cx_cell = c.mx / v_old;
+                            float cy_cell = c.my / v_old;
+                            float cz_cell = c.mz / v_old;
+
+                            // add centroid noise directly, no clipping to cell bounds
+                            cx_cell += sampleGaussian(noise_stddev) * (1-v_new);
+                            cy_cell += sampleGaussian(noise_stddev) * (1-v_new);
+                            cz_cell += sampleGaussian(noise_stddev) * (1-v_new);
+
+                            c.mx = v_new * cx_cell;
+                            c.my = v_new * cy_cell;
+                            c.mz = v_new * cz_cell;
+                        }
+
+                        continue;
+                    }
+                    
+                    // Case 2: currently empty cell
+                    if (v_old <= 1e-12f && add_empty_noise(globalNoiseRng())) {
+
+                        // choose vfrac uniformly in [1e-12, 1-1e-12]
+                        static thread_local std::uniform_real_distribution<float> uniform_vfrac(
+                            1e-12f, 1.0f - 1e-12f
+                        );
+                        const float v_new = uniform_vfrac(globalNoiseRng());
+
+                        c.vfrac = v_new;
+
+                        if (include_moments >= 1) {
+                            // assume old centroid is at the cell center
+                            float cx_cell = x_center;
+                            float cy_cell = y_center;
+                            float cz_cell = z_center;
+
+                            // add centroid noise exactly as for non-empty cells
+                            // add centroid noise directly, no clipping to cell bounds
+                            cx_cell += sampleGaussian(noise_stddev) * (1-v_new);
+                            cy_cell += sampleGaussian(noise_stddev) * (1-v_new);
+                            cz_cell += sampleGaussian(noise_stddev) * (1-v_new);
+
+                            c.mx = v_new * cx_cell;
+                            c.my = v_new * cy_cell;
+                            c.mz = v_new * cz_cell;
+                        } else {
+                            c.mx = c.my = c.mz = 0.0f;
+                        }
+                    }
+                    else {
+                        c.vfrac = 0.0f;
+                        c.mx = c.my = c.mz = 0.0f;
+                    }
+                    
                 }
             }
         }
-
-
-        for (auto& c : stencil) {
-
-            // skip cells with epsilon_noise < vfrac < 1-epsilon_noise
-            if (c.vfrac > epsilon_noise && c.vfrac < (1.0f - epsilon_noise)) {
-                continue;
-            }
-
-            const float v_old = c.vfrac;
-
-            // perturb volume fraction first
-            const float v_new = clampf(v_old + sampleGaussian(noise_stddev), 1e-12f, 1.0f - 1e-12f);
-
-            if (include_moments < 1) {
-                c.vfrac = v_new;
-                continue;
-            }
-
-            // If original cell is essentially empty, centroid is undefined.
-            // In that case just update vfrac and zero moments.
-            if (v_old <= epsilon_noise) {
-                c.vfrac = v_new;
-                c.mx = 0.0f;
-                c.my = 0.0f;
-                c.mz = 0.0f;
-                continue;
-            }
-
-            // recover centroid from original data
-            float cx_cell = c.mx / v_old;
-            float cy_cell = c.my / v_old;
-            float cz_cell = c.mz / v_old;
-
-            // perturb centroid
-            cx_cell = clampf(cx_cell + sampleGaussian(noise_stddev), -0.5f, 0.5f);
-            cy_cell = clampf(cy_cell + sampleGaussian(noise_stddev), -0.5f, 0.5f);
-            cz_cell = clampf(cz_cell + sampleGaussian(noise_stddev), -0.5f, 0.5f);
-
-            // reconstruct first moments using new vfrac
-            c.vfrac = v_new;
-            c.mx = v_new * cx_cell;
-            c.my = v_new * cy_cell;
-            c.mz = v_new * cz_cell;
-        }
-        
     }
 
+    const int N = stencil_size;
+    const int c = N / 2;
+    
+    // Perform BFS Search
+    //const float eps = 1e-2f; // "positive" threshold for connectivity, value here for simulation purposes but can be made smaller for sythetic data 
+
+    // helper: bounds check
+    auto in_bounds = [&](int i, int j, int k) {
+        return (i >= 0 && i < N &&
+                j >= 0 && j < N &&
+                k >= 0 && k < N);
+    };
+
+    // 6-neighborhood
+    static const int n6[6][3] = {
+        {+1, 0, 0}, {-1, 0, 0},
+        { 0,+1, 0}, { 0,-1, 0},
+        { 0, 0,+1}, { 0, 0,-1}
+    };
+
+    // If center is not positive → zero everything and return
+    if (stencil[cellIndex(c,c,c,N)].vfrac <= epsilon_connect) {
+        for (auto& cell : stencil) {
+            cell.vfrac = 0.0f;
+            cell.mx = cell.my = cell.mz = 0.0f;
+        }
+        repackStencil(flat_stencil, stencil, Ip, N, include_moments);
+        return;
+    }
+
+    // visited mask
+    std::vector<uint8_t> visited(N * N * N, 0);
+
+    // BFS queue
+    std::vector<std::array<int,3>> q;
+    q.reserve(N * N * N);
+
+    // seed
+    visited[cellIndex(c,c,c,N)] = 1;
+    q.push_back({c,c,c});
+
+    // flood fill
+    for (size_t qi = 0; qi < q.size(); ++qi) {
+        int i = q[qi][0];
+        int j = q[qi][1];
+        int k = q[qi][2];
+
+        for (int n = 0; n < 6; ++n) {
+            int ni = i + n6[n][0];
+            int nj = j + n6[n][1];
+            int nk = k + n6[n][2];
+
+            if (!in_bounds(ni,nj,nk)) continue;
+
+            int id = cellIndex(ni,nj,nk,N);
+            if (visited[id]) continue;
+
+            if (stencil[id].vfrac > epsilon_connect) {
+                visited[id] = 1;
+                q.push_back({ni,nj,nk});
+            }
+        }
+    }
+
+    // zero everything not connected
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            for (int k = 0; k < N; ++k) {
+
+                int id = cellIndex(i,j,k,N);
+
+                if (visited[id]) continue;
+
+                if (stencil[id].vfrac > 0.0f) {
+                    stencil[id].vfrac = 0.0f;
+                    stencil[id].mx = 0.0f;
+                    stencil[id].my = 0.0f;
+                    stencil[id].mz = 0.0f;
+                }
+            }
+        }
+    }
     
 
     if (no_symmetries < 8) {
