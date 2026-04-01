@@ -49,50 +49,50 @@ void getReconstruction(const std::string& a_reconstruction_method,
                        std::vector<InterfaceScalarField>* a_scalar_fields) {
   if (a_reconstruction_method == "ELVIRA") {
     ELVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                              a_interface);
+                              a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "LVIRA" ||
              a_reconstruction_method == "PLIC") {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Jibben") {
     Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                              a_interface);
+                              a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Jibben2") {
     Jibben2::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                               a_W, a_interface);
+                               a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "JibbenCubic") {
     JibbenCubic::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                   a_W, a_interface);
+                                   a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "JibbenM") {
     JibbenM::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
                                a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "PU") {
     PU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                          a_interface);
+                          a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "MixedJibben") {
     MixedPLICJibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                       a_V, a_W, a_interface);
+                                       a_V, a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "SlicesParabola") {
     SlicesParabola::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                      a_V, a_W, a_interface);
+                                      a_V, a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "SlicesTaubin") {
     SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                    a_V, a_W, a_interface);
+                                    a_V, a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "SlicesTaubinLS") {
     SlicesTaubinLS::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                      a_V, a_W, a_interface);
+                                      a_V, a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "SlicesTaubinS") {
     SlicesTaubinS::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                     a_V, a_W, a_interface);
+                                     a_V, a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "PLICalign") {
     PLICalign::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                 a_W, a_interface);
+                                 a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "PLICalign2") {
     PLICalign2::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                  a_W, a_interface);
+                                  a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "MossoSwartz") {
     MossoSwartz::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                   a_W, a_interface);
+                                   a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Hybrid") {
     Hybrid::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                               a_interface, a_scalar_fields);
@@ -101,7 +101,7 @@ void getReconstruction(const std::string& a_reconstruction_method,
                                a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "SlicesParticle") {
     SlicesParticle::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                      a_V, a_W, a_interface);
+                                      a_V, a_W, a_interface, a_scalar_fields);
   } else {
     std::cout << "Unknown reconstruction method of : "
               << a_reconstruction_method << '\n';
@@ -111,11 +111,12 @@ void getReconstruction(const std::string& a_reconstruction_method,
   }
 }
 
-void ELVIRA::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                               const Data<IRL::VolumeMoments>& a_gas_moments,
-                               const double a_dt, const Data<double>& a_U,
-                               const Data<double>& a_V, const Data<double>& a_W,
-                               Data<IRL::SeparatorVariant>* a_interface) {
+void ELVIRA::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields) {
   const BasicMesh& mesh = a_liq_moments.getMesh();
 
   IRL::ELVIRANeighborhood neighborhood;
@@ -164,16 +165,17 @@ void ELVIRA::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
   correctInterfaceBorders(a_interface);
 }
 
-void LVIRA::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                              const Data<IRL::VolumeMoments>& a_gas_moments,
-                              const double a_dt, const Data<double>& a_U,
-                              const Data<double>& a_V, const Data<double>& a_W,
-                              Data<IRL::SeparatorVariant>* a_interface,
-                              const bool a_plic_already_built) {
+void LVIRA::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   // First, we need to build the plic
   if (a_plic_already_built == false) {
     ELVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                              a_interface);
+                              a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -421,18 +423,18 @@ const IRL::Normal calculatePolygonNormal(const IRL::Polygon& a_polygon) {
   return IRL::Normal(0, 0, 0);
 }
 
-void Jibben::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                               const Data<IRL::VolumeMoments>& a_gas_moments,
-                               const double a_dt, const Data<double>& a_U,
-                               const Data<double>& a_V, const Data<double>& a_W,
-                               Data<IRL::SeparatorVariant>* a_interface,
-                               const bool a_plic_already_built,
-                               Data<IRL::Pt>* a_centroids,
-                               Data<double>* a_areas, Data<double>* a_errors) {
+void Jibben::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built, Data<IRL::Pt>* a_centroids,
+    Data<double>* a_areas, Data<double>* a_errors) {
   // First, we need to build the plic
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   // Then, let's compute the PLIC polygons
@@ -540,11 +542,13 @@ void Jibben2::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built,
-    Data<IRL::Pt>* a_centroids, Data<double>* a_areas, Data<double>* a_errors) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built, Data<IRL::Pt>* a_centroids,
+    Data<double>* a_areas, Data<double>* a_errors) {
   // First, we need to build the plic
   LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                           a_interface);
+                           a_interface, a_scalar_fields);
 
   // Then, let's compute the PLIC polygons
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -582,15 +586,9 @@ void Jibben2::getReconstruction(
   neighborhood.reserve(nstencil);
   neighborhood.setDelta(2.5 * mesh.dx());
 
-  // Data<double> volume_error(&mesh);
-  // Data<double> volume_error_sq(&mesh);
-  // Data<double> volume_error_sq_w1(&mesh);
-  // Data<double> volume_error_sq_w2(&mesh);
-  // Data<double> m1_error(&mesh);
-
-  // InterfaceScalarField squared_vol_error("squared_volume_error", &mesh);
-  // InterfaceScalarField normal_error("normal_metric", &mesh);
-  // int interface_count = 0;
+  InterfaceScalarField normal_error("normal_metric", &mesh);
+  InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
+  InterfaceScalarField normal_std_error("normal_std_metric", &mesh);
 
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -622,7 +620,10 @@ void Jibben2::getReconstruction(
           (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood);
 
           // error metrics
-          // double normal_err = jibben_solver.getNormalMetric();
+          // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
+          double normal_err = jibben_solver.getNormalMetric();
+          double normal_eigen_err = jibben_solver.getNormalEigenMetric();
+          double normal_std_err = jibben_solver.getNormalVarianceMetric();
 
           // Match to volume fraction
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
@@ -633,25 +634,27 @@ void Jibben2::getReconstruction(
           IRL::setDistanceToMatchVolumeFraction(
               cell, liquid_volume_fraction, &(*a_interface)(i, j, k), 1.0e-14);
 
-          // if (const auto ptr =
-          //         std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
-          //   // normal_error.paraboloid_scalar_data(i, j, k) = normal_err;
-          //   IRL::Paraboloid parab = *ptr;
-          //   std::cout << "a = " << parab.getAlignedParaboloid().a()
-          //             << std::endl;
-          //   std::cout << "b = " << parab.getAlignedParaboloid().b()
-          //             << std::endl;
-          // } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
-          //                &(*a_interface)(i, j, k))) {
-          //   // normal_error.polygon_scalar_data(i, j, k) = normal_err;
-          //   std::cout << "Planar interface detected" << std::endl;
-          // }
+          if (const auto ptr =
+                  std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+            normal_error.paraboloid_scalar_data(i, j, k) = normal_err;
+            normal_eigen_error.paraboloid_scalar_data(i, j, k) =
+                normal_eigen_err;
+            normal_std_error.paraboloid_scalar_data(i, j, k) = normal_std_err;
+            // squared_vol_error.paraboloid_scalar_data(i, j, k) = err;
+          } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
+                         &(*a_interface)(i, j, k))) {
+            normal_error.polygon_scalar_data(i, j, k) = normal_err;
+            normal_eigen_error.polygon_scalar_data(i, j, k) = normal_eigen_err;
+            normal_std_error.polygon_scalar_data(i, j, k) = normal_std_err;
+            // squared_vol_error.polygon_scalar_data(i, j, k) = err;
+          }
         }
       }
     }
   }
-  // a_scalar_fields->push_back(squared_vol_error);
-  // a_scalar_fields->push_back(normal_error);
+  a_scalar_fields->push_back(normal_error);
+  a_scalar_fields->push_back(normal_eigen_error);
+  a_scalar_fields->push_back(normal_std_error);
 
   // Update border with simple ghost-cell fill and correct datum for
   // assumed periodic boundary
@@ -664,11 +667,13 @@ void JibbenCubic::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built,
-    Data<IRL::Pt>* a_centroids, Data<double>* a_areas, Data<double>* a_errors) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built, Data<IRL::Pt>* a_centroids,
+    Data<double>* a_areas, Data<double>* a_errors) {
   // First, we need to build the plic
   LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                           a_interface);
+                           a_interface, a_scalar_fields);
 
   // Then, let's compute the PLIC polygons
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -763,7 +768,7 @@ void JibbenM::getReconstruction(
     std::vector<InterfaceScalarField>* a_scalar_fields) {
   // First, we need to build the plic
   LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                           a_interface);
+                           a_interface, a_scalar_fields);
 
   // Then, let's compute the PLIC polygons
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -801,17 +806,10 @@ void JibbenM::getReconstruction(
   neighborhood.reserve(nstencil);
   neighborhood.setDelta(2.5 * mesh.dx());
 
-  // Data<double> volume_error(&mesh);
-  // Data<double> volume_error_sq(&mesh);
-  // Data<double> volume_error_sq_w1(&mesh);
-  // Data<double> volume_error_sq_w2(&mesh);
-  // Data<double> m1_error(&mesh);
-
   // InterfaceScalarField squared_vol_error("squared_volume_error", &mesh);
   InterfaceScalarField normal_error("normal_metric", &mesh);
   InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
   InterfaceScalarField normal_std_error("normal_std_metric", &mesh);
-  int interface_count = 0;
 
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -840,18 +838,14 @@ void JibbenM::getReconstruction(
 
           // jibben fit
           IRL::Jibben_3D jibben_solver;
-          (*a_interface)(i, j, k) = jibben_solver.solve(&neighborhood);
+          (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood);
           // IRL::Jibben_3D jibben_solver;
           // (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood);
 
           // error metrics
-          double normal_err = jibben_solver.getNormalMetric();
           // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
-
-          // eigenvalue metric for normals
+          double normal_err = jibben_solver.getNormalMetric();
           double normal_eigen_err = jibben_solver.getNormalEigenMetric();
-
-          // standard deviation metric for normals
           double normal_std_err = jibben_solver.getNormalVarianceMetric();
 
           // Match to volume fraction
@@ -870,14 +864,12 @@ void JibbenM::getReconstruction(
                 normal_eigen_err;
             normal_std_error.paraboloid_scalar_data(i, j, k) = normal_std_err;
             // squared_vol_error.paraboloid_scalar_data(i, j, k) = err;
-            interface_count++;
           } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
                          &(*a_interface)(i, j, k))) {
             normal_error.polygon_scalar_data(i, j, k) = normal_err;
             normal_eigen_error.polygon_scalar_data(i, j, k) = normal_eigen_err;
             normal_std_error.polygon_scalar_data(i, j, k) = normal_std_err;
             // squared_vol_error.polygon_scalar_data(i, j, k) = err;
-            std::cout << "Planar interface detected" << std::endl;
           }
         }
       }
@@ -1181,11 +1173,12 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                            const double a_dt, const Data<double>& a_U,
                            const Data<double>& a_V, const Data<double>& a_W,
                            Data<IRL::SeparatorVariant>* a_interface,
+                           std::vector<InterfaceScalarField>* a_scalar_fields,
                            const bool a_plic_already_built) {
   // First, we need to build the plic
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -1205,8 +1198,9 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
   Data<IRL::Pt> interface_centroids(&mesh);
   Data<double> interface_areas(&mesh), jibben_errors(&mesh);
   Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                            &jibben_reconstruction, true, &interface_centroids,
-                            &interface_areas, &jibben_errors);
+                            &jibben_reconstruction, a_scalar_fields, true,
+                            &interface_centroids, &interface_areas,
+                            &jibben_errors);
 
   // Cleanup jibben
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
@@ -1318,10 +1312,11 @@ void MixedPLICJibben::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields) {
   // First, we need to build the plic and copy it
   LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                           a_interface);
+                           a_interface, a_scalar_fields);
   const BasicMesh& mesh = a_liq_moments.getMesh();
   Data<IRL::SeparatorVariant> plic_reconstruction(&mesh);
   // A element-wise copy is needed since std::memcpy is not safe with variants
@@ -1335,7 +1330,7 @@ void MixedPLICJibben::getReconstruction(
 
   // Second, we build the Jibben reconstruction
   Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                            a_interface, true);
+                            a_interface, a_scalar_fields, true);
 
   // Choose between PLIC and Jibben
   const double vfrac_threshold = 1.0e-4;
@@ -1376,11 +1371,13 @@ void SlicesParabola::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   // First, we need to build the plic
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   // Then, let's compute the PLIC polygons
@@ -1802,11 +1799,13 @@ void SlicesTaubin::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   // PLIC
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   // clipped PLIC polygons
@@ -2277,11 +2276,13 @@ void SlicesTaubinLS::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   // PLIC
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   // clipped PLIC polygons
@@ -2683,11 +2684,13 @@ void SlicesTaubinS::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   // PLIC
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   // clipped PLIC polygons
@@ -2993,16 +2996,16 @@ IRL::Normal getNormalAtProjectedPoint(const IRL::Pt& a_point,
 }
 
 // ===================== normal averaging =============================
-void PLICalign::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                  const Data<IRL::VolumeMoments>& a_gas_moments,
-                                  const double a_dt, const Data<double>& a_U,
-                                  const Data<double>& a_V,
-                                  const Data<double>& a_W,
-                                  Data<IRL::SeparatorVariant>* a_interface,
-                                  const bool a_plic_already_built) {
+void PLICalign::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -3022,7 +3025,8 @@ void PLICalign::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
     Data<IRL::SeparatorVariant> taubin_interface(&mesh);
     taubin_interface = plic_interface;
     SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                    a_V, a_W, &taubin_interface, true);
+                                    a_V, a_W, &taubin_interface,
+                                    a_scalar_fields, true);
 
     // realigning plic normals using taubin paraboloid
     for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
@@ -3067,7 +3071,7 @@ void PLICalign::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
 
   // taubin paraboloid with new plics
   SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                  a_W, &plic_interface, true);
+                                  a_W, &plic_interface, a_scalar_fields, true);
 
   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
@@ -3082,10 +3086,12 @@ void PLICalign2::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -3098,7 +3104,8 @@ void PLICalign2::getReconstruction(
   Data<IRL::SeparatorVariant> taubin_interface(&mesh);
   taubin_interface = *a_interface;
   SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                  a_W, &taubin_interface, true);
+                                  a_W, &taubin_interface, a_scalar_fields,
+                                  true);
 
   using VolumeMomentsAndSurface =
       IRL::AddSurfaceOutput<IRL::VolumeMoments,
@@ -3175,7 +3182,8 @@ void PLICalign2::getReconstruction(
   }
   // final taubin paraboloid with new plics
   SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                  a_W, &taubin_interface, true);
+                                  a_W, &taubin_interface, a_scalar_fields,
+                                  true);
 
   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
@@ -3199,10 +3207,12 @@ void MossoSwartz::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -3323,7 +3333,7 @@ void Hybrid::getReconstruction(
     const bool a_plic_already_built) {
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -3342,7 +3352,7 @@ void Hybrid::getReconstruction(
 
   // PU reconstruction
   PU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                        &pu_interface, true);
+                        &pu_interface, a_scalar_fields, true);
 
   // plic polygons
   Data<IRL::Polygon> polygon(&mesh);
@@ -3413,14 +3423,14 @@ void Hybrid::getReconstruction(
 
           // normal error
           // double normal_error = jibben_solver.getNormalMetric();
-          // double normal_error = jibben_solver.getNormalEigenMetric();
-          double normal_error = jibben_solver.getNormalVarianceMetric();
+          double normal_error = jibben_solver.getNormalEigenMetric();
+          // double normal_error = jibben_solver.getNormalVarianceMetric();
 
           // double volume_error = jibben_solver.getVolumeError(mesh.dx());
 
           // if (volume_error_sq > 0.01) {
           // if (volume_error_sq > 0.05) {
-          if (normal_error > 0.35) {
+          if (normal_error > 0.2) {
             // if (volume_error > 0.05) {
             (*a_interface)(i, j, k) = pu_interface(i, j, k);
             interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
@@ -3458,7 +3468,7 @@ void Hybrid2::getReconstruction(
   // building planar interface
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
@@ -3477,7 +3487,8 @@ void Hybrid2::getReconstruction(
 
   // circle fit reconstruction
   SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                  a_W, &taubin_reconstruction, true);
+                                  a_W, &taubin_reconstruction, a_scalar_fields,
+                                  true);
 
   // plic centroids and areas
   Data<IRL::Pt> interface_centroids(&mesh);
@@ -3581,7 +3592,7 @@ void Hybrid2::getReconstruction(
 
   // circle fit reconstruction with new plics
   SlicesTaubin::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-                                  a_W, a_interface, true);
+                                  a_W, a_interface, a_scalar_fields, true);
 }
 
 // functions for particle method --------------------------------------
@@ -4001,11 +4012,13 @@ void SlicesParticle::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
-    Data<IRL::SeparatorVariant>* a_interface, const bool a_plic_already_built) {
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
   // plic
   if (!a_plic_already_built) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                             a_interface);
+                             a_interface, a_scalar_fields);
   }
 
   // clipped polygon from planes

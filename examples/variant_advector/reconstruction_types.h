@@ -30,71 +30,68 @@ void getReconstruction(const std::string& a_reconstruction_method,
                        std::vector<InterfaceScalarField>* a_scalar_fields);
 
 struct ELVIRA {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr);
 };
 
 struct LVIRA {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct PU {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct Jibben {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false,
-                                Data<IRL::Pt>* a_centroids = nullptr,
-                                Data<double>* a_areas = nullptr,
-                                Data<double>* a_errors = nullptr);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false,
+      Data<IRL::Pt>* a_centroids = nullptr, Data<double>* a_areas = nullptr,
+      Data<double>* a_errors = nullptr);
 };
 
 struct Jibben2 {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false,
-                                Data<IRL::Pt>* a_centroids = nullptr,
-                                Data<double>* a_areas = nullptr,
-                                Data<double>* a_errors = nullptr);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false,
+      Data<IRL::Pt>* a_centroids = nullptr, Data<double>* a_areas = nullptr,
+      Data<double>* a_errors = nullptr);
 };
 
 struct JibbenCubic {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false,
-                                Data<IRL::Pt>* a_centroids = nullptr,
-                                Data<double>* a_areas = nullptr,
-                                Data<double>* a_errors = nullptr);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false,
+      Data<IRL::Pt>* a_centroids = nullptr, Data<double>* a_areas = nullptr,
+      Data<double>* a_errors = nullptr);
 };
 
 struct JibbenM {
@@ -107,82 +104,82 @@ struct JibbenM {
 };
 
 struct MixedPLICJibben {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr);
 };
 
 struct SlicesParabola {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct SlicesTaubin {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct SlicesTaubinLS {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct SlicesTaubinS {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct PLICalign {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct PLICalign2 {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct MossoSwartz {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 struct Hybrid {
@@ -206,13 +203,13 @@ struct Hybrid2 {
 };
 
 struct SlicesParticle {
-  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
-                                const Data<IRL::VolumeMoments>& a_gas_moments,
-                                const double a_dt, const Data<double>& a_U,
-                                const Data<double>& a_V,
-                                const Data<double>& a_W,
-                                Data<IRL::SeparatorVariant>* a_interface,
-                                const bool a_plic_already_built = false);
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
 };
 
 const IRL::ReferenceFrame referenceFrameFromNormal(const IRL::Normal a_normal);
