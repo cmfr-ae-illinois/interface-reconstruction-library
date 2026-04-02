@@ -132,6 +132,26 @@ struct SlicesTaubin {
       const bool a_plic_already_built = false);
 };
 
+struct SlicesTaubin2 {
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
+};
+
+struct SlicesTaubin3 {
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
+};
+
 struct SlicesTaubinLS {
   static void getReconstruction(
       const Data<IRL::VolumeMoments>& a_liq_moments,
