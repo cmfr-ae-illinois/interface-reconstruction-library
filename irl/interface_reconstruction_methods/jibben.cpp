@@ -872,8 +872,10 @@ Paraboloid Jibben_3D::solve2(const JibbenNeighborhood* a_neighborhood_pointer,
   Eigen::Vector<double, 6> dvec = Eigen::Vector<double, 6>::Zero();
 
   const double delta = neighborhood_m->getDelta();
-  if (delta_m < 0.0) {
+  if (a_delta < 0.0) {
     delta_m = delta;
+  } else {
+    delta_m = a_delta;
   }
 
   const UnsignedIndex_t npolygons = neighborhood_m->size();
@@ -893,13 +895,11 @@ Paraboloid Jibben_3D::solve2(const JibbenNeighborhood* a_neighborhood_pointer,
 
     if (normal[2] < DBL_EPSILON) continue;
 
-    // std::cout << "delta = " << delta_m << std::endl;
-
     // distance weight
     const double distance = IRL::magnitude(centroid);
-    // if (distance > delta_m) {
-    //   continue;
-    // }
+    if (distance > delta_m) {
+      continue;
+    }
     const double r = distance / delta_m;
     const double distance_weight =
         (1.0 + 4.0 * r) * (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r);

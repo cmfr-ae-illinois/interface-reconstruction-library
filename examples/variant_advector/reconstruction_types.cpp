@@ -589,8 +589,9 @@ void Jibben2::getReconstruction(
   const int nlayers = 1;
   const int nstencil =
       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  const double delta = 2.5 * mesh.dx();
   neighborhood.reserve(nstencil);
-  neighborhood.setDelta(2.5 * mesh.dx());
+  neighborhood.setDelta(delta);
 
   InterfaceScalarField normal_error("normal_metric", &mesh);
   InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
@@ -623,7 +624,7 @@ void Jibben2::getReconstruction(
 
           // jibben fit
           IRL::Jibben_3D jibben_solver;
-          (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood);
+          (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood, delta);
 
           // error metrics
           // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
