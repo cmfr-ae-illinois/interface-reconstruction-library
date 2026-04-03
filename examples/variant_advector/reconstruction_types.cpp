@@ -12,7 +12,7 @@
 
 #include "examples/variant_advector/reconstruction_types.h"
 
-#include "irl/generic_cutting/generic_cutting.h"
+#include "irl/generic_cutting/generic_cutting.h" 
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/polygons/polygon.h"
 #include "irl/interface_reconstruction_methods/constrained_optimization_behavior.h"

@@ -16,8 +16,6 @@
 #include <AMReX_BLProfiler.H>
 #include <AMReX_ParallelDescriptor.H>
 
-#include "irl/amrex/sepunion_multifab.h"
-
 #include "examples/amrex_advector/amrcore_advector.h"
 
 int main(int argc, char* argv[]) {

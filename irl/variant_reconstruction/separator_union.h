@@ -236,6 +236,21 @@ class SeparatorUnion {
 inline std::ostream& operator<<(std::ostream& out,
                                 const SeparatorUnion& a_reconstruction);
 
+inline SeparatorUnion operator*(const SeparatorUnion& a_sep1,
+                                const SeparatorUnion& a_sep2) {
+  return a_sep1;
+}
+
+inline SeparatorUnion operator*(const double a_double,
+                                const SeparatorUnion& a_sep) {
+  return a_sep;
+}
+
+inline SeparatorUnion operator*(const SeparatorUnion& a_sep,
+                                const double a_double) {
+  return a_double * a_sep;
+}
+
 using LocalizedSeparatorUnion =
     JoinedReconstructions<PlanarLocalizer, SeparatorUnion>;
 using LocalizedSeparatorUnionLink =
