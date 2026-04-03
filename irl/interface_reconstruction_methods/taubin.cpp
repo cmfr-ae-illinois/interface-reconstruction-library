@@ -279,6 +279,57 @@ std::tuple<double, double, double, bool> Taubin_3D::getPrincipalCurvatures(
   return {k1, k2, phi, true};
 }
 
+Normal Taubin_3D::getNormalFromPU(const Pt& a_pt) {
+  // polygon areas and centroids
+  const UnsignedIndex_t npolygons = neighborhood_m->size();
+  // std::vector<double> polygon_areas(npolygons);
+  std::vector<Pt> polygon_centroids(npolygons);
+  std::vector<Polygon> polygons(npolygons);
+  for (UnsignedIndex_t n = 0; n < npolygons; n++) {
+    const Polygon polygon = neighborhood_m->getPolygon(n);
+    // polygon_areas[n] = polygon.calculateVolume();
+    polygon_centroids[n] = polygon.calculateCentroid();
+    polygons[n] = polygon;
+  }
+
+  const double a_delta = neighborhood_m->getDelta();
+  const double inv_delta = 1. / a_delta;
+  double weight_sum = 0.0;
+  double F_sum = 0.0;
+  Eigen::Vector3d gradwxF_plus_wxgradF_sum = Eigen::Vector3d::Zero();
+  Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
+
+  for (UnsignedIndex_t n = 0; n < npolygons; n++) {
+    double vfrac_and_area_weight = neighborhood_m->getWeight(n);
+    const Pt x = a_pt - polygon_centroids[n];
+    const double r = magnitude(x);
+    const double rhat = r * inv_delta;
+
+    if (rhat < 1.0) {  // Then weight is non zero;
+      const double weight = vfrac_and_area_weight * (1. + 4. * rhat) *
+                            (1. - rhat) * (1. - rhat) * (1. - rhat) *
+                            (1. - rhat);
+      const Eigen::Vector3d grad_weight =
+          Eigen::Vector3d(x[0], x[1], x[2]) * vfrac_and_area_weight * 20. *
+          (rhat - 1.) * (rhat - 1.) * (rhat - 1.) * inv_delta * inv_delta;
+      weight_sum += weight;
+      grad_weight_sum += grad_weight;
+      const Normal normal = calculatePolygonNormal(polygons[n]);
+      const double F = normal * x;
+      const Eigen::Vector3d gradF =
+          Eigen::Vector3d(normal[0], normal[1], normal[2]);
+      F_sum += weight * F;
+      gradwxF_plus_wxgradF_sum += grad_weight * F + weight * gradF;
+    }
+  }
+  const double inv_weight_sum = 1.0 / weight_sum;
+  const Eigen::Vector3d PU_gradF =
+      (gradwxF_plus_wxgradF_sum - F_sum * grad_weight_sum * inv_weight_sum) *
+      inv_weight_sum;
+
+  return Normal(PU_gradF[0], PU_gradF[1], PU_gradF[2]);
+}
+
 Paraboloid Taubin_3D::solve(void) {
   const UnsignedIndex_t npolygons = neighborhood_m->size();
 
@@ -289,8 +340,9 @@ Paraboloid Taubin_3D::solve(void) {
 
   // local frame
   const IRL::Pt datum = neighborhood_m->getCenterPolygon().calculateCentroid();
-  const IRL::Normal local_normal =
-      calculatePolygonNormal(neighborhood_m->getCenterPolygon());
+  const Normal local_normal = getNormalFromPU(datum);
+  // const IRL::Normal local_normal =
+  //     calculatePolygonNormal(neighborhood_m->getCenterPolygon());
   const IRL::ReferenceFrame local_frame =
       referenceFrameFromNormal(local_normal);
 

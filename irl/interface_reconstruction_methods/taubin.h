@@ -68,6 +68,9 @@ class Taubin_3D {
       const int& num_samples_per_segment,
       std::vector<Eigen::Vector2d>* points_local_frame);
 
+  /// \brief calculating normal orientation from partition of unity
+  Normal getNormalFromPU(const Pt& a_pt);
+
   /// \brief Storage of the stencil information
   const JibbenNeighborhood* neighborhood_m;
   /// \brief Weighting function radius
