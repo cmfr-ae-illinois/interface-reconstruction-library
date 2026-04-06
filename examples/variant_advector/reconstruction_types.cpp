@@ -3923,12 +3923,14 @@ void JibbenSqPU::getReconstruction(
 
   // plic polygons
   Data<IRL::Polygon> polygon(&mesh);
+  Data<double> vf(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
         polygon(i, j, k) = IRL::Polygon();
         const double liquid_volume_fraction =
             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        vf(i, j, k) = liquid_volume_fraction;
         if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
             liquid_volume_fraction > IRL::global_constants::VF_HIGH) {
           continue;
@@ -3963,12 +3965,18 @@ void JibbenSqPU::getReconstruction(
             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
         if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
             liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          bool full_cell = false, empty_cell = false, is_resolved = false;
           // Fill neighborhood with polygons
           neighborhood.emptyNeighborhood();
           int count = 0;
           for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
             for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
               for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+                if (vf(ii, jj, kk) < IRL::global_constants::VF_LOW) {
+                  empty_cell = true;
+                } else if (vf(ii, jj, kk) > IRL::global_constants::VF_HIGH) {
+                  full_cell = true;
+                }
                 if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
                   neighborhood.addMember(polygon(ii, jj, kk));
                   if (i == ii && j == jj && k == kk) {
@@ -3980,6 +3988,10 @@ void JibbenSqPU::getReconstruction(
             }
           }
           neighborhood.localize();
+
+          if (full_cell && empty_cell) {
+            is_resolved = true;
+          }
 
           // jibben fit
           IRL::Jibben_3D jibben_solver;
@@ -3998,7 +4010,7 @@ void JibbenSqPU::getReconstruction(
           const double normal_eigen_threshold = 0.2;
           const double normal_std_threshold = 0.3;
 
-          if (normal_error > normal_eigen_threshold) {
+          if (normal_error > normal_eigen_threshold || !is_resolved) {
             (*a_interface)(i, j, k) = pu_interface(i, j, k);
             interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
           } else {
