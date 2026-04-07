@@ -134,6 +134,7 @@ class PU {
                             Pt center);
   // Get Total weight
   double getWeight(double x, double y, double z, double delta);
+  double getWeight(Pt& in, double delta);
   double getWeightCylinder(double x, double y, double z, double radius,
                            Pt center);
   // Print

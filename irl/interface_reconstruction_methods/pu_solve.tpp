@@ -7,6 +7,7 @@
 
 #include "irl/generic_cutting/cut_polygon.h"
 #include "irl/generic_cutting/generic_cutting.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/moments/general_moments.h"
@@ -789,11 +790,34 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
   // not.
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   double val0, val1, val2, val3, val4;
+  // Copy Points for now to get around constant constraints
+  Pt P0_copy = P0;
+  Pt P1_copy = P1;
+  Pt P2_copy = P2;
+  Pt P3_copy = P3;
   // Calculate Corner Values
   s.evaluate(P0, &val0);
   s.evaluate(P1, &val1);
   s.evaluate(P2, &val2);
   s.evaluate(P3, &val3);
+  // Calculate Corner Weights
+  double weight0, weight1, weight2, weight3, weight4;
+  s.getTotalWeight(P0_copy, &weight0);
+  s.getTotalWeight(P1_copy, &weight1);
+  s.getTotalWeight(P2_copy, &weight2);
+  s.getTotalWeight(P3_copy, &weight3);
+  // If any of the weights are below A threshold, return 0 force since that
+  // means we are not near the interface
+  double factor = 100.0;
+  if (weight0 < factor * EPSILON || weight1 < factor * EPSILON ||
+      weight2 < factor * EPSILON || weight3 < factor * EPSILON) {
+    // std::cout << "Low Weight Detected: " << weight0 << "," << weight1 << ","
+    //           << weight2 << "," << weight3 << "\n";
+    return Normal(0.0, 0.0, 0.0);
+  }
+  Pt dP = P1 - P0;
+  double D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1] + dP[2] * dP[2]);
+  double denom = 1.0 / (safelyEpsilon(D));
   s.evaluate(0.25 * (P0 + P1 + P2 + P3), &val4);  // Center Point Value
   // Calculate case:
   int caseValue =
@@ -818,7 +842,7 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       pairs[0] = {2, 1};
       break;
     case 5:
-      if (val4 < 0) {
+      if (val4 > 0) {
         pairs[0] = {0, 1};
         pairs[1] = {2, 3};
       } else {
@@ -839,7 +863,7 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       pairs[0] = {0, 2};
       break;
     case 10:
-      if (val4 < 0) {
+      if (val4 > 0) {
         pairs[0] = {1, 2};
         pairs[1] = {3, 0};
       } else {
@@ -906,75 +930,107 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       normal2 = s.getNormal(endPoint);
       normal2.normalize();
       // Make tangent by crossing normal with face  normal
-      tangentStart = IRL::crossProduct(faceNormal, normal1);  // Keep Magnitudes
+      tangentStart = IRL::crossProduct(faceNormal, normal1);
       tangentStart.normalize();
-      tangentEnd = IRL::crossProduct(faceNormal, normal2);  // Keep Magnitudes
+      tangentEnd = IRL::crossProduct(faceNormal, normal2);
       tangentEnd.normalize();
-      // Now we have tangents, find the intersection of tangnents to get the
-      // control point.
-      const Normal edge_vector = endPoint - startPoint;
-      const Pt average_pt = 0.5 * (startPoint + endPoint);
-      const Normal n_cross_t0 = crossProduct(faceNormal, tangentStart);
-      if (fabs(n_cross_t0 * tangentEnd) < 100 * EPSILON) {
-        controlPoint = average_pt;
+      // Calculate dot product to see if they are parallel
+      if (fabs(tangentStart * tangentEnd) > 1.0 - 100 * EPSILON) {
+        // If they are parallel, just display
+        if (false) {  // DEBUG PRINTING
+          std::cout << "====================================================\n";
+          std::cout
+              << "Tangents are Parallel, skipping control point calculation\n";
+          std::cout << "Start Point: " << startPoint << "\n";
+          std::cout << "End Point: " << endPoint << "\n";
+          std::cout << "Tangent Start: " << tangentStart << "\n";
+          std::cout << "Tangent End: " << tangentEnd << "\n";
+          std::cout << "Pairs: " << pairs[j][0] << "," << pairs[j][1] << "\n";
+          std::cout << "Weights: " << weight0 << "," << weight1 << ","
+                    << weight2 << "," << weight3 << "\n";
+        }
+
+        // Make into line by default
+        controlPoint = 0.5 * (startPoint + endPoint);
       } else {
-        assert(fabs(n_cross_t0 * tangentEnd) >= 100 * EPSILON);
-        const double lambda_1 =
-            -(n_cross_t0 * edge_vector) / (n_cross_t0 * tangentEnd);
-        controlPoint = Pt(endPoint + lambda_1 * tangentEnd);
-        const double ct_correction =
-            Normal(controlPoint - startPoint) * faceNormal;
-        controlPoint = controlPoint - ct_correction * faceNormal;
+        // Now we have tangents, find the intersection of tangnents to get the
+        // control point.
+        const Normal edge_vector = endPoint - startPoint;
+        if (fabs(edge_vector.calculateMagnitude()) < 100 * EPSILON) {
+          // If the points overlap, we don't want to add anything to the value,
+          // so we just skip the rest of this pair.
+          continue;
+        }
+        const Pt average_pt = 0.5 * (startPoint + endPoint);
+        const Normal n_cross_t0 = crossProduct(faceNormal, tangentStart);
+        if (fabs(n_cross_t0 * tangentEnd) < 100 * EPSILON) {
+          controlPoint = average_pt;
+        } else {
+          assert(fabs(n_cross_t0 * tangentEnd) >= 100 * EPSILON);
+          const double lambda_1 =
+              -(n_cross_t0 * edge_vector) / (n_cross_t0 * tangentEnd);
+          controlPoint = Pt(endPoint + lambda_1 * tangentEnd);
+          const double ct_correction =
+              Normal(controlPoint - startPoint) * faceNormal;
+          controlPoint = controlPoint - ct_correction * faceNormal;
+        }
       }
       // Now that we have the start and end point in addition to the control
       // point, we can make a quadratic bezier curve.
       RationalBezierArc arc =
           RationalBezierArc(startPoint, controlPoint, endPoint, weight);
-      // Now we integrate the ST force along this curve and add to total.
-      /* Defining constants and types */
-      const double ZERO = double(0);
-      const double ONE = double(1);
-      const double TWO = double(2);
-      const double THREE = double(3);
-      const double FIVE = double(5);
-      const double EIGHT = double(8);
-      const double EIGHTEEN = double(18);
+      int QuadRuleOrder = 50;
+      const auto& abscissea = AbscissaeGauss<double, 50>();
+      const auto& weights = WeightsGauss<double, 50>();
+      for (int j = 0; j < QuadRuleOrder; ++j) {
+        const double t = 0.5 * (1.0 + abscissea[j]);
+        const double w = weights[j];
 
-      // 3-point quadrature rule for evaluation
-      const double t0 = (ONE - sqrt(THREE / FIVE)) / TWO;
-      const double t1 = ONE / TWO;
-      const double t2 = (ONE + sqrt(THREE / FIVE)) / TWO;
-      const double w0 = FIVE / EIGHTEEN;
-      const double w1 = EIGHT / EIGHTEEN;
-      const double w2 = FIVE / EIGHTEEN;
-      // Evaluation Points
-      Pt pt_0 = arc.point(t0);
-      Pt pt_1 = arc.point(t1);
-      Pt pt_2 = arc.point(t2);
+        // Evaluation Points
+        Pt pt = arc.point(t);
+        // get normal,tangent, and surface tension at each point.
+        Pt tangent = arc.derivative(t);
+        Normal tan = Normal(tangent[0], tangent[1], tangent[2]);
+        tan.normalize();
 
-      // get normal,tangent, and surface tension at each point.
-      Pt tangent_0 = arc.derivative(t0);
-      Normal tan_0 = Normal(tangent_0[0], tangent_0[1], tangent_0[2]);
-      Pt tangent_1 = arc.derivative(t1);
-      Normal tan_1 = Normal(tangent_1[0], tangent_1[1], tangent_1[2]);
-      Pt tangent_2 = arc.derivative(t2);
-      Normal tan_2 = Normal(tangent_2[0], tangent_2[1], tangent_2[2]);
+        Normal normal = s.getNormal(pt);
+        normal.normalize();
 
-      Normal normal_0 = s.getNormal(pt_0);
-      Normal normal_1 = s.getNormal(pt_1);
-      Normal normal_2 = s.getNormal(pt_2);
+        double ST = STCoeff + Marangoni[2] *
+                                  (Marangoni[0] * pt[0] + Marangoni[1] * pt[1]);
 
-      double ST_0 = STCoeff;  // For now assume that we have constant surface
-                              // tension, figure out variable later.
-      double ST_1 = STCoeff;
-      double ST_2 = STCoeff;
+        Normal f = IRL::crossProduct(tan, normal);
+        f.normalize();
+        f = f * ST;
+        total = total + 0.5 * w * f * denom;
+      }
 
-      // Now put everything together to get value at each point for quadrature.
-      const Normal f0 = ST_0 * IRL::crossProduct(tan_0, normal_0);
-      const Normal f1 = ST_1 * IRL::crossProduct(tan_1, normal_1);
-      const Normal f2 = ST_2 * IRL::crossProduct(tan_2, normal_2);
-
-      total = total + (w0 * f0 + w1 * f1 + w2 * f2) * arc.arc_length();
+      // Debug Prints
+      if (false) {  // False added as a toggle for the debug. Make true to
+                    // turn on debug.
+        // Arc Setup Info
+        std::cout << "Start Point: " << startPoint << "\n";
+        std::cout << "End Point: " << endPoint << "\n";
+        std::cout << "Control Point: " << controlPoint << "\n";
+        std::cout << "pairs[j][0]: " << pairs[j][0] << "\n";
+        std::cout << "pairs[j][1]: " << pairs[j][1] << "\n";
+        for (int i = 0; i < intersectionsSet.size(); i++) {
+          std::cout << "intersectionsSet[" << i << "]: ";
+          if (!intersectionsSet[i].empty()) {
+            std::cout << "(" << intersectionsSet[i][0] << ")";
+          } else {
+            std::cout << "(empty)";
+          }
+          std::cout << "\n";
+        }
+        std::cout << "P0: " << P0 << "\n";
+        std::cout << "P1: " << P1 << "\n";
+        std::cout << "P2: " << P2 << "\n";
+        std::cout << "P3: " << P3 << "\n\n";
+        // Output Info
+        std::cout << "Total: " << total << "\n";
+        std::cout << "===================================================== \n";
+      }
     }
   }
   return total;
@@ -1040,6 +1096,15 @@ template <class CellType>
 double PU<CellType>::getWeight(double x, double y, double z, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
+  double retVal;
+  s.getTotalWeight(in, &retVal);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+double PU<CellType>::getWeight(Pt& in, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   double retVal;
   s.getTotalWeight(in, &retVal);
   // std::cout << "==== Return Value: " << retVal << std::endl;
