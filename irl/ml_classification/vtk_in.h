@@ -27,7 +27,7 @@
 namespace IRL {
 
 void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
-    int cannonicalize_symmetries = 0, int include_Moments = 1, float noise_stddev = 0.0f, std::vector<int>* savedClasses = nullptr) 
+    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Eigenvalues = false, float noise_stddev = 0.0f, std::vector<int>* savedClasses = nullptr) 
     {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filenameNGA.c_str());
@@ -524,7 +524,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
 
                 //Preprocess stencil
-                IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, noise_stddev, 1e-2f);
+                IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, 1e-2f);
                 
 
                 // Classify

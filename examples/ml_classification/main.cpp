@@ -1,4 +1,5 @@
 #include <vtkCellCenters.h>
+#include "testcases.h"
 #include "irl/ml_classification/ml_classifier.h"
 #include "irl/ml_classification/vtk_in.h"
 #include "irl/ml_classification/inertia_classifier.h"
@@ -41,9 +42,9 @@ void find_dataset_size() {
         + (include_Moments >= 2 ? 6 : 0)
         + (include_Moments >= 3 ? 3 : 0);
 
-    int hidden_size1 = 512;
-    int hidden_size2 = 512;
-    int hidden_size3 = 128;
+    int hidden_size1 = 256;
+    int hidden_size2 = 128;
+    int hidden_size3 = 64;
     int output_size = 6;
 
     // Training parameters
@@ -254,6 +255,7 @@ void stable_classification() {
     // Data parameters
     int no_batches = 4096*4;
     int include_Moments = 0;
+    bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 1.0;
@@ -286,8 +288,8 @@ void stable_classification() {
 
     // Classification parameters
     int canonicalize_symmetries = 48;
-    bool preProcess = true;
     const int no_runs = 10;
+    float noise_stddev = 0.0f;
 
     // Simulation file
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
@@ -353,8 +355,8 @@ void stable_classification() {
         ml.trainModel();
 
         std::vector<int> savedClasses;
-        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments, &savedClasses);
-
+        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, &savedClasses);
+        
         if (r > 0 && savedClasses.size() != predictions[0].size()) {
             throw std::runtime_error("Saved class vector size differs between runs!");
         }
@@ -412,7 +414,7 @@ void stable_classification() {
         most_agreeing.loadModel(most_agreeing_model_path.string(), false);
 
         // Classify again using the most agreeing model
-        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, preProcess, include_Moments, nullptr);
+        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, nullptr);
     }
 }
 
@@ -425,15 +427,15 @@ int main (int argc, char* argv[]) {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096*4;
+    int no_batches = 4096;
     int include_Moments = 1;
+    bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    bool include_truncated_cylinder = true;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
     bool exact_2nd_moment = true;  // enable calculation of exact 2nd moments for data generation
@@ -442,7 +444,7 @@ int main (int argc, char* argv[]) {
     int input_size = stencil_size * stencil_size * stencil_size 
     * (include_Moments >= 1 ? 4 : 1)  // 4 if include_Moments >= 1 because we have vfrac + (mx,my,mz) per cell, otherwise just vfrac
     + (include_Moments >= 2 ? 6 : 0)  // +6 if include_Moments >= 2 because we have (xx, yy, zz, xy, xz, yz) components of the 2nd moment tensor; otherwise none
-    + (include_Moments >= 3 ? 3 : 0); // +3 if include_Moments >= 3 because we add the 3 eigenvalues of the inertia matrix; otherwise none
+    + (include_Eigenvalues ? 3 : 0); // +3 if include_Eigenvalues because we add the 3 eigenvalues of the inertia matrix; otherwise none
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
@@ -451,7 +453,7 @@ int main (int argc, char* argv[]) {
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int max_epochs = 20;
+    int max_epochs = 50;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
@@ -459,33 +461,33 @@ int main (int argc, char* argv[]) {
     //IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     
-    ml.updateDataParameters(no_batches, include_Moments,
+    ml.updateDataParameters(no_batches, include_Moments, include_Eigenvalues,
                             paraboloid_coeff_stddev,
                             sheet_coeff_stddev,
                             max_sheet_thickness, sheet_thickness_stddev,
-                            max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
+                            max_cylinder_radius, cylinder_radius_stddev,
                             max_sphere_radius, sphere_radius_stddev,
                             exact_2nd_moment);                    
     
     //ml.generateDataset();
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_500kM/data/data.bin");
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/float/ZeroethMoment/s5_1M/data/data.bin");
+    ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_262k/data/data.bin");
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
-    float noise_stddev = 0.01f;
-    //ml.preprocess_data(canonicalize_symmetries, noise_stddev);
+    float noise_stddev = 0.0f;
+    ml.preprocess_data(canonicalize_symmetries, noise_stddev);
 
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
-    //ml.trainModel();
+    ml.trainModel();
     //ml.outputTrainingResults();
-    //ml.saveModel("model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/float/SecondFrom1/s5_1M/model/ml_model.pt");
+    ml.saveModel("model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/model/ml_model.pt");
 
     // vtk reader
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
     std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
-    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, noise_stddev);
+    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev);
 
     //stable_classification();
 
@@ -493,7 +495,7 @@ int main (int argc, char* argv[]) {
 
     //gen.generateState(2,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
 
-    find_dataset_size();
-
+    //find_dataset_size();
+    shell_testcase(ml);
     return 0;
 }

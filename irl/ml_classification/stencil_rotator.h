@@ -3,6 +3,8 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
+#include <array>
+#include <csignal> //debugging
 
 namespace IRL {
 
@@ -16,6 +18,10 @@ struct CellData {
 struct SecondMoments {
     float Ixx, Iyy, Izz;
     float Ixy, Ixz, Iyz; // symmetric tensor => Iyx=Ixy, etc.
+};
+
+struct Eigenvalues {
+    float lambda1, lambda2, lambda3;
 };
 
 // Convert (i,j,k) to flat cell index in the 1D array of cells
@@ -32,17 +38,22 @@ inline int perCellStride(int include_moments) {
     return (include_moments >= 1) ? 4 : 1;
 }
 
-inline int globalTailStride(int include_moments) {
-    // only include_moments==2 has the +6 tensor at the end
-    return (include_moments >= 2) ? 6 : 0;
+inline int globalTailStride(int include_moments, bool include_Eigenvalues = false) {
+    // only include_moments==2 has the +6 tensor at the end, include_Eigenvalues adds +3 eigenvalues after that
+    int tail = 0;
+    if (include_moments == 2) tail += 6;
+    if (include_Eigenvalues) tail += 3;
+    return tail;
 }
 
 // Read one stencil from a flat array into CellData array (and optional global inertia)
 static void unpackStencil(const std::vector<float>& flat,
                           std::vector<CellData>& stencil,
                           SecondMoments* I,
+                          Eigenvalues* eigenvalues,
                           int N,
-                          int include_moments)
+                          int include_moments,
+                          bool include_Eigenvalues = false)
 {
     const int nCells = N * N * N;
     const int stride = perCellStride(include_moments);
@@ -60,8 +71,8 @@ static void unpackStencil(const std::vector<float>& flat,
         }
     }
 
+    int base = stride * nCells;
     if (include_moments >= 2 && I) {
-        const int base = stride * nCells;
         I->Ixx = flat[base + 0];
         I->Iyy = flat[base + 1];
         I->Izz = flat[base + 2];
@@ -69,18 +80,32 @@ static void unpackStencil(const std::vector<float>& flat,
         I->Ixz = flat[base + 4];
         I->Iyz = flat[base + 5];
     }
+
+    if (include_Eigenvalues) {
+        if (include_moments >= 2 && I) {
+            base = base + 6; // eigenvalues come after inertia tensor
+        }
+        // read eigenvalues into struct
+        if (eigenvalues) {
+            eigenvalues->lambda1 = flat[base + 0];
+            eigenvalues->lambda2 = flat[base + 1];
+            eigenvalues->lambda3 = flat[base + 2];
+        }
+    }
 }
 
 // Write CellData stencil back into flat array (and optional global inertia)
 static void repackStencil(std::vector<float>& flat,
                           const std::vector<CellData>& stencil,
                           const SecondMoments* I,
+                          const Eigenvalues* eigenvalues,
                           int N,
-                          int include_moments)
+                          int include_moments,
+                          bool include_Eigenvalues = false)
 {
     const int nCells = N * N * N;
-    const int stride = perCellStride(include_moments);
-    const int tail   = globalTailStride(include_moments);
+    int stride = perCellStride(include_moments);
+    const int tail   = globalTailStride(include_moments, include_Eigenvalues);
 
     flat.resize(stride * nCells + tail);
 
@@ -94,8 +119,8 @@ static void repackStencil(std::vector<float>& flat,
         }
     }
 
+    int base = stride * nCells;
     if (include_moments >= 2 && I) {
-        const int base = stride * nCells;
         flat[base + 0] = I->Ixx;
         flat[base + 1] = I->Iyy;
         flat[base + 2] = I->Izz;
@@ -103,6 +128,17 @@ static void repackStencil(std::vector<float>& flat,
         flat[base + 4] = I->Ixz;
         flat[base + 5] = I->Iyz;
     }
+
+    if (include_Eigenvalues) {
+        if (include_moments >= 2 && I) {
+            base += 6; // eigenvalues come after inertia tensor
+        }
+        if (eigenvalues) {
+            flat[base + 0] = eigenvalues->lambda1;
+            flat[base + 1] = eigenvalues->lambda2;
+            flat[base + 2] = eigenvalues->lambda3;
+        }
+    }  
 }
 
 // Symmetry helpers
@@ -326,14 +362,16 @@ inline float sampleGaussian(float sigma) {
 }
 
 inline void preprocess_stencil(std::vector<float>& flat_stencil,
-                           int stencil_size, int no_symmetries, int include_moments = 1, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
+                           int stencil_size, int no_symmetries, int include_moments = 1, bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
 {
 
     // Unpack
     std::vector<CellData> stencil;
     SecondMoments I{};
     SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
-    unpackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+    Eigenvalues eig{};
+    Eigenvalues* eigp = include_Eigenvalues ? &eig : nullptr;
+    unpackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
 
     if (noise_stddev > 1e-10f) {
         const float epsilon_noise = 1.0e-6f;
@@ -462,7 +500,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
             cell.vfrac = 0.0f;
             cell.mx = cell.my = cell.mz = 0.0f;
         }
-        repackStencil(flat_stencil, stencil, Ip, N, include_moments);
+        repackStencil(flat_stencil, stencil, Ip, eigp, N, include_moments, include_Eigenvalues);
         return;
     }
 
@@ -521,7 +559,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
     
 
     if (no_symmetries < 8) {
-        repackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
         return;
     }
 
@@ -567,7 +605,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
     }
 
     if (no_symmetries <= 8) {
-        repackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
         return;
     }
 
@@ -602,7 +640,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
 
     // If we only want 24 symmetries (rotations + octant choice), stop here.
     if (no_symmetries <= 24) {
-        repackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
         return;
     }
 
@@ -613,7 +651,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
         if (include_moments >= 2) swap_xy(I);
     }
     // Pack back into flat storage
-    repackStencil(flat_stencil, stencil, Ip, stencil_size, include_moments);
+    repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
 }
 
 } // namespace IRL

@@ -33,13 +33,13 @@ protected:
     //Data Parameters
     int no_batches = 256;
     int include_Moments = 0;
+    bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 0.5;
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    bool include_truncated_cylinder = false;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
     bool exact_2nd_moment = false;
@@ -82,21 +82,21 @@ public:
         early_stop_patience = early_stop_pat;
     }
 
-    void updateDataParameters(int nb, int incMoments,
+    void updateDataParameters(int nb, int incMoments, bool incEigenvalues,
                               double parab_std, double sheet_std,
                               double max_sheet_th, double sheet_th_std,
-                              double max_cyl_r, double cyl_r_std, bool incl_trunc_cyl,
+                              double max_cyl_r, double cyl_r_std,
                               double max_sph_r, double sph_r_std,
                               bool exact_2nd_mom) {
         no_batches = nb;
         include_Moments = incMoments;
+        include_Eigenvalues = incEigenvalues;
         paraboloid_coeff_stddev = parab_std;
         sheet_coeff_stddev = sheet_std;
         max_sheet_thickness = max_sheet_th;
         sheet_thickness_stddev = sheet_th_std;
         max_cylinder_radius = max_cyl_r;
         cylinder_radius_stddev = cyl_r_std;
-        include_truncated_cylinder = incl_trunc_cyl;
         max_sphere_radius = max_sph_r;
         sphere_radius_stddev = sph_r_std;
         exact_2nd_moment = exact_2nd_mom;
@@ -111,16 +111,16 @@ public:
         data_gen.generateData(&statesV, &labelsV,
                                no_batches * batch_size,
                                stencil_size, output_size,
-                               include_Moments,
+                               include_Moments, include_Eigenvalues,
                                paraboloid_coeff_stddev,
                                sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                               max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
+                               max_cylinder_radius, cylinder_radius_stddev,
                                max_sphere_radius, sphere_radius_stddev);
         /*
         void generateData (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
-                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, bool include_truncated_cylinder = false,
+                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0,
                                         double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0)
 
         */
@@ -150,10 +150,10 @@ public:
         data_gen.generateData(&new_states, &new_labels,
                             no_batches * batch_size,
                             stencil_size, output_size,
-                            include_Moments,
+                            include_Moments, include_Eigenvalues,
                             paraboloid_coeff_stddev,
                             sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                            max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
+                            max_cylinder_radius, cylinder_radius_stddev,
                             max_sphere_radius, sphere_radius_stddev);
 
         auto end_time = high_resolution_clock::now();
@@ -197,13 +197,13 @@ public:
         meta << "no_batches loaded " << (no_batches - num_samples/batch_size) << "\n";
         meta << "total samples " << num_samples << "\n";
         meta << "include_Moments " << include_Moments << "\n";
+        meta << "include_Eigenvalues " << include_Eigenvalues << "\n";
         meta << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
         meta << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";
         meta << "max_sheet_thickness " << max_sheet_thickness << "\n";
         meta << "sheet_thickness_stddev " << sheet_thickness_stddev << "\n";
         meta << "max_cylinder_radius " << max_cylinder_radius << "\n";
         meta << "cylinder_radius_stddev " << cylinder_radius_stddev << "\n";
-        meta << "include_truncated_cylinder " << include_truncated_cylinder << "\n";
         meta << "max_sphere_radius " << max_sphere_radius << "\n";
         meta << "sphere_radius_stddev " << sphere_radius_stddev << "\n";
         meta << "exact_2nd_moment " << exact_2nd_moment << "\n";
@@ -258,11 +258,12 @@ public:
         }
 
         std::cout << "🔧 Preprocessing " << statesV.size() << " samples..." << std::endl;
-
+        std::cout << "Length of flattened state before: " << statesV[0].size() << std::endl;
+        std::cout << "including Eigenvalues: " << include_Eigenvalues << ", including Moments: " << include_Moments << std::endl;
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, noise_stddev);
+            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, include_Eigenvalues, noise_stddev);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
@@ -376,6 +377,7 @@ public:
         } else {
             param_out << "no_batches " << no_batches << "\n";
             param_out << "include_Moments " << include_Moments << "\n";
+            param_out << "include_Eigenvalues " << include_Eigenvalues << "\n";
             param_out << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
             param_out << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";
             param_out << "max_sheet_thickness " << max_sheet_thickness << "\n";

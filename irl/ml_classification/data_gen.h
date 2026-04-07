@@ -5,6 +5,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <cmath>
+#include <array>
+#include <numeric>
+#include <stdexcept>
 
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/ml_classification/vtk_out.h"
@@ -16,7 +19,7 @@ namespace IRL {
 
         public:
         std::mt19937_64 eng;
-        double machineZero = 10e-14;
+        static constexpr double machineZero = 1e-12;
         //int stencil_size = 3;
         //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
 
@@ -276,7 +279,7 @@ namespace IRL {
         void generateSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
+            int stencil_size, double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
@@ -304,9 +307,9 @@ namespace IRL {
                 // Random sheet thickness
                 double thickness = max_thickness;
                 if (thickness_stddev > 0.0) {
-                    thickness = sample_truncated_normal(0, thickness_stddev, machineZero, max_thickness);
+                    thickness = sample_truncated_normal(0, thickness_stddev, min_thickness, max_thickness);
                 }else{
-                    std::uniform_real_distribution<double> random_thickness(machineZero, max_thickness);
+                    std::uniform_real_distribution<double> random_thickness(min_thickness, max_thickness);
                     thickness = random_thickness(eng);
                 }
 
@@ -456,7 +459,7 @@ namespace IRL {
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             int stencil_size, bool cutInsideCentralCell,
-            double coeff_stddev = 0.1, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
+            double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
@@ -477,9 +480,9 @@ namespace IRL {
                 // Random sheet thickness
                 double thickness = max_thickness;
                 if (thickness_stddev > 0.0) {
-                    thickness = sample_truncated_normal(0, thickness_stddev, machineZero, max_thickness);
+                    thickness = sample_truncated_normal(0, thickness_stddev, min_thickness, max_thickness);
                 }else{
-                    std::uniform_real_distribution<double> random_thickness(machineZero, max_thickness);
+                    std::uniform_real_distribution<double> random_thickness(min_thickness, max_thickness);
                     thickness = random_thickness(eng);
                 }
 
@@ -1052,7 +1055,7 @@ namespace IRL {
         void generateBentCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0,
+            int stencil_size, double min_radius = machineZero, double max_radius = 0.5, double radius_stddev = 0.0,
             double radius_circle_min = 2.5, double radius_circle_max = 10.0,
             bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr)
@@ -1075,9 +1078,9 @@ namespace IRL {
                 // Make a random tube radius
                 double tube_radius = max_radius;
                 if (radius_stddev > 0.0) {
-                    tube_radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                    tube_radius = sample_truncated_normal(0, radius_stddev, min_radius, max_radius);
                 } else {
-                    std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
+                    std::uniform_real_distribution<double> random_thickness(min_radius, max_radius);
                     tube_radius = random_thickness(eng);
                 }
 
@@ -2108,7 +2111,7 @@ namespace IRL {
         void generateSphere (
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
+            int stencil_size, double min_radius = machineZero, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
             {
                 while (true) { // keep trying until center cell has surface crossing
@@ -2125,10 +2128,10 @@ namespace IRL {
                     // Random radius
                     double radius = max_radius;
                     if (radius_stddev > 0.0) {
-                        radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                        radius = sample_truncated_normal(0, radius_stddev, min_radius, max_radius);
                     }else{
-                        std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
-                        radius = random_thickness(eng);
+                        std::uniform_real_distribution<double> random_radius(min_radius, max_radius);
+                        radius = random_radius(eng);
                     }
 
                     Eigen::Vector3d origin = generateRandomPoint(-0.5 - radius , 0.5 + radius, eng);
@@ -2170,7 +2173,7 @@ namespace IRL {
         void generateBentTruncatedCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, bool truncateInsideCentralCell, double max_radius = 0.5, double radius_stddev = 0.0, 
+            int stencil_size, bool truncateInsideCentralCell, double min_radius = machineZero, double max_radius = 0.5, double radius_stddev = 0.0, 
             double radius_circle_min = 2.5, double radius_circle_max = 10.0,
             bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr)
@@ -2191,9 +2194,9 @@ namespace IRL {
                 // Random tube radius in [0, max_radius], with optional stddev for truncated normal sampling
                 double tube_radius = max_radius;
                 if (radius_stddev > 0.0) {
-                    tube_radius = sample_truncated_normal(0, radius_stddev, machineZero, max_radius);
+                    tube_radius = sample_truncated_normal(0, radius_stddev, min_radius, max_radius);
                 } else {
-                    std::uniform_real_distribution<double> random_thickness(machineZero, max_radius);
+                    std::uniform_real_distribution<double> random_thickness(min_radius, max_radius);
                     tube_radius = random_thickness(eng);
                 }
 
@@ -2223,9 +2226,6 @@ namespace IRL {
                     else continue; // plane misses the central "sphere"
                 }
 
-                // circle/bend radius
-                double radius_circle_min = 2.5;
-                double radius_circle_max = 10.0;
                 std::uniform_real_distribution<double> dist_radius_circle(radius_circle_min, radius_circle_max);
                 double radius_circle = dist_radius_circle(eng);
 
@@ -2244,11 +2244,13 @@ namespace IRL {
 
                 // create sphere radius
                 double sphere_radius = tube_radius;
+                /*
                 {
                     double sphere_radius_min = tube_radius;
-                    double sphere_radius_max = max_radius;
-                    sphere_radius = sample_truncated_normal(sphere_radius_min, 0.4*sphere_radius_min, sphere_radius_min, sphere_radius_max);
+                    double sphere_radius_max = 2 * tube_radius;
+                    sphere_radius = std::abs(sample_truncated_normal(sphere_radius_min, 0.4*sphere_radius_min, sphere_radius_min, sphere_radius_max));
                 }
+                */
 
                 // pick random theta_cut on full circle and accept only if it satisfies your constraints
                 double theta_cut = 0.0;
@@ -2280,9 +2282,9 @@ namespace IRL {
                         const double thresh_inside = 0.5;
                         const double dist_p_cut  = p_cut.norm(); // distance from origin to point on circle at theta_cut, which is the center of the spherical truncation cap
                         if (!truncateInsideCentralCell) {
-                            if (dist_p_cut - sphere_radius < thresh_outside) continue; // want outside, but it's inside
+                            if (std::abs(dist_p_cut - sphere_radius) < thresh_outside) continue; // want outside, but it's inside
                         } else {
-                            if (dist_p_cut + sphere_radius > thresh_inside) continue; // want inside, but it's outside
+                            if (std::abs(dist_p_cut - sphere_radius) > thresh_inside) continue; // want inside, but it's outside
                         }
 
                         theta_cut = t;
@@ -2697,13 +2699,41 @@ namespace IRL {
             }
         }
 
+        int sampleWeightedIndex(const std::vector<double>& weights) {
+            double sum = 0.0;
+            for (double w : weights) {
+                if (w < 0.0) {
+                    throw std::runtime_error("Negative weight in sampleWeightedIndex.");
+                }
+                sum += w;
+            }
 
-        std::vector<float> generateState(int datapoint_type, int stencil_size, int include_Moments = 0, bool include_truncated_cylinder = false,
+            if (sum <= 0.0) {
+                throw std::runtime_error("All weights are zero in sampleWeightedIndex.");
+            }
+
+            std::uniform_real_distribution<double> dist(0.0, sum);
+            double r = dist(eng);
+
+            double cumulative = 0.0;
+            for (int i = 0; i < static_cast<int>(weights.size()); ++i) {
+                cumulative += weights[i];
+                if (r <= cumulative) {
+                    return i;
+                }
+            }
+
+            return static_cast<int>(weights.size()) - 1;
+        }
+
+
+        std::vector<float> generateState(int datapoint_type, int stencil_size, int include_Moments = 0, bool include_Eigenvalues = false,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
                                         double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
                                         double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0,
-                                        bool visualize = false, bool exact_2nd_moments = false)
+                                        bool visualize = false, bool exact_2nd_moments = false,
+                                        double class0_max_characteristic = 2.5)
         {
             // Create a vector of volume fractions and first moments
             std::vector<std::vector<std::vector<double>>> vfrac(
@@ -2732,55 +2762,172 @@ namespace IRL {
                 secondMomentPtr = &secondMoment; // This enables calculation of exact 2nd moments for all switch cases below
             }
 
+            const std::array<double, 6>& class0_subclass_weights = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}; // Adjust these weights to control the relative frequency of each subclass within class 0
+
             std::uniform_real_distribution<double> prob_dist(0.0, 1.0);
 
             // Testing
             double radius_circ_min = 3.0;
             double radius_circ_max = 10.0;
 
+            double min_cylinder_radius = machineZero;
+            double min_sheet_thickness = machineZero;
+            double min_sphere_radius = machineZero;
+            
 
+            //std::cout<<"Generating datapoint of type "<<datapoint_type<<std::endl;
             switch (datapoint_type) {
                 case 1: {
                     double p1 = prob_dist(eng);  // draw a random number in [0,1)
 
                     if (p1 < 0.2) {
                         // 20% chance → truncated cylinder
-                        generateTruncatedCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
-                        //generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, /*truncateinsidecentralcell*/false, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                        //generateTruncatedCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
+                        generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     } else {
                         // 80% chance → normal cylinder
-                        generateCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
-                        //generateBentCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                        //generateCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
+                        generateBentCylinder(vfrac, firstMoment, stencil_size, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     }
 
                     break;
                 }
                 case 2:
-                    generateSphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize, secondMomentPtr);
+                    generateSphere(vfrac, firstMoment, stencil_size, min_sphere_radius, max_sphere_radius, sphere_radius_stddev, visualize, secondMomentPtr);
                     break;
                 case 3: {
                     double p2 = prob_dist(eng);  // draw a random number in [0,1)
-                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
-                    //if (p2 < 0.2) {
+                    //generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                    if (p2 < 0.2) {
                         // 20% chance → cut sheet
-                        //generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                        generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                    } else {
                         // 80% chance → normal sheet
-                        //generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
-                    //}
+                        generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                    }
                     break;
                 }
                 case 4:
-                    generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, /*truncateinsidecentralcell*/true, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                    generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     //generateBentCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
                     //generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, truncateInsideCentrCell, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     //generateCutSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
                     //generateSphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize, secondMomentPtr);
                     break;
                 case 5:
-                    generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ true, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                    generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ true, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
                     break;
                 default:
-                    generateParaboloid(vfrac, firstMoment, stencil_size, paraboloid_coeff_stddev, visualize, secondMomentPtr);
+                    std::vector<double> weights(
+                        class0_subclass_weights.begin(),
+                        class0_subclass_weights.end()
+                    );
+                    int subtype0 = sampleWeightedIndex(weights);
+                    //std::cout<<"Subtype: "<<subtype0<<std::endl;
+
+                    double resolved_min_cylinder_radius = max_cylinder_radius;
+                    double resolved_max_cylinder_radius = class0_max_characteristic;
+
+                    double resolved_min_sphere_radius = max_sphere_radius;
+                    double resolved_max_sphere_radius = class0_max_characteristic;
+
+                    double resolved_min_sheet_thickness = max_sheet_thickness;
+                    double resolved_max_sheet_thickness = class0_max_characteristic;
+
+                    switch (subtype0) {
+                        case 0:
+                            generateParaboloid(vfrac, firstMoment, stencil_size,
+                                            paraboloid_coeff_stddev, visualize, secondMomentPtr);
+                            break;
+
+                        case 1: {
+                            // Well-resolved ligament-like object
+                            double p3 = prob_dist(eng);  // draw a random number in [0,1)
+
+                            if (p3 < 0.2) {
+                                generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size,
+                                                        /*truncateinsidecentralcell*/ false,
+                                                        resolved_min_cylinder_radius,
+                                                        resolved_max_cylinder_radius,
+                                                        cylinder_radius_stddev,
+                                                        radius_circ_min, radius_circ_max,
+                                                        visualize, secondMomentPtr);
+                            } else {
+                                generateBentCylinder(vfrac, firstMoment, stencil_size,
+                                                    resolved_min_cylinder_radius,
+                                                    resolved_max_cylinder_radius,
+                                                    cylinder_radius_stddev,
+                                                    radius_circ_min, radius_circ_max,
+                                                    visualize, secondMomentPtr);
+                            }
+                            break;
+                        }
+
+                        case 2:
+                            // Well-resolved drop-like object
+                            
+                            generateSphere(vfrac, firstMoment, stencil_size,
+                                        resolved_min_sphere_radius,
+                                        resolved_max_sphere_radius,
+                                        sphere_radius_stddev,
+                                        visualize, secondMomentPtr);
+                            
+                            /*
+                            generateParaboloid(vfrac, firstMoment, stencil_size,
+                                            paraboloid_coeff_stddev, visualize, secondMomentPtr);
+                            */
+                            break;
+
+                        case 3: {
+                            // Well-resolved sheet-like object
+                            double p4 = prob_dist(eng);  // draw a random number in [0,1)
+                            
+                            if (p4 < 0.2) {
+                                generateCutSheet(vfrac, firstMoment, stencil_size,
+                                            /*cutinsidecentralcell*/ false,
+                                            sheet_coeff_stddev,
+                                            resolved_min_sheet_thickness,
+                                            resolved_max_sheet_thickness,
+                                            sheet_thickness_stddev,
+                                            visualize, secondMomentPtr);
+                            } else {
+                                generateSheet(vfrac, firstMoment, stencil_size,
+                                            sheet_coeff_stddev,
+                                            resolved_min_sheet_thickness,
+                                            resolved_max_sheet_thickness,
+                                            sheet_thickness_stddev,
+                                            visualize, secondMomentPtr);
+                            }
+                            break;
+                        }
+                        case 4:
+                            // Well-resolved ligament-tip-like object
+                            generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size,
+                                                        /*truncateinsidecentralcell*/ true,
+                                                        resolved_min_cylinder_radius,
+                                                        resolved_max_cylinder_radius,
+                                                        cylinder_radius_stddev,
+                                                        radius_circ_min, radius_circ_max,
+                                                        visualize, secondMomentPtr);
+                            break;
+
+                        case 5:
+                            // Well-resolved sheet-edge-like object
+                            generateCutSheet(vfrac, firstMoment, stencil_size,
+                                            /*cutinsidecentralcell*/ true,
+                                            sheet_coeff_stddev,
+                                            resolved_min_sheet_thickness,
+                                            resolved_max_sheet_thickness,
+                                            sheet_thickness_stddev,
+                                            visualize, secondMomentPtr);
+                            break;
+
+                        default:
+                            generateParaboloid(vfrac, firstMoment, stencil_size,
+                                            paraboloid_coeff_stddev, visualize, secondMomentPtr);
+                            break;
+                    }
+
                     break;
             }
 
@@ -2822,9 +2969,8 @@ namespace IRL {
                 }
             }
 
-            if (include_Moments >= 3) {
-                // if include_Moments == 3, vector should have only inertia eigenvalues
-                Eigen::Matrix3d I = IRL::computeInertiaTensor(flattened_state, stencil_size, 0);
+            if (include_Eigenvalues) {
+                Eigen::Matrix3d I = IRL::computeInertiaTensor(flattened_state, stencil_size, include_Moments, machineZero);
 
                 // Get eigenvalues
                 Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(I);
@@ -2834,14 +2980,25 @@ namespace IRL {
                 std::sort(evals.data(), evals.data() + 3, std::greater<double>());
                 double I1 = evals[0], I2 = evals[1], I3 = evals[2];
 
+                if (include_Moments <= 1) {
+                    flattened_state.push_back(I1);
+                    flattened_state.push_back(I2);
+                    flattened_state.push_back(I3);
+                }
+
+                if (include_Moments == 2 || include_Moments == 3) {
+                    std::cout<<"WIP: include_Moments == 2 or 3 and include_Eigenvalues == true is not fully implemented yet"<<std::endl;
+                }
+
                 if (include_Moments == 4) {
                     // if include_Moments == 4, use only the three eigenvalues
                     flattened_state.clear();
+                    flattened_state.push_back(I1);
+                    flattened_state.push_back(I2);
+                    flattened_state.push_back(I3);
                 }
 
-                flattened_state.push_back(I1);
-                flattened_state.push_back(I2);
-                flattened_state.push_back(I3);
+                
             }
 
             if (include_Moments >= 4) {
@@ -2870,33 +3027,50 @@ namespace IRL {
             return flattened_state_float;
         }
 
-        void generateData (std::vector<std::vector<float>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
+        void generateData (std::vector<std::vector<float>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, 
+                                        int include_Moments = 0, bool include_Eigenvalues = false,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
-                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, bool include_truncated_cylinder = false,
+                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0,
                                         double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0)
         
         {
+            double class0_max_characteristic = 2.5;
+            double class0_weight = 2.0;
+
             std::cout << no_datapoints << std::endl;
-            std::cout << include_truncated_cylinder << std::endl;
             // Initialize random number generator with a seed from current time
             std::srand(std::time(0));
 
-            for (int i=0; i<no_datapoints; i++) {
-                
-                // Generate the data, init with a random number 0 or 1, 0=paraboloid, 1=cylinder, 2=sphere, 3=sheet
+            std::vector<double> class_weights(no_datapoint_types_in, 1.0);
+            if (no_datapoint_types_in > 0) {
+                class_weights[0] = class0_weight;
+            }
 
-                int datapoint_type = std::rand() % no_datapoint_types_in;
+            for (int i = 0; i < no_datapoints; i++) {
+                int datapoint_type = sampleWeightedIndex(class_weights);
 
                 labelsV->push_back(datapoint_type);
-                statesV->push_back(generateState(datapoint_type, stencil_size, include_Moments, include_truncated_cylinder,
-                                        paraboloid_coeff_stddev,
-                                        sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                                        max_cylinder_radius, cylinder_radius_stddev, 
-                                        max_sphere_radius, sphere_radius_stddev));
-                //if (i % 1000 == 0) {
-                //    std::cout << "Generated " << i << " datapoints." << std::endl;
-                //}
+                statesV->push_back(generateState(
+                    datapoint_type,
+                    stencil_size,
+                    include_Moments,
+                    include_Eigenvalues,
+                    paraboloid_coeff_stddev,
+                    sheet_coeff_stddev,
+                    max_sheet_thickness,
+                    sheet_thickness_stddev,
+                    max_cylinder_radius,
+                    cylinder_radius_stddev,
+                    max_sphere_radius,
+                    sphere_radius_stddev,
+                    false,   // visualize
+                    false,   // exact_2nd_moments
+                    class0_max_characteristic
+                ));
+                if (i % 10000 == 0) {
+                    std::cout << "Generated " << i << " datapoints." << std::endl;
+                }
             }
         }
     };
