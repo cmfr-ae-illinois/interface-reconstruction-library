@@ -22,15 +22,26 @@ class RationalCubicBezierArcBase {
   /// \brief Default Constructor;
   RationalCubicBezierArcBase(void);
 
-  /// \brief Constructor that initializes the rational cubic Bèzier arc
+  /// \brief Constructor that initializes a rational cubic Bèzier arc
   RationalCubicBezierArcBase(const PtBase<ScalarType>& a_start_pt,
-                         const PtBase<ScalarType>& a_control_pt_1,
-                         const PtBase<ScalarType>& a_control_pt_2,
-                         const PtBase<ScalarType>& a_end_pt,
-                         const ScalarType a_weight_0, const ScalarType a_weight_1,
-                         const ScalarType a_weight_2, const ScalarType a_weight_3);
-  
-  
+                             const PtBase<ScalarType>& a_control_pt_1,
+                             const PtBase<ScalarType>& a_control_pt_2,
+                             const PtBase<ScalarType>& a_end_pt,
+                             const ScalarType a_weight_1,
+                             const ScalarType a_weight_2);
+
+  /// \brief Constructor that initializes a nonrational cubic Bèzier arc
+  RationalCubicBezierArcBase(const PtBase<ScalarType>& a_start_pt,
+                             const PtBase<ScalarType>& a_control_pt_1,
+                             const PtBase<ScalarType>& a_control_pt_2,
+                             const PtBase<ScalarType>& a_end_pt);
+
+  /// \brief Constructor that initializes a nonrational cubic Bèzier arc by
+  /// computing the control points
+  RationalCubicBezierArcBase(const PtBase<ScalarType>& a_start_pt,
+                             const NormalBase<ScalarType>& a_start_tangent,
+                             const PtBase<ScalarType>& a_end_pt,
+                             const NormalBase<ScalarType>& a_end_tangent);
   /// \brief Return const weight, given index
   const ScalarType& weight(const int index) const;
   /// \brief Return const reference to stored start point.
@@ -48,7 +59,8 @@ class RationalCubicBezierArcBase {
   /// \brief return approximation of arc_length
   ScalarType arc_length(void) const;
   /// \brief Return split arcs.
-  std::pair<RationalCubicBezierArcBase, RationalCubicBezierArcBase> split(const ScalarType a_t) const;
+  std::pair<RationalCubicBezierArcBase, RationalCubicBezierArcBase> split(
+      const ScalarType a_t) const;
   /// \brief Return arc in global coordinates
   RationalCubicBezierArcBase moveToReferenceFrame(
       const PtBase<ScalarType>& datum,
@@ -63,7 +75,8 @@ class RationalCubicBezierArcBase {
   PtBase<ScalarType>& control_point_2(void);
   /// \brief Return const reference to stored end point.
   PtBase<ScalarType>& end_point(void);
-
+  /// \Brief Export Spline to VTK File
+  void saveToVTK(const std::string& filename, const int nsamples = 100);
   /// \brief overload += operator.
   RationalCubicBezierArcBase& operator+=(const PtBase<ScalarType>& a_rhs);
   /// \brief unary minus operator
@@ -71,6 +84,7 @@ class RationalCubicBezierArcBase {
 
   /// \brief Default destructor.
   ~RationalCubicBezierArcBase(void) = default;
+
  private:
   PtBase<ScalarType> start_point_m;      // Start point.
   PtBase<ScalarType> control_point_1_m;  // Control point 1.
@@ -89,7 +103,7 @@ inline std::ostream& operator<<(
 
 using RationalCubicBezierArcBase = RationalCubicBezierArcBase<double>;
 
-}  // namespace IRL 
+}  // namespace IRL
 
 #include "irl/geometry/spline/rational_cubic_bezier_arc.tpp"
 
