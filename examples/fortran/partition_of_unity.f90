@@ -83,20 +83,20 @@ program main
   call setPlane(plane1, 0, nor2,d2)
   call addMember(neighborhood,cen2,1.0_DP,plane1)
 
-  ! call new(plane1)
-  ! call setNumberOfPlanes(plane1,1)
-  ! call setPlane(plane1, 0, nor3,d3)
-  ! call addMember(neighborhood,cen3,1.0_DP,plane1)
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor3,d3)
+  call addMember(neighborhood,cen3,1.0_DP,plane1)
 
-  ! call new(plane1)
-  ! call setNumberOfPlanes(plane1,1)
-  ! call setPlane(plane1, 0, nor4,d4)
-  ! call addMember(neighborhood,cen4,1.0_DP,plane1)
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor4,d4)
+  call addMember(neighborhood,cen4,1.0_DP,plane1)
 
-  ! call new(plane1)
-  ! call setNumberOfPlanes(plane1,1)
-  ! call setPlane(plane1, 0, nor5,d5)
-  ! call addMember(neighborhood,cen5,1.0_DP,plane1)
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor5,d5)
+  call addMember(neighborhood,cen5,1.0_DP,plane1)
 
   ! Now that everything is in the neighborhood, make the solver object and put the neighborhood in.
   write(*,'(A)') 'Making Solver'

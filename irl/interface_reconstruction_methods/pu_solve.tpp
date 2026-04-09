@@ -691,7 +691,7 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
     for (int j = 0; j < intersections.size(); j++) {
       tangent = s.getTangent(intersections[j]);
       tangent.normalize();
-
+      std::cout << "Intersection " << j << ": " << intersections[j] << "\n";
       // Here we apply the Marangoni surface tension. To do this, we assume
       // STCoeff = STCoeff + gamma_T(T-T_0). Letting gamma_T=-0.002 (Ratio for
       // water). We also pick T-T0=Gx to be the form we use. This will give us
@@ -699,7 +699,7 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
       // simplicity
       STCoeff = STCoeff + Marangoni[2] * (Marangoni[0] * intersections[j][0] +
                                           Marangoni[1] * intersections[j][1]);
-
+      std::cout << "STCoeff at Intersection " << j << ": " << STCoeff << "\n";
       // std::cout << Marangoni[0] << "," << Marangoni[1] << "," << Marangoni[2]
       //           << "\n";
       // If facing inside, multiply by negative
@@ -708,7 +708,12 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
       Scale = Scale / safelyEpsilon(std::abs(Scale));
       // Add
       total = total + Scale * STCoeff * denom * tangent;
-
+      std::cout << "Tangent Contribution at Intersection " << j << ": "
+                << Scale * STCoeff * denom * tangent << "\n";
+      std::cout << "Tangent at Intersection " << j << ": " << tangent << "\n";
+      std::cout << "Outwards Normal at Intersection " << j << ": "
+                << OutwardsNormal << "\n";
+      std::cout << "Scale at Intersection " << j << ": " << Scale << "\n\n\n";
       // Next, we need to calculate pressure contribution, if wanted
       // To determine if an intersection is going into or out of the fluid, we
       // can use the dot product of dP with the gradient (which is outwards
