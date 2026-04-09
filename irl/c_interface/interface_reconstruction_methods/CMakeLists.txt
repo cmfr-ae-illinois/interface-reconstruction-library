@@ -19,3 +19,5 @@ target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruct
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_optimization_behavior.cpp)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_jibben_neighborhood.h)
 target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_jibben_neighborhood.cpp)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_neighborhood.h)
+target_sources(irl_c PRIVATE ${IRL_SOURCE_DIR}/c_interface/interface_reconstruction_methods/c_pu_neighborhood.cpp)
