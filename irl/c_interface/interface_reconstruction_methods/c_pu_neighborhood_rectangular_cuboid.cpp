@@ -14,25 +14,22 @@ void c_PUNeigh_RectCub_delete(c_PUNeigh_RectCub* a_self) {
   a_self->obj_ptr = nullptr;
 }
 
-void c_PUNeigh_RectCub_setSize(c_PUNeigh_RectCub* a_self,
-                                 const int* a_size) {
+void c_PUNeigh_RectCub_setSize(c_PUNeigh_RectCub* a_self, const int* a_size) {
   assert(a_self != nullptr);
-  assert(a_self->!= nullptr);
+  assert(a_self->obj_ptr != nullptr);
   a_self->obj_ptr->resize(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 
-void c_PUNeigh_RectCub_reserve(c_PUNeigh_RectCub* a_self,
-                                 const int* a_size) {
+void c_PUNeigh_RectCub_reserve(c_PUNeigh_RectCub* a_self, const int* a_size) {
   assert(a_self != nullptr);
-  assert(a_self->!= nullptr);
+  assert(a_self->obj_ptr != nullptr);
   a_self->obj_ptr->reserve(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 
-void c_PUNeigh_RectCub_setMember(c_PUNeigh_RectCub* a_self,
-                                   const int* a_index,
-                                   const double* __restrict__ a_centroid,
-                                   const double* a_weight,
-                                   const c_SeparatorVariant* a_separator) {
+void c_PUNeigh_RectCub_setMember(c_PUNeigh_RectCub* a_self, const int* a_index,
+                                 const double* __restrict__ a_centroid,
+                                 const double* a_weight,
+                                 const c_SeparatorVariant* a_separator) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
   assert(a_separator != nullptr);
@@ -46,9 +43,9 @@ void c_PUNeigh_RectCub_setMember(c_PUNeigh_RectCub* a_self,
 }
 
 void c_PUNeigh_RectCub_addMember(c_PUNeigh_RectCub* a_self,
-                                   const double* __restrict__ a_centroid,
-                                   const double* a_weight,
-                                   const c_SeparatorVariant* a_separator) {
+                                 const double* __restrict__ a_centroid,
+                                 const double* a_weight,
+                                 const c_SeparatorVariant* a_separator) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
   assert(a_separator != nullptr);
