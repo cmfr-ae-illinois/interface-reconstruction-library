@@ -28,8 +28,7 @@ void PUNeighborhood<CellType>::setMember(const UnsignedIndex_t a_index,
                                            const Pt* a_centroid,
                                            const SeparatorVariant* a_separator,
                                            const double a_weight) {
-  assert(a_cell != nullptr);
-  assert(a_plane != nullptr);
+  assert(a_separator != nullptr);
   this->checkIndex(a_index);
   centroids_m[a_index] = *a_centroid;
   separators_m[a_index] = *a_separator;
@@ -97,7 +96,7 @@ const std::vector<double> PUNeighborhood<CellType>::getWeights() const {
 
 template <class CellType>
 void PUNeighborhood<CellType>::checkIndex(UnsignedIndex_t a_index) const {
-  assert(a_index < collection_m.size());
+  assert(a_index < separators_m.size());
 }
 
 }  // End Namespace IRL
