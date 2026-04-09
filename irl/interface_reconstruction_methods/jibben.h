@@ -25,6 +25,10 @@ class Jibben_3D {
   /// \brief Default constructor.
   Jibben_3D(void) = default;
 
+  /// \brief constructor with neighborhood
+  Jibben_3D(const JibbenNeighborhood* a_neighborhood_pointer,
+            const double a_delta = -1.0);
+
   /// \brief Solve the system for the reconstruction
   Paraboloid solve(const JibbenNeighborhood* a_neighborhood_pointer,
                    const double a_delta = -1.0);

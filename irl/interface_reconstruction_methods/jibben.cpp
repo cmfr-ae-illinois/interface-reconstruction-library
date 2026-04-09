@@ -11,6 +11,13 @@
 
 namespace IRL {
 
+Jibben_3D::Jibben_3D(const JibbenNeighborhood* a_neighborhood_pointer,
+                     const double a_delta) {
+  assert(a_neighborhood_pointer != nullptr);
+  neighborhood_m = a_neighborhood_pointer;
+  delta_m = a_delta;
+}
+
 Paraboloid Jibben_3D::solve(const JibbenNeighborhood* a_neighborhood_pointer,
                             const double a_delta) {
   assert(a_neighborhood_pointer != nullptr);
