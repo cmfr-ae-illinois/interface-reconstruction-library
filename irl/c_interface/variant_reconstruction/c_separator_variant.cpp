@@ -96,10 +96,11 @@ void c_SeparatorVariant_getPlane(c_SeparatorVariant* a_self, const int* a_index,
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
   assert(*a_index >= 0);
-  assert(static_cast<IRL::UnsignedIndex_t>(*a_index) <
-         a_self->obj_ptr->getNumberOfPlanes());
+
   if (IRL::PlanarSeparator* separator =
           std::get_if<IRL::PlanarSeparator>(a_self->obj_ptr)) {
+    assert(static_cast<IRL::UnsignedIndex_t>(*a_index) <
+           separator->getNumberOfPlanes());
     a_plane_listed[0] =
         (*separator)[static_cast<IRL::UnsignedIndex_t>(*a_index)].normal()[0];
     a_plane_listed[1] =
@@ -115,7 +116,7 @@ void c_SeparatorVariant_setPrincipalCurvatures(c_SeparatorVariant* a_self,
                                                double* a_curvatures) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
-  assert(*a_curvatures != nullptr);
+  assert(a_curvatures != nullptr);
   a_self->obj_ptr->setPrincipalCurvatures(a_curvatures[0], a_curvatures[1]);
 }
 
@@ -123,7 +124,7 @@ void c_SeparatorVariant_getPrincipalCurvatures(c_SeparatorVariant* a_self,
                                                double* a_curvatures) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
-  assert(*a_curvatures != nullptr);
+  assert(a_curvatures != nullptr);
   const auto curv_pair = a_self->obj_ptr->getPrincipalCurvatures();
   a_curvatures[0] = curv_pair.first;
   a_curvatures[1] = curv_pair.second;
@@ -133,9 +134,6 @@ void c_SeparatorVariant_getParaboloid(c_SeparatorVariant* a_self,
                                       double* a_paraboloid_listed) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
-  assert(*a_index >= 0);
-  assert(static_cast<IRL::UnsignedIndex_t>(*a_index) <
-         a_self->obj_ptr->getNumberOfPlanes());
   if (IRL::Paraboloid* separator =
           std::get_if<IRL::Paraboloid>(a_self->obj_ptr)) {
     // Datum
@@ -175,7 +173,6 @@ void c_SeparatorVariant_setParaboloid(
     const double* a_coeff_b) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
-  assert(*a_plane_index_to_set >= 0);
   a_self->obj_ptr->setToParaboloid();
   IRL::Pt datum = IRL::Pt::fromRawDoublePointer(a_datum);
 
