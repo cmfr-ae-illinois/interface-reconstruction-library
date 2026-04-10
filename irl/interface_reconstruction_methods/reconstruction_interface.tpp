@@ -12,6 +12,18 @@
 
 namespace IRL {
 
+// double reconstructionMetricWithJibben3D(
+//     const JibbenNeighborhood& a_neighborhood_geometry) {
+//   Jibben_3D jibben_solver(&a_neighborhood_geometry);
+//   return jibben_solver.getNormalEigenMetric();
+// }
+
+Paraboloid reconstructionWithPU3D(const PUNeighborhood& a_neighborhood_geometry,
+                                  const double a_delta) {
+  PU pu_solver;
+  return pu_solver.solve(&a_neighborhood_geometry, a_delta);
+}
+
 Paraboloid reconstructionWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
   Jibben_3D jibben_solver;

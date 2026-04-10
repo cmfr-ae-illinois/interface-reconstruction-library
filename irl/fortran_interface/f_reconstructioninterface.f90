@@ -28,6 +28,7 @@ module f_ReconstructionInterface
   use f_PlanarSep_class
   use f_SeparatorVariant_class
   use f_JibbenNeigh_class
+  use f_PUNeigh_class
   use f_ELVIRANeigh_class
   use f_ListVM_VMAN_class
   use f_LVIRANeigh_RectCub_class
@@ -37,6 +38,10 @@ module f_ReconstructionInterface
   use f_OptimizationBehavior_class
   use f_R2PWeighting_class
   implicit none
+
+  interface reconstructPU3D
+    module procedure reconstructPU3D_Variant
+  end interface reconstructPU3D
 
   interface reconstructJibben3D
     module procedure reconstructJibben3D_Variant
@@ -169,6 +174,17 @@ module f_ReconstructionInterface
     end subroutine F_reconstructJibben3D_Variant
   end interface
 
+  interface
+    subroutine F_reconstructPU3D_Variant(a_PUNeigh, a_delta, a_separator) &
+    bind(C, name="c_reconstructPU3D_Variant")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_PUNeigh) :: a_PUNeigh ! Pointer to a PUNeigh object
+      real(C_DOUBLE), intent(in) :: a_delta
+      type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
+    end subroutine F_reconstructPU3D_Variant
+  end interface
 
   interface
     subroutine F_reconstructELVIRA3D_Variant(a_ELVIRANeigh, a_variant) &
@@ -548,6 +564,17 @@ module f_ReconstructionInterface
       call F_reconstructJibben3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
 
   end subroutine reconstructJibben3D_Variant
+
+  subroutine reconstructPU3D_Variant(a_pu_neighborhood, a_delta, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(PUNeigh_type), intent(in) :: a_pu_neighborhood
+      real(IRL_double), intent(in) :: a_delta
+      type(SeparatorVariant_type), intent(inout) :: a_separator
+
+      call F_reconstructPU3D_Variant(a_pu_neighborhood%c_object, a_delta, a_separator%c_object)
+
+  end subroutine reconstructPU3D_Variant
 
   subroutine reconstructELVIRA3D_Variant(a_elvira_neighborhood, a_variant)
     use, intrinsic :: iso_c_binding
