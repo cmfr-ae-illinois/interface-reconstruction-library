@@ -366,6 +366,72 @@ class SepUnionMultiFab : public FabArray<SepUnionArrayBox> {
     }
 #endif
   }
+
+  void ParallelCopyWithPeriodicShift(const SepUnionMultiFab& src, int src_comp,
+                                     int dest_comp, int num_comp,
+                                     int src_nghost, int dst_nghost,
+                                     const Geometry& geom) {
+    this->ParallelCopy(src, src_comp, dest_comp, num_comp, src_nghost,
+                       dst_nghost, geom.periodicity());
+    this->PeriodicShift(geom);
+  }
+
+  void FillBoundaryWithPeriodicShift(const Geometry& geom) {
+    this->FillBoundary(geom.periodicity());
+    this->PeriodicShift(geom);
+  }
+
+  void PeriodicShift(const Geometry& geom) {
+    const Box& domain = geom.Domain();
+    for (MFIter mfi((*this), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      const Box& grown_box = mfi.growntilebox();  // valid + all ghosts
+      const Box& valid_box = mfi.validbox();
+      const Box domain_intersection =
+          grown_box & domain;  // cells inside domain
+      const Array4<IRL::SeparatorUnion>& arr = (*this).array(mfi);
+
+      // Loop over all ghost cells (grown_box \ domain_intersection)
+      amrex::ParallelFor(grown_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+        // Skip if inside the domain (not a ghost)
+        if (domain_intersection.contains(i, j, k)) return;
+        // Is my ghost periodic?
+        bool is_periodic_ghost_x0 = false;
+        bool is_periodic_ghost_x1 = false;
+        bool is_periodic_ghost_y0 = false;
+        bool is_periodic_ghost_y1 = false;
+        bool is_periodic_ghost_z0 = false;
+        bool is_periodic_ghost_z1 = false;
+        AMREX_D_TERM(
+            is_periodic_ghost_x0 =
+                (geom.isPeriodic(0) && i < domain.smallEnd(0));
+            is_periodic_ghost_x1 = (geom.isPeriodic(0) && i > domain.bigEnd(0));
+            , is_periodic_ghost_y0 =
+                  (geom.isPeriodic(1) && j < domain.smallEnd(1));
+            is_periodic_ghost_y1 = (geom.isPeriodic(1) && j > domain.bigEnd(1));
+            , is_periodic_ghost_z0 =
+                  (geom.isPeriodic(2) && k < domain.smallEnd(2));
+            is_periodic_ghost_z1 =
+                (geom.isPeriodic(2) && k > domain.bigEnd(2)));
+        const bool is_periodic_ghost =
+            is_periodic_ghost_x0 || is_periodic_ghost_y0 ||
+            is_periodic_ghost_z0 || is_periodic_ghost_x1 ||
+            is_periodic_ghost_y1 || is_periodic_ghost_z1;
+        if (!is_periodic_ghost) return;
+        // Shift interface datum
+        const IRL::Pt shift =
+            IRL::Pt(is_periodic_ghost_x0
+                        ? -geom.ProbLength(0)
+                        : (is_periodic_ghost_x1 ? geom.ProbLength(0) : 0.0),
+                    is_periodic_ghost_y0
+                        ? -geom.ProbLength(1)
+                        : (is_periodic_ghost_y1 ? geom.ProbLength(1) : 0.0),
+                    is_periodic_ghost_z0
+                        ? -geom.ProbLength(2)
+                        : (is_periodic_ghost_z1 ? geom.ProbLength(2) : 0.0));
+        arr(i, j, k).shift(shift);
+      });
+    }
+  }
 };
 
 }  // namespace amrex

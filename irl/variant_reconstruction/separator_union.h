@@ -224,6 +224,26 @@ class SeparatorUnion {
     }
   };
 
+  void shift(const Pt a_shift) {
+    switch (type_m) {
+      case SeparatorType::OnePlane:
+        planes_m[0].distance() += planes_m[0].normal() * a_shift;
+        break;
+      case SeparatorType::TwoPlanes:
+        planes_m[0].distance() += planes_m[0].normal() * a_shift;
+        planes_m[1].distance() += planes_m[1].normal() * a_shift;
+        break;
+      case SeparatorType::Paraboloid:
+        paraboloid_m.setDatum(paraboloid_m.getDatum() + a_shift);
+        break;
+      case SeparatorType::Cylinder:
+        cylinder_m.setDatum(cylinder_m.getDatum() + a_shift);
+        break;
+      default:
+        std::runtime_error("SeparatorUnion type cannot shift datum");
+    }
+  };
+
  private:
   SeparatorType type_m;
   union {
