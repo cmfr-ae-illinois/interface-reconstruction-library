@@ -13,6 +13,13 @@
 
 extern "C" {
 
+double c_reconstructionMetricWithJibben3D(
+    const c_JibbenNeigh* a_jibben_neighborhood) {
+  return IRL::reconstructionMetricWithJibben3D(
+      *reinterpret_cast<const IRL::JibbenNeighborhood*>(
+          a_jibben_neighborhood->obj_ptr));
+}
+
 void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
                                const double* a_delta,
                                c_SeparatorVariant* a_separator) {
