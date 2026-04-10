@@ -1,4 +1,5 @@
 
+#include <AMReX_DistributionMapping.H>
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -9,8 +10,7 @@
 #include <fstream>
 #include <sstream>
 
-// #include <Kernels.H>
-#include "examples/amrex_advector/deformation_3d.h"
+#include "examples/amrex_advector/cases.h"
 
 using namespace amrex;
 
@@ -76,8 +76,14 @@ AmrCoreAdv::AmrCoreAdv() {
   // therefore flux_reg[0] is never actually used in the reflux operation
   flux_reg.resize(nlevs_max + 1);
 
-  ParmParse pp("case");
-  pp.get("name", case_name);
+  ParmParse ppcase("case");
+  ppcase.get("name", case_name);
+
+  ParmParse pprec("reconstruction");
+  pprec.get("name", reconstruction_name);
+
+  ParmParse ppadv("advection");
+  ppadv.get("name", advection_name);
 }
 
 AmrCoreAdv::~AmrCoreAdv() {}
@@ -124,6 +130,7 @@ void AmrCoreAdv::Evolve() {
   }
 
   if (plot_int > 0 && istep[0] > last_plot_file_step) {
+    GetReconstruction(finest_level);
     WritePlotFile();
   }
 }
@@ -180,6 +187,145 @@ void AmrCoreAdv::MakeNewLevelFromCoarse(int lev, Real time, const BoxArray& ba,
   FillCoarsePatch(lev, time, moments_new[lev], 0, ncomp);
 }
 
+DistributionMapping AmrCoreAdv::MakeDistributionMapWithWeights(
+    int lev, const BoxArray& ba) {
+  // Build weights from band_id on the OLD layout
+  // one weight per box in the OLD grids[lev]
+  int nboxes = ba.size();
+  Vector<Real> weights(nboxes, 1.0);
+
+  for (MFIter mfi(band_id[lev]); mfi.isValid(); ++mfi) {
+    // sum band_id over the box to get a scalar cost per box
+    auto const& arr = band_id[lev].const_array(mfi);
+    const Box& bx = mfi.validbox();
+    Real local_sum = 0;
+    Loop(bx, [&](int i, int j, int k) { local_sum += arr(i, j, k); });
+    weights[mfi.index()] = std::max(1.0, local_sum);
+  }
+
+  // Reduce across all MPI ranks so every rank has the full weight vector
+  ParallelDescriptor::ReduceRealSum(weights.data(), nboxes);
+
+  return DistributionMapping::makeKnapSack(weights);
+}
+
+void AmrCoreAdv::RedistributeLevel(int lev) {
+  // Build new DM from current weights
+  const BoxArray& ba = grids[lev];
+  DistributionMapping new_dm = MakeDistributionMapWithWeights(lev, ba);
+
+  // If DM hasn't changed, nothing to do
+  if (new_dm == dmap[lev]) return;
+
+  // --- Rebuild new_moments_new ---
+  {
+    MultiFab new_moments_new(ba, new_dm, moments_new[lev].nComp(),
+                             moments_new[lev].nGrow());
+    new_moments_new.ParallelCopy(
+        moments_new[lev], 0, 0, moments_new[lev].nComp(),
+        moments_new[lev].nGrow(), moments_new[lev].nGrow());
+    std::swap(moments_new[lev], new_moments_new);
+  }
+
+  // --- Rebuild phi_old ---
+  {
+    MultiFab new_moments_old(ba, new_dm, moments_old[lev].nComp(),
+                             moments_old[lev].nGrow());
+    new_moments_old.ParallelCopy(
+        moments_old[lev], 0, 0, moments_old[lev].nComp(),
+        moments_old[lev].nGrow(), moments_old[lev].nGrow());
+    std::swap(moments_old[lev], new_moments_old);
+  }
+
+  // --- Rebuild band_id ---
+  {
+    MultiFab new_band_id(ba, new_dm, 1, band_id[lev].nGrow());
+    new_band_id.ParallelCopy(band_id[lev], 0, 0, 1, band_id[lev].nGrow(),
+                             band_id[lev].nGrow());
+    std::swap(band_id[lev], new_band_id);
+  }
+
+  // --- Rebuild interface ---
+  {
+    SepUnionMultiFab new_interface(ba, new_dm, 1, interface[lev].nGrow());
+    new_interface.ParallelCopy(interface[lev], 0, 0, 1, interface[lev].nGrow(),
+                               interface[lev].nGrow());
+    std::swap(interface[lev], new_interface);
+  }
+
+  // --- Rebuild flux registers if needed ---
+  // This clears the old MultiFab and allocates the new one
+  for (int idim = 0; idim < AMREX_SPACEDIM; idim++) {
+    facevel[lev][idim] =
+        MultiFab(amrex::convert(ba, IntVect::TheDimensionVector(idim)), new_dm,
+                 1, num_grow);
+  }
+
+  if (lev > 0 && do_reflux) {
+    flux_reg[lev].reset(new FluxRegister(ba, new_dm, refRatio(lev - 1), lev,
+                                         moments_new[lev].nComp()));
+  }
+
+  // Tell AMReX about the new DM
+  SetDistributionMap(lev, new_dm);
+}
+
+void AmrCoreAdv::regrid(int lbase, Real time, bool) {
+  if (lbase >= max_level) {
+    return;
+  }
+
+  int new_finest;
+  Vector<BoxArray> new_grids(finest_level + 2);
+  MakeNewGrids(lbase, time, new_finest, new_grids);
+
+  BL_ASSERT(new_finest <= finest_level + 1);
+
+  bool coarse_ba_changed = false;
+  for (int lev = lbase + 1; lev <= new_finest; ++lev) {
+    if (lev <= finest_level)  // an old level
+    {
+      bool ba_changed = (new_grids[lev] != grids[lev]);
+      if (ba_changed || coarse_ba_changed) {
+        BoxArray level_grids = grids[lev];
+        DistributionMapping level_dmap = dmap[lev];
+        if (ba_changed) {
+          level_grids = new_grids[lev];
+          level_dmap = MakeDistributionMap(lev, level_grids);
+          // level_dmap = MakeDistributionMapWithWeights(lev, level_grids);
+        }
+        const auto old_num_setdm = num_setdm;
+        RemakeLevel(lev, time, level_grids, level_dmap);
+        SetBoxArray(lev, level_grids);
+        if (old_num_setdm == num_setdm) {
+          SetDistributionMap(lev, level_dmap);
+        }
+      }
+      coarse_ba_changed = ba_changed;
+      ;
+    } else  // a new level
+    {
+      DistributionMapping new_dmap = MakeDistributionMap(lev, new_grids[lev]);
+      // DistributionMapping new_dmap =
+      //     MakeDistributionMapWithWeights(lev, new_grids[lev]);
+      const auto old_num_setdm = num_setdm;
+      MakeNewLevelFromCoarse(lev, time, new_grids[lev], new_dmap);
+      SetBoxArray(lev, new_grids[lev]);
+      if (old_num_setdm == num_setdm) {
+        SetDistributionMap(lev, new_dmap);
+      }
+    }
+  }
+
+  for (int lev = new_finest + 1; lev <= finest_level; ++lev) {
+    ClearLevel(lev);
+    ClearBoxArray(lev);
+    ClearDistributionMap(lev);
+  }
+
+  finest_level = new_finest;
+}
+
 // Remake an existing level using provided BoxArray and DistributionMapping and
 // fill with existing fine and coarse data.
 // overrides the pure virtual function in AmrCore
@@ -194,8 +340,8 @@ void AmrCoreAdv::RemakeLevel(int lev, Real time, const BoxArray& ba,
   SepUnionMultiFab new_interface(ba, dm, 1, nghost);
 
   FillPatch(lev, time, new_state, 0, ncomp);
-  new_interface.ParallelCopy(interface[lev], 0, 0, 1, nghost, nghost,
-                             geom[lev].periodicity());
+  new_interface.ParallelCopyWithPeriodicShift(interface[lev], 0, 0, 1, nghost,
+                                              nghost, geom[lev]);
 
   std::swap(new_state, moments_new[lev]);
   std::swap(old_state, moments_old[lev]);
@@ -266,9 +412,14 @@ void AmrCoreAdv::MakeNewLevelFromScratch(int lev, Real time, const BoxArray& ba,
     Array4<IRL::SeparatorUnion> interface_fab = interface_lev[mfi].array();
     const Box& box = mfi.tilebox();
 
-    if (case_name == "deformation3d" || case_name == "default") {
+    if (case_name == "deformation3d") {
       amrex::launch(box, [=] AMREX_GPU_DEVICE(const Box& tbx) {
         Deformation3D::initialize_case(tbx, moments_fab, interface_fab, problo,
+                                       dx);
+      });
+    } else if (case_name == "translation3d" || case_name == "default") {
+      amrex::launch(box, [=] AMREX_GPU_DEVICE(const Box& tbx) {
+        Translation3D::initialize_case(tbx, moments_fab, interface_fab, problo,
                                        dx);
       });
     } else {
@@ -508,6 +659,7 @@ void AmrCoreAdv::timeStepNoSubcycling(Real time, int iteration) {
     if (istep[0] % regrid_int == 0) {
       UpdateBand();
       regrid(0, time);
+      // RedistributeLevel(finest_level);
     }
   }
 
@@ -575,8 +727,10 @@ Real AmrCoreAdv::EstTimeStep(int lev, Real time) {
   const Real* dx = geom[lev].CellSize();
 
   Real max_vel = 0.0;
-  if (case_name == "deformation3d" || case_name == "default") {
+  if (case_name == "deformation3d") {
     max_vel = Deformation3D::get_max_vel();
+  } else if (case_name == "translation3d") {
+    max_vel = Translation3D::get_max_vel();
   }
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -1025,52 +1179,54 @@ void AmrCoreAdv::ReadCheckpointFile() {
   }
 }
 
-inline IRL::Vec3<double> AmrCoreAdv::getVelocity(const IRL::Pt& pt,
-                                                 Array4<Real const> const& vx,
-                                                 Array4<Real const> const& vy,
-                                                 Array4<Real const> const& vz,
-                                                 const Box& bx, const int lev) {
-  const auto& dx = geom[lev].CellSizeArray();
-  const auto& prob_lo = geom[lev].ProbLoArray();
-  const auto& lo = lbound(bx);
-  const auto& hi = ubound(bx);
-  // Find which cell the point falls in
-  int i = static_cast<int>(amrex::Math::floor((pt[0] - prob_lo[0]) / dx[0]));
-  int j = static_cast<int>(amrex::Math::floor((pt[1] - prob_lo[1]) / dx[1]));
-  int k = static_cast<int>(amrex::Math::floor((pt[2] - prob_lo[2]) / dx[2]));
-  if (!bx.contains(i, j, k)) {
-    std::ostringstream oss;
-    oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
-        << ") leads to index (" << i << "," << j << "," << k
-        << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z << ")x("
-        << hi.x << "," << hi.y << "," << hi.z << ")";
-    throw std::runtime_error(oss.str());
-  }
-  // Cell lo face positions
-  Real xlo = prob_lo[0] + i * dx[0];
-  Real ylo = prob_lo[1] + j * dx[1];
-  Real zlo = prob_lo[2] + k * dx[2];
-  // Normalized position within cell [0,1]
-  Real tx = (pt[0] - xlo) / dx[0];
-  Real ty = (pt[1] - ylo) / dx[1];
-  Real tz = (pt[2] - zlo) / dx[2];
-  return IRL::Vec3<double>(vx(i, j, k) * (1.0 - tx) + vx(i + 1, j, k) * tx,
-                           vy(i, j, k) * (1.0 - ty) + vy(i, j + 1, k) * ty,
-                           vz(i, j, k) * (1.0 - tz) + vz(i, j, k + 1) * tz);
-}
+// inline IRL::Vec3<double> AmrCoreAdv::getVelocity(const IRL::Pt& pt,
+//                                                  Array4<Real const> const&
+//                                                  vx, Array4<Real const>
+//                                                  const& vy, Array4<Real
+//                                                  const> const& vz, const Box&
+//                                                  bx, const int lev) {
+//   const auto& dx = geom[lev].CellSizeArray();
+//   const auto& prob_lo = geom[lev].ProbLoArray();
+//   const auto& lo = lbound(bx);
+//   const auto& hi = ubound(bx);
+//   // Find which cell the point falls in
+//   int i = static_cast<int>(amrex::Math::floor((pt[0] - prob_lo[0]) / dx[0]));
+//   int j = static_cast<int>(amrex::Math::floor((pt[1] - prob_lo[1]) / dx[1]));
+//   int k = static_cast<int>(amrex::Math::floor((pt[2] - prob_lo[2]) / dx[2]));
+//   if (!bx.contains(i, j, k)) {
+//     std::ostringstream oss;
+//     oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
+//         << ") leads to index (" << i << "," << j << "," << k
+//         << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z <<
+//         ")x("
+//         << hi.x << "," << hi.y << "," << hi.z << ")";
+//     throw std::runtime_error(oss.str());
+//   }
+//   // Cell lo face positions
+//   Real xlo = prob_lo[0] + i * dx[0];
+//   Real ylo = prob_lo[1] + j * dx[1];
+//   Real zlo = prob_lo[2] + k * dx[2];
+//   // Normalized position within cell [0,1]
+//   Real tx = (pt[0] - xlo) / dx[0];
+//   Real ty = (pt[1] - ylo) / dx[1];
+//   Real tz = (pt[2] - zlo) / dx[2];
+//   return IRL::Vec3<double>(vx(i, j, k) * (1.0 - tx) + vx(i + 1, j, k) * tx,
+//                            vy(i, j, k) * (1.0 - ty) + vy(i, j + 1, k) * ty,
+//                            vz(i, j, k) * (1.0 - tz) + vz(i, j, k + 1) * tz);
+// }
 
-inline IRL::Pt AmrCoreAdv::project_vertex(const IRL::Pt& pt, const double dt,
-                                          Array4<Real const> const& vx,
-                                          Array4<Real const> const& vy,
-                                          Array4<Real const> const& vz,
-                                          const Box& bx, const int lev) {
-  using Pt = IRL::Pt;
-  auto v1 = getVelocity(pt, vx, vy, vz, bx, lev);
-  auto v2 = getVelocity(pt + Pt::fromVec3(0.5 * dt * v1), vx, vy, vz, bx, lev);
-  auto v3 = getVelocity(pt + Pt::fromVec3(0.5 * dt * v2), vx, vy, vz, bx, lev);
-  auto v4 = getVelocity(pt + Pt::fromVec3(dt * v3), vx, vy, vz, bx, lev);
-  return pt + Pt::fromVec3(dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
-}
+// inline IRL::Pt AmrCoreAdv::project_vertex(const IRL::Pt& pt, const double dt,
+//                                           Array4<Real const> const& vx,
+//                                           Array4<Real const> const& vy,
+//                                           Array4<Real const> const& vz,
+//                                           const Box& bx, const int lev) {
+//   using Pt = IRL::Pt;
+//   auto v1 = getVelocity(pt, vx, vy, vz, bx, lev);
+//   auto v2 = getVelocity(pt + Pt::fromVec3(0.5 * dt * v1), vx, vy, vz, bx,
+//   lev); auto v3 = getVelocity(pt + Pt::fromVec3(0.5 * dt * v2), vx, vy, vz,
+//   bx, lev); auto v4 = getVelocity(pt + Pt::fromVec3(dt * v3), vx, vy, vz, bx,
+//   lev); return pt + Pt::fromVec3(dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
+// }
 
 void AmrCoreAdv::UpdateBand() {
   for (int lev = 0; lev <= finest_level; lev++) {
@@ -1126,7 +1282,7 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
   UpdateBand();
 
   // for (int lev = 0; lev <= finest_level; lev++) {
-  int lev = finest_level;
+  const int lev = finest_level;
   {
     // Get geometrical information
     const auto dx = geom[lev].CellSizeArray();
@@ -1140,264 +1296,32 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
     // std::swap(moments_old[lev], moments_new[lev]);
     t_old[lev] = t_new[lev];
     t_new[lev] += dt_lev;
-    Real dtdx = dt_lev / dx[0];
-    Real dtdy = dt_lev / dx[1];
-    Real dtdz = dt_lev / dx[2];
 
-    // State with ghost cells
+    // Build tmp moment multifab with ghost layers
     MultiFab moments_with_ghost(grids[lev], dmap[lev], ncomp_moments, num_grow);
     MultiFab::Copy(moments_with_ghost, moments_old[lev], 0, 0,
                    moments_old[lev].nComp(), moments_old[lev].nGrow());
     moments_with_ghost.FillBoundary(geom[lev].periodicity());
-    // FillPatch(lev, time, moments_with_ghost, 0,
-    // moments_with_ghost.nComp());
 
-    // Reconstruct interface
-    for (MFIter mfi(interface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-      Array4<IRL::SeparatorUnion> interface_lev = interface[lev].array(mfi);
-      Array4<Real const> moments = moments_with_ghost.const_array(mfi);
-      const Box& bx = mfi.tilebox();
-
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        if (moments(i, j, k) * vol_inv <= IRL::global_constants::VF_LOW) {
-          interface_lev(i, j, k) = IRL::Paraboloid::createAlwaysBelow();
-        } else if (moments(i, j, k) * vol_inv >=
-                   IRL::global_constants::VF_HIGH) {
-          interface_lev(i, j, k) = IRL::Paraboloid::createAlwaysAbove();
-        } else {
-          //////////////////////////////////////// MOF
-          // const double x = problo[0] + i * dx[0];
-          // const double y = problo[1] + j * dx[1];
-          // const double z = problo[2] + k * dx[2];
-          // const IRL::Pt lower_cell_pt(x, y, z);
-          // const IRL::Pt upper_cell_pt(x + dx[0], y + dx[1], z + dx[2]);
-          // const IRL::Pt cell_center = 0.5 * (lower_cell_pt + upper_cell_pt);
-          // const auto cell = IRL::RectangularCuboid::fromBoundingPts(
-          //     lower_cell_pt, upper_cell_pt);
-          // const double liq_m0 = moments(i, j, k, 0);
-          // const double gas_m0 = vol - liq_m0;
-          // const IRL::Pt liq_m1 =
-          //     (1.0 / liq_m0) * IRL::Pt(moments(i, j, k, 1), moments(i, j, k,
-          //     2),
-          //                              moments(i, j, k, 3));
-          // const IRL::Pt gas_m1 =
-          //     (1.0 / gas_m0) *
-          //     (vol * cell_center - IRL::Pt(moments(i, j, k, 1),
-          //                                  moments(i, j, k, 2),
-          //                                  moments(i, j, k, 3)));
-          // const IRL::SeparatedMoments<IRL::VolumeMoments> svm(
-          //     IRL::VolumeMoments(liq_m0, liq_m1),
-          //     IRL::VolumeMoments(gas_m0, gas_m1));
-          // interface_lev(i, j, k) =
-          //     IRL::reconstructionWithMOF3D(cell, svm, 0.5, 0.5);
-          ///////////////////////////////// LVIRA
-          IRL::ELVIRANeighborhood elvira_neighborhood;
-          IRL::LVIRANeighborhood<IRL::RectangularCuboid> lvira_neighborhood;
-          elvira_neighborhood.resize(27);
-          lvira_neighborhood.resize(27);
-          IRL::RectangularCuboid cells[27];
-          std::array<double, 27> cells_vfrac;
-          for (int kk = k - 1; kk < k + 2; ++kk) {
-            for (int jj = j - 1; jj < j + 2; ++jj) {
-              for (int ii = i - 1; ii < i + 2; ++ii) {
-                // Reversed order, bad for cache locality but thats okay..
-                const int neigh_id =
-                    (kk - k + 1) * 9 + (jj - j + 1) * 3 + (ii - i + 1);
-                const double xx = problo[0] + ii * dx[0];
-                const double yy = problo[1] + jj * dx[1];
-                const double zz = problo[2] + kk * dx[2];
-                cells[neigh_id] = IRL::RectangularCuboid::fromBoundingPts(
-                    IRL::Pt(xx, yy, zz),
-                    IRL::Pt(xx + dx[0], yy + dx[1], zz + dx[2]));
-                cells_vfrac[neigh_id] = moments(ii, jj, kk, 0) * vol_inv;
-                elvira_neighborhood.setMember(&cells[neigh_id],
-                                              &cells_vfrac[neigh_id], ii - i,
-                                              jj - j, kk - k);
-                lvira_neighborhood.setMember(
-                    static_cast<IRL::UnsignedIndex_t>(neigh_id),
-                    &cells[neigh_id], &cells_vfrac[neigh_id]);
-                // Trap center cell
-                if (ii == i && jj == j && kk == k) {
-                  lvira_neighborhood.setCenterOfStencil(neigh_id);
-                }
-              }
-            }
-          }
-          // Now perform actual LVIRA and obtain interface PlanarSeparator
-          interface_lev(i, j, k) =
-              IRL::reconstructionWithELVIRA3D(elvira_neighborhood);
-          const auto planar_separator = IRL::PlanarSeparator::fromOnePlane(
-              interface_lev(i, j, k).getPlane());
-          interface_lev(i, j, k) = IRL::reconstructionWithLVIRA3D(
-              lvira_neighborhood, planar_separator);
-        }
-      });
-    }  // end mfi
-
+    // Build tmp interface multifab with ghost layers
     SepUnionMultiFab interface_with_ghost(grids[lev], dmap[lev],
                                           interface[lev].nComp(), num_grow);
-    for (MFIter mfi(interface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-      Array4<IRL::SeparatorUnion const> interface_lev =
-          interface[lev].const_array(mfi);
-      Array4<IRL::SeparatorUnion> tmp_interface =
-          interface_with_ghost.array(mfi);
-      amrex::ParallelFor(mfi.tilebox(),
-                         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                           tmp_interface(i, j, k) = interface_lev(i, j, k);
-                         });
-    }
-    interface_with_ghost.FillBoundary(geom[lev].periodicity());
 
-    for (MFIter mfi(moments_with_ghost, TilingIfNotGPU()); mfi.isValid();
-         ++mfi) {
-      Array4<Real const> velx = facevel[lev][0].const_array(mfi);
-      Array4<Real const> vely = facevel[lev][1].const_array(mfi);
-      Array4<Real const> velz = facevel[lev][2].const_array(mfi);
-      Array4<IRL::SeparatorUnion const> interface_lev =
-          interface_with_ghost.const_array(mfi);
+    // Reconstruct interface and update ghosts
+    amrex::ParallelDescriptor::Barrier();
+    const auto rec_start = amrex::second();
+    GetReconstruction(interface[lev], interface_with_ghost, moments_with_ghost,
+                      geom[lev]);
+    amrex::ParallelDescriptor::Barrier();
+    reconstruction_time += amrex::second() - rec_start;
 
-      const Box& bx = mfi.tilebox();
-      const Box& grown_bx = mfi.growntilebox();
-      // const Box& gbx = amrex::grow(bx, 1);
-
-      Array4<Real const> old_moments_lev = moments_old[lev].const_array(mfi);
-      Array4<Real const> band_id_lev = band_id[lev].const_array(mfi);
-      Array4<Real> new_moments_lev = moments_new[lev].array(mfi);
-
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        if (band_id_lev(i, j, k) != 0.0) {
-          std::array<double, 6> flux_volumes;
-          std::array<IRL::Pt, 8> cell;
-          std::array<IRL::Pt, 14> preimage;
-          IRL::CappedDodecahedron flux;
-          const double x = problo[0] + i * dx[0];
-          const double y = problo[1] + j * dx[1];
-          const double z = problo[2] + k * dx[2];
-          // Initialize cell corners
-          cell[0] = IRL::Pt(x + dx[0], y, z + dx[2]);
-          cell[1] = IRL::Pt(x + dx[0], y, z);
-          cell[2] = IRL::Pt(x + dx[0], y + dx[1], z);
-          cell[3] = IRL::Pt(x + dx[0], y + dx[1], z + dx[2]);
-          cell[4] = IRL::Pt(x, y, z + dx[2]);
-          cell[5] = IRL::Pt(x, y, z);
-          cell[6] = IRL::Pt(x, y + dx[1], z);
-          cell[7] = IRL::Pt(x, y + dx[1], z + dx[2]);
-          // Compute the back projected cell corners
-          for (int n = 0; n < 8; ++n) {
-            preimage[n] = project_vertex(cell[n], -dt[lev], velx, vely, velz,
-                                         grown_bx, lev);
-          }
-          // Compute soleinoidal flux volumes
-          flux_volumes[0] = dt[lev] * velx(i, j, k) * dx[1] * dx[2];
-          flux_volumes[1] = dt[lev] * velx(i + 1, j, k) * dx[1] * dx[2];
-          flux_volumes[2] = dt[lev] * vely(i, j, k) * dx[0] * dx[2];
-          flux_volumes[3] = dt[lev] * vely(i, j + 1, k) * dx[0] * dx[2];
-          flux_volumes[4] = dt[lev] * velz(i, j, k) * dx[0] * dx[1];
-          flux_volumes[5] = dt[lev] * velz(i, j, k + 1) * dx[0] * dx[1];
-          // Create face flux hexahedra to compute correction
-          for (int f = 0; f < 6; f++) {
-            for (int i = 0; i < 4; i++) {
-              flux[i] = cell[flux_id_table[f][i]];
-              flux[i + 4] = preimage[flux_id_table[f][i]];
-            }
-            flux[8] =
-                project_vertex(0.25 * (flux[0] + flux[1] + flux[2] + flux[3]),
-                               -dt[lev], velx, vely, velz, grown_bx, lev);
-            flux.adjustCapToMatchVolume(flux_volumes[f]);
-            preimage[face_center_id_table[f]] = flux[8];
-          }
-          const auto preimage_cell =
-              IRL::Polyhedron24::fromRawPtPointer(14, preimage.data());
-
-          // Compute bounding box of preimage
-          Real xlo = preimage[0][0];
-          Real ylo = preimage[0][1];
-          Real zlo = preimage[0][2];
-          Real xhi = preimage[0][0];
-          Real yhi = preimage[0][1];
-          Real zhi = preimage[0][2];
-          for (int i = 1; i < 14; i++) {
-            xlo = preimage[i][0] < xlo ? preimage[i][0] : xlo;
-            ylo = preimage[i][1] < ylo ? preimage[i][1] : ylo;
-            zlo = preimage[i][2] < zlo ? preimage[i][2] : zlo;
-            xhi = preimage[i][0] > xhi ? preimage[i][0] : xhi;
-            yhi = preimage[i][1] > yhi ? preimage[i][1] : yhi;
-            zhi = preimage[i][2] > zhi ? preimage[i][2] : zhi;
-          }
-          int ilo =
-              static_cast<int>(amrex::Math::floor((xlo - problo[0]) / dx[0]));
-          int jlo =
-              static_cast<int>(amrex::Math::floor((ylo - problo[1]) / dx[1]));
-          int klo =
-              static_cast<int>(amrex::Math::floor((zlo - problo[2]) / dx[2]));
-          int ihi =
-              static_cast<int>(amrex::Math::floor((xhi - problo[0]) / dx[0]));
-          int jhi =
-              static_cast<int>(amrex::Math::floor((yhi - problo[1]) / dx[1]));
-          int khi =
-              static_cast<int>(amrex::Math::floor((zhi - problo[2]) / dx[2]));
-
-          if (!grown_bx.contains(ilo, jlo, klo)) {
-            std::cout << "Cell " << i << " " << j << " " << k << " has lo "
-                      << ilo << " " << jlo << " " << klo << std::endl;
-          }
-          if (!grown_bx.contains(ihi, jhi, khi)) {
-            std::cout << "Cell " << i << " " << j << " " << k << " has hi "
-                      << ihi << " " << jhi << " " << khi << std::endl;
-          }
-
-          // Intersect preimage
-          for (int n = 0; n < 4; n++) {
-            new_moments_lev(i, j, k, n) = 0.0;
-          }
-          for (int kk = klo; kk <= khi; kk++) {
-            for (int jj = jlo; jj <= jhi; jj++) {
-              for (int ii = ilo; ii <= ihi; ii++) {
-                const double xloc = problo[0] + ii * dx[0];
-                const double yloc = problo[1] + jj * dx[1];
-                const double zloc = problo[2] + kk * dx[2];
-                const auto cell_loc = IRL::RectangularCuboid::fromBoundingPts(
-                    IRL::Pt(xloc, yloc, zloc),
-                    IRL::Pt(xloc + dx[0], yloc + dx[1], zloc + dx[2]));
-                IRL::PlanarLocalizer localizer = cell_loc.getLocalizer();
-                if (!(interface_lev(ii, jj, kk).type() ==
-                          IRL::SeparatorUnion::SeparatorType::OnePlane ||
-                      interface_lev(ii, jj, kk).type() ==
-                          IRL::SeparatorUnion::SeparatorType::Paraboloid)) {
-                  std::cout
-                      << "Neigh " << ii << " " << jj << " " << kk
-                      << " has type "
-                      << static_cast<int>(interface_lev(ii, jj, kk).type())
-                      << std::endl;
-                }
-                IRL::LocalizedSeparatorUnion local_sep(
-                    &localizer, &interface_lev(ii, jj, kk));
-                auto cut_moments = IRL::getVolumeMoments<IRL::VolumeMoments>(
-                    preimage_cell, local_sep);
-                const double m0 = cut_moments.volume();
-                IRL::Pt centroid =
-                    (1.0 / IRL::safelyEpsilon(m0)) * cut_moments.centroid();
-                centroid[0] = std::max(centroid[0], xloc);
-                centroid[0] = std::min(centroid[0], xloc + dx[0]);
-                centroid[1] = std::max(centroid[1], yloc);
-                centroid[1] = std::min(centroid[1], yloc + dx[1]);
-                centroid[2] = std::max(centroid[2], zloc);
-                centroid[2] = std::min(centroid[2], zloc + dx[2]);
-                centroid = project_vertex(centroid, dt[lev], velx, vely, velz,
-                                          grown_bx, lev);
-                new_moments_lev(i, j, k, 0) += m0;
-                new_moments_lev(i, j, k, 1) += m0 * centroid[0];
-                new_moments_lev(i, j, k, 2) += m0 * centroid[1];
-                new_moments_lev(i, j, k, 3) += m0 * centroid[2];
-              }
-            }
-          }
-
-          // Update moments
-          // new_moments_lev(i, j, k) = old_moments_lev(i, j, k);
-        }
-      });
-    }  // end mfi
+    // Advect moments using reconstructed interface
+    amrex::ParallelDescriptor::Barrier();
+    const auto adv_start = amrex::second();
+    TransportMoments(interface_with_ghost, facevel[lev], band_id[lev],
+                     moments_new[lev], geom[lev], dt[lev]);
+    amrex::ParallelDescriptor::Barrier();
+    advection_time += amrex::second() - adv_start;
   }  // end lev
 }
 
@@ -1426,7 +1350,7 @@ void AmrCoreAdv::DefineVelocityAtLevel(int lev, Real time) {
     const Real* AMREX_RESTRICT dx = geomdata.CellSize();
     const Real* AMREX_RESTRICT prob_lo = geomdata.ProbLo();
 
-    if (case_name == "deformation3d" || case_name == "default") {
+    if (case_name == "deformation3d") {
       amrex::ParallelFor(
           AMREX_D_DECL(ngbxx, ngbxy, ngbxz),
           AMREX_D_DECL(
@@ -1454,8 +1378,28 @@ void AmrCoreAdv::DefineVelocityAtLevel(int lev, Real time) {
                 vel[2](i, j, k) =
                     Deformation3D::get_face_velocity_z(x, y, z, time);
               }));
+    } else if (case_name == "translation3d" || case_name == "default") {
+      amrex::ParallelFor(
+          AMREX_D_DECL(ngbxx, ngbxy, ngbxz),
+          AMREX_D_DECL(
+              // X-faces
+              [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                vel[0](i, j, k) = Translation3D::get_face_velocity_x();
+              },
+              // Y-faces
+              [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                vel[1](i, j, k) = Translation3D::get_face_velocity_y();
+              },
+              // Z-faces
+              [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                vel[2](i, j, k) = Translation3D::get_face_velocity_z();
+              }));
     } else {
       throw std::runtime_error("Unknown case");
     }
   }
 }
+
+Real AmrCoreAdv::RecTime() { return reconstruction_time; }
+
+Real AmrCoreAdv::AdvTime() { return advection_time; }

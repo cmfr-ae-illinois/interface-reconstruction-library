@@ -10,8 +10,7 @@
 #include <AMReX_FluxRegister.H>
 
 #include "irl/amrex/sepunion_multifab.h"
-
-#include "irl/interface_reconstruction_methods/reconstruction_interface.h"
+#include "irl/generic_cutting/cut_polygon.h"
 
 class AmrCoreAdv : public amrex::AmrCore {
  public:
@@ -28,6 +27,14 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // initializes multilevel data
   void InitData();
+
+  amrex::DistributionMapping MakeDistributionMapWithWeights(
+      int lev, const amrex::BoxArray& ba);
+
+  void RedistributeLevel(int lev);
+
+  virtual void regrid(int lbase, amrex::Real time,
+                      bool initial = false) override;
 
   // Make a new level using provided BoxArray and DistributionMapping and
   // fill with interpolated coarse level data.
@@ -70,6 +77,9 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // compute dt from CFL considerations
   amrex::Real EstTimeStep(int lev, amrex::Real time);
+
+  amrex::Real RecTime();
+  amrex::Real AdvTime();
 
  private:
   ////////////////
@@ -128,6 +138,18 @@ class AmrCoreAdv : public amrex::AmrCore {
   // read checkpoint file from disk
   void ReadCheckpointFile();
 
+  void GetReconstruction(const int lev);
+  void GetReconstruction(amrex::SepUnionMultiFab& interface,
+                         amrex::SepUnionMultiFab& interface_with_ghost,
+                         const amrex::MultiFab& moments,
+                         const amrex::Geometry& a_geom);
+
+  void TransportMoments(
+      const amrex::SepUnionMultiFab& a_interface_with_ghost,
+      const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& a_facevel,
+      const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
+      const amrex::Geometry& a_geom, const double a_dt);
+
   ////////////////
   // private data members
 
@@ -174,8 +196,18 @@ class AmrCoreAdv : public amrex::AmrCore {
   // case name
   std::string case_name = "default";
 
+  // reconstruction name
+  std::string reconstruction_name = "default";
+
+  // advection name
+  std::string advection_name = "default";
+
   // advective cfl number - dt = cfl*dx/umax
   amrex::Real cfl = 0.7;
+
+  // timers
+  amrex::Real reconstruction_time = 0.0;
+  amrex::Real advection_time = 0.0;
 
   // how often each level regrids the higher levels of refinement
   // (after a level advances that many time steps)
@@ -194,31 +226,11 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // Number of ghost layers needed for advection
   int num_grow = 1;
-
-  // Lookup tables for construction of flux-corrected Poly24
-  static constexpr std::array<std::array<int, 4>, 6> flux_id_table = {
-      {{4, 5, 6, 7},
-       {0, 1, 2, 3},
-       {1, 5, 4, 0},
-       {2, 6, 7, 3},
-       {6, 5, 1, 2},
-       {7, 4, 0, 3}}};
-  static constexpr std::array<int, 6> face_center_id_table = {
-      {13, 8, 9, 11, 10, 12}};
-
-  IRL::Vec3<double> getVelocity(const IRL::Pt& pt,
-                                amrex::Array4<amrex::Real const> const& vx,
-                                amrex::Array4<amrex::Real const> const& vy,
-                                amrex::Array4<amrex::Real const> const& vz,
-                                const amrex::Box& bx, const int lev);
-
-  IRL::Pt project_vertex(const IRL::Pt& pt, const double dt,
-                         amrex::Array4<amrex::Real const> const& vx,
-                         amrex::Array4<amrex::Real const> const& vy,
-                         amrex::Array4<amrex::Real const> const& vz,
-                         const amrex::Box& bx, const int lev);
 };
 
 #include "examples/amrex_advector/amrcore_advector.tpp"
+
+#include "examples/amrex_advector/advection.tpp"
+#include "examples/amrex_advector/reconstruction.tpp"
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_AMRCORE_H_

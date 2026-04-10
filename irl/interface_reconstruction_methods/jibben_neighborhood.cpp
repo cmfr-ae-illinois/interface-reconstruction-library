@@ -16,7 +16,7 @@ JibbenNeighborhood::JibbenNeighborhood(void)
       is_localized_m(false),
       delta_m(0.0) {}
 
-void JibbenNeighborhood::addMember(const Polygon& a_polygon,
+void JibbenNeighborhood::addMember(const Polygon a_polygon,
                                    const double a_weight) {
   polygons_m.push_back(a_polygon);
   weights_m.push_back(a_weight);

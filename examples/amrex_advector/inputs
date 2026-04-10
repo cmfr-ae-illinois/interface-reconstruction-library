@@ -11,6 +11,16 @@ stop_time = 3.0
 case.name = deformation3d
 
 # *****************************************************************
+# Which interface reconstruction method to use?
+# *****************************************************************
+reconstruction.name = jibben
+
+# *****************************************************************
+# Which interface advection method to use?
+# *****************************************************************
+advection.name = remap
+
+# *****************************************************************
 # Are we restarting from an existing checkpoint file?
 # *****************************************************************
 #amr.restart  = chk00060 # restart from this checkpoint file
@@ -34,7 +44,7 @@ amr.v              = 1       # verbosity in Amr
 # Resolution and refinement
 # *****************************************************************
 amr.n_cell          = 2 2 2
-amr.max_level       = 6       # maximum level number allowed -- 
+amr.max_level       = 5       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
 amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
@@ -49,14 +59,14 @@ amr.blocking_factor_x = 2
 amr.blocking_factor_y = 2
 amr.blocking_factor_z = 2
 
-amr.max_grid_size   = 2
+amr.max_grid_size   = 8
 
 amr.regrid_int      = 1       # how often to regrid
 
 # *****************************************************************
 # Time step control
 # *****************************************************************
-adv.cfl            = 2     # CFL constraint for explicit advection
+adv.cfl            = 1     # CFL constraint for explicit advection
 
 # *****************************************************************
 # Should we reflux at coarse-fine boundaries?

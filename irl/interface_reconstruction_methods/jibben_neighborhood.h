@@ -23,7 +23,7 @@ class JibbenNeighborhood {
  public:
   JibbenNeighborhood(void);
 
-  void addMember(const Polygon& a_polygon, const double a_weight = 1.0);
+  void addMember(const Polygon a_polygon, const double a_weight = 1.0);
 
   void emptyNeighborhood(void);
 

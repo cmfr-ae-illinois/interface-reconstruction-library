@@ -45,7 +45,11 @@ int main(int argc, char* argv[]) {
       // print wallclock time
       amrex::ParallelDescriptor::ReduceRealMax(
           end_total, amrex::ParallelDescriptor::IOProcessorNumber());
-      amrex::Print() << "\nTotal Time: " << end_total << '\n';
+      amrex::Print() << "\nReconstruction Time: " << amr_core_adv.RecTime()
+                     << '\n';
+      amrex::Print() << "     Advection Time: " << amr_core_adv.AdvTime()
+                     << '\n';
+      amrex::Print() << "         Total Time: " << end_total << '\n';
     }
   }
 

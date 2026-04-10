@@ -18,6 +18,7 @@
 #include "irl/interface_reconstruction_methods/lvira_optimization.h"
 #include "irl/interface_reconstruction_methods/mof.h"
 #include "irl/interface_reconstruction_methods/optimization_behavior.h"
+#include "irl/interface_reconstruction_methods/plicnet.h"
 #include "irl/interface_reconstruction_methods/r2p_optimization.h"
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.h"
 #include "irl/planar_reconstruction/planar_separator.h"
