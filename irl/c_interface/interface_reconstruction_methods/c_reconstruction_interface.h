@@ -49,6 +49,9 @@ void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
                                const double* a_delta,
                                c_SeparatorVariant* a_separator);
 
+void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                                   c_SeparatorVariant* a_separator);
+
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
                                  c_Paraboloid* a_separator);
 

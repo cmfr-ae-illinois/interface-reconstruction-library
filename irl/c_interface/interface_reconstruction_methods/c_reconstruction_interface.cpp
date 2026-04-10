@@ -24,6 +24,16 @@ void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
       reconstructionWithPU3D(*a_pu_neighborhood->obj_ptr, *a_delta);
 }
 
+void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                                   c_SeparatorVariant* a_separator) {
+  assert(a_jibben_neighborhood != nullptr);
+  assert(a_jibben_neighborhood->obj_ptr != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  *a_separator->obj_ptr =
+      reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
+}
+
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
                                  c_Paraboloid* a_separator) {
   assert(a_jibben_neighborhood != nullptr);

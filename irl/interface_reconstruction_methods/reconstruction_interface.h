@@ -34,6 +34,11 @@ namespace IRL {
 inline Paraboloid reconstructionWithPU3D(
     const PUNeighborhood& a_neighborhood_geometry, const double a_delta);
 
+/// \brief Perform Jibben squared volume reconstruction for a 3D problem.
+inline Paraboloid reconstructionWithJibbenSq3D(
+    const JibbenNeighborhood& a_neighborhood_geometry,
+    const double a_delta = -1.0);
+
 /// \brief Perform Jibben reconstruction for a 3D problem.
 inline Paraboloid reconstructionWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry,
