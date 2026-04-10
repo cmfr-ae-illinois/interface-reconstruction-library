@@ -32,29 +32,6 @@ void c_PU_RectCub_setThreshold(c_PU_RectCub* a_self, double* a_threshold) {
   a_self->obj_ptr->setThreshold(*a_threshold);
 }
 
-void c_PU_RectCub_solveFace(c_PU_RectCub* a_self, double* STCoeff, double* P0,
-                            double* P1, double* P2, double* P3, double* delta,
-                            double* Pressure, double* Marangoni,
-                            double* a_force) {
-  assert(a_self != nullptr);
-  assert(a_self->obj_ptr != nullptr);
-
-  IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
-  IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P1);
-  IRL::Pt P2temp = IRL::Pt::fromRawDoublePointer(P2);
-  IRL::Pt P3temp = IRL::Pt::fromRawDoublePointer(P3);
-
-  IRL::Normal MarangoniTemp = IRL::Normal::fromRawDoublePointer(Marangoni);
-
-  IRL::Normal force =
-      a_self->obj_ptr->solveFace(*STCoeff, P0temp, P1temp, P2temp, P3temp,
-                                 *delta, *Pressure, MarangoniTemp);
-
-  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
-    *(a_force + n) = force[n];
-  }
-}
-
 void c_PU_RectCub_solveEdge(c_PU_RectCub* a_self, double* STCoeff, double* P0,
                             double* P1, double* delta, double* Pressure,
                             double* Marangoni, double* a_force) {

@@ -27,11 +27,6 @@ void c_PU_RectCub_solveEdge(c_PU_RectCub* a_self, double* STCoeff, double* P0,
                             double* P1, double* delta, double* Pressure,
                             double* Marangoni, double* a_force);
 
-void c_PU_RectCub_solveFace(c_PU_RectCub* a_self, double* STCoeff, double* P0,
-                            double* P1, double* P2, double* P3, double* delta,
-                            double* Pressure, double* Marangoni,
-                            double* a_force);
-
 void c_PU_RectCub_getValue(c_PU_RectCub* a_self, double* x, double* y,
                            double* z, double* delta, double* value);
 

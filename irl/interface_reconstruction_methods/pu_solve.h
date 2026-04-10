@@ -118,10 +118,6 @@ class PU {
                    const double delta, const double Pressure,
                    const Normal& Marangoni);
 
-  Normal solveFace(const double STin, const Pt& P0, const Pt& P1, const Pt& P2,
-                   const Pt& P3, const double delta, const double Pressure,
-                   const Normal& Marangoni);
-
   Normal solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1, double radius,
                            Pt& center, double delta);
   // Get value function for neighborhood
