@@ -490,7 +490,26 @@ TEST(PUReconstruction, Test1) {
       forceNetCalc = forceNetCalc + (-1 * result);
     }
 
-    // Check Hessian
+    // Check Hessian Included Function
+    std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> retValHess;
+    semi.evaluate(intersSet[i], &retValHess);
+    Eigen::Matrix3d tempHess = std::get<2>(retValHess);
+    // Hessian
+    for (int j = 0; j < 2;
+         j++) {  // Only Check 2x2 Hessian, since we know 2D planes.
+      for (int k = 0; k < 2; k++) {
+        EXPECT_NEAR(tempHess(j, k), hessSet[i](j, k), 1e-9)
+            << "Hessian " << i << " Index " << j << "," << k << " Wrong";
+      }
+    }
+    tempGrad = std::get<1>(retValHess);
+    for (int j = 0; j < 3; j++) {
+      EXPECT_NEAR(tempGrad(j), gradSet[i][j], 1e-9)
+          << "Hessian Gradient " << i << " Index " << j << " Wrong";
+    }
+    double tempDoub = std::get<0>(retVal);
+    EXPECT_NEAR(tempDoub, 0.0, 1e-9)
+        << "Hessian Functional Value " << i << " Wrong";
   }
   for (int j = 0; j < 3; j++) {
     EXPECT_NEAR(forceNetCalc[j], forceNetExpected[j], 1e-9)

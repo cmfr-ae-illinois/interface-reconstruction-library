@@ -271,7 +271,6 @@ inline void PUImplicitSurface::evaluate(
           inv_weight_sum -
       2. * (grad_product_sum - F_sum * grad_weight_sum * inv_weight_sum) *
           grad_weight_sum.transpose() * inv_weight_sum * inv_weight_sum;
-
   // Return
   *retVal = std::make_tuple(PU_F, PU_gradF, PU_hessF);
 }
