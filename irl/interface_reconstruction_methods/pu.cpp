@@ -18,6 +18,40 @@ Paraboloid PU::solve(const PUNeighborhood* a_neighborhood_pointer,
   return this->solve();
 }
 
+std::vector<double> PU::getNormalWeights(void){
+  const UnsignedIndex_t ninterfaces = neighborhood_m->size();
+  std::vector<double> normal_weights(ninterfaces);
+  std::vector<Normal> normals(ninterfaces);
+  for (UnsignedIndex_t i = 0; i < ninterfaces; ++i) {
+    if (const PlanarSeparator* separator = std::get_if<IRL::PlanarSeparator>(
+            &(neighborhood_m->getSeparator(i)))) {  // If plane
+      if (separator->getNumberOfPlanes() > 0) {
+        const Plane plane = (*separator)[0];
+        normals[i] = plane.normal();
+      }
+    } else if (const Paraboloid* paraboloid = std::get_if<IRL::Paraboloid>(
+                   &(neighborhood_m->getSeparator(i)))) {  // If paraboloid
+      const ReferenceFrame& frame = paraboloid->getReferenceFrame();
+      normals[i] = frame[2];
+    }
+  }
+
+  Normal target_normal = normals[neighborhood_m->getCenterOfStencil()];
+
+  // computing weights max(0, n_i * n_target) for each interface
+  // for (UnsignedIndex_t i = 0; i < ninterfaces; ++i) {
+  //   normal_weights[i] = std::max(0.0, normals[i] * target_normal);
+  // }
+
+  // computing normal weights 0.5 * (1 + n_i * n_target)
+  for (UnsignedIndex_t i = 0; i < ninterfaces; ++i) {
+    normal_weights[i] = 0.5 * (1. + normals[i] * target_normal);
+    normal_weights[i] = 1.0; // placeholder for testing without normal weights
+  }
+
+  return normal_weights;
+}
+
 std::pair<double, Eigen::Vector3d> PU::getPUAndGrad(const Pt& a_pt) {
   // number of interfaces
   const UnsignedIndex_t ninterfaces = neighborhood_m->size();
@@ -38,9 +72,12 @@ std::pair<double, Eigen::Vector3d> PU::getPUAndGrad(const Pt& a_pt) {
   Eigen::Vector3d gradwxF_plus_wxgradF_sum = Eigen::Vector3d::Zero();
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
 
+  // normal weights
+  std::vector<double> normal_weights = this->getNormalWeights();
+
   // loop over interfaces
   for (UnsignedIndex_t i = 0; i < ninterfaces; ++i) {
-    double vfrac_and_area_weight = weights[i];
+    double vfrac_and_area_weight = weights[i] * normal_weights[i];
     const Pt x = a_pt - centroids[i];
     const double r = IRL::magnitude(x);
     const double rhat = r * inv_delta;
@@ -131,9 +168,12 @@ std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> PU::getPUAndGradAndHessian(
   Eigen::Vector3d grad_product_sum = Eigen::Vector3d::Zero();
   Eigen::Matrix3d hess_product_sum = Eigen::Matrix3d::Zero();
 
+  // normal weights
+  std::vector<double> normal_weights = this->getNormalWeights();
+
   // loop over interfaces
   for (UnsignedIndex_t i = 0; i < ninterfaces; ++i) {
-    double vfrac_and_area_weight = weights[i];
+    double vfrac_and_area_weight = weights[i] * normal_weights[i];
     const Pt x = a_pt - centroids[i];
     const double r = IRL::magnitude(x);
     const double rhat = r * inv_delta;

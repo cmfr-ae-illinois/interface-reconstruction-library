@@ -46,6 +46,9 @@ class PU {
   /// \brief Projecting point on PU surface
   Pt projectPointonPU(const Pt& a_pt);
 
+  /// \brief getting normal weights for each interface wrt target interface
+  std::vector<double> getNormalWeights(void);
+
   /// \brief storing stencil information
   const PUNeighborhood* neighborhood_m;
   /// \brief kernal radius for PU
