@@ -74,8 +74,45 @@ inline void setDistanceToMatchVolumeFractionPartialFill(
   }
 }
 
+template <class CellType>
+inline void setDistanceToMatchVolumeFractionPartialFill(
+    const CellType& a_cell, const double a_volume_fraction,
+    SeparatorUnion* a_reconstruction,
+    const double a_volume_fraction_tolerance) {
+  assert(a_reconstruction != nullptr);
+  if (a_reconstruction->type() == SeparatorUnion::SeparatorType::OnePlane) {
+    IRL::PlanarSeparator separator1 =
+        IRL::PlanarSeparator::fromOnePlane(a_reconstruction->getPlane());
+    setDistanceToMatchVolumeFractionPartialFill(
+        a_cell, a_volume_fraction, &separator1, a_volume_fraction_tolerance);
+  } else if (a_reconstruction->type() ==
+             SeparatorUnion::SeparatorType::TwoPlanes) {
+    IRL::PlanarSeparator separator2 = IRL::PlanarSeparator::fromTwoPlanes(
+        a_reconstruction->getPlane(0), a_reconstruction->getPlane(1), 1.0);
+    setDistanceToMatchVolumeFractionPartialFill(
+        a_cell, a_volume_fraction, &separator2, a_volume_fraction_tolerance);
+  } else if (a_reconstruction->type() ==
+             SeparatorUnion::SeparatorType::Paraboloid) {
+    auto& paraboloid = a_reconstruction->getParaboloid();
+    const Pt& datum = paraboloid.getDatum();
+    const ReferenceFrame& frame = paraboloid.getReferenceFrame();
+    ProgressiveDistanceSolverParaboloid<CellType> solverp(
+        a_cell, a_volume_fraction, a_volume_fraction_tolerance, paraboloid);
+    paraboloid.setDatum(Pt(datum + solverp.getDistance() * frame[2]));
+  } else if (a_reconstruction->type() ==
+             SeparatorUnion::SeparatorType::Cylinder) {
+    auto& cylinder = a_reconstruction->getCylinder();
+    ProgressiveRadiusSolverCylinder<CellType> solverc(
+        a_cell, a_volume_fraction, a_volume_fraction_tolerance, cylinder);
+    cylinder = solverc.getCylinder();
+  } else {
+    std::runtime_error("Unrecognized reconstruction type in SeparatorUnion");
+  }
+}
+
 template <class ReconstructionType>
-inline enable_if_t<not std::is_same_v<ReconstructionType, SeparatorVariant>,
+inline enable_if_t<not(std::is_same_v<ReconstructionType, SeparatorVariant> ||
+                       std::is_same_v<ReconstructionType, SeparatorUnion>),
                    void>
 setDistanceToMatchVolumeFractionPartialFill(
     const RectangularCuboid& a_cell, const double a_volume_fraction,
@@ -92,7 +129,8 @@ setDistanceToMatchVolumeFractionPartialFill(
 }
 
 template <class ReconstructionType>
-inline enable_if_t<not std::is_same_v<ReconstructionType, SeparatorVariant>,
+inline enable_if_t<not(std::is_same_v<ReconstructionType, SeparatorVariant> ||
+                       std::is_same_v<ReconstructionType, SeparatorUnion>),
                    void>
 setDistanceToMatchVolumeFractionPartialFill(
     const Tet& a_cell, const double a_volume_fraction,

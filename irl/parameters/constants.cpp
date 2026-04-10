@@ -51,6 +51,8 @@ double MINIMUM_SURFACE_AREA_TO_TRACK = std::pow(DBL_EPSILON, 2.0 / 3.0);
 
 double TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE = 1.0e-12;
 
+double VOLUME_FRACTION_MATCHING_TOLERANCE = 1.0e-14;
+
 }  // namespace global_constants
 
 }  // namespace IRL
