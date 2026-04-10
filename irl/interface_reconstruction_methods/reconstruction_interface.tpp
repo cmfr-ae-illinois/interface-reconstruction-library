@@ -24,6 +24,12 @@ Paraboloid reconstructionWithPU3D(const PUNeighborhood& a_neighborhood_geometry,
   return pu_solver.solve(&a_neighborhood_geometry, a_delta);
 }
 
+Paraboloid reconstructionWithJibbenSq3D(
+    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
+  Jibben_3D jibben_solver;
+  return jibben_solver.solve2(&a_neighborhood_geometry, a_delta);
+}
+
 Paraboloid reconstructionWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
   Jibben_3D jibben_solver;
