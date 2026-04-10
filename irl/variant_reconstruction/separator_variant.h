@@ -31,6 +31,9 @@ class SeparatorVariant
   void setToParaboloid(void);
   void setToCylinder(void);
 
+  std::pair<double, double> getPrincipalCurvatures(void);
+  void setPrincipalCurvatures(const double k1, const double k2);
+
   void serialize(ByteBuffer* a_buffer) const;
   void unpackSerialized(ByteBuffer* a_buffer);
 };

@@ -111,6 +111,24 @@ void c_SeparatorVariant_getPlane(c_SeparatorVariant* a_self, const int* a_index,
   }
 }
 
+void c_SeparatorVariant_setPrincipalCurvatures(c_SeparatorVariant* a_self,
+                                               double* a_curvatures) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(*a_curvatures != nullptr);
+  a_self->obj_ptr->setPrincipalCurvatures(a_curvatures[0], a_curvatures[1]);
+}
+
+void c_SeparatorVariant_getPrincipalCurvatures(c_SeparatorVariant* a_self,
+                                               double* a_curvatures) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(*a_curvatures != nullptr);
+  const auto curv_pair = a_self->obj_ptr->getPrincipalCurvatures();
+  a_curvatures[0] = curv_pair.first;
+  a_curvatures[1] = curv_pair.second;
+}
+
 bool c_SeparatorVariant_isFlipped(const c_SeparatorVariant* a_self) {
   assert(a_self != nullptr);
   if (IRL::PlanarSeparator* separator =
@@ -124,6 +142,26 @@ bool c_SeparatorVariant_isFlipped(const c_SeparatorVariant* a_self) {
     return cylinder->isFlipped();
   } else {
     throw std::runtime_error("Variant type unknown");
+  }
+}
+
+bool c_SeparatorVariant_isPlane(const c_SeparatorVariant* a_self) {
+  assert(a_self != nullptr);
+  if (IRL::PlanarSeparator* separator =
+          std::get_if<IRL::PlanarSeparator>(a_self->obj_ptr)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool c_SeparatorVariant_isParaboloid(const c_SeparatorVariant* a_self) {
+  assert(a_self != nullptr);
+  if (IRL::Paraboloid* paraboloid =
+          std::get_if<IRL::Paraboloid>(a_self->obj_ptr)) {
+    return true;
+  } else {
+    return false;
   }
 }
 

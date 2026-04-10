@@ -30,6 +30,42 @@ inline void SeparatorVariant::setToCylinder(void) {
   }
 }
 
+inline std::pair<double, double> SeparatorVariant::getPrincipalCurvatures(
+    void) {
+  if (const auto separator = std::get_if<PlanarSeparator>(this)) {
+    return std::make_pair(0.0, 0.0);
+  } else if (const auto separator = std::get_if<Paraboloid>(this)) {
+    const double a = separator->getAlignedParaboloid().a();
+    const double b = separator->getAlignedParaboloid().b();
+    return std::make_pair(2.0 * a, 2.0 * b);
+  } else if (const auto separator = std::get_if<Cylinder>(this)) {
+    const double r = separator->getAlignedCylinder().r();
+    return std::make_pair(std::sqrt(r), 0.0);
+  } else {
+    throw std::runtime_error("Variant type cannot return principal curvatures");
+  }
+}
+
+inline void SeparatorVariant::setPrincipalCurvatures(const double k1,
+                                                     const double k2) {
+  if (const auto separator = std::get_if<Paraboloid>(this)) {
+    const auto& datum = separator->getDatum();
+    const auto& frame = separator->getReferenceFrame();
+    if (k1 == 0.0 && k2 == 0.0) {  // Replace by plane
+      const auto plane = Plane(frame[2], frame[2] * datum);
+      (*this) = PlanarSeparator::fromOnePlane(plane);
+    } else {
+      separator->setAlignedParaboloid(AlignedParaboloid({0.5 * k1, 0.5 * k2}));
+    }
+  } else if (const auto separator = std::get_if<Cylinder>(this)) {
+    throw std::runtime_error(
+        "Principal curvatures cannot be set for variant type");
+  } else {
+    throw std::runtime_error(
+        "Principal curvatures cannot be set for variant type");
+  }
+}
+
 inline void SeparatorVariant::serialize(ByteBuffer* a_buffer) const {
   const std::size_t index = this->index();
   a_buffer->pack(&index, 1);
