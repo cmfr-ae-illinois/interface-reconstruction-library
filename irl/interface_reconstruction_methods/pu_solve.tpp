@@ -98,7 +98,7 @@ inline void PUImplicitSurface::implicitSeparator(
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
       const double d = plane.distance();
-      if (n[0] != 0 && n[1] != 0 && n[2] != 0) {  // If plane exists
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
         F = n * a_pt - d;                         // Distance
       } else {                                    // IF plane doesn't exist
         F = 0;                                    // Zero
@@ -156,7 +156,7 @@ inline void PUImplicitSurface::implicitSeparator(
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
       const double d = plane.distance();
-      if (n[0] != 0 && n[1] != 0 && n[2] != 0) {  // If plane exists
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
         F = n * a_pt - d;                         // Distance
       } else {                                    // IF plane doesn't exist
         F = 0;                                    // Zero
@@ -288,8 +288,8 @@ inline void PUImplicitSurface::evaluate(
     std::pair<double, Eigen::Vector3d> weightRet;
     Wendland::evaluate(centroids[i], kernel_size, x, &weightRet);
     // Get Results
-    const double weight = weights[i] * std::get<0>(weightRet);
-    const Eigen::Vector3d grad_weight = weights[i] * std::get<1>(weightRet);
+    const double weight = std::get<0>(weightRet);                // weights[i] *
+    const Eigen::Vector3d grad_weight = std::get<1>(weightRet);  // weights[i] *
 
     // Add results to sums
     weight_sum += weight;
@@ -339,7 +339,8 @@ inline void PUImplicitSurface::evaluate(const Pt& x, double* retVal) {
     F_sum += weight * F;
   }
   // Put Everything Together and return.
-  *retVal = F_sum / weight_sum;
+  const double inv_weight_sum = 1.0 / safelyEpsilon(weight_sum);
+  *retVal = F_sum * inv_weight_sum;
 }
 
 // Evaluate Function Hess for Circle =====================================
@@ -691,7 +692,6 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
     for (int j = 0; j < intersections.size(); j++) {
       tangent = s.getTangent(intersections[j]);
       tangent.normalize();
-      std::cout << "Intersection " << j << ": " << intersections[j] << "\n";
       // Here we apply the Marangoni surface tension. To do this, we assume
       // STCoeff = STCoeff + gamma_T(T-T_0). Letting gamma_T=-0.002 (Ratio for
       // water). We also pick T-T0=Gx to be the form we use. This will give us
@@ -699,21 +699,12 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
       // simplicity
       STCoeff = STCoeff + Marangoni[2] * (Marangoni[0] * intersections[j][0] +
                                           Marangoni[1] * intersections[j][1]);
-      std::cout << "STCoeff at Intersection " << j << ": " << STCoeff << "\n";
-      // std::cout << Marangoni[0] << "," << Marangoni[1] << "," << Marangoni[2]
-      //           << "\n";
       // If facing inside, multiply by negative
       // If facing outside, leave the same
       double Scale = OutwardsNormal * tangent;
       Scale = Scale / safelyEpsilon(std::abs(Scale));
       // Add
       total = total + Scale * STCoeff * denom * tangent;
-      std::cout << "Tangent Contribution at Intersection " << j << ": "
-                << Scale * STCoeff * denom * tangent << "\n";
-      std::cout << "Tangent at Intersection " << j << ": " << tangent << "\n";
-      std::cout << "Outwards Normal at Intersection " << j << ": "
-                << OutwardsNormal << "\n";
-      std::cout << "Scale at Intersection " << j << ": " << Scale << "\n\n\n";
       // Next, we need to calculate pressure contribution, if wanted
       // To determine if an intersection is going into or out of the fluid, we
       // can use the dot product of dP with the gradient (which is outwards

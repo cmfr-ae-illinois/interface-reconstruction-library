@@ -347,7 +347,7 @@ TEST(PUReconstruction, Test1) {
 
         Pt cen = (intersections[0] + intersections[1]) * 0.5;
         centroids.push_back(cen);
-        neighborhood.addMember(&cen, &planar_separator[count]);
+        neighborhood.addMember(&cen, &planar_separator[count], 1.0);
       }
       count++;
     }
@@ -369,7 +369,7 @@ TEST(PUReconstruction, Test1) {
   IRL::Pt x0(0, 3, 0);
   PU solver(neighborhood);
   PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
-  std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 0.2);
+  std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 1e-6);
   EXPECT_EQ(inters.size(), 1) << "Wrong Number of Intersections Found";
   // Order goes x=0,x=1,y=2,x=2,y=1,y=0
   // Intersection Points, by hand
@@ -410,6 +410,40 @@ TEST(PUReconstruction, Test1) {
   std::vector<IRL::Normal> forceSet = {force1Expected, force2Expected,
                                        force3Expected, force4Expected,
                                        force5Expected, force6Expected};
+  // Hessians
+  Eigen::Matrix3d hess1Expected = Eigen::Matrix3d::Zero();
+  hess1Expected(0, 0) = 0.132679691006;
+  hess1Expected(0, 1) = -0.0787101181139;
+  hess1Expected(1, 0) = -0.0787101181139;
+  hess1Expected(1, 1) = 0.042814285345;
+  Eigen::Matrix3d hess2Expected = Eigen::Matrix3d::Zero();
+  hess2Expected(0, 0) = 0.165582686659;
+  hess2Expected(0, 1) = -0.11415777827;
+  hess2Expected(1, 0) = -0.11415777827;
+  hess2Expected(1, 1) = 0.0785849650454;
+  Eigen::Matrix3d hess3Expected = Eigen::Matrix3d::Zero();
+  hess3Expected(0, 0) = 0.137487487701;
+  hess3Expected(0, 1) = -0.130895703411;
+  hess3Expected(1, 0) = -0.130895703411;
+  hess3Expected(1, 1) = 0.123584037533;
+  Eigen::Matrix3d hess4Expected = Eigen::Matrix3d::Zero();
+  hess4Expected(0, 0) = 0.123584037533;
+  hess4Expected(0, 1) = -0.130895703411;
+  hess4Expected(1, 0) = -0.130895703411;
+  hess4Expected(1, 1) = 0.137487487701;
+  Eigen::Matrix3d hess5Expected = Eigen::Matrix3d::Zero();
+  hess5Expected(0, 0) = 0.0785849650454;
+  hess5Expected(0, 1) = -0.11415777827;
+  hess5Expected(1, 0) = -0.11415777827;
+  hess5Expected(1, 1) = 0.165582686659;
+  Eigen::Matrix3d hess6Expected = Eigen::Matrix3d::Zero();
+  hess6Expected(0, 0) = 0.042814285345;
+  hess6Expected(0, 1) = -0.0787101181139;
+  hess6Expected(1, 0) = -0.0787101181139;
+  hess6Expected(1, 1) = 0.132679691006;
+  std::vector<Eigen::Matrix3d> hessSet = {hess1Expected, hess2Expected,
+                                          hess3Expected, hess4Expected,
+                                          hess5Expected, hess6Expected};
 
   // Net Force
   IRL::Normal forceNetExpected(-0.685567462155, -0.685567462155, 0);
@@ -423,7 +457,8 @@ TEST(PUReconstruction, Test1) {
                                 IRL::Pt(1, 2, 0), IRL::Pt(2, 1, 0),
                                 IRL::Pt(2, 1, 0), IRL::Pt(2, 0, 0)};
   for (int i = 0; i < x0Set.size(); i++) {  // Loop Over Edges and Solve
-    inters = semi.intersectEdge(x0Set[i], x1Set[i], 10, 0.2);
+    // std::cout << "EDGE " << i << "===============\n ";
+    inters = semi.intersectEdge(x0Set[i], x1Set[i], 10, 1e-6);
     // Check Intersection
     EXPECT_EQ(inters.size(), 1)
         << "Wrong Number of Intersections for Edge " << i;
@@ -433,10 +468,10 @@ TEST(PUReconstruction, Test1) {
     }
     // Check Gradient
     std::pair<double, Eigen::Vector3d> retVal;
-    semi.evaluate(inters[0], &retVal);
+    semi.evaluate(intersSet[i], &retVal);
     Eigen::Vector3d tempGrad = std::get<1>(retVal);
     for (int j = 0; j < 3; j++) {
-      EXPECT_NEAR(tempGrad[j], gradSet[i][j], 1e-9)
+      EXPECT_NEAR(tempGrad(j), gradSet[i][j], 1e-9)
           << "Gradient " << i << " Index " << j << " Wrong";
     }
     // Calculate Forces
@@ -454,6 +489,8 @@ TEST(PUReconstruction, Test1) {
     if (i == 5) {
       forceNetCalc = forceNetCalc + (-1 * result);
     }
+
+    // Check Hessian
   }
   for (int j = 0; j < 3; j++) {
     EXPECT_NEAR(forceNetCalc[j], forceNetExpected[j], 1e-9)
