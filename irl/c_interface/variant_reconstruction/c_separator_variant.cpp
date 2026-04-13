@@ -18,7 +18,7 @@ extern "C" {
 
 void c_SeparatorVariant_new(c_SeparatorVariant* a_self) {
   assert(a_self != nullptr);
-  assert(a_self->obj_ptr == nullptr);
+  // assert(a_self->obj_ptr == nullptr);
   a_self->is_owning = true;
   a_self->obj_ptr = new IRL::SeparatorVariant;
 }

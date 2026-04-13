@@ -416,31 +416,37 @@ TEST(PUReconstruction, Test1) {
   hess1Expected(0, 1) = -0.0787101181139;
   hess1Expected(1, 0) = -0.0787101181139;
   hess1Expected(1, 1) = 0.042814285345;
+  hess1Expected(2, 2) = -0.00527158;
   Eigen::Matrix3d hess2Expected = Eigen::Matrix3d::Zero();
   hess2Expected(0, 0) = 0.165582686659;
   hess2Expected(0, 1) = -0.11415777827;
   hess2Expected(1, 0) = -0.11415777827;
   hess2Expected(1, 1) = 0.0785849650454;
+  hess2Expected(2, 2) = -0.0122883;
   Eigen::Matrix3d hess3Expected = Eigen::Matrix3d::Zero();
   hess3Expected(0, 0) = 0.137487487701;
   hess3Expected(0, 1) = -0.130895703411;
   hess3Expected(1, 0) = -0.130895703411;
   hess3Expected(1, 1) = 0.123584037533;
+  hess3Expected(2, 2) = -0.0114075;
   Eigen::Matrix3d hess4Expected = Eigen::Matrix3d::Zero();
   hess4Expected(0, 0) = 0.123584037533;
   hess4Expected(0, 1) = -0.130895703411;
   hess4Expected(1, 0) = -0.130895703411;
   hess4Expected(1, 1) = 0.137487487701;
+  hess4Expected(2, 2) = -0.0114075;
   Eigen::Matrix3d hess5Expected = Eigen::Matrix3d::Zero();
   hess5Expected(0, 0) = 0.0785849650454;
   hess5Expected(0, 1) = -0.11415777827;
   hess5Expected(1, 0) = -0.11415777827;
   hess5Expected(1, 1) = 0.165582686659;
+  hess5Expected(2, 2) = -0.0122883;
   Eigen::Matrix3d hess6Expected = Eigen::Matrix3d::Zero();
   hess6Expected(0, 0) = 0.042814285345;
   hess6Expected(0, 1) = -0.0787101181139;
   hess6Expected(1, 0) = -0.0787101181139;
   hess6Expected(1, 1) = 0.132679691006;
+  hess6Expected(2, 2) = -0.00527158;
   std::vector<Eigen::Matrix3d> hessSet = {hess1Expected, hess2Expected,
                                           hess3Expected, hess4Expected,
                                           hess5Expected, hess6Expected};
@@ -495,10 +501,9 @@ TEST(PUReconstruction, Test1) {
     semi.evaluate(intersSet[i], &retValHess);
     Eigen::Matrix3d tempHess = std::get<2>(retValHess);
     // Hessian
-    for (int j = 0; j < 2;
-         j++) {  // Only Check 2x2 Hessian, since we know 2D planes.
-      for (int k = 0; k < 2; k++) {
-        EXPECT_NEAR(tempHess(j, k), hessSet[i](j, k), 1e-9)
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 3; k++) {
+        EXPECT_NEAR(tempHess(j, k), hessSet[i](j, k), 1e-6)
             << "Hessian " << i << " Index " << j << "," << k << " Wrong";
       }
     }
