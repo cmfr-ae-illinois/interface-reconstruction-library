@@ -24,7 +24,7 @@ program main
   ! Declar Centroids
   real(DP), dimension(1:3) :: cen1,cen2,cen3,cen4,cen5,nor1,nor2,nor3,nor4,nor5
   real(DP), dimension(1:3) :: startPoint,endPoint,force,Marangoni
-  real(DP) :: d1,d2,d3,d4,d5,stc,pressure
+  real(DP) :: d1,d2,d3,d4,d5,stc,pressure,mag
   real(DP),parameter :: delta = 5.0_DP
   type(SeparatorVariant_type) :: plane1,plane2,plane3,plane4,plane5
   ! First make a Neighborhood
@@ -47,6 +47,17 @@ program main
   nor3 = (/0.514495755428_DP,0.857492925713_DP,0.0_DP/)
   nor4 = (/0.980580675691_DP,0.196116135138_DP,0.0_DP/)
   nor5 = (/0.857492925713_DP,0.514495755428_DP,0.0_DP/)
+  ! Normalize
+  mag = sqrt(dot_product(nor1, nor1))
+  nor1 = nor1/mag 
+  mag = sqrt(dot_product(nor2, nor2))
+  nor2 = nor2/mag 
+  mag = sqrt(dot_product(nor3, nor3))
+  nor3 = nor3/mag 
+  mag = sqrt(dot_product(nor4, nor4))
+  nor4 = nor4/mag 
+  mag = sqrt(dot_product(nor5, nor5))
+  nor5 = nor5/mag
   ! Calculate Distances
   write(*,'(A)') 'Distances Making'
   d1 = nor1(1)*cen1(1) + nor1(2)*cen1(2) + nor1(3)*cen1(3)
@@ -61,17 +72,17 @@ program main
   call setNumberOfPlanes(plane1,1)
   call setPlane(plane1, 0, nor1,d1)
 
-  call new(plane2)
-  call setNumberOfPlanes(plane2,1)
-  call setPlane(plane2, 0, nor2,d2)
+  ! call new(plane2)
+  ! call setNumberOfPlanes(plane2,1)
+  ! call setPlane(plane2, 0, nor2,d2)
 
-  call new(plane3)
-  call setNumberOfPlanes(plane3,1)
-  call setPlane(plane3, 0, nor3,d3)
+  ! call new(plane3)
+  ! call setNumberOfPlanes(plane3,1)
+  ! call setPlane(plane3, 0, nor3,d3)
 
-  call new(plane4)
-  call setNumberOfPlanes(plane4,1)
-  call setPlane(plane4, 0, nor4,d4)
+  ! call new(plane4)
+  ! call setNumberOfPlanes(plane4,1)
+  ! call setPlane(plane4, 0, nor4,d4)
 
   ! Now, add Separators to Neighborhood
   write(*,'(A)') 'Making Neighborhood'
