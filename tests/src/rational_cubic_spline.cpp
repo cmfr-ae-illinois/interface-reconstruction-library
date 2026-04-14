@@ -215,4 +215,28 @@ TEST(RationalCubicSpline, GettersTest) {
   SUCCEED();
 }
 
+TEST(RationalCubicSpline, EnergyMinimizationTest) {
+  Pt start = Pt(0.0, 0.0, 0.0);
+  Pt tangent1 = Pt(1.0, 0.0, 0.0);
+  Pt tangent2 = Pt(0.6, 0.8, 0.0);
+  Pt end = Pt(1.0, 0.0, 0.0);
+
+  double expectedAlpha1 = -5817.0 / 15973.0;
+  double expectedAlpha2 = 20475.0 / 15973.0;
+  double inv_three = 1.0 / 3.0;
+  Pt expectedControl1 = start + expectedAlpha1 * tangent1 * inv_three;
+  Pt expectedControl2 = end - expectedAlpha2 * tangent2 * inv_three;
+
+  RationalCubicBezierArc arc(start, tangent1, end, tangent2);
+  // check location of control points
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(arc.control_point_1()[i], expectedControl1[i],
+                std::numeric_limits<double>::epsilon())
+        << "Energy Minimization Fail for Control Point 1 index " << i;
+    EXPECT_NEAR(arc.control_point_2()[i], expectedControl2[i],
+                std::numeric_limits<double>::epsilon())
+        << "Energy Minimization Fail for Control Point 2 index " << i;
+  }
+}
+
 }  // namespace
