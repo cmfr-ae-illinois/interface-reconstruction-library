@@ -104,6 +104,7 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
     const ScalarType inv_det = ONE / (a11 * a22 - a12 * a21);
     const ScalarType alpha_0 = inv_det * (a22 * b1 - a12 * b2);
     const ScalarType alpha_1 = inv_det * (a11 * b2 - a21 * b1);
+
     control_point_1_m = a_start_pt + alpha_0 * a_start_tangent / THREE;
     control_point_2_m = a_end_pt - alpha_1 * a_end_tangent / THREE;
   }

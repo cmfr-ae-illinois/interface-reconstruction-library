@@ -217,8 +217,8 @@ TEST(RationalCubicSpline, GettersTest) {
 
 TEST(RationalCubicSpline, EnergyMinimizationTest) {
   Pt start = Pt(0.0, 0.0, 0.0);
-  Pt tangent1 = Pt(1.0, 0.0, 0.0);
-  Pt tangent2 = Pt(0.6, 0.8, 0.0);
+  Normal tangent1 = Normal(1.0, 0.0, 0.0);
+  Normal tangent2 = Normal(0.6, 0.8, 0.0);
   Pt end = Pt(1.0, 0.0, 0.0);
 
   double expectedAlpha1 = -5817.0 / 15973.0;
