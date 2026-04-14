@@ -185,4 +185,34 @@ TEST(RationalCubicSpline, DerivativeEvaluation) {
   SUCCEED();
 }
 
+TEST(RationalCubicSpline, GettersTest) {
+  Pt start = Pt(0.0, 0.0, 0.0);
+  Pt control1 = Pt(0.0, 1.0, 1.0);
+  Pt control2 = Pt(1.0, 1.0, 0.0);
+  Pt end = Pt(1.0, 0.0, 1.0);
+  double weight1 = 2.0;
+  double weight2 = 0.5;
+  RationalCubicBezierArc arc(start, control1, control2, end, weight1, weight2);
+  // Test Getters
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(arc.start_point()[i], start[i],
+                std::numeric_limits<double>::epsilon())
+        << "Start Point Getter Fail for index " << i;
+    EXPECT_NEAR(arc.control_point_1()[i], control1[i],
+                std::numeric_limits<double>::epsilon())
+        << "Control Point 1 Getter Fail for index " << i;
+    EXPECT_NEAR(arc.control_point_2()[i], control2[i],
+                std::numeric_limits<double>::epsilon())
+        << "Control Point 2 Getter Fail for index " << i;
+    EXPECT_NEAR(arc.end_point()[i], end[i],
+                std::numeric_limits<double>::epsilon())
+        << "End Point Getter Fail for index " << i;
+  }
+  EXPECT_NEAR(arc.weight(1), weight1, std::numeric_limits<double>::epsilon())
+      << "Weight 1 Getter Fail";
+  EXPECT_NEAR(arc.weight(2), weight2, std::numeric_limits<double>::epsilon())
+      << "Weight 2 Getter Fail";
+  SUCCEED();
+}
+
 }  // namespace
