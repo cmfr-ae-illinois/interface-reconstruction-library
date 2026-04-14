@@ -62,7 +62,7 @@ class RationalCubicBezierArcBase {
   std::pair<RationalCubicBezierArcBase, RationalCubicBezierArcBase> split(
       const ScalarType a_t) const;
   /// \brief Return arc in global coordinates
-  RationalCubicBezierArcBase moveToReferenceFrame(
+  RationalCubicBezierArcBase<ScalarType> moveToReferenceFrame(
       const PtBase<ScalarType>& datum,
       const ReferenceFrameBase<ScalarType>& frame) const;
   /// \brief Return const weight.
@@ -94,14 +94,14 @@ class RationalCubicBezierArcBase {
   ScalarType weight_1_m;                 // Weight 1
   ScalarType weight_2_m;                 // Weight 2
   ScalarType weight_3_m;                 // Weight 3
-}
+};
 
 template <class ScalarType>
 inline std::ostream& operator<<(
     std::ostream& out,
     const RationalCubicBezierArcBase<ScalarType>& a_rational_cubic_bezier_arc);
 
-using RationalCubicBezierArcBase = RationalCubicBezierArcBase<double>;
+using RationalCubicBezierArc = RationalCubicBezierArcBase<double>;
 
 }  // namespace IRL
 

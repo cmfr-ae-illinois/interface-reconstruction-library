@@ -122,6 +122,11 @@ inline const PtBase<ScalarType> RationalCubicBezierArcBase<ScalarType>::point(
   assert(t >= ZERO && t <= ONE);
   if (weight_1_m > ScalarType(1.0e15) || weight_2_m > ScalarType(1.0e15)) {
     // Implement later, we will always be using weight = 1 for now.
+    return PtBase<ScalarType>(-1, -1, -1);
+    std::cout << "Warning: weight is too large for accurate point evaluation, "
+                 "returning "
+                 "(-1,-1,-1)"
+              << std::endl;
   } else {
     const ScalarType denominator =
         (ONE - t) * (ONE - t) * (ONE - t) +
@@ -148,21 +153,44 @@ RationalCubicBezierArcBase<ScalarType>::derivative(const ScalarType t) const {
   assert(t >= ZERO && t <= ONE);
   if (weight_1_m > ScalarType(1.0e15) || weight_2_m > ScalarType(1.0e15)) {
     // Implement later, we will always be using weight = 1 for now.
+    return PtBase<ScalarType>(-1, -1, -1);
+    std::cout << "Warning: weight is too large for derivative evaluation, "
+                 "returning "
+                 "(-1,-1,-1)"
+              << std::endl;
   } else {
-    ScalarType denominator = weight_0_m * (ONE - t) * (ONE - t) * (ONE - t) +
-                             THREE * weight_1_m * t * (ONE - t) * (ONE - t) +
-                             THREE * weight_2_m * t * t * (ONE - t) +
-                             weight_3_m * t * t * t;
-    denominator *= denominator;
-    auto derivative = PtBase<ScalarType>(
-        THREE * (weight_1_m * control_point_1_m - weight_0_m * start_point_m) *
-            (ONE - t) * (ONE - t) +
-        SIX *
-            (weight_2_m * control_point_2_m - weight_1_m * control_point_1_m) *
-            t * (ONE - t) +
-        THREE * (weight_3_m * end_point_m - weight_2_m * control_point_2_m) *
-            t * t);
-    return derivative / denominator;
+    if (ZERO > t || t > ONE) {
+      std::cout << "Warning: t is out of bounds for derivative evaluation, "
+                   "returning "
+                   "(0,0,0)"
+                << std::endl;
+      return PtBase<ScalarType>(ZERO, ZERO, ZERO);
+    }
+    const ScalarType B0 = (ONE - t) * (ONE - t) * (ONE - t);
+    const ScalarType B1 = THREE * t * (ONE - t) * (ONE - t);
+    const ScalarType B2 = THREE * t * t * (ONE - t);
+    const ScalarType B3 = t * t * t;
+
+    const ScalarType dB0 = -THREE * (ONE - t) * (ONE - t);
+    const ScalarType dB1 = THREE * (THREE * t - ONE) * (t - ONE);
+    const ScalarType dB2 = THREE * t * (TWO - THREE * t);
+    const ScalarType dB3 = THREE * t * t;
+    // Set up Demoninator
+    ScalarType denominator =
+        weight_0_m * B0 + weight_1_m * B1 + weight_2_m * B2 + weight_3_m * B3;
+    ScalarType invDenominator = ONE / denominator;
+    ScalarType dDenominator = weight_0_m * dB0 + weight_1_m * dB1 +
+                              weight_2_m * dB2 + weight_3_m * dB3;
+    // Set up Numerator
+    auto numerator = PtBase<ScalarType>(
+        weight_0_m * B0 * start_point_m + weight_1_m * B1 * control_point_1_m +
+        weight_2_m * B2 * control_point_2_m + weight_3_m * B3 * end_point_m);
+    auto dNumerator = PtBase<ScalarType>(weight_0_m * dB0 * start_point_m +
+                                         weight_1_m * dB1 * control_point_1_m +
+                                         weight_2_m * dB2 * control_point_2_m +
+                                         weight_3_m * dB3 * end_point_m);
+    return (dNumerator * denominator - numerator * dDenominator) *
+           invDenominator * invDenominator;
   }
 }
 
@@ -198,7 +226,8 @@ inline ScalarType RationalCubicBezierArcBase<ScalarType>::arc_length(
 }
 
 template <class ScalarType>
-inline RationalCubicBezierArcBase<ScalarType>::moveToReferenceFrame(
+inline RationalCubicBezierArcBase<ScalarType>
+RationalCubicBezierArcBase<ScalarType>::moveToReferenceFrame(
     const PtBase<ScalarType>& datum,
     const ReferenceFrameBase<ScalarType>& frame) const {
   // for translatioon
@@ -219,9 +248,10 @@ inline RationalCubicBezierArcBase<ScalarType>::moveToReferenceFrame(
   };
 
   // transformed bezier arc
-  return RationalBezierArcBase<ScalarType>(transform(start_point_m),
-                                           transform(control_point_m),
-                                           transform(end_point_m), weight_m);
+  return RationalCubicBezierArcBase<ScalarType>(
+      transform(start_point_m), transform(control_point_1_m),
+      transform(control_point_2_m), transform(end_point_m), weight_1_m,
+      weight_2_m);
 }
 
 // Getters
@@ -318,7 +348,7 @@ RationalCubicBezierArcBase<ScalarType>::operator+=(
 }
 
 template <class ScalarType>
-inline RationalBezierArcBase<ScalarType>
+inline RationalCubicBezierArcBase<ScalarType>
 RationalCubicBezierArcBase<ScalarType>::operator-(void) const {
   // This inverts the direction of the spline
   return RationalCubicBezierArcBase(end_point_m, control_point_2_m,
