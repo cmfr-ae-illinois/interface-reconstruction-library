@@ -8,6 +8,7 @@
 #include "irl/generic_cutting/cut_polygon.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
+#include "irl/geometry/spline/rational_cubic_bezier_arc.h"
 #include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/moments/general_moments.h"
@@ -930,50 +931,53 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       tangentEnd = IRL::crossProduct(faceNormal, normal2);
       tangentEnd.normalize();
       // Calculate dot product to see if they are parallel
-      if (fabs(tangentStart * tangentEnd) > 1.0 - 100 * EPSILON) {
-        // If they are parallel, just display
-        if (false) {  // DEBUG PRINTING
-          std::cout << "====================================================\n";
-          std::cout
-              << "Tangents are Parallel, skipping control point calculation\n";
-          std::cout << "Start Point: " << startPoint << "\n";
-          std::cout << "End Point: " << endPoint << "\n";
-          std::cout << "Tangent Start: " << tangentStart << "\n";
-          std::cout << "Tangent End: " << tangentEnd << "\n";
-          std::cout << "Pairs: " << pairs[j][0] << "," << pairs[j][1] << "\n";
-          std::cout << "Weights: " << weight0 << "," << weight1 << ","
-                    << weight2 << "," << weight3 << "\n";
-        }
+      // if (fabs(tangentStart * tangentEnd) > 1.0 - 100 * EPSILON) {
+      //   // If they are parallel, just display
+      //   if (false) {  // DEBUG PRINTING
+      //     std::cout <<
+      //     "====================================================\n"; std::cout
+      //         << "Tangents are Parallel, skipping control point
+      //         calculation\n";
+      //     std::cout << "Start Point: " << startPoint << "\n";
+      //     std::cout << "End Point: " << endPoint << "\n";
+      //     std::cout << "Tangent Start: " << tangentStart << "\n";
+      //     std::cout << "Tangent End: " << tangentEnd << "\n";
+      //     std::cout << "Pairs: " << pairs[j][0] << "," << pairs[j][1] <<
+      //     "\n"; std::cout << "Weights: " << weight0 << "," << weight1 << ","
+      //               << weight2 << "," << weight3 << "\n";
+      //   }
 
-        // Make into line by default
-        controlPoint = 0.5 * (startPoint + endPoint);
-      } else {
-        // Now we have tangents, find the intersection of tangnents to get the
-        // control point.
-        const Normal edge_vector = endPoint - startPoint;
-        if (fabs(edge_vector.calculateMagnitude()) < 100 * EPSILON) {
-          // If the points overlap, we don't want to add anything to the value,
-          // so we just skip the rest of this pair.
-          continue;
-        }
-        const Pt average_pt = 0.5 * (startPoint + endPoint);
-        const Normal n_cross_t0 = crossProduct(faceNormal, tangentStart);
-        if (fabs(n_cross_t0 * tangentEnd) < 100 * EPSILON) {
-          controlPoint = average_pt;
-        } else {
-          assert(fabs(n_cross_t0 * tangentEnd) >= 100 * EPSILON);
-          const double lambda_1 =
-              -(n_cross_t0 * edge_vector) / (n_cross_t0 * tangentEnd);
-          controlPoint = Pt(endPoint + lambda_1 * tangentEnd);
-          const double ct_correction =
-              Normal(controlPoint - startPoint) * faceNormal;
-          controlPoint = controlPoint - ct_correction * faceNormal;
-        }
-      }
+      //   // Make into line by default
+      //   controlPoint = 0.5 * (startPoint + endPoint);
+      // } else {
+      //   // Now we have tangents, find the intersection of tangnents to get
+      //   the
+      //   // control point.
+      //   const Normal edge_vector = endPoint - startPoint;
+      //   if (fabs(edge_vector.calculateMagnitude()) < 100 * EPSILON) {
+      //     // If the points overlap, we don't want to add anything to the
+      //     value,
+      //     // so we just skip the rest of this pair.
+      //     continue;
+      //   }
+      //   const Pt average_pt = 0.5 * (startPoint + endPoint);
+      //   const Normal n_cross_t0 = crossProduct(faceNormal, tangentStart);
+      //   if (fabs(n_cross_t0 * tangentEnd) < 100 * EPSILON) {
+      //     controlPoint = average_pt;
+      //   } else {
+      //     assert(fabs(n_cross_t0 * tangentEnd) >= 100 * EPSILON);
+      //     const double lambda_1 =
+      //         -(n_cross_t0 * edge_vector) / (n_cross_t0 * tangentEnd);
+      //     controlPoint = Pt(endPoint + lambda_1 * tangentEnd);
+      //     const double ct_correction =
+      //         Normal(controlPoint - startPoint) * faceNormal;
+      //     controlPoint = controlPoint - ct_correction * faceNormal;
+      //   }
+      // }
       // Now that we have the start and end point in addition to the control
       // point, we can make a quadratic bezier curve.
-      RationalBezierArc arc =
-          RationalBezierArc(startPoint, controlPoint, endPoint, weight);
+      RationalCubicBezierArc arc = RationalCubicBezierArc(
+          startPoint, tangentStart, endPoint, tangentEnd);
       int QuadRuleOrder = 50;
       const auto& abscissea = AbscissaeGauss<double, 50>();
       const auto& weights = WeightsGauss<double, 50>();

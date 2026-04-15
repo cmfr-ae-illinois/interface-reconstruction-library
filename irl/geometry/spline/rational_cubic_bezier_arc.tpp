@@ -75,7 +75,7 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
   // Define Supplementary Variables
   const PtBase<ScalarType> dP = a_end_pt - a_start_pt;
   const NormalBase<ScalarType> dPN = {dP[0], dP[1], dP[2]};
-  std::cout << "dP: " << dP << std::endl;
+  // std::cout << "dP: " << dP << std::endl;
   const ScalarType a11 = SEVENTYTWO;
   const ScalarType a12 = (a_start_tangent * a_end_tangent) * THIRTYSIX;
   const ScalarType a21 = (a_start_tangent * a_end_tangent) * THIRTYSIX;
