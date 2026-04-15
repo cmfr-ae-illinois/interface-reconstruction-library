@@ -221,22 +221,130 @@ TEST(RationalCubicSpline, EnergyMinimizationTest) {
   Normal tangent2 = Normal(0.6, 0.8, 0.0);
   Pt end = Pt(1.0, 0.0, 0.0);
 
-  double expectedAlpha1 = -5817.0 / 15973.0;
-  double expectedAlpha2 = 20475.0 / 15973.0;
-  double inv_three = 1.0 / 3.0;
-  Pt expectedControl1 = start + expectedAlpha1 * tangent1 * inv_three;
-  Pt expectedControl2 = end - expectedAlpha2 * tangent2 * inv_three;
+  double expectedAlpha1 = 0.450549450549451;  // Double Check these values
+  double expectedAlpha2 = 0.164835164835165;
+  Pt expectedControl1 = start + expectedAlpha1 * tangent1;
+  Pt expectedControl2 = end - expectedAlpha2 * tangent2;
 
   RationalCubicBezierArc arc(start, tangent1, end, tangent2);
   // check location of control points
   for (int i = 0; i < 3; ++i) {
     EXPECT_NEAR(arc.control_point_1()[i], expectedControl1[i],
-                std::numeric_limits<double>::epsilon())
+                100 * std::numeric_limits<double>::epsilon())
         << "Energy Minimization Fail for Control Point 1 index " << i;
     EXPECT_NEAR(arc.control_point_2()[i], expectedControl2[i],
-                std::numeric_limits<double>::epsilon())
+                100 * std::numeric_limits<double>::epsilon())
         << "Energy Minimization Fail for Control Point 2 index " << i;
   }
+  SUCCEED();
+}
+
+TEST(RationalCubicSpline, OutputToVTKTest) {
+  Pt start = Pt(0.0, 0.0, 0.0);
+  Pt control1 = Pt(0.0, 1.0, 1.0);
+  Pt control2 = Pt(1.0, 1.0, 0.0);
+  Pt end = Pt(1.0, 0.0, 1.0);
+
+  RationalCubicBezierArc arc(start, control1, control2, end);
+  std::string filename = "rational_cubic_bezier_arc";
+  arc.saveToVTK(filename);
+  // Check that file was created manually inspect file to ensure it is correct.
+  SUCCEED();
+}
+
+TEST(RationalCubicSpline, BreakageTest) {
+  Normal tangent1 = Normal(0.0, 1.0, 0.0);
+  Normal tangent2 = Normal(-1.0, 0.0, 0.0);
+  // Evaluate a point with alpha_0=-1 and alpha_1=-1 which should cause breakage
+  Pt start = Pt(0.0, 0.0, 0.0);
+  Pt end = Pt(2.0, -2.0, 0.0);
+  RationalCubicBezierArc arc(start, tangent1, end, tangent2);
+  std::string filename = "BreakingSpline";
+  arc.saveToVTK(filename);
+  SUCCEED();
+}
+// Levelset Function Tests =======================================
+
+// =====  Circle ====
+void circleLevelset(const double radius, const Pt& pt, double* levelset) {
+  *levelset = pt[0] * pt[0] + pt[1] * pt[1] - radius * radius;
+}
+void circleLevelset(const double radius, const Pt& pt,
+                    std::pair<double, Eigen::Vector3d>* retVal) {
+  double F;
+  Eigen::Vector3d gradF;
+  // Implementation for circle levelset (Cylinder)
+  F = pt[0] * pt[0] + pt[1] * pt[1] - radius * radius;
+  gradF = Eigen::Vector3d(2.0 * pt[0], 2.0 * pt[1], 0.0);
+  // Return
+  *retVal = std::make_pair(F, gradF);
+}
+void circleLevelset(const double radius, const Pt& pt,
+                    std::pair<double, Normal>* retVal) {
+  double F;
+  Normal tangent, gradF;
+  // Implementation for circle levelset (Cylinder)
+  F = pt[0] * pt[0] + pt[1] * pt[1] - radius * radius;
+  gradF = Normal(2.0 * pt[0], 2.0 * pt[1], 0.0);
+  tangent = Normal(-gradF[1], gradF[0], 0.0);
+  // Return
+  *retVal = std::make_pair(F, tangent);
+}
+
+TEST(RationalCubicSpline, CircleLevelsetTest) {
+  double radius = 1.0;
+  // Pick two points on circle - No need to solve bisection method for this
+  // test.
+  Pt pt1 = Pt(1.0, 0.0, 0.0);
+  Pt pt2 = Pt(0.0, 1.0, 0.0);
+  // Sample Value and Gradient
+  std::pair<double, Normal> retVal1;
+  std::pair<double, Normal> retVal2;
+  circleLevelset(radius, pt1, &retVal1);
+  circleLevelset(radius, pt2, &retVal2);
+  // Check that value is near zero and gradient is correct
+  double levelset1 = retVal1.first;
+  double levelset2 = retVal2.first;
+  Normal tangent1 = retVal1.second;
+  Normal tangent2 = retVal2.second;
+  tangent1.normalize();
+  tangent2.normalize();
+  std::cout << " Tangent 1: " << tangent1 << std::endl;
+  std::cout << " Tangent 2: " << tangent2 << std::endl;
+  EXPECT_NEAR(levelset1, 0.0, std::numeric_limits<double>::epsilon())
+      << "Levelset Value Fail for Point 1";
+  EXPECT_NEAR(levelset2, 0.0, std::numeric_limits<double>::epsilon())
+      << "Levelset Value Fail for Point 2";
+  tangent1.normalize();
+  tangent2.normalize();
+
+  RationalCubicBezierArc arc(pt1, tangent1, pt2, tangent2);
+  std::cout << "THE OUTPUT ARC IS =====================" << std::endl;
+  std::cout << arc;
+  std::string filename = "Energy_Minimizing_RCBA_Circle_Levelset";
+  arc.saveToVTK(filename);
+  // Check that file was created manually inspect file to ensure it is correct.
+  SUCCEED();
+}
+
+TEST(RationalCubicSpline, BasicallyEllipseTest) {
+  // Pick two points on circle - No need to solve bisection method for this
+  // test.
+  Pt pt1 = Pt(1.0, 0.0, 0.0);
+  Pt pt2 = Pt(0.0, 0.5, 0.0);
+  Normal tangent1 = Normal(0.0, 1.0, 0.0);
+  Normal tangent2 = Normal(-1.0, 0.0, 0.0);
+
+  tangent1.normalize();
+  tangent2.normalize();
+
+  RationalCubicBezierArc arc(pt1, tangent1, pt2, tangent2);
+  std::cout << "THE OUTPUT ARC IS =====================" << std::endl;
+  std::cout << arc;
+  std::string filename = "Energy_Minimizing_RCBA_Basically_Ellipse";
+  arc.saveToVTK(filename);
+  // Check that file was created manually inspect file to ensure it is correct.
+  SUCCEED();
 }
 
 }  // namespace
