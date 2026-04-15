@@ -70,17 +70,19 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
   ScalarType EIGHTEEN = ScalarType(18);
   ScalarType TWENTYSEVEN = ScalarType(27);
   ScalarType THIRTYTWO = ScalarType(32);
+  ScalarType THIRTYSIX = ScalarType(36);
+  ScalarType SEVENTYTWO = ScalarType(72);
   // Define Supplementary Variables
   const PtBase<ScalarType> dP = a_end_pt - a_start_pt;
   const NormalBase<ScalarType> dPN = {dP[0], dP[1], dP[2]};
+  std::cout << "dP: " << dP << std::endl;
+  const ScalarType a11 = SEVENTYTWO;
+  const ScalarType a12 = (a_start_tangent * a_end_tangent) * THIRTYSIX;
+  const ScalarType a21 = (a_start_tangent * a_end_tangent) * THIRTYSIX;
+  const ScalarType a22 = SEVENTYTWO;
 
-  const ScalarType a11 = THIRTYTWO / TWENTYSEVEN;
-  const ScalarType a12 = a_start_tangent * a_end_tangent / EIGHTEEN;
-  const ScalarType a21 = a_start_tangent * a_end_tangent / EIGHTEEN;
-  const ScalarType a22 = FIVE / NINE;
-
-  const ScalarType b1 = -SEVEN * (a_start_tangent * dPN) / EIGHTEEN;
-  const ScalarType b2 = SEVEN * (a_end_tangent * dPN) / SIX;
+  const ScalarType b1 = THIRTYSIX * (a_start_tangent * dPN);
+  const ScalarType b2 = THIRTYSIX * (a_end_tangent * dPN);
 
   // Solve
   if (fabs(a11 * a22 - a12 * a21) <= ScalarType(1.0e-12) ||
@@ -104,9 +106,8 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
     const ScalarType inv_det = ONE / (a11 * a22 - a12 * a21);
     const ScalarType alpha_0 = inv_det * (a22 * b1 - a12 * b2);
     const ScalarType alpha_1 = inv_det * (a11 * b2 - a21 * b1);
-
-    control_point_1_m = a_start_pt + alpha_0 * a_start_tangent / THREE;
-    control_point_2_m = a_end_pt - alpha_1 * a_end_tangent / THREE;
+    control_point_1_m = a_start_pt + alpha_0 * a_start_tangent;
+    control_point_2_m = a_end_pt - alpha_1 * a_end_tangent;
   }
 }
 
@@ -402,7 +403,7 @@ inline void RationalCubicBezierArcBase<ScalarType>::saveToVTK(
   file << "<Points>\n<DataArray type=\"Float64\" NumberOfComponents=\"3\">\n";
   for (int i = 0; i < nsamples; i++) {
     file << std::scientific << std::setprecision(15) << curve[i][0] << " "
-         << curve[i][1] << curve[i][2] << " \n";
+         << curve[i][1] << " " << curve[i][2] << " \n";
   }
   file << "</DataArray>\n</Points>\n<Cells>\n<DataArray type=\"Int32\" "
           "Name=\"connectivity\" format=\"ascii\">\n";
