@@ -355,7 +355,7 @@ void stable_classification() {
         ml.trainModel();
 
         std::vector<int> savedClasses;
-        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, &savedClasses);
+        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, 1e-10f, &savedClasses);
         
         if (r > 0 && savedClasses.size() != predictions[0].size()) {
             throw std::runtime_error("Saved class vector size differs between runs!");
@@ -414,7 +414,7 @@ void stable_classification() {
         most_agreeing.loadModel(most_agreeing_model_path.string(), false);
 
         // Classify again using the most agreeing model
-        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, nullptr);
+        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, 1e-10f, nullptr);
     }
 }
 
@@ -428,7 +428,7 @@ int main (int argc, char* argv[]) {
 
     //Data parameters
     int no_batches = 4096;
-    int include_Moments = 1;
+    int include_Moments = 2;
     bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -438,7 +438,8 @@ int main (int argc, char* argv[]) {
     double cylinder_radius_stddev = 0.0;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
-    bool exact_2nd_moment = true;  // enable calculation of exact 2nd moments for data generation
+    bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    float epsilon_connectivity = 1e-12f;
 
     // Net Parameters
     int input_size = stencil_size * stencil_size * stencil_size 
@@ -469,25 +470,28 @@ int main (int argc, char* argv[]) {
                             max_sphere_radius, sphere_radius_stddev,
                             exact_2nd_moment);                    
     
-    //ml.generateDataset();
+    ml.generateDataset();
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_500kM/data/data.bin");
-    ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_262k/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxEigenv/s5_262kTS0-5/data/data.bin");
+    
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
-    //ml.saveDataset("data");
+    ml.saveDataset("data");
     int canonicalize_symmetries = 48;
     float noise_stddev = 0.0f;
     ml.preprocess_data(canonicalize_symmetries, noise_stddev);
 
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     ml.trainModel();
-    //ml.outputTrainingResults();
+    ml.outputTrainingResults();
     ml.saveModel("model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxMoment/s5_262k/model/ml_model.pt");
+    
 
     // vtk reader
-    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
-    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev);
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bag/nga.case";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bag/plic.case";
+    int downsample_factor = 1;
+    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
 
     //stable_classification();
 
@@ -496,6 +500,6 @@ int main (int argc, char* argv[]) {
     //gen.generateState(2,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
 
     //find_dataset_size();
-    shell_testcase(ml);
+    //shell_testcase(ml);
     return 0;
 }

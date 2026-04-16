@@ -232,6 +232,7 @@ namespace IRL {
 
                             if (visualize) {
                                 auto surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+                                const auto area = surface.getSurfaceArea();
                                 //surfaces.push_back(volume_and_surface.getSurface());
                                 surfaces.push_back(surface);
 
@@ -279,7 +280,7 @@ namespace IRL {
         void generateSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
+            int stencil_size, double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool variable_thickness = true, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
@@ -296,10 +297,24 @@ namespace IRL {
                 auto coords = makeCenteredCoords(stencil_size);
                 const double cell_volume = 1.0;
 
-                // Random datum anywhere in stencil
-                Eigen::Vector3d datum = generateRandomPoint(
-                    -0.5*static_cast<double>(stencil_size),
-                    0.5*static_cast<double>(stencil_size), eng);
+                Eigen::Vector3d datum;
+                
+                if (variable_thickness) {
+                    // Random datum anywhere in central cell to make sure it is small here
+                    datum = generateRandomPoint(
+                        -0.5*static_cast<double>(stencil_size),
+                        0.5*static_cast<double>(stencil_size), eng);
+                } else {
+                    // Random datum anywhere in stencil
+                    datum = generateRandomPoint(
+                        -0.5*static_cast<double>(stencil_size),
+                        0.5*static_cast<double>(stencil_size), eng);
+                }
+                
+
+                 datum = generateRandomPoint(
+                        -0.5*static_cast<double>(stencil_size),
+                        0.5*static_cast<double>(stencil_size), eng);
 
                 // Random unbiased direction
                 Eigen::Vector3d direction = generateRandomDirection(eng);
@@ -336,12 +351,28 @@ namespace IRL {
                 IRL::Pt datum_paraboloid1(datum_paraboloid1_eVec.x(), datum_paraboloid1_eVec.y(), datum_paraboloid1_eVec.z());
                 IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
 
-                // Random coefficients
                 double coeff1 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
                 double coeff2 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
+                double coeff1p1 = coeff1;
+                double coeff1p2 = coeff1;
+                double coeff2p1 = coeff2;
+                double coeff2p2 = coeff2;
+                // Random coefficients
+                if (variable_thickness) {
+                    // If variable thickness, make sure coeffs are correlated so that sheet doesn't self-intersect
+                    // add uniformly distributed noise
+                    //std::uniform_real_distribution<double> noise_dist(0.0, thickness/4.0);
+                    std::uniform_real_distribution<double> noise_dist(0.0, 0.5);
 
-                const auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1, coeff2);
-                const auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1, coeff2);
+                    coeff1p1 += noise_dist(eng);
+                    coeff1p2 -= noise_dist(eng);
+
+                    coeff2p1 += noise_dist(eng);
+                    coeff2p2 -= noise_dist(eng);
+                }
+
+                auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1p1, coeff2p1);
+                auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1p2, coeff2p2);
 
                 // Initialize field
                 using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
@@ -396,7 +427,12 @@ namespace IRL {
                                 double V2 = volume_and_surface2.getMoments().volume();
                                 double Vdiff = V2 - V1;
 
-
+                                // When in central cell, check if V1 is very small, meaning the central cell does not have 2 interfaces
+                                if (i == stencil_size/2 && j == stencil_size/2 && k == stencil_size/2) {
+                                    if (V1 < machineZero) {
+                                        Vdiff = 0.0; // treat as empty cell, will be rejected and regenerated
+                                    }
+                                }
 
                                 Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
                                                 volume_and_surface1.getMoments().centroid().y(),
@@ -1295,7 +1331,7 @@ namespace IRL {
                                     vfrac[i][j][k] = vf;
 
                                     // centroid of union-of-cylinders approximation in this cell
-                                    firstMoment[i][j][k] = cellM1 / cellV;
+                                    firstMoment[i][j][k] = cellM1;
 
                                     if (secondMoment != nullptr) {
                                         // accumulate second moments to get them for the whole stencil
@@ -2802,8 +2838,13 @@ namespace IRL {
                         // 20% chance → cut sheet
                         generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
                     } else {
-                        // 80% chance → normal sheet
-                        generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                        if (p2 < 0.6) {
+                            // 40% chance → sheet with variable thickness
+                            generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, true, visualize, secondMomentPtr);
+                        } else {
+                            // 40% chance → normal sheet
+                            generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
+                        }
                     }
                     break;
                 }
@@ -2883,20 +2924,16 @@ namespace IRL {
                             double p4 = prob_dist(eng);  // draw a random number in [0,1)
                             
                             if (p4 < 0.2) {
-                                generateCutSheet(vfrac, firstMoment, stencil_size,
-                                            /*cutinsidecentralcell*/ false,
-                                            sheet_coeff_stddev,
-                                            resolved_min_sheet_thickness,
-                                            resolved_max_sheet_thickness,
-                                            sheet_thickness_stddev,
-                                            visualize, secondMomentPtr);
+                                // 20% chance → cut sheet
+                                generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
                             } else {
-                                generateSheet(vfrac, firstMoment, stencil_size,
-                                            sheet_coeff_stddev,
-                                            resolved_min_sheet_thickness,
-                                            resolved_max_sheet_thickness,
-                                            sheet_thickness_stddev,
-                                            visualize, secondMomentPtr);
+                                if (p4 < 0.6) {
+                                    // 40% chance → sheet with variable thickness
+                                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, true, visualize, secondMomentPtr);
+                                } else {
+                                    // 40% chance → normal sheet
+                                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
+                                }
                             }
                             break;
                         }
@@ -2970,6 +3007,8 @@ namespace IRL {
             }
 
             if (include_Eigenvalues) {
+                IRL::appendInertiaEigenvalues(flattened_state, stencil_size, include_Moments, 1, machineZero);
+                /*
                 Eigen::Matrix3d I = IRL::computeInertiaTensor(flattened_state, stencil_size, include_Moments, machineZero);
 
                 // Get eigenvalues
@@ -2997,6 +3036,7 @@ namespace IRL {
                     flattened_state.push_back(I2);
                     flattened_state.push_back(I3);
                 }
+                */
 
                 
             }

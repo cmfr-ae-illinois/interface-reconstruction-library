@@ -27,7 +27,7 @@
 namespace IRL {
 
 void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
-    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Eigenvalues = false, float noise_stddev = 0.0f, std::vector<int>* savedClasses = nullptr) 
+    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connectivity = 1e-10f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2) 
     {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filenameNGA.c_str());
@@ -52,7 +52,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     grid->GetDimensions(dims);  // dims are for points, so cells are dims-1
     int cellDims[3] = {dims[0] - 1, dims[1] - 1, dims[2] - 1};
 
-    int downsample[3] = {2, 2, 2};
+    int downsample[3] = {downsample_factor, downsample_factor, downsample_factor}; //Change this to {1,1,1} to disable downsampling
     int newCellDims[3] = {
         cellDims[0] / downsample[0],
         cellDims[1] / downsample[1],
@@ -98,15 +98,20 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     cell_center_filter->Update();
     auto cell_centers = cell_center_filter->GetOutput()->GetPoints();
     
-    // Regenerate first moments from PLIC
+    // Regenerate first moments and surface area from PLIC
     auto liquid_barycenter = vtkSmartPointer<vtkDoubleArray>::New();
     liquid_barycenter->SetName("M1"); //WRONG? "Liquid_Barycenter"
     liquid_barycenter->SetNumberOfComponents(3);
     liquid_barycenter->SetNumberOfTuples(grid->GetNumberOfCells());
+    //auto surface_area = vtkSmartPointer<vtkDoubleArray>::New();
+    //surface_area->SetName("Surface Area");
+    //surface_area->SetNumberOfComponents(1);
+    //surface_area->SetNumberOfTuples(grid->GetNumberOfCells());
     for (int i = 0; i < grid->GetNumberOfCells(); i++) {
         double center[3];
         grid_cell_centers->GetPoint(i, center);
         liquid_barycenter->SetTuple3(i, center[0], center[1], center[2]);
+        //surface_area->SetValue(i, 0.0);
     }
     double max_vfrac_error = 0.0, rms_vfrac_error = 0.0;
     for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
@@ -143,6 +148,10 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
             const double vfrac_error = std::fabs(vfrac - vofArray->GetComponent(cell_id, 0));
             max_vfrac_error = std::max(max_vfrac_error, vfrac_error);
             rms_vfrac_error += vfrac_error * vfrac_error;
+
+            // Get surface area from polygon
+            const double area = polygon->ComputeArea(); //Actually returns area
+            //surface_area->SetValue(cell_id, area);
         }
     }
     rms_vfrac_error = std::sqrt(rms_vfrac_error / static_cast<double>(plic_grid->GetNumberOfCells()));
@@ -183,6 +192,9 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     newLiquidBarycenter->SetName("LiquidBarycenter");
     newLiquidBarycenter->SetNumberOfComponents(3);
     newLiquidBarycenter->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
+
+    //Create new surface area array
+    
 
     // Downsample cell data
     int idx = 0;
@@ -288,7 +300,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     int stencil_size_reader = classifier.getStencilSize();
     int half = stencil_size_reader / 2;
 
-    double epsilon = 1e-10; // threshold for considering a cell as "interface" (0 < vfrac < 1) vs "empty" (vfrac=0) or "full" (vfrac=1)
+    double epsilon = 1e-12; // threshold for considering a cell as "interface" (0 < vfrac < 1) vs "empty" (vfrac=0) or "full" (vfrac=1)
 
     int no_filled_cells = 0;
     int no_paraboloids = 0;
@@ -520,11 +532,18 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     flattened_state.push_back(secondMoment(1, 2)); // yz
                 }
 
+                if (include_Eigenvalues) {
+                    IRL::appendInertiaEigenvalues(flattened_state, stencil_size_reader, 1);
+                }
+
+                //print length of flattened state for debugging
+                //std::cout << "Flattened state length: " << flattened_state.size() << std::endl;
+
                 // Make flattened_state a float vector
                 std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
 
                 //Preprocess stencil
-                IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, 1e-2f);
+                IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, epsilon_connectivity);
                 
 
                 // Classify
@@ -554,9 +573,98 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         no_ligament_tip++;
                         interface_type->SetValue(centerCellId, 4);
                         break;
-                    case 5:
+                    case 5: {
                         no_cut_sheets++;
                         interface_type->SetValue(centerCellId, 5);
+
+                        /*
+                        // Debugging: print stencil and moments for first few class 5 predictions
+                        static int printed_class5 = 0;
+                        if (printed_class5 < 5) {
+                            ++printed_class5;
+
+                            std::vector<CellData> dbg_stencil;
+                            SecondMoments dbg_I{};
+                            SecondMoments* dbg_Ip = (include_Moments >= 2) ? &dbg_I : nullptr;
+                            Eigenvalues dbg_eig{};
+                            Eigenvalues* dbg_eigp = include_Eigenvalues ? &dbg_eig : nullptr;
+
+                            IRL::unpackStencil(
+                                flattened_state_float,
+                                dbg_stencil,
+                                dbg_Ip,
+                                dbg_eigp,
+                                stencil_size_reader,
+                                include_Moments,
+                                include_Eigenvalues
+                            );
+
+                            std::cout << "\n============================================================\n";
+                            std::cout << "CLASS 5 STENCIL DEBUG #" << printed_class5 << "\n";
+                            std::cout << "domain cell = [" << i << "," << j << "," << k << "]\n";
+                            std::cout << "centerCellId = " << centerCellId << "\n";
+                            std::cout << "vof_center = " << vof_center << "\n";
+                            std::cout << "certainty = " << max_prob << "\n";
+                            std::cout << "stencil_size = " << stencil_size_reader << "\n";
+
+                            for (int sk = 0; sk < stencil_size_reader; ++sk) {
+                                std::cout << "\n----- z-slice k = " << sk << " -----\n";
+
+                                for (int sj = 0; sj < stencil_size_reader; ++sj) {
+                                    for (int si = 0; si < stencil_size_reader; ++si) {
+                                        const CellData& c = dbg_stencil[cellIndex(si, sj, sk, stencil_size_reader)];
+
+                                        float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+                                        if (include_Moments >= 1 && c.vfrac > 1.0e-12f) {
+                                            cx = c.mx / c.vfrac;
+                                            cy = c.my / c.vfrac;
+                                            cz = c.mz / c.vfrac;
+                                        }
+
+                                        std::cout << "[" << si << "," << sj << "," << sk << "] "
+                                                << c.vfrac << " "
+                                                << "(" << cx << ", " << cy << ", " << cz << ")";
+
+                                        if (si < stencil_size_reader - 1) {
+                                            std::cout << "    ";
+                                        }
+                                    }
+                                    std::cout << "\n";
+                                }
+                            }
+
+                            if (include_Moments >= 2) {
+                                std::cout << "Second moments: "
+                                        << dbg_I.Ixx << ", "
+                                        << dbg_I.Iyy << ", "
+                                        << dbg_I.Izz << ", "
+                                        << dbg_I.Ixy << ", "
+                                        << dbg_I.Ixz << ", "
+                                        << dbg_I.Iyz << "\n";
+                            }
+
+                            if (include_Eigenvalues) {
+                                std::cout << "Eigenvalues: "
+                                        << dbg_eig.lambda1 << ", "
+                                        << dbg_eig.lambda2 << ", "
+                                        << dbg_eig.lambda3 << "\n";
+                            }
+
+                            std::cout << "============================================================\n";
+                        }
+                        */
+                        /*
+                        if (certainty->GetValue(centerCellId) < 0.95f) {
+                            predicted_class = 3; // re-assign to cut sheet if certainty is low, since class 3 is "catch-all" for hard cases and should be most robust
+                            no_cut_sheets--;
+                            no_sheets++;
+                            interface_type->SetValue(centerCellId, 3);
+                        }
+                        */
+                        break;
+
+                    }
+
                         break;
                     default:
                         std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;

@@ -94,6 +94,56 @@ static void unpackStencil(const std::vector<float>& flat,
     }
 }
 
+inline void convert_to_local_centroids(std::vector<CellData>& stencil,
+                                       int N,
+                                       int include_moments)
+{
+    if (include_moments < 1) return;
+
+    const float c0 = 0.5f * (static_cast<float>(N) - 1.0f);
+
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            for (int k = 0; k < N; ++k) {
+                CellData& c = stencil[cellIndex(i, j, k, N)];
+
+                const float x_center = static_cast<float>(i) - c0;
+                const float y_center = static_cast<float>(j) - c0;
+                const float z_center = static_cast<float>(k) - c0;
+
+                if (c.vfrac <= 1e-12f) {
+                    c.vfrac = 0.0f;
+                    c.mx = 0.0f;
+                    c.my = 0.0f;
+                    c.mz = 0.0f;
+                    continue;
+                }
+
+                //const float cx_global = c.mx / IRL::safelyEpsilon(c.vfrac);
+                //const float cy_global = c.my / IRL::safelyEpsilon(c.vfrac);
+                //const float cz_global = c.mz / IRL::safelyEpsilon(c.vfrac);
+
+                const float cx_global = c.mx / c.vfrac;
+                const float cy_global = c.my / c.vfrac;
+                const float cz_global = c.mz / c.vfrac;
+
+                c.mx = cx_global;// - x_center;
+                c.my = cy_global;// - y_center;
+                c.mz = cz_global;// - z_center;
+                /*
+                // Check if conversion happened correctly (debugging), is it in -0.5, 0.5?
+                if (std::abs(c.mx) > 0.5f || std::abs(c.my) > 0.5f || std::abs(c.mz) > 0.5f) {
+                    std::cerr << "Warning: converted local centroid out of expected range [-0.5, 0.5] for cell (" << i << "," << j << "," << k << "): "
+                              << "local centroid = (" << c.mx << ", " << c.my << ", " << c.mz << "), "
+                              << "global centroid = (" << cx_global << ", " << cy_global << ", " << cz_global << ")\n";
+                }
+                */
+            }
+        }
+    }
+}
+
+
 // Write CellData stencil back into flat array (and optional global inertia)
 static void repackStencil(std::vector<float>& flat,
                           const std::vector<CellData>& stencil,
@@ -103,6 +153,9 @@ static void repackStencil(std::vector<float>& flat,
                           int include_moments,
                           bool include_Eigenvalues = false)
 {
+    std::vector<CellData> packed_stencil = stencil;
+    //convert_to_local_centroids(packed_stencil, N, include_moments);
+
     const int nCells = N * N * N;
     int stride = perCellStride(include_moments);
     const int tail   = globalTailStride(include_moments, include_Eigenvalues);
@@ -110,12 +163,12 @@ static void repackStencil(std::vector<float>& flat,
     flat.resize(stride * nCells + tail);
 
     for (int idx = 0; idx < nCells; ++idx) {
-        flat[stride * idx + 0] = stencil[idx].vfrac;
+        flat[stride * idx + 0] = packed_stencil[idx].vfrac;
 
         if (include_moments >= 1) {
-            flat[stride * idx + 1] = stencil[idx].mx;
-            flat[stride * idx + 2] = stencil[idx].my;
-            flat[stride * idx + 3] = stencil[idx].mz;
+            flat[stride * idx + 1] = packed_stencil[idx].mx;
+            flat[stride * idx + 2] = packed_stencil[idx].my;
+            flat[stride * idx + 3] = packed_stencil[idx].mz;
         }
     }
 
@@ -131,14 +184,14 @@ static void repackStencil(std::vector<float>& flat,
 
     if (include_Eigenvalues) {
         if (include_moments >= 2 && I) {
-            base += 6; // eigenvalues come after inertia tensor
+            base += 6;
         }
         if (eigenvalues) {
             flat[base + 0] = eigenvalues->lambda1;
             flat[base + 1] = eigenvalues->lambda2;
             flat[base + 2] = eigenvalues->lambda3;
         }
-    }  
+    }
 }
 
 // Symmetry helpers
@@ -652,6 +705,9 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
     }
     // Pack back into flat storage
     repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
+
+    //m1.x / IRL::safelyEpsilon(vfrac);, recheck if -0.5,0.5 after
+    // check in sheet if it is well resolved by comparing V1 and V2
 }
 
 } // namespace IRL

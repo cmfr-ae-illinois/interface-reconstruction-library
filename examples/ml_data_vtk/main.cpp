@@ -6,6 +6,8 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <numeric>
+#include <iomanip>
+#include <cmath>
 #include <vtkCellCenters.h>
 
 #include "irl/ml_classification/data_gen.h"
@@ -206,15 +208,138 @@ void simulation_stability_analysis() {
     std::cout << "Mean per-cell instability over " << N << " cells = " << mean_instability << "\n";
 }
 
+static void print_flat_state(const std::vector<float>& state, const std::string& title) {
+    std::cout << "\n==== " << title << " (flat) ====\n";
+    for (size_t i = 0; i < state.size(); ++i) {
+        std::cout << std::setw(4) << i << ": "
+                  << std::setw(14) << std::setprecision(8) << state[i] << '\n';
+    }
+}
+
+static void print_decoded_state(const std::vector<float>& flat,
+                                int N,
+                                int include_moments,
+                                bool include_Eigenvalues,
+                                const std::string& title,
+                                bool stored_as_local_centroid)
+{
+    std::vector<IRL::CellData> stencil;
+    IRL::SecondMoments I{};
+    IRL::SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
+    IRL::Eigenvalues eig{};
+    IRL::Eigenvalues* eigp = include_Eigenvalues ? &eig : nullptr;
+
+    IRL::unpackStencil(flat, stencil, Ip, eigp, N, include_moments, include_Eigenvalues);
+
+    const float c0 = 0.5f * (static_cast<float>(N) - 1.0f);
+
+    std::cout << "\n==== " << title << " ====\n";
+
+    for (int i = 0; i < N; ++i) {
+        std::cout << "\n----- i = " << i << " -----\n";
+        for (int j = 0; j < N; ++j) {
+            for (int k = 0; k < N; ++k) {
+                const auto& c = stencil[IRL::cellIndex(i, j, k, N)];
+
+                const float x_center = static_cast<float>(i) - c0;
+                const float y_center = static_cast<float>(j) - c0;
+                const float z_center = static_cast<float>(k) - c0;
+
+                std::cout << "[" << i << "," << j << "," << k << "] "
+                          << "v=" << c.vfrac;
+
+                if (include_moments >= 1) {
+                    if (!stored_as_local_centroid) {
+                        std::cout << "  m1=(" << c.mx << ", " << c.my << ", " << c.mz << ")";
+                        if (std::fabs(c.vfrac) > 1e-12f) {
+                            const float cx_global = c.mx / c.vfrac;
+                            const float cy_global = c.my / c.vfrac;
+                            const float cz_global = c.mz / c.vfrac;
+
+                            const float cx_local = cx_global - x_center;
+                            const float cy_local = cy_global - y_center;
+                            const float cz_local = cz_global - z_center;
+
+                            std::cout << "  cg=(" << cx_global << ", " << cy_global << ", " << cz_global << ")"
+                                      << "  cl=(" << cx_local << ", " << cy_local << ", " << cz_local << ")";
+                        }
+                    } else {
+                        // after conversion: mx,my,mz ARE already local centroids
+                        const float cx_local  = c.mx;
+                        const float cy_local  = c.my;
+                        const float cz_local  = c.mz;
+
+                        const float cx_global = cx_local + x_center;
+                        const float cy_global = cy_local + y_center;
+                        const float cz_global = cz_local + z_center;
+
+                        std::cout << "  cl=(" << cx_local << ", " << cy_local << ", " << cz_local << ")"
+                                  << "  cg=(" << cx_global << ", " << cy_global << ", " << cz_global << ")";
+                    }
+                }
+
+                std::cout << "\n";
+            }
+        }
+    }
+}
+
 
 int main(int argc, char* argv[]) {
     
-    //simulation_stability_analysis();
-
     IRL::Data_gen gen;
 
-    gen.generateState(0,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
+    constexpr int stencil_size = 5;
+    constexpr int include_moments = 1;
+    constexpr bool include_Eigenvalues = false;
+
+    for (int t = 0; t < 6; ++t) {
+        // do it 10 times per state
+        for (int i = 0; i < 10; ++i) {
+            // print current state for debugging
+            std::cout << "State " << t << std::endl;
+            std::vector<float> state = gen.generateState(t,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,false);
+
+            IRL::preprocess_stencil(state,
+                                    stencil_size,
+                                    1,                  // no_symmetries
+                                    include_moments,
+                                    include_Eigenvalues,
+                                    0.0f,               // noise_stddev
+                                    1e-12f);            // epsilon_connect
+        }
+    }
+
     
+
+    /*
+
+    constexpr int stencil_size = 5;
+    constexpr int include_moments = 1;
+    constexpr bool include_Eigenvalues = false;
+
+    print_flat_state(state, "ORIGINAL STATE");
+    print_decoded_state(state, stencil_size, include_moments, include_Eigenvalues, "ORIGINAL STATE", false);
+
+    // For debugging, keep this as clean as possible:
+    // - no noise
+    // - minimal symmetry handling
+    // - standard connectivity threshold
+    IRL::preprocess_stencil(state,
+                            stencil_size,
+                            1,                  // no_symmetries
+                            include_moments,
+                            include_Eigenvalues,
+                            0.0f,               // noise_stddev
+                            1e-12f);            // epsilon_connect
+
+    print_flat_state(state, "PREPROCESSED STATE");
+    print_decoded_state(state, stencil_size, include_moments, include_Eigenvalues, "PREPROCESSED STATE", true);
+
+    */
+
+    //simulation_stability_analysis();
+
     /*
     int num_tests = 100;
     for (int i=0; i<4; i++) {

@@ -53,9 +53,12 @@ inline Eigen::Matrix3d compute2ndMoment(const std::vector<double>& flattened_sta
                 else if (from_ith_moment == 3) {
                     // WIP
                     // placeholder
+                    std::cout<<"WIP: from_ith_moment == 3 is not implemented yet"<<std::endl;
                     throw std::invalid_argument("Invalid mode for compute2ndMoment");
                 }
                 else {
+                    std::cout<<"WIP: from_ith_moment >= 3 is not implemented yet"<<std::endl;
+                    std::cout<<"ith moment = "<<from_ith_moment<<" is not supported yet"<<std::endl;
                     throw std::invalid_argument("Invalid mode for compute2ndMoment");
                 }
 
@@ -111,6 +114,38 @@ inline Eigen::Matrix3d computeInertiaTensor(const std::vector<double>& flattened
     Eigen::Matrix3d I = mu.trace() * Eigen::Matrix3d::Identity() - mu;
 
     return I;
+}
+
+inline void appendInertiaEigenvalues(std::vector<double>& flattened_state,
+                             int stencil_size,
+                             int include_Moments = 1,
+                             int from_ith_moment = 1,
+                             double machineZero = 1e-12)
+{
+    Eigen::Matrix3d I = IRL::computeInertiaTensor(flattened_state, stencil_size, from_ith_moment, machineZero);
+
+    // Get eigenvalues
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(I);
+    Eigen::Vector3d evals = solver.eigenvalues();
+
+    // Sort eigenvalues descending: I1 >= I2 >= I3
+    std::sort(evals.data(), evals.data() + 3, std::greater<double>());
+    double I1 = evals[0], I2 = evals[1], I3 = evals[2];
+
+    if (include_Moments <= 3) {
+        flattened_state.push_back(I1);
+        flattened_state.push_back(I2);
+        flattened_state.push_back(I3);
+    }
+
+    if (include_Moments == 4) {
+        // if include_Moments == 4, use only the three eigenvalues
+        flattened_state.clear();
+        flattened_state.push_back(I1);
+        flattened_state.push_back(I2);
+        flattened_state.push_back(I3);
+    }
+
 }
 
 } // namespace IRL
