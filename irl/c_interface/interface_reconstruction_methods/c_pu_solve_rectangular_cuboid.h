@@ -35,27 +35,5 @@ void c_PU_RectCub_getTangent(c_PU_RectCub* a_self, double* x, double* y,
 
 void c_PU_RectCub_getWeight(c_PU_RectCub* a_self, double* x, double* y,
                             double* z, double* delta, double* value);
-
-// Cylinder Versions
-void c_PU_RectCub_solveEdgeCylinder(c_PU_RectCub* a_self, double* STCoeff,
-                                    double* P0, double* P1, double* radius,
-                                    double* center, double* delta,
-                                    double* a_force);
-
-void c_PU_RectCub_getValueCylinder(c_PU_RectCub* a_self, double* x, double* y,
-                                   double* z, double* radius, double* center,
-                                   double* value);
-
-void c_PU_RectCub_getTangentCylinder(c_PU_RectCub* a_self, double* x, double* y,
-                                     double* z, double* radius, double* center,
-                                     double* tangent);
-
-void c_PU_RectCub_getWeightCylinder(c_PU_RectCub* a_self, double* x, double* y,
-                                    double* z, double* radius, double* center,
-                                    double* value);
-
-// Debug
-void c_PU_RectCub_printSolver(c_PU_RectCub* a_self);
 }
-
 #endif

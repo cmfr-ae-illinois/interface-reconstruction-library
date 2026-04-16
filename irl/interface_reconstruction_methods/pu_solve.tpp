@@ -342,129 +342,6 @@ inline void PUImplicitSurface::evaluate(const Pt& x, double* retVal) {
   *retVal = F_sum * inv_weight_sum;
 }
 
-// Evaluate Function Hess for Circle =====================================
-inline void PUImplicitSurface::evaluateCylinder(
-    Pt& x, double radius, Pt& center,
-    std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
-  Pt offset = x - center;
-  double F = offset[0] * offset[0] + offset[1] * offset[1] - radius * radius;
-
-  Eigen::Vector3d gradF(2 * offset[0], 2 * offset[1], 0);
-
-  Eigen::Matrix3d hessF(3, 3);
-  hessF(0, 0) = 2;
-  hessF(1, 1) = 2;
-
-  // Return
-  *retVal = std::make_tuple(F, gradF, hessF);
-}
-
-// Evaluate Function Grad for Circle =====================================
-inline void PUImplicitSurface::evaluateCylinder(
-    Pt& x, double radius, Pt& center,
-    std::pair<double, Eigen::Vector3d>* retVal) {
-  Pt offset = x - center;
-  double F = offset[0] * offset[0] + offset[1] * offset[1] - radius * radius;
-
-  Eigen::Vector3d gradF(2 * offset[0], 2 * offset[1], 0);
-
-  // Return
-  *retVal = std::make_pair(F, gradF);
-}
-
-// Evaluate Function Value for Circle =====================================
-inline void PUImplicitSurface::evaluateCylinder(Pt& x, double radius,
-                                                Pt& center, double* retVal) {
-  Pt offset = x - center;
-  double F =
-      (offset[0] * offset[0]) + (offset[1] * offset[1]) - (radius * radius);
-
-  // Return
-  *retVal = F;
-}
-
-inline std::vector<Pt> PUImplicitSurface::intersectEdgeCylinder(
-    const Pt& x0, const Pt& x1, double radius, Pt& center,
-    const int& Npartitions) {
-  // Split the domain into segments
-  std::vector<Pt> sampleLocations = {};
-  // At these locations, calculate the function value
-  std::vector<double> values = {};
-  // Also get the sign of these values
-  std::vector<double> signs = {};
-  for (int i = 0; i < Npartitions + 1; i++) {
-    Pt temp =
-        (1 - static_cast<double>(i) / static_cast<double>(Npartitions)) * x0 +
-        (static_cast<double>(i) / static_cast<double>(Npartitions)) * x1;
-    sampleLocations.push_back(temp);
-    double val = 0.0;
-    this->evaluateCylinder(temp, radius, center, &val);
-    values.push_back(val);
-
-    double sgn = (0.0 < val) - (val < 0.0);
-    signs.push_back(sgn);
-    // std::cout << "===================== IN INTERSECT EDGE" <<
-    // this->kernel_size
-    //           << std::endl;
-  }
-
-  // Loop over all the partitions. If the signs are different, do a bisection
-  // method to find the root
-  std::vector<Pt> intersections = {};
-  // std::cout << intersections.size() << std::endl;
-  Pt upperX;
-  Pt lowerX;
-  Pt midX;
-  double upperVal;
-  double lowerVal;
-  double midVal;
-
-  double tol = 1e-12;
-  double max_iters = 200;
-  double weight;
-  for (int i = 0; i < Npartitions; i++) {
-    if (signs[i] == 0 || signs[i + 1] == 0) {  // At least one root
-      if (signs[i] == 0) {
-        // std::cout << "Zero Intersection Found" << std::endl;
-        intersections.push_back(sampleLocations[i]);
-      }
-      if (signs[i + 1] == 0 && i + 1 == Npartitions) {
-        // std::cout << "Zero Intersection Found" << std::endl;
-        intersections.push_back(sampleLocations[i + 1]);
-      }
-    } else if (signs[i] != signs[i + 1]) {  // Different signs, root somewhere
-      // Decide which Side is upper and lower
-      if (signs[i] == 1) {  // Left  is upper value
-        upperX = sampleLocations[i];
-        upperVal = values[i];
-
-        lowerX = sampleLocations[i + 1];
-        lowerVal = values[i + 1];
-      } else {
-        upperX = sampleLocations[i + 1];
-        upperVal = values[i + 1];
-
-        lowerX = sampleLocations[i];
-        lowerVal = values[i];
-      }
-      // Apply Bisection Method
-      for (int j = 0; j < max_iters; j++) {  // Do until you reach max iters
-        midX = 0.5 * (upperX + lowerX);
-        this->evaluateCylinder(midX, radius, center, &midVal);
-        if (std::abs(midVal) < tol) {
-          break;
-        } else if (midVal > 0.0) {
-          upperX = midX;
-        } else {
-          lowerX = midX;
-        }
-      }  // End Bisection
-      intersections.push_back(midX);
-    }
-  }  // End loop over partitions
-  return intersections;
-}
-
 // Get Total Weight at a Point
 inline void PUImplicitSurface::getTotalWeight(Pt& x, double* retVal) {
   double weight_sum = 0.0;
@@ -477,17 +354,6 @@ inline void PUImplicitSurface::getTotalWeight(Pt& x, double* retVal) {
   }
   // Put Everything Together and return.
   *retVal = weight_sum;
-}
-
-inline Normal PUImplicitSurface::getTangentCylinder(Pt& x, double radius,
-                                                    Pt& center) {
-  std::pair<double, Eigen::Vector3d> holdsGrad;
-  this->evaluateCylinder(x, radius, center, &holdsGrad);
-  auto gradF = std::get<1>(holdsGrad);
-  double Fx = gradF(0);
-  double Fy = gradF(1);
-
-  return Normal(-Fy, Fx, 0.0);
 }
 
 // template <class SeparatorType>
@@ -771,53 +637,6 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
 }
 
 template <class CellType>
-Normal PU<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
-                                       double radius, Pt& center,
-                                       double delta) {
-  // Make Implicit Surface
-  // std::cout << "In Solve Edge\n";
-  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
-  // Find Intersection with edge
-  std::vector<Pt> intersections =
-      s.intersectEdgeCylinder(P0, P1, radius, center, 10);
-
-  // Calculate some edge properties
-  Pt dP = P1 - P0;
-  Normal OutwardsNormal = {dP[1], -dP[0], 0};
-  double D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1]);
-  double denom = 1.0 / (safelyEpsilon(D));
-  // Give space for working variables
-  Normal tangent;
-  Normal total = {0.0, 0.0, 0.0};  // Total force
-
-  // Loop over intersections and add tangents to force
-  if (intersections.size() > 0) {
-    for (int j = 0; j < intersections.size(); j++) {
-      tangent = s.getTangentCylinder(intersections[j], radius, center);
-      tangent.normalize();
-      // If facing inside, multiply by negative
-      // If facing outside, leave the same
-      double Scale = OutwardsNormal * tangent;
-
-      tangent *= Scale / safelyEpsilon(std::abs(Scale));
-      // Add
-      total = total + STCoeff * denom * tangent;
-    }
-  }
-  return total;
-}
-
-template <class CellType>
-double PU<CellType>::getValue(double x, double y, double z, double delta) {
-  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
-  Pt in = {x, y, z};
-  double retVal = 0;
-  s.evaluate(in, &retVal);
-  // std::cout << "==== Return Value: " << retVal << std::endl;
-  return retVal;
-}
-
-template <class CellType>
 Normal PU<CellType>::getTangent(double x, double y, double z, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
@@ -841,37 +660,6 @@ double PU<CellType>::getWeight(Pt& in, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   double retVal;
   s.getTotalWeight(in, &retVal);
-  // std::cout << "==== Return Value: " << retVal << std::endl;
-  return retVal;
-}
-
-template <class CellType>
-double PU<CellType>::getValueCylinder(double x, double y, double z,
-                                      double radius, Pt center) {
-  PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
-  Pt in = {x, y, z};
-  double retVal = 0;
-  s.evaluateCylinder(in, radius, center, &retVal);
-  // std::cout << "==== Return Value: " << retVal << std::endl;
-  return retVal;
-}
-
-template <class CellType>
-inline Normal PU<CellType>::getTangentCylinder(double x, double y, double z,
-                                               double radius, Pt center) {
-  PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
-  Pt in = {x, y, z};
-  Normal retVal = s.getTangentCylinder(in, radius, center);
-  // std::cout << "==== Return Value: " << retVal << std::endl;
-  return retVal;
-}
-
-template <class CellType>
-double PU<CellType>::getWeightCylinder(double x, double y, double z,
-                                       double radius, Pt center) {
-  PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
-  Pt in = {x, y, z};
-  double retVal = 1.0;
   // std::cout << "==== Return Value: " << retVal << std::endl;
   return retVal;
 }

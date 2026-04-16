@@ -54,9 +54,6 @@ class PUImplicitSurface {
                                        const int& Npartitions,
                                        const double& tresh);
 
-  inline std::vector<Pt> intersectEdgeCylinder(const Pt& x0, const Pt& x1,
-                                               double radius, Pt& center,
-                                               const int& Npartitions);
   // Signed Distance of Separator
   static inline void implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
                                        const SeparatorVariant* a_sepPtr,
@@ -69,20 +66,6 @@ class PUImplicitSurface {
   static inline void implicitSeparator(
       const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
-
-  inline void evaluateCylinder(
-      Pt& x, double radius, Pt& center,
-      std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
-
-  inline void evaluateCylinder(Pt& x, double radius, Pt& center,
-                               std::pair<double, Eigen::Vector3d>* retVal);
-
-  inline void evaluateCylinder(Pt& x, double radius, Pt& center,
-                               double* retVal);
-
-  //
-  // Find the Tangent and Curvature at the point
-  inline Normal getTangentCylinder(Pt& x, double radius, Pt& center);
   // Print the Implicit Surface Properties
   inline void printSurface();
   inline Normal getTangent(Pt& x);
@@ -118,21 +101,13 @@ class PU {
                    const double delta, const double Pressure,
                    const Normal& Marangoni);
 
-  Normal solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1, double radius,
-                           Pt& center, double delta);
   // Get value function for neighborhood
   double getValue(double x, double y, double z, double delta);
-  double getValueCylinder(double x, double y, double z, double radius,
-                          Pt center);
   // Get Tangent for Neighborhood
   Normal getTangent(double x, double y, double z, double delta);
-  Normal getTangentCylinder(double x, double y, double z, double radius,
-                            Pt center);
   // Get Total weight
   double getWeight(double x, double y, double z, double delta);
   double getWeight(Pt& in, double delta);
-  double getWeightCylinder(double x, double y, double z, double radius,
-                           Pt center);
   // Print
   void printSolver();
   /// \brief Solve the system for the reconstruction
