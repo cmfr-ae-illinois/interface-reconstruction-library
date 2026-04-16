@@ -12,6 +12,20 @@
 
 namespace IRL {
 
+Paraboloid reconstructionWithTaubin3D(
+    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
+  Taubin_3D taubin_solver;
+  return taubin_solver.solve(&a_neighborhood_geometry, a_delta);
+}
+
+template <class CellType>
+Paraboloid reconstructionWithPU3D(
+    const PUNeighborhood<CellType>& a_neighborhood_geometry,
+    const Pt& a_centroid, const double a_delta) {
+  PU<CellType> pu_solver;
+  return pu_solver.solve(&a_neighborhood_geometry, a_centroid, a_delta);
+}
+
 Paraboloid reconstructionWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
   Jibben_3D jibben_solver;

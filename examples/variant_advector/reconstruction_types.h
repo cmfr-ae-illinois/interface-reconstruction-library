@@ -16,6 +16,8 @@
 #include "irl/moments/volume_moments.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
+#include "irl/interface_reconstruction_methods/taubin.h"
+
 #include "examples/variant_advector/data.h"
 
 void getReconstruction(const std::string& a_reconstruction_method,

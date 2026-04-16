@@ -13,22 +13,23 @@ class Wendland {
  public:
   // New
   // Compute the Radius
-  static double computeR(Pt xi, Pt x_eval);
+  static inline double computeR(Pt xi, Pt x_eval);
   // Compute Zeroth Derivative (Function)
-  static double eval(double r, double delta);
+  static inline double eval(double r, double delta);
   // Compute First Derivative
-  static double firstDer(double r, double delta);
+  static inline double firstDer(double r, double delta);
   // Compute Second Derivative
-  static double secondDer(double r, double delta);
+  static inline double secondDer(double r, double delta);
 
   // Compute Wendland Function
-  static void evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
-                       double* retVal);
+  static inline void evaluate(const Pt& xi, const double& delta,
+                              const Pt& x_eval, double* retVal);
   // Compute Wendland Function and Gradient
-  static void evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
-                       std::pair<double, Eigen::Vector3d>* retVal);
+  static inline void evaluate(const Pt& xi, const double& delta,
+                              const Pt& x_eval,
+                              std::pair<double, Eigen::Vector3d>* retVal);
   // Compute Wendland Function, Grad, And Hessian
-  static void evaluate(
+  static inline void evaluate(
       const Pt& xi, const double& delta, const Pt& x_eval,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
 

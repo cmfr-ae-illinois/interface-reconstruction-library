@@ -15,7 +15,7 @@
 ! Results are printed and verified.
 program main
   use irl_fortran_interface
-  use f_PUSTNeigh_RectCub_class
+  use f_PUNeigh_RectCub_class
   use f_SeparatorVariant_class
   use f_PUSolve_RectCub_class
   implicit none
@@ -23,13 +23,14 @@ program main
   
   ! Declar Centroids
   real(DP), dimension(1:3) :: cen1,cen2,cen3,cen4,cen5,nor1,nor2,nor3,nor4,nor5
-  real(DP), dimension(1:3) :: startPoint,endPoint,force
-  real(DP) :: d1,d2,d3,d4,d5,stc
+  real(DP), dimension(1:3) :: startPoint,endPoint,force,Marangoni
+  real(DP) :: d1,d2,d3,d4,d5,stc,pressure,mag
+  real(DP),parameter :: delta = 5.0_DP
   type(SeparatorVariant_type) :: plane1,plane2,plane3,plane4,plane5
   ! First make a Neighborhood
-  type(PUSTNeigh_RectCub_type) :: neighborhood
+  type(PUNeigh_RectCub_type) :: neighborhood
   ! Now the solver object
-  type(PUST_RectCub_type) :: solver
+  type(PU_RectCub_type) :: solver
 
   ! Define Planar Separators
   ! Centroids
@@ -46,6 +47,17 @@ program main
   nor3 = (/0.514495755428_DP,0.857492925713_DP,0.0_DP/)
   nor4 = (/0.980580675691_DP,0.196116135138_DP,0.0_DP/)
   nor5 = (/0.857492925713_DP,0.514495755428_DP,0.0_DP/)
+  ! Normalize
+  mag = sqrt(dot_product(nor1, nor1))
+  nor1 = nor1/mag 
+  mag = sqrt(dot_product(nor2, nor2))
+  nor2 = nor2/mag 
+  mag = sqrt(dot_product(nor3, nor3))
+  nor3 = nor3/mag 
+  mag = sqrt(dot_product(nor4, nor4))
+  nor4 = nor4/mag 
+  mag = sqrt(dot_product(nor5, nor5))
+  nor5 = nor5/mag
   ! Calculate Distances
   write(*,'(A)') 'Distances Making'
   d1 = nor1(1)*cen1(1) + nor1(2)*cen1(2) + nor1(3)*cen1(3)
@@ -60,30 +72,42 @@ program main
   call setNumberOfPlanes(plane1,1)
   call setPlane(plane1, 0, nor1,d1)
 
-  call new(plane2)
-  call setNumberOfPlanes(plane2,1)
-  call setPlane(plane2, 0, nor2,d2)
+  ! call new(plane2)
+  ! call setNumberOfPlanes(plane2,1)
+  ! call setPlane(plane2, 0, nor2,d2)
 
-  call new(plane3)
-  call setNumberOfPlanes(plane3,1)
-  call setPlane(plane3, 0, nor3,d3)
+  ! call new(plane3)
+  ! call setNumberOfPlanes(plane3,1)
+  ! call setPlane(plane3, 0, nor3,d3)
 
-  call new(plane4)
-  call setNumberOfPlanes(plane4,1)
-  call setPlane(plane4, 0, nor4,d4)
+  ! call new(plane4)
+  ! call setNumberOfPlanes(plane4,1)
+  ! call setPlane(plane4, 0, nor4,d4)
 
-  call new(plane5)
-  call setNumberOfPlanes(plane5,1)
-  call setPlane(plane5, 0, nor5,d5)
-  
   ! Now, add Separators to Neighborhood
   write(*,'(A)') 'Making Neighborhood'
   call new(neighborhood)
-  call addMember(neighborhood,cen1,plane1)
-  call addMember(neighborhood,cen2,plane2)
-  call addMember(neighborhood,cen3,plane3)
-  call addMember(neighborhood,cen4,plane4)
-  call addMember(neighborhood,cen5,plane5)
+  call addMember(neighborhood,cen1,1.0_DP,plane1)
+
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor2,d2)
+  call addMember(neighborhood,cen2,1.0_DP,plane1)
+
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor3,d3)
+  call addMember(neighborhood,cen3,1.0_DP,plane1)
+
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor4,d4)
+  call addMember(neighborhood,cen4,1.0_DP,plane1)
+
+  call new(plane1)
+  call setNumberOfPlanes(plane1,1)
+  call setPlane(plane1, 0, nor5,d5)
+  call addMember(neighborhood,cen5,1.0_DP,plane1)
 
   ! Now that everything is in the neighborhood, make the solver object and put the neighborhood in.
   write(*,'(A)') 'Making Solver'
@@ -98,7 +122,9 @@ program main
   startPoint = (/0.0_DP,3.0_DP,0.0_DP/)
   endPoint = (/0.0_DP,2.0_DP,0.0_DP/)
   force = (/0.0_DP,0.0_DP,0.0_DP/)
-  call solveEdge(solver,stc,startPoint,endPoint,force)
+  pressure = 0.0_DP
+  Marangoni = (/0.0_DP,0.0_DP,0.0_DP/)
+  call solveEdge(solver,stc,startPoint,endPoint,delta,pressure,Marangoni,force)
   write(*,'(A)') 'Quarter-Circle Force 1 Test' 
   write(*,'(A,3F10.5)') '> Expected: ', -0.961249020086_DP, 0.275681557931_DP, 0.0_DP
   write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
@@ -106,7 +132,7 @@ program main
   startPoint = (/1.0_DP,3.0_DP,0.0_DP/)
   endPoint = (/1.0_DP,2.0_DP,0.0_DP/)
   force = (/0.0_DP,0.0_DP,0.0_DP/)
-  call solveEdge(solver,stc,startPoint,endPoint,force)
+  call solveEdge(solver,stc,startPoint,endPoint,delta,pressure,Marangoni,force)
   write(*,'(A)') 'Quarter-Circle Force 2 Test' 
   write(*,'(A,3F10.5)') '> Expected: ', -0.880916212182_DP, 0.473272254748_DP, 0.0_DP
   write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
@@ -114,7 +140,7 @@ program main
   startPoint = (/2.0_DP,2.0_DP,0.0_DP/)
   endPoint = (/1.0_DP,2.0_DP,0.0_DP/)
   force = (/0.0_DP,0.0_DP,0.0_DP/)
-  call solveEdge(solver,stc,startPoint,endPoint,force)
+  call solveEdge(solver,stc,startPoint,endPoint,delta,pressure,Marangoni,force)
   write(*,'(A)') 'Quarter-Circle Force 3 Test' 
   write(*,'(A,3F10.5)') '> Expected: ', -0.739254963695_DP, 0.673425644487_DP, 0.0_DP
   write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
@@ -122,7 +148,7 @@ program main
   startPoint = (/2.0_DP,2.0_DP,0.0_DP/)
   endPoint = (/2.0_DP,1.0_DP,0.0_DP/)
   force = (/0.0_DP,0.0_DP,0.0_DP/)
-  call solveEdge(solver,stc,startPoint,endPoint,force)
+  call solveEdge(solver,stc,startPoint,endPoint,delta,pressure,Marangoni,force)
   write(*,'(A)') 'Quarter-Circle Force 4 Test' 
   write(*,'(A,3F10.5)') '> Expected: ', -0.673425644487_DP, 0.739254963695_DP, 0.0_DP
   write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
@@ -130,7 +156,7 @@ program main
   startPoint = (/3.0_DP,1.0_DP,0.0_DP/)
   endPoint = (/2.0_DP,1.0_DP,0.0_DP/)
   force = (/0.0_DP,0.0_DP,0.0_DP/)
-  call solveEdge(solver,stc,startPoint,endPoint,force)
+  call solveEdge(solver,stc,startPoint,endPoint,delta,pressure,Marangoni,force)
   write(*,'(A)') 'Quarter-Circle Force 5 Test' 
   write(*,'(A,3F10.5)') '> Expected: ', -0.473272254748_DP, 0.880916212182_DP, 0.0_DP
   write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)
@@ -138,7 +164,7 @@ program main
   startPoint = (/3.0_DP,0.0_DP,0.0_DP/)
   endPoint = (/2.0_DP,0.0_DP,0.0_DP/)
   force = (/0.0_DP,0.0_DP,0.0_DP/)
-  call solveEdge(solver,stc,startPoint,endPoint,force)
+  call solveEdge(solver,stc,startPoint,endPoint,delta,pressure,Marangoni,force)
   write(*,'(A)') 'Quarter-Circle Force 6 Test' 
   write(*,'(A,3F10.5)') '> Expected: ', -0.275681557931_DP, 0.961249020086_DP, 0.0_DP
   write(*,'(A,3F10.5)') '> Computed: ', force(1),force(2),force(3)

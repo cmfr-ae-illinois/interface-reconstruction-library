@@ -12,12 +12,12 @@
 namespace IRL {
 // ============== Wendland Class Functions
 // New
-double Wendland::computeR(Pt xi, Pt x_eval) {
+inline double Wendland::computeR(Pt xi, Pt x_eval) {
   Pt dx = x_eval - xi;
   return std::sqrt(dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2]);
 }
 
-double Wendland::eval(double r, double delta) {
+inline double Wendland::eval(double r, double delta) {
   double rhat = r / delta;
   if (rhat <= 1.0) {
     return (4.0 * rhat + 1.0) * (1.0 - rhat) * (1.0 - rhat) * (1.0 - rhat) *
@@ -27,7 +27,7 @@ double Wendland::eval(double r, double delta) {
   }
 }
 
-double Wendland::firstDer(double r, double delta) {
+inline double Wendland::firstDer(double r, double delta) {
   double rhat = r / delta;
   if (rhat <= 1) {
     return (-20.0 * rhat / (delta)) * (1.0 - rhat) * (1.0 - rhat) *
@@ -37,7 +37,7 @@ double Wendland::firstDer(double r, double delta) {
   }
 }
 
-double Wendland::secondDer(double r, double delta) {
+inline double Wendland::secondDer(double r, double delta) {
   double rhat = r / delta;
   if (rhat <= 1) {
     return (-20.0 / (delta * delta)) * (1.0 - rhat) * (1.0 - rhat) *
@@ -48,8 +48,8 @@ double Wendland::secondDer(double r, double delta) {
 }
 
 // Evaluate 1
-void Wendland::evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
-                        double* retVal) {
+inline void Wendland::evaluate(const Pt& xi, const double& delta,
+                               const Pt& x_eval, double* retVal) {
   // First, get r
   double r = Wendland::computeR(xi, x_eval);
   // Next Calculate F, the function value
@@ -59,8 +59,9 @@ void Wendland::evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
 }
 
 // Evaluate 2
-void Wendland::evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
-                        std::pair<double, Eigen::Vector3d>* retVal) {
+inline void Wendland::evaluate(const Pt& xi, const double& delta,
+                               const Pt& x_eval,
+                               std::pair<double, Eigen::Vector3d>* retVal) {
   // First, get r
   double r = Wendland::computeR(xi, x_eval);
 
@@ -83,7 +84,7 @@ void Wendland::evaluate(const Pt& xi, const double& delta, const Pt& x_eval,
 }
 
 // Evaluate 3
-void Wendland::evaluate(
+inline void Wendland::evaluate(
     const Pt& xi, const double& delta, const Pt& x_eval,
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
   // First, get r

@@ -7,36 +7,75 @@
 
 extern "C" {
 
-void c_PUST_RectCub_new(c_PUST_RectCub* a_self) {
+void c_PU_RectCub_new(c_PU_RectCub* a_self) {
   assert(a_self->obj_ptr == nullptr);
-  a_self->obj_ptr = new IRL::PUST<IRL::RectangularCuboid>;
+  a_self->obj_ptr = new IRL::PU<IRL::RectangularCuboid>;
 }
 
-void c_PUST_RectCub_delete(c_PUST_RectCub* a_self) {
+void c_PU_RectCub_delete(c_PU_RectCub* a_self) {
   delete a_self->obj_ptr;
   a_self->obj_ptr = nullptr;
 }
 
-void c_PUST_RectCub_setNeighborhood(c_PUST_RectCub* a_self,
-                                    c_PUSTNeigh_RectCub* a_neighborhood) {
+void c_PU_RectCub_setNeighborhood(c_PU_RectCub* a_self,
+                                  c_PUNeigh_RectCub* a_neighborhood) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
 
   a_self->obj_ptr->setNeighborhood(*a_neighborhood->obj_ptr);
 }
 
-void c_PUST_RectCub_solveEdge(c_PUST_RectCub* a_self, double* STCoeff,
-                              double* P0, double* P1, double* a_force) {
+void c_PU_RectCub_setThreshold(c_PU_RectCub* a_self, double* a_threshold) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  a_self->obj_ptr->setThreshold(*a_threshold);
+}
+
+void c_PU_RectCub_solveEdge(c_PU_RectCub* a_self, double* STCoeff, double* P0,
+                            double* P1, double* delta, double* Pressure,
+                            double* Marangoni, double* a_force) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
 
   IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
   IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P1);
 
-  IRL::Normal force = a_self->obj_ptr->solveEdge(*STCoeff, P0temp, P1temp);
+  IRL::Normal MarangoniTemp = IRL::Normal::fromRawDoublePointer(Marangoni);
+
+  IRL::Normal force = a_self->obj_ptr->solveEdge(
+      *STCoeff, P0temp, P1temp, *delta, *Pressure, MarangoniTemp);
 
   for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
     *(a_force + n) = force[n];
   }
+}
+
+void c_PU_RectCub_getValue(c_PU_RectCub* a_self, double* x, double* y,
+                           double* z, double* delta, double* value) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  *value = a_self->obj_ptr->getValue(*x, *y, *z, *delta);
+}
+
+void c_PU_RectCub_getTangent(c_PU_RectCub* a_self, double* x, double* y,
+                             double* z, double* delta, double* tangent) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Normal T = a_self->obj_ptr->getTangent(*x, *y, *z, *delta);
+
+  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
+    *(tangent + n) = T[n];
+  }
+}
+
+void c_PU_RectCub_getWeight(c_PU_RectCub* a_self, double* x, double* y,
+                            double* z, double* delta, double* weight) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  *weight = a_self->obj_ptr->getWeight(*x, *y, *z, *delta);
 }
 }

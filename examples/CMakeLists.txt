@@ -5,6 +5,7 @@ add_custom_target(examples_simple_paraboloid_advector)
 add_custom_target(examples_advector)
 add_custom_target(examples_paraboloid_advector)
 add_custom_target(examples_variant_advector)
+add_custom_target(examples_2d_advector)
 
 include(${PROJECT_SOURCE_DIR}/cmake/Utils/IRLAddExample.cmake)
 
@@ -15,3 +16,4 @@ add_subdirectory("./simple_paraboloid_advector")
 add_subdirectory("./advector")
 add_subdirectory("./paraboloid_advector")
 add_subdirectory("./variant_advector")
+add_subdirectory("./2d_advector")

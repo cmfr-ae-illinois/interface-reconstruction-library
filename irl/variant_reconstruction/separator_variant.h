@@ -10,9 +10,8 @@
 #ifndef IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
 #define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_H_
 
-#include <variant>
 #include <tuple>
-
+#include <variant>
 
 #include "irl/generic_cutting/general/class_classifications.h"
 
@@ -32,6 +31,9 @@ class SeparatorVariant
   void setToPlanarSeparator(void);
   void setToParaboloid(void);
   void setToCylinder(void);
+
+  std::pair<double, double> getPrincipalCurvatures(void);
+  void setPrincipalCurvatures(const double k1, const double k2);
 
   void serialize(ByteBuffer* a_buffer) const;
   void unpackSerialized(ByteBuffer* a_buffer);

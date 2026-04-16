@@ -18,6 +18,7 @@
 #include "irl/data_structures/small_vector.h"
 #include "irl/data_structures/stack_vector.h"
 #include "irl/generic_cutting/half_edge_cutting/half_edge_cutting_helpers.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/geometry/general/normal.h"
 #include "irl/geometry/general/pt.h"
 #include "irl/geometry/general/reference_frame.h"
@@ -26,7 +27,6 @@
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 
 namespace IRL {
 
@@ -122,8 +122,8 @@ inline ScalarType MomentParaboloidIntegrand(
 
 template <UnsignedIndex_t ProjDir, class ReturnType, class ScalarType,
           class MomentFunctorType>
-inline ReturnType MomentsIntegrandParaboloidArc(const ScalarType a_t,
-                                      const MomentFunctorType& a_functor) {
+inline ReturnType MomentsIntegrandParaboloidArc(
+    const ScalarType a_t, const MomentFunctorType& a_functor) {
   using ReturnScalarType = typename ReturnType::value_type;
   const auto der_t = a_functor.der_t(a_t);
   const auto pos_t = a_functor.pos_t(a_t);

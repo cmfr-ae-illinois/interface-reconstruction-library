@@ -7,6 +7,7 @@
 
 #include "irl/generic_cutting/cut_polygon.h"
 #include "irl/generic_cutting/generic_cutting.h"
+#include "irl/generic_cutting/quadratic_intersection/moment_contributions.h"
 #include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/moments/general_moments.h"
@@ -20,19 +21,27 @@ namespace IRL {
 
 // =================== Implicit Surface Class Functions
 // template <class SeparatorType>
-PUImplicitSurface::PUImplicitSurface(
-    const std::vector<Pt>& centroids_,
-    const std::vector<SeparatorVariant>& separators_,
-    const double& kernel_size_)
-    : centroids(centroids_),
-      separators(separators_),
-      kernel_size(kernel_size_) {}
+// PUImplicitSurface::PUImplicitSurface(
+//     const std::vector<Pt>& centroids_,
+//     const std::vector<SeparatorVariant>& separators_,
+//     const double& kernel_size_)
+//     : centroids(centroids_),
+//       separators(separators_),
+//       kernel_size(kernel_size_) {}
 
 // Separator Stuff
+inline void PUImplicitSurface::printSurface() {
+  // Print Kernel Size
+  std::cout << "> Kernel Size = " << this->kernel_size << "\n";
+  // Loop over separators and centroids and print
+  for (int i = 0; i < centroids.size(); i++) {
+    std::cout << separators[i] << " at " << centroids[i] << "\n";
+  }
+}
 // Signed Distance of Separator
-void PUImplicitSurface::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                          const SeparatorVariant* a_sepPtr,
-                                          double* retVal) {
+inline void PUImplicitSurface::implicitSeparator(
+    const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
+    double* retVal) {
   const Pt x = a_pt - a_centroid;
   double F;
   if (const auto sepPtr = std::get_if<PlanarSeparator>(a_sepPtr)) {
@@ -40,7 +49,13 @@ void PUImplicitSurface::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
     if (sepPtr->getNumberOfPlanes() > 0) {
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
-      F = n * x;
+      const double d = plane.distance();
+
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
+        F = n * a_pt - d;                         // Distance
+      } else {                                    // IF plane doesn't exist
+        F = 0;                                    // Zero
+      }
     }
   } else if (const auto sepPtr = std::get_if<Paraboloid>(a_sepPtr)) {
     // std::cout << "Variant Paraboloid Detected\n";
@@ -71,7 +86,7 @@ void PUImplicitSurface::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
   *retVal = F;
 }
 // Signed Distance and Gradient of Separator
-void PUImplicitSurface::implicitSeparator(
+inline void PUImplicitSurface::implicitSeparator(
     const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
     std::pair<double, Eigen::Vector3d>* retVal) {
   const Pt x = a_pt - a_centroid;
@@ -82,7 +97,12 @@ void PUImplicitSurface::implicitSeparator(
     if (sepPtr->getNumberOfPlanes() > 0) {
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
-      F = n * x;
+      const double d = plane.distance();
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
+        F = n * a_pt - d;                         // Distance
+      } else {                                    // IF plane doesn't exist
+        F = 0;                                    // Zero
+      }
       gradF = Eigen::Vector3d(n[0], n[1], n[2]);
     }
   } else if (const auto sepPtr = std::get_if<Paraboloid>(a_sepPtr)) {
@@ -123,7 +143,7 @@ void PUImplicitSurface::implicitSeparator(
   *retVal = std::make_pair(F, gradF);
 }
 // Signed Distance, Gradient, and Hessian of Separator
-void PUImplicitSurface::implicitSeparator(
+inline void PUImplicitSurface::implicitSeparator(
     const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr,
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
   const Pt x = a_pt - a_centroid;
@@ -135,7 +155,12 @@ void PUImplicitSurface::implicitSeparator(
     if (sepPtr->getNumberOfPlanes() > 0) {
       const Plane plane = (*sepPtr)[0];
       const Normal n = plane.normal();
-      F = n * x;
+      const double d = plane.distance();
+      if (n[0] != 0 || n[1] != 0 || n[2] != 0) {  // If plane exists
+        F = n * a_pt - d;                         // Distance
+      } else {                                    // IF plane doesn't exist
+        F = 0;                                    // Zero
+      }
       gradF = Eigen::Vector3d(n[0], n[1], n[2]);
       hessF = Eigen::Matrix3d::Zero();
     }
@@ -194,8 +219,8 @@ void PUImplicitSurface::implicitSeparator(
 }
 
 // Evaluate Function Hess =====================================
-void PUImplicitSurface::evaluate(
-    Pt& x, std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
+inline void PUImplicitSurface::evaluate(
+    const Pt& x, std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal) {
   double weight_sum = 0.0;
   double F_sum = 0.0;
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
@@ -207,9 +232,9 @@ void PUImplicitSurface::evaluate(
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> weightRet;
     Wendland::evaluate(centroids[i], kernel_size, x, &weightRet);
     // Get Results
-    double weight = std::get<0>(weightRet);
-    Eigen::Vector3d grad_weight = std::get<1>(weightRet);
-    Eigen::Matrix3d hess_weight = std::get<2>(weightRet);
+    const double weight = weights[i] * std::get<0>(weightRet);
+    const Eigen::Vector3d grad_weight = weights[i] * std::get<1>(weightRet);
+    const Eigen::Matrix3d hess_weight = weights[i] * std::get<2>(weightRet);
 
     // Add results to sums
     weight_sum += weight;
@@ -246,14 +271,13 @@ void PUImplicitSurface::evaluate(
           inv_weight_sum -
       2. * (grad_product_sum - F_sum * grad_weight_sum * inv_weight_sum) *
           grad_weight_sum.transpose() * inv_weight_sum * inv_weight_sum;
-
   // Return
   *retVal = std::make_tuple(PU_F, PU_gradF, PU_hessF);
 }
 
 // Evaluate Function Grad =================================
-void PUImplicitSurface::evaluate(Pt& x,
-                                 std::pair<double, Eigen::Vector3d>* retVal) {
+inline void PUImplicitSurface::evaluate(
+    const Pt& x, std::pair<double, Eigen::Vector3d>* retVal) {
   double weight_sum = 0.0;
   double F_sum = 0.0;
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
@@ -263,8 +287,8 @@ void PUImplicitSurface::evaluate(Pt& x,
     std::pair<double, Eigen::Vector3d> weightRet;
     Wendland::evaluate(centroids[i], kernel_size, x, &weightRet);
     // Get Results
-    double weight = std::get<0>(weightRet);
-    Eigen::Vector3d grad_weight = std::get<1>(weightRet);
+    const double weight = std::get<0>(weightRet);                // weights[i] *
+    const Eigen::Vector3d grad_weight = std::get<1>(weightRet);  // weights[i] *
 
     // Add results to sums
     weight_sum += weight;
@@ -294,7 +318,7 @@ void PUImplicitSurface::evaluate(Pt& x,
 }
 
 // Evaluate Function Value ======================
-void PUImplicitSurface::evaluate(Pt& x, double* retVal) {
+inline void PUImplicitSurface::evaluate(const Pt& x, double* retVal) {
   double weight_sum = 0.0;
   double F_sum = 0.0;
   Eigen::Vector3d grad_weight_sum = Eigen::Vector3d::Zero();
@@ -303,6 +327,7 @@ void PUImplicitSurface::evaluate(Pt& x, double* retVal) {
     // Distance Weights
     double weight = 0.0;
     Wendland::evaluate(centroids[i], kernel_size, x, &weight);
+    weight *= weights[i];
     // Add results to sums
     weight_sum += weight;
 
@@ -313,12 +338,29 @@ void PUImplicitSurface::evaluate(Pt& x, double* retVal) {
     F_sum += weight * F;
   }
   // Put Everything Together and return.
-  *retVal = F_sum / weight_sum;
+  const double inv_weight_sum = 1.0 / safelyEpsilon(weight_sum);
+  *retVal = F_sum * inv_weight_sum;
+}
+
+// Get Total Weight at a Point
+inline void PUImplicitSurface::getTotalWeight(Pt& x, double* retVal) {
+  double weight_sum = 0.0;
+  for (int i = 0; i < centroids.size(); ++i) {  // Loop over separators
+    // Distance Weights
+    double weight = 0.0;
+    Wendland::evaluate(centroids[i], kernel_size, x, &weight);
+    // Add results to sums
+    weight_sum += weight;
+  }
+  // Put Everything Together and return.
+  *retVal = weight_sum;
 }
 
 // template <class SeparatorType>
-std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
-                                                 const int& Npartitions) {
+inline std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0,
+                                                        const Pt& x1,
+                                                        const int& Npartitions,
+                                                        const double& thresh) {
   // Split the domain into segments
   std::vector<Pt> sampleLocations = {};
   // At these locations, calculate the function value
@@ -336,6 +378,9 @@ std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
 
     double sgn = (0.0 < val) - (val < 0.0);
     signs.push_back(sgn);
+    // std::cout << "===================== IN INTERSECT EDGE" <<
+    // this->kernel_size
+    //           << std::endl;
   }
 
   // Loop over all the partitions. If the signs are different, do a bisection
@@ -351,7 +396,7 @@ std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
 
   double tol = 1e-12;
   double max_iters = 200;
-
+  double weight;
   for (int i = 0; i < Npartitions; i++) {
     if (signs[i] == 0 || signs[i + 1] == 0) {  // At least one root
       if (signs[i] == 0) {
@@ -389,14 +434,20 @@ std::vector<Pt> PUImplicitSurface::intersectEdge(const Pt& x0, const Pt& x1,
           lowerX = midX;
         }
       }  // End Bisection
-      // Add Intersection
-      intersections.push_back(midX);
+      // Get weight at intersection
+      this->getTotalWeight(midX, &weight);
+      // Add intersection if total weight is greater than threshold
+      if (weight >= thresh) {
+        intersections.push_back(midX);
+      } else {
+        std::cout << "Blocked = " << weight << "," << thresh << "\n";
+      }
     }
   }  // End loop over partitions
   return intersections;
 }
 
-Normal PUImplicitSurface::getTangent(Pt& x) {
+inline Normal PUImplicitSurface::getTangent(Pt& x) {
   std::pair<double, Eigen::Vector3d> holdsGrad;
   this->evaluate(x, &holdsGrad);
   auto gradF = std::get<1>(holdsGrad);
@@ -406,7 +457,18 @@ Normal PUImplicitSurface::getTangent(Pt& x) {
   return Normal(-Fy, Fx, 0.0);
 }
 
-double PUImplicitSurface::getCurvature(Pt& x) {
+inline Normal PUImplicitSurface::getNormal(Pt& x) {
+  std::pair<double, Eigen::Vector3d> holdsGrad;
+  this->evaluate(x, &holdsGrad);
+  auto gradF = std::get<1>(holdsGrad);
+  double Fx = gradF(0);
+  double Fy = gradF(1);
+  double Fz = gradF(2);
+
+  return Normal(Fx, Fy, Fz);
+}
+
+inline double PUImplicitSurface::getCurvature(Pt& x) {
   std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
   this->evaluate(x, &holdsGradAndHessian);
   auto gradF = std::get<1>(holdsGradAndHessian);
@@ -422,42 +484,72 @@ double PUImplicitSurface::getCurvature(Pt& x) {
   double magGradF = std::sqrt(Fx * Fx + Fy * Fy);
   double denom = magGradF * magGradF * magGradF;
 
-  double kz = -numer / denom;
+  double kz = numer / denom;
 
   return kz;
 }
 
+inline const Pt PUImplicitSurface::projectOntoPU(const Pt& a_pt) {
+  std::pair<double, Eigen::Vector3d> holdsGrad;
+  Pt projected_pt = a_pt;
+  const int itmax = 5;
+  for (int i = 0; i < itmax; i++) {
+    this->evaluate(a_pt, &holdsGrad);
+    const auto F = std::get<0>(holdsGrad);
+    const auto gradF = std::get<1>(holdsGrad);
+    const double grad_norm_inv = 1.0 / safelyEpsilon(gradF.squaredNorm());
+    for (int d = 0; d < 3; d++) {
+      projected_pt[d] -= F * gradF(d) * grad_norm_inv;
+    }
+  }
+  return projected_pt;
+}
+
 // ============== Solver Methods
 template <class CellType>
-PUST<CellType>::PUST(void) {}
+PU<CellType>::PU(void) {}
 
 template <class CellType>
-PUST<CellType>::PUST(PUSTNeighborhood<CellType> stencil_) {
+PU<CellType>::PU(PUNeighborhood<CellType> stencil_) {
   this->stencil_m = stencil_;
   // this->surface_m = this->neighborhoodToImplicitSurface(5.0);
 }
 
 template <class CellType>
-PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
-  const auto centroids = stencil_m.getCentroids();
-  const auto separators = stencil_m.getSeparators();
-
-  return PUImplicitSurface(centroids, separators, delta);
+PUImplicitSurface PU<CellType>::neighborhoodToImplicitSurface(double delta) {
+  // const auto centroids = stencil_m.getCentroids();
+  // const auto separators = stencil_m.getSeparators();
+  // const auto weights = stencil_m.getWeights();
+  return PUImplicitSurface(stencil_m.getCentroids(), stencil_m.getSeparators(),
+                           stencil_m.getWeights(), delta);
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1) {
-  // Make Implicit Surface
-  PUImplicitSurface s = this->neighborhoodToImplicitSurface(5.0);
+Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
+                               const double delta, const double Pressure,
+                               const Normal& Marangoni) {
+  // The Marangoni normal object holds the Xgradient, then the Y gradient, then
+  // the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make Implicit
+  // Surface std::cout << "In Solve Edge\n";
+
+  // Something is up with paraboloids because they take like 8x the time to run.
+  double STCoeff = STin;
+  // The Pressure Option tells us if we should include the pressure terms or
+  // not.
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   // Find Intersection with edge
-  std::vector<Pt> intersections = s.intersectEdge(P0, P1, 10);
+  std::vector<Pt> intersections =
+      s.intersectEdge(P0, P1, 10, intersection_threshold_m);
 
   // Calculate some edge properties
   Pt dP = P1 - P0;
+  Normal OutwardsNormal = {dP[1], -dP[0], 0};
+  OutwardsNormal.normalize();
   double D = std::sqrt(dP[0] * dP[0] + dP[1] * dP[1]);
   double denom = 1.0 / (safelyEpsilon(D));
   // Give space for working variables
   Normal tangent;
+  Normal gradient;
   Normal total = {0.0, 0.0, 0.0};  // Total force
 
   // Loop over intersections and add tangents to force
@@ -465,16 +557,157 @@ Normal PUST<CellType>::solveEdge(double STCoeff, Pt& P0, Pt& P1) {
     for (int j = 0; j < intersections.size(); j++) {
       tangent = s.getTangent(intersections[j]);
       tangent.normalize();
-      total = total + STCoeff * denom * tangent;
+      // Here we apply the Marangoni surface tension. To do this, we assume
+      // STCoeff = STCoeff + gamma_T(T-T_0). Letting gamma_T=-0.002 (Ratio for
+      // water). We also pick T-T0=Gx to be the form we use. This will give us
+      // th surface tension at this point We pick G = 10 for the stake of
+      // simplicity
+      STCoeff = STCoeff + Marangoni[2] * (Marangoni[0] * intersections[j][0] +
+                                          Marangoni[1] * intersections[j][1]);
+      // If facing inside, multiply by negative
+      // If facing outside, leave the same
+      double Scale = OutwardsNormal * tangent;
+      Scale = Scale / safelyEpsilon(std::abs(Scale));
+      // Add
+      total = total + Scale * STCoeff * denom * tangent;
+      // Next, we need to calculate pressure contribution, if wanted
+      // To determine if an intersection is going into or out of the fluid, we
+      // can use the dot product of dP with the gradient (which is outwards
+      // pointing). This product will contain orientation information also.
+      if (Pressure >= 0.5) {
+        gradient =
+            Normal(tangent[1], -tangent[0],
+                   0.0);  // Use this to get gradient so we don't have torecalc
+        Normal dPN = {dP[0], dP[1], 0};  // Make dP into a vector
+        dPN.normalize();
+        Scale = gradient * dPN;                          // Dot Product
+        Scale = Scale / safelyEpsilon(std::abs(Scale));  // Sign Only
+        // This scale tells me if, going along the edge from P0 to P1, we are
+        // going into the fluid (Scale >0) or out of the fluid (Scale <0).
+
+        // Now we  have the sign. The domain that each intersection influences
+        // is from the centerpoint out. This means that if the distance from P0
+        // to the intersection if < 0.5D, then we look at the distance
+        // between the intersection and P0. If it is >0.5D, then look look
+        // at the distance between it and P1, which will be the same as
+        // D-[the initial distance].
+
+        Pt dPI = intersections[j] - P0;
+        double L = std::sqrt(dPI[0] * dPI[0] +
+                             dPI[1] * dPI[1]);  // Calculated Distance
+
+        double Sx = L * denom;  // Also definitely positive
+        if (L > 0.5 * D) {      // If More than 0.5D
+          L = L - D;            // Switch to other direction (Center Out)
+        }
+
+        // Now that we have the length of section, we just need to calculat
+        // the curvature, then calculat the pressure jump, then multiply it
+        // all together and add
+
+        double curv = s.getCurvature(intersections[j]);
+        // This also contains some direction information, but I am unsure how
+        // this needs to be positive or not. I am going to leave it for now,
+        // and we will see if that is a problem. If there seems to be issues,
+        // try to make this stritly positive.
+
+        // Now we just add this all together. Note, the pressure force
+        // alwaysacts inwards, so we multiply by the negative of the outwards
+        // pointingnormal
+        if (std::abs(Scale) >=
+            1e-10) {  // Ensure that in the undefined areas, we
+          // // do not add pressure terms.
+          total = total + Scale * STCoeff * curv * L * denom * OutwardsNormal;
+          // std::cout << "Surface Tension Coeff: " << STCoeff << "\n"
+          //           << "Curvature: " << curv << "\n"
+          //           << "Length Segment: " << L << "\n"
+          //           << "Pressure Contribution Scale: " << Scale << "\n"
+          //           << "Intersection Point: " << intersections[j] << "\n"
+          //           << "Point 1: " << P0 << "\n"
+          //           << "Point 2: " << P1 << "\n"
+          //           << "--------------------------------------\n";
+        }
+      }
     }
   }
+  // if (std::abs(total[0]) >= 1e-6 || std::abs(total[1]) >= 1e-6) {
+  //   std::cout << "total: " << total << "\n";
+  // }
   return total;
 }
 
 template <class CellType>
-void PUST<CellType>::setNeighborhood(PUSTNeighborhood<CellType> stencil_) {
+Normal PU<CellType>::getTangent(double x, double y, double z, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  Pt in = {x, y, z};
+  Normal retVal = s.getTangent(in);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+double PU<CellType>::getWeight(double x, double y, double z, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  Pt in = {x, y, z};
+  double retVal;
+  s.getTotalWeight(in, &retVal);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+double PU<CellType>::getWeight(Pt& in, double delta) {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
+  double retVal;
+  s.getTotalWeight(in, &retVal);
+  // std::cout << "==== Return Value: " << retVal << std::endl;
+  return retVal;
+}
+
+template <class CellType>
+void PU<CellType>::printSolver() {
+  PUImplicitSurface s = this->neighborhoodToImplicitSurface(1);
+  // First Print Solver
+  s.printSurface();
+  std::cout << "> Threshold = " << intersection_threshold_m << "\n";
+}
+
+template <class CellType>
+void PU<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
   stencil_m = stencil_;
 }
+
+template <class CellType>
+void PU<CellType>::setThreshold(double thresh_) {
+  intersection_threshold_m = thresh_;
+}
+
+template <class CellType>
+Paraboloid PU<CellType>::solve(
+    const PUNeighborhood<CellType>* a_neighborhood_pointer,
+    const Pt& a_centroid, const double a_delta) {
+  double delta = a_delta;
+  if (delta < 0.0) {
+    const auto cell = a_neighborhood_pointer->getCenterCell();
+    delta = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
+  }
+
+  this->setNeighborhood(*a_neighborhood_pointer);
+  auto PUSurface = this->neighborhoodToImplicitSurface(delta);
+
+  // Project provided point onto the PU surface
+  const auto pt_on_PU = PUSurface.projectOntoPU(a_centroid);
+
+  // Compute local gradient and hessian of PU approximation
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
+  PUSurface.evaluate(pt_on_PU, &holdsGradAndHessian);
+  const auto gradF = std::get<1>(holdsGradAndHessian);
+  const auto hessF = std::get<2>(holdsGradAndHessian);
+
+  // Return paraboloid computed from derivatives
+  return IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
+}
+
 }  // End Namespace IRL
 
 #endif

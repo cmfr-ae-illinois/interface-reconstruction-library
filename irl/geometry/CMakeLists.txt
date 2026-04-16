@@ -81,7 +81,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_
 # target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/half_edge_polyhedron_quadratic.tpp)
 # target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/half_edge_structures/segmented_half_edge_polyhedron_quadratic.h)
 
-
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/polygons/tri.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/polygons/polygon_storage_types.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/polygons/stored_plane_of_existence.tpp)
