@@ -36,3 +36,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu_neighborhood.cpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pu.cpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/plicnet_weights_and_biases.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/plicnet.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/plicnet.tpp)
