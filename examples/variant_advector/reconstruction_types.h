@@ -13,6 +13,7 @@
 #include <string>
 
 #include "irl/generic_cutting/cut_polygon.h"
+#include "irl/interface_reconstruction_methods/plicnet.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/moments/volume_moments.h"
 #include "irl/variant_reconstruction/separator_variant.h"
@@ -40,6 +41,16 @@ struct ELVIRA {
 };
 
 struct LVIRA {
+  static void getReconstruction(
+      const Data<IRL::VolumeMoments>& a_liq_moments,
+      const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+      const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+      Data<IRL::SeparatorVariant>* a_interface,
+      std::vector<InterfaceScalarField>* a_scalar_fields = nullptr,
+      const bool a_plic_already_built = false);
+};
+
+struct PLICnet {
   static void getReconstruction(
       const Data<IRL::VolumeMoments>& a_liq_moments,
       const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,

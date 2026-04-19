@@ -54,6 +54,9 @@ void getReconstruction(const std::string& a_reconstruction_method,
              a_reconstruction_method == "PLIC") {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                              a_interface, a_scalar_fields);
+  } else if (a_reconstruction_method == "plicnet") {
+    PLICnet::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                               a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Jibben") {
     Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                               a_interface, a_scalar_fields);
@@ -237,6 +240,66 @@ void LVIRA::getReconstruction(
             std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
         (*a_interface)(i, j, k) =
             IRL::reconstructionWithLVIRA3D(neighborhood, planar_separator);
+      }
+    }
+  }
+  // Update border with simple ghost-cell fill and correct distances for
+  // assumed periodic boundary
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
+void PLICnet::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built) {
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+
+  // Loop over cells in domain. Skip if cell is not mixed phase.
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        const double liquid_volume_fraction =
+            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
+            liquid_volume_fraction > IRL::global_constants::VF_HIGH) {
+          const double distance =
+              std::copysign(1.0, liquid_volume_fraction - 0.5);
+          (*a_interface)(i, j, k) = IRL::PlanarSeparator::fromOnePlane(
+              IRL::Plane(IRL::Normal(0.0, 0.0, 0.0), distance));
+          continue;
+        }
+        // filling PLICnet neighborhood
+        IRL::PLICNet plicnet;
+        for (int kk = k - 1; kk < k + 2; ++kk) {
+          for (int jj = j - 1; jj < j + 2; ++jj) {
+            for (int ii = i - 1; ii < i + 2; ++ii) {
+              const IRL::Pt cell_lower_point(mesh.x(ii), mesh.y(jj),
+                                             mesh.z(kk));
+              const IRL::Pt cell_upper_point(mesh.x(ii + 1), mesh.y(jj + 1),
+                                             mesh.z(kk + 1));
+              const IRL::Pt cell_center =
+                  0.5 * (cell_lower_point + cell_upper_point);
+              // liquid moments
+              const double liq_m0 = a_liq_moments(ii, jj, kk).volume();
+              IRL::Pt liq_centroid = a_liq_moments(ii, jj, kk).centroid() *
+                                     (1.0 / IRL::safelyTiny(liq_m0));
+              // gas moments
+              const double gas_m0 = mesh.cell_volume() - liq_m0;
+              IRL::Pt gas_centroid = ((cell_center * mesh.cell_volume()) -
+                                      a_liq_moments(ii, jj, kk).centroid()) *
+                                     (1.0 / IRL::safelyTiny(gas_m0));
+              plicnet.setMember(cell_lower_point, cell_upper_point,
+                                liq_m0 / mesh.cell_volume(), liq_centroid,
+                                gas_centroid, ii - i, jj - j, kk - k);
+            }
+          }
+        }
+        // plicnet separator
+        (*a_interface)(i, j, k) = plicnet.getPlanarSeparator();
       }
     }
   }
@@ -3887,6 +3950,23 @@ void JibbenPU::getReconstruction(
     }
   }
 
+  // outputting plane detections
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        double liq_vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liq_vf < IRL::global_constants::VF_LOW ||
+            liq_vf > IRL::global_constants::VF_HIGH) {
+          continue;
+        }
+        if (IRL::PlanarSeparator* separator =
+                std::get_if<IRL::PlanarSeparator>(&((*a_interface)(i, j, k)))) {
+          std::cout << "plane detected" << std::endl;
+        }
+      }
+    }
+  }
+
   a_scalar_fields->push_back(interface_type_field);
 
   a_interface->updateBorder();
@@ -4127,6 +4207,23 @@ void TestingClasses::getReconstruction(
         } else {
           (*a_interface)(i, j, k) = jibben_interface(i, j, k);
           interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
+        }
+      }
+    }
+  }
+
+  // outputting plane detections
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        double liq_vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liq_vf < IRL::global_constants::VF_LOW ||
+            liq_vf > IRL::global_constants::VF_HIGH)
+          continue;
+
+        if (IRL::PlanarSeparator* separator =
+                std::get_if<IRL::PlanarSeparator>(&((*a_interface)(i, j, k)))) {
+          std::cout << "plane detected" << std::endl;
         }
       }
     }
