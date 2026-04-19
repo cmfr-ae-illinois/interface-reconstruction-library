@@ -156,15 +156,11 @@ int runSimulation(const std::string& a_case_name,
   starting_interface = interface;
 
   // outputting interfaces in respective directory
-  // std::string output_dir =
-  //     "/home/parinht2/Desktop/ppic "
-  //     "paper/advection_convergence/run_2/interfaces";
-  // std::string vtk_output_dir = output_dir + "/" + a_case_name + "_" +
-  //                              a_reconstruction_method + "_" +
-  //                              std::to_string(a_nx);
+  std::string output_dir = "/home/parinht2/Simulations/irl";
+  std::string vtk_output_dir = output_dir + "/" + "viz_out";
 
-  // VTKOutput vtk_io(vtk_output_dir, "viz", cc_mesh);
-  VTKOutput vtk_io("viz_out", "viz", cc_mesh);
+  VTKOutput vtk_io(vtk_output_dir, "viz", cc_mesh);
+  // VTKOutput vtk_io("viz_out", "viz", cc_mesh);
   vtk_io.addData("VelocityX", velU);
   vtk_io.addData("VelocityY", velV);
   vtk_io.addData("VelocityZ", velW);
@@ -194,8 +190,8 @@ int runSimulation(const std::string& a_case_name,
   if (rank == 0) {
     writeDiagnosticsHeader();
   }
-  std::string output_folder = "viz";
-  const int dir_err = mkdir(output_folder.c_str(), 0777);
+  // std::string output_folder = "viz";
+  // const int dir_err = mkdir(output_folder.c_str(), 0777);
   std::chrono::duration<double> advect_VOF_time(0.0);
   std::chrono::duration<double> recon_time(0.0);
   std::chrono::duration<double> write_time(0.0);
