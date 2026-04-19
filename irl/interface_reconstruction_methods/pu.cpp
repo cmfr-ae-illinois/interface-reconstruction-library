@@ -18,7 +18,7 @@ Paraboloid PU::solve(const PUNeighborhood* a_neighborhood_pointer,
   return this->solve();
 }
 
-std::vector<double> PU::getNormalWeights(void){
+std::vector<double> PU::getNormalWeights(void) {
   const UnsignedIndex_t ninterfaces = neighborhood_m->size();
   std::vector<double> normal_weights(ninterfaces);
   std::vector<Normal> normals(ninterfaces);
@@ -46,7 +46,7 @@ std::vector<double> PU::getNormalWeights(void){
   // computing normal weights 0.5 * (1 + n_i * n_target)
   for (UnsignedIndex_t i = 0; i < ninterfaces; ++i) {
     normal_weights[i] = 0.5 * (1. + normals[i] * target_normal);
-    normal_weights[i] = 1.0; // placeholder for testing without normal weights
+    normal_weights[i] = 1.0;  // placeholder for testing without normal weights
   }
 
   return normal_weights;
@@ -296,12 +296,14 @@ Pt PU::projectPointonPU(const Pt& a_pt) {
     if (F < delta_m * 1.e-6) {
       break;
     }
-    // if ((i + 1) == itmax)
-    //   std::cout << "projection incomplete F = " << F << std::endl;
     const Eigen::Vector3d gradF = std::get<Eigen::Vector3d>(F_and_gradF);
     const double grad_norm_inv = 1.0 / gradF.squaredNorm();
     for (int d = 0; d < 3; d++) {
       projected_pt[d] -= F * gradF(d) * grad_norm_inv;
+    }
+    // return the point itself if max iterations reached
+    if (i == itmax - 1) {
+      return a_pt;
     }
   }
   return projected_pt;
