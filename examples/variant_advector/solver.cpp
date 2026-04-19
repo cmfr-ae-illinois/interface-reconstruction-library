@@ -247,17 +247,17 @@ void writeInterfaceWithScalarToFile(
             auto surface = volume_and_surface.getSurface();
             double length_scale = std::min(0.25 * mesh.dx(), 1.0e-2);
             surface.setLengthScale(length_scale);
-            if (surface.getSurfaceArea() >
-                1.0e-6 * length_scale * length_scale) {
-              paraboloids.push_back(surface);
-              // scalar data
-              if (a_scalar_fields) {
-                for (auto& f : *a_scalar_fields) {
-                  f.flattened_paraboloid_scalar_data.push_back(
-                      f.paraboloid_scalar_data(i, j, k));
-                }
+            // if (surface.getSurfaceArea() >
+            //     1.0e-6 * length_scale * length_scale) {
+            paraboloids.push_back(surface);
+            // scalar data
+            if (a_scalar_fields) {
+              for (auto& f : *a_scalar_fields) {
+                f.flattened_paraboloid_scalar_data.push_back(
+                    f.paraboloid_scalar_data(i, j, k));
               }
             }
+            // }
           } else if (const auto ptr = std::get_if<IRL::Cylinder>(
                          &a_liquid_gas_interface(i, j, k))) {
             auto volume_and_surface =
