@@ -12,7 +12,6 @@ namespace IRL {
 /// CellGroupedMoments of the cell and planar Separator.
 template <class CellType>
 class PUNeighborhood {
-
  public:
   using cell_type = CellType;
 
@@ -21,12 +20,12 @@ class PUNeighborhood {
 
   /// \brief Construct CellGroupedMoments and add to end of collection. Tested
   void addMember(const Pt* a_centroid, const SeparatorVariant* a_separator,
-                 const double a_weight = 1.0);
+                 const double a_weight = 1.0, const double a_scalar = 0.0);
 
   /// \brief Construct CellGroupedMoments and place into collection. Tested
   void setMember(const UnsignedIndex_t a_index, const Pt* a_centroid,
                  const SeparatorVariant* a_separator,
-                 const double a_weight = 1.0);
+                 const double a_weight = 1.0, const double a_scalar = 0.0);
 
   /// \brief Reset neighborhood size to 0. Tested
   void emptyNeighborhood(void);
@@ -63,6 +62,7 @@ class PUNeighborhood {
   std::vector<IRL::Pt> centroids_m;
   std::vector<IRL::SeparatorVariant> separators_m;
   std::vector<double> weights_m;
+  std::vector<double> a_scalar_m;
   CellType center_cell_m;
 };
 }  // End Namespace IRL

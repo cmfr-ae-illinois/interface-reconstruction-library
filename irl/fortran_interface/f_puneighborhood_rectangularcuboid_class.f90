@@ -83,7 +83,7 @@ module f_PUNeigh_RectCub_class
     end subroutine F_PUNeigh_RectCub_setMember
 
     subroutine F_PUNeigh_RectCub_addMember(this,a_centroid, a_weight, &
-            a_separator) &
+            a_separator, a_scalar) &
         bind(C, name = "c_PUNeigh_RectCub_addMember")
         import
         implicit none 
@@ -91,6 +91,7 @@ module f_PUNeigh_RectCub_class
         real(C_DOUBLE), dimension(*) :: a_centroid ! dimension(1:3)
         real(C_DOUBLE) :: a_weight
         type(c_SeparatorVariant) :: a_separator
+        real(C_DOUBLE) :: a_scalar
     end subroutine F_PUNeigh_RectCub_addMember
 
     subroutine F_PUNeigh_RectCub_emptyNeighborhood(this) &
@@ -144,14 +145,15 @@ module f_PUNeigh_RectCub_class
     end subroutine PUNeigh_RectCub_class_setMember
 
     subroutine PUNeigh_RectCub_class_addMember(this, a_centroid, a_weight, &
-            a_separator)
+            a_separator,a_scalar)
         implicit none
         type(PUNeigh_RectCub_type), intent(in) :: this
         real(IRL_double), dimension(1:3), intent(in) :: a_centroid
         real(IRL_double), intent(in) :: a_weight
         type(SeparatorVariant_type), intent(in) :: a_separator
+        real(IRL_double), intent(in) :: a_scalar
         call F_PUNeigh_RectCub_addMember(this%c_object, a_centroid, a_weight, &
-            a_separator%c_object)
+            a_separator%c_object,a_scalar)
     end subroutine PUNeigh_RectCub_class_addMember 
 
     subroutine PUNeigh_RectCub_class_emptyNeighborhood(this)

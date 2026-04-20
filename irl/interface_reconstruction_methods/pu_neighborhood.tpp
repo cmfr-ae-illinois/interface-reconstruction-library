@@ -8,31 +8,37 @@ PUNeighborhood<CellType>::PUNeighborhood(void) {}
 
 template <class CellType>
 void PUNeighborhood<CellType>::addMember(const Pt* a_centroid,
-                                           const SeparatorVariant* a_separator,
-                                           const double a_weight) {
+                                         const SeparatorVariant* a_separator,
+                                         const double a_weight,
+                                         const double a_scalar) {
   assert(a_centroid != nullptr);
   assert(a_separator != nullptr);
   centroids_m.push_back(*a_centroid);
   separators_m.push_back(*a_separator);
   weights_m.push_back(a_weight);
+  a_scalar_m.push_back(a_scalar);
 }
 
 template <class CellType>
 void PUNeighborhood<CellType>::emptyNeighborhood(void) {
   centroids_m.resize(0);
   separators_m.resize(0);
+  weights_m.resize(0);
+  a_scalar_m.resize(0);
 }
 
 template <class CellType>
 void PUNeighborhood<CellType>::setMember(const UnsignedIndex_t a_index,
-                                           const Pt* a_centroid,
-                                           const SeparatorVariant* a_separator,
-                                           const double a_weight) {
+                                         const Pt* a_centroid,
+                                         const SeparatorVariant* a_separator,
+                                         const double a_weight,
+                                         const double a_scalar) {
   assert(a_separator != nullptr);
   this->checkIndex(a_index);
   centroids_m[a_index] = *a_centroid;
   separators_m[a_index] = *a_separator;
   weights_m[a_index] = a_weight;
+  a_scalar_m[a_index] = a_scalar;
 }
 
 template <class CellType>
@@ -64,6 +70,7 @@ void PUNeighborhood<CellType>::resize(const UnsignedIndex_t a_size) {
   centroids_m.resize(a_size);
   separators_m.resize(a_size);
   weights_m.resize(a_size);
+  a_scalar_m.resize(a_size);
 }
 
 template <class CellType>
@@ -71,6 +78,7 @@ void PUNeighborhood<CellType>::reserve(const UnsignedIndex_t a_size) {
   centroids_m.reserve(a_size);
   separators_m.reserve(a_size);
   weights_m.reserve(a_size);
+  a_scalar_m.reserve(a_size);
 }
 
 template <class CellType>

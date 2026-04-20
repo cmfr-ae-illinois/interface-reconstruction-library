@@ -17,22 +17,21 @@ void c_PUNeigh_RectCub_new(c_PUNeigh_RectCub* a_self);
 
 void c_PUNeigh_RectCub_delete(c_PUNeigh_RectCub* a_self);
 
-void c_PUNeigh_RectCub_setSize(c_PUNeigh_RectCub* a_self,
-                                 const int* a_size);
+void c_PUNeigh_RectCub_setSize(c_PUNeigh_RectCub* a_self, const int* a_size);
 
-void c_PUNeigh_RectCub_reserve(c_PUNeigh_RectCub* a_self,
-                                 const int* a_size);
+void c_PUNeigh_RectCub_reserve(c_PUNeigh_RectCub* a_self, const int* a_size);
 
-void c_PUNeigh_RectCub_setMember(c_PUNeigh_RectCub* a_self,
-                                   const int* a_index,
-                                   const double* __restrict__ a_centroid,
-                                   const double* a_weight,
-                                   const c_SeparatorVariant* a_separator);
+void c_PUNeigh_RectCub_setMember(c_PUNeigh_RectCub* a_self, const int* a_index,
+                                 const double* __restrict__ a_centroid,
+                                 const double* a_weight,
+                                 const c_SeparatorVariant* a_separator,
+                                 const double* a_scalar);
 
 void c_PUNeigh_RectCub_addMember(c_PUNeigh_RectCub* a_self,
-                                   const double* __restrict__ a_centroid,
-                                   const double* a_weight,
-                                   const c_SeparatorVariant* a_separator);
+                                 const double* __restrict__ a_centroid,
+                                 const double* a_weight,
+                                 const c_SeparatorVariant* a_separator,
+                                 const double* a_scalar);
 
 void c_PUNeigh_RectCub_emptyNeighborhood(c_PUNeigh_RectCub* a_self);
 }
