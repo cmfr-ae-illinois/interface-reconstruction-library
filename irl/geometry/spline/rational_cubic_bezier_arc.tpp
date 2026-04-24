@@ -78,6 +78,9 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
   ScalarType a_coeff1 = 2 * chord_length / (1 + 2 * cos_alpha1);
   control_point_1_m = a_start_pt + a_coeff0 * v0;
   control_point_2_m = a_end_pt - a_coeff1 * v1;
+
+  weight1_m = (1 + 2 * cos_alpha0) / 3;
+  weight2_m = (1 + 2 * cos_alpha1) / 3;
 }
 
 // Evaluation Methods
