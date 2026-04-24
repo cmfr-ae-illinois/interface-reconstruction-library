@@ -45,6 +45,21 @@ template <class CellType>
 const CellType& PUNeighborhood<CellType>::getCenterCell(void) const {
   return center_cell_m;
 }
+template <class CellType>
+double PUNeighborhood<CellType>::getScalar(const Pt& a_pt) const {
+  // Implementation for scalar interpolation
+  double scalar_value = 0.0;
+  // Use inverse distance weighting for interpolation
+  for (int i = 0; i < a_scalar_m.size(); ++i) {
+    double distance = std::sqrt(std::pow(a_pt.x() - centroids_m[i].x(), 2) +
+                                std::pow(a_pt.y() - centroids_m[i].y(), 2) +
+                                std::pow(a_pt.z() - centroids_m[i].z(), 2));
+    if (distance > 0) {
+      scalar_value += a_scalar_m[i] / distance;
+    }
+  }
+  return scalar_value;
+}
 
 template <class CellType>
 void PUNeighborhood<CellType>::setCenterCell(const CellType* a_cell) {

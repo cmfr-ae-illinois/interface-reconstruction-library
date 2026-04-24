@@ -33,7 +33,8 @@ class PUNeighborhood {
   /// \brief Set size of the neighborhood. Tested
   void resize(const UnsignedIndex_t a_size);
   void reserve(const UnsignedIndex_t a_size);
-
+  // \brief Return an interpolated scalar
+  double getScalar(const Pt& a_pt) const;
   // / \brief Return the center cell. Tested
   const CellType& getCenterCell(void) const;
 

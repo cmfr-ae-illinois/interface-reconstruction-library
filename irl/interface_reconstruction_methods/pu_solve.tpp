@@ -930,52 +930,7 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       tangentStart.normalize();
       tangentEnd = IRL::crossProduct(faceNormal, normal2);
       tangentEnd.normalize();
-      // Calculate dot product to see if they are parallel
-      // if (fabs(tangentStart * tangentEnd) > 1.0 - 100 * EPSILON) {
-      //   // If they are parallel, just display
-      //   if (false) {  // DEBUG PRINTING
-      //     std::cout <<
-      //     "====================================================\n"; std::cout
-      //         << "Tangents are Parallel, skipping control point
-      //         calculation\n";
-      //     std::cout << "Start Point: " << startPoint << "\n";
-      //     std::cout << "End Point: " << endPoint << "\n";
-      //     std::cout << "Tangent Start: " << tangentStart << "\n";
-      //     std::cout << "Tangent End: " << tangentEnd << "\n";
-      //     std::cout << "Pairs: " << pairs[j][0] << "," << pairs[j][1] <<
-      //     "\n"; std::cout << "Weights: " << weight0 << "," << weight1 << ","
-      //               << weight2 << "," << weight3 << "\n";
-      //   }
 
-      //   // Make into line by default
-      //   controlPoint = 0.5 * (startPoint + endPoint);
-      // } else {
-      //   // Now we have tangents, find the intersection of tangnents to get
-      //   the
-      //   // control point.
-      //   const Normal edge_vector = endPoint - startPoint;
-      //   if (fabs(edge_vector.calculateMagnitude()) < 100 * EPSILON) {
-      //     // If the points overlap, we don't want to add anything to the
-      //     value,
-      //     // so we just skip the rest of this pair.
-      //     continue;
-      //   }
-      //   const Pt average_pt = 0.5 * (startPoint + endPoint);
-      //   const Normal n_cross_t0 = crossProduct(faceNormal, tangentStart);
-      //   if (fabs(n_cross_t0 * tangentEnd) < 100 * EPSILON) {
-      //     controlPoint = average_pt;
-      //   } else {
-      //     assert(fabs(n_cross_t0 * tangentEnd) >= 100 * EPSILON);
-      //     const double lambda_1 =
-      //         -(n_cross_t0 * edge_vector) / (n_cross_t0 * tangentEnd);
-      //     controlPoint = Pt(endPoint + lambda_1 * tangentEnd);
-      //     const double ct_correction =
-      //         Normal(controlPoint - startPoint) * faceNormal;
-      //     controlPoint = controlPoint - ct_correction * faceNormal;
-      //   }
-      // }
-      // Now that we have the start and end point in addition to the control
-      // point, we can make a quadratic bezier curve.
       RationalCubicBezierArc arc = RationalCubicBezierArc(
           startPoint, tangentStart, endPoint, tangentEnd);
       int QuadRuleOrder = 50;
@@ -995,9 +950,19 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
         Normal normal = s.getNormal(pt);
         normal.normalize();
 
-        double ST = STCoeff + Marangoni[2] *
-                                  (Marangoni[0] * pt[0] + Marangoni[1] * pt[1]);
+        // here is where we get the surface tension coefficient
+        double ST = stencil_m.getScalar(pt);
 
+        if (Marangoni[2] == 0.0 &&
+            (Marangoni[0] != 0.0 ||
+             Marangoni[1] != 0.0)) {  // Force droplet breakup
+          double gamma0 = 1.0;        // Base surface tension coefficient
+          double R = 1.0;             // Characteristic length scale
+
+          // Linear decrease in surface tension with x-coordinate - Al-Saud
+          // Style
+          ST = gamma0 * std::max(1 - 1.25 * std::abs(pt[0]), 0.1);
+        }
         Normal f = IRL::crossProduct(tan, normal);
         f.normalize();
         f = f * ST;
