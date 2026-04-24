@@ -56,7 +56,29 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
     : weight_0_m(ScalarType(1)),
       weight_3_m(ScalarType(1)),
       start_point_m(a_start_pt),
-      end_point_m(a_end_pt) {}
+      end_point_m(a_end_pt) {
+  // Compute Cos alpha0
+  const PtBase<ScalarType> chord = a_end_pt - a_start_pt;
+  const ScalarType chord_length = std::sqrt(
+      chord[0] * chord[0] + chord[1] * chord[1] + chord[2] * chord[2]);
+  // Start
+  const PtBase<ScalarType> chord_normalized = chord / chord_length;
+  a_start_tangent.normalize();
+  const ScalarType cos_alpha0 =
+      a_start_tangent * chord_normalized;  // Dot product
+  // End
+  a_end_tangent.normalize();
+  const ScalarType cos_alpha1 =
+      a_end_tangent * chord_normalized;  // Dot product
+  // Compute Control Points
+  PtBase<ScalarType> v0(a_start_tangent[0], a_start_tangent[1],
+                        a_start_tangent[2]);
+  PtBase<ScalarType> v1(a_end_tangent[0], a_end_tangent[1], a_end_tangent[2]);
+  ScalarType a_coeff0 = 2 * chord_length / (1 + 2 * cos_alpha0);
+  ScalarType a_coeff1 = 2 * chord_length / (1 + 2 * cos_alpha1);
+  control_point_1_m = a_start_pt + a_coeff0 * v0;
+  control_point_2_m = a_end_pt - a_coeff1 * v1;
+}
 
 // Evaluation Methods
 template <class ScalarType>

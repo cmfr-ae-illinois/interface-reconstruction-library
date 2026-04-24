@@ -51,9 +51,9 @@ double PUNeighborhood<CellType>::getScalar(const Pt& a_pt) const {
   double scalar_value = 0.0;
   // Use inverse distance weighting for interpolation
   for (int i = 0; i < a_scalar_m.size(); ++i) {
-    double distance = std::sqrt(std::pow(a_pt.x() - centroids_m[i].x(), 2) +
-                                std::pow(a_pt.y() - centroids_m[i].y(), 2) +
-                                std::pow(a_pt.z() - centroids_m[i].z(), 2));
+    double distance = std::sqrt(std::pow(a_pt[0] - centroids_m[i][0], 2) +
+                                std::pow(a_pt[1] - centroids_m[i][1], 2) +
+                                std::pow(a_pt[2] - centroids_m[i][2], 2));
     if (distance > 0) {
       scalar_value += a_scalar_m[i] / distance;
     }
