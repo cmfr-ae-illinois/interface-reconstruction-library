@@ -54,62 +54,9 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
     const PtBase<ScalarType>& a_end_pt,
     const NormalBase<ScalarType>& a_end_tangent)
     : weight_0_m(ScalarType(1)),
-      weight_1_m(ScalarType(1)),
-      weight_2_m(ScalarType(1)),
       weight_3_m(ScalarType(1)),
       start_point_m(a_start_pt),
-      end_point_m(a_end_pt) {
-  // Define Numbers
-  ScalarType ONE = ScalarType(1);
-  ScalarType TWO = ScalarType(2);
-  ScalarType THREE = ScalarType(3);
-  ScalarType FIVE = ScalarType(5);
-  ScalarType SIX = ScalarType(6);
-  ScalarType SEVEN = ScalarType(7);
-  ScalarType NINE = ScalarType(9);
-  ScalarType EIGHTEEN = ScalarType(18);
-  ScalarType TWENTYSEVEN = ScalarType(27);
-  ScalarType THIRTYTWO = ScalarType(32);
-  ScalarType THIRTYSIX = ScalarType(36);
-  ScalarType SEVENTYTWO = ScalarType(72);
-  // Define Supplementary Variables
-  const PtBase<ScalarType> dP = a_end_pt - a_start_pt;
-  const NormalBase<ScalarType> dPN = {dP[0], dP[1], dP[2]};
-  // std::cout << "dP: " << dP << std::endl;
-  const ScalarType a11 = SEVENTYTWO;
-  const ScalarType a12 = (a_start_tangent * a_end_tangent) * THIRTYSIX;
-  const ScalarType a21 = (a_start_tangent * a_end_tangent) * THIRTYSIX;
-  const ScalarType a22 = SEVENTYTWO;
-
-  const ScalarType b1 = THIRTYSIX * (a_start_tangent * dPN);
-  const ScalarType b2 = THIRTYSIX * (a_end_tangent * dPN);
-
-  // Solve
-  if (fabs(a11 * a22 - a12 * a21) <= ScalarType(1.0e-12) ||
-      // This case should only happen if unit
-      // tangents are not supplied.
-      (fabs(b1) <= ScalarType(1.0e-12) && fabs(b2) <= ScalarType(1.0e-12))) {
-    // This happens if the tangents are parallel, and are also perpendicular to
-    // the chord. In this case, we will limit how far the control points can go.
-    // The tangent direction is correct, but the bending energy is not
-    // minimized.
-    const ScalarType alpha = TWO * dPN.calculateMagnitude();
-    control_point_1_m =
-        a_start_pt + alpha * a_start_tangent /
-                         (THREE * a_start_tangent.calculateMagnitude());
-    control_point_2_m =
-        a_end_pt -
-        alpha * a_end_tangent / (THREE * a_end_tangent.calculateMagnitude());
-  } else {  // This construction is bending energy minimizing. That is to say,
-            // the integral of the square of the second derivative magnitude is
-            // minimized.
-    const ScalarType inv_det = ONE / (a11 * a22 - a12 * a21);
-    const ScalarType alpha_0 = inv_det * (a22 * b1 - a12 * b2);
-    const ScalarType alpha_1 = inv_det * (a11 * b2 - a21 * b1);
-    control_point_1_m = a_start_pt + alpha_0 * a_start_tangent;
-    control_point_2_m = a_end_pt - alpha_1 * a_end_tangent;
-  }
-}
+      end_point_m(a_end_pt) {}
 
 // Evaluation Methods
 template <class ScalarType>
