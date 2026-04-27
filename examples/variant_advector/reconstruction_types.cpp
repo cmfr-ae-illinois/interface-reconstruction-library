@@ -665,6 +665,8 @@ void Jibben2::getReconstruction(
   InterfaceScalarField normal_error("normal_metric", &mesh);
   InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
   InterfaceScalarField normal_std_error("normal_std_metric", &mesh);
+  InterfaceScalarField squared_volume_error("squared_volume_error_metric",
+                                            &mesh);
 
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -699,7 +701,9 @@ void Jibben2::getReconstruction(
           // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
           double normal_err = jibben_solver.getNormalMetric();
           double normal_eigen_err = jibben_solver.getNormalEigenMetric();
-          double normal_std_err = jibben_solver.getNormalVarianceMetric();
+          double normal_std_err = jibben_solver.getAngularVariance();
+          double squared_vol_err =
+              jibben_solver.getVolumeErrorSquared(mesh.dx());
 
           // Match to volume fraction
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
@@ -716,13 +720,14 @@ void Jibben2::getReconstruction(
             normal_eigen_error.paraboloid_scalar_data(i, j, k) =
                 normal_eigen_err;
             normal_std_error.paraboloid_scalar_data(i, j, k) = normal_std_err;
-            // squared_vol_error.paraboloid_scalar_data(i, j, k) = err;
+            squared_volume_error.paraboloid_scalar_data(i, j, k) =
+                squared_vol_err;
           } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
                          &(*a_interface)(i, j, k))) {
             normal_error.polygon_scalar_data(i, j, k) = normal_err;
             normal_eigen_error.polygon_scalar_data(i, j, k) = normal_eigen_err;
             normal_std_error.polygon_scalar_data(i, j, k) = normal_std_err;
-            // squared_vol_error.polygon_scalar_data(i, j, k) = err;
+            squared_volume_error.polygon_scalar_data(i, j, k) = squared_vol_err;
           }
         }
       }
@@ -731,6 +736,7 @@ void Jibben2::getReconstruction(
   a_scalar_fields->push_back(normal_error);
   a_scalar_fields->push_back(normal_eigen_error);
   a_scalar_fields->push_back(normal_std_error);
+  a_scalar_fields->push_back(squared_volume_error);
 
   // Update border with simple ghost-cell fill and correct datum for
   // assumed periodic boundary
@@ -922,7 +928,7 @@ void JibbenM::getReconstruction(
           // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
           double normal_err = jibben_solver.getNormalMetric();
           double normal_eigen_err = jibben_solver.getNormalEigenMetric();
-          double normal_std_err = jibben_solver.getNormalVarianceMetric();
+          double normal_std_err = jibben_solver.getAngularVariance();
 
           // Match to volume fraction
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
@@ -1384,58 +1390,269 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
   }
 }
 
+// void MixedPLICJibben::getReconstruction(
+//     const Data<IRL::VolumeMoments>& a_liq_moments,
+//     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+//     const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
+//     a_W, Data<IRL::SeparatorVariant>* a_interface,
+//     std::vector<InterfaceScalarField>* a_scalar_fields) {
+//   // First, we need to build the plic and copy it
+//   LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+//                            a_interface, a_scalar_fields);
+//   const BasicMesh& mesh = a_liq_moments.getMesh();
+//   Data<IRL::SeparatorVariant> plic_reconstruction(&mesh);
+//   // A element-wise copy is needed since std::memcpy is not safe with
+//   variants for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+//       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+//         plic_reconstruction(i, j, k) = (*a_interface)(i, j, k);
+//       }
+//     }
+//   }
+
+//   // Second, we build the Jibben reconstruction
+//   Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+//   a_W,
+//                             a_interface, a_scalar_fields, true);
+
+//   // Choose between PLIC and Jibben
+//   const double vfrac_threshold = 1.0e-4;
+//   const double kdx_threshold = 4.0;
+//   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+//       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+//         const double liquid_volume_fraction =
+//             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+//         // vfrac check
+//         if (liquid_volume_fraction < vfrac_threshold ||
+//             liquid_volume_fraction > 1.0 - vfrac_threshold) {
+//           (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+//           continue;
+//         }
+//         // curvature check
+//         if (IRL::Paraboloid* paraboloid =
+//                 std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+//           const auto& aligned = paraboloid->getAlignedParaboloid();
+//           const double a = aligned.a();
+//           const double b = aligned.b();
+//           if (std::abs(a) * mesh.dx() > kdx_threshold ||
+//               std::abs(b) * mesh.dx() > kdx_threshold) {
+//             (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+//           }
+//         }
+//       }
+//     }
+//   }
+
+//   // Update border with simple ghost-cell fill and correct distances for
+//   // assumed periodic boundary
+//   a_interface->updateBorder();
+//   correctInterfaceBorders(a_interface);
+// }
+
 void MixedPLICJibben::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
     Data<IRL::SeparatorVariant>* a_interface,
     std::vector<InterfaceScalarField>* a_scalar_fields) {
-  // First, we need to build the plic and copy it
+  // plic reconstruction
   LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                            a_interface, a_scalar_fields);
+
+  // plic polygons for jibben reconstruction
   const BasicMesh& mesh = a_liq_moments.getMesh();
-  Data<IRL::SeparatorVariant> plic_reconstruction(&mesh);
-  // A element-wise copy is needed since std::memcpy is not safe with variants
+  Data<IRL::Polygon> polygon(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-        plic_reconstruction(i, j, k) = (*a_interface)(i, j, k);
+        polygon(i, j, k) = IRL::Polygon();
+        const double liquid_volume_fraction =
+            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
+            liquid_volume_fraction > IRL::global_constants::VF_HIGH) {
+          continue;
+        }
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+            IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+        // Note: this std::get call is safe since all interfaces should be
+        // of the type PlanarSeparator after calling the PLIC reconstruction
+        const auto planar_separator =
+            std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+        polygon(i, j, k) = IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+            cell, planar_separator, planar_separator[0]);
       }
     }
   }
+  updatePolygonBorder(&polygon);
 
-  // Second, we build the Jibben reconstruction
-  Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                            a_interface, a_scalar_fields, true);
+  // jibben reconstruction
+  IRL::JibbenNeighborhood neighborhood;
+  const int nlayers = 1;
+  const int nstencil =
+      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  neighborhood.reserve(nstencil);
+  neighborhood.setDelta(2.5 * mesh.dx());
 
-  // Choose between PLIC and Jibben
-  const double vfrac_threshold = 1.0e-4;
-  const double kdx_threshold = 4.0;
-  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+  Data<bool> underresolved(&mesh);
+  InterfaceScalarField interface_type_field("interface_type", &mesh);
+  InterfaceScalarField vf_field("vf", &mesh);
+  InterfaceScalarField empty_neighborhood_field("empty_neighborhood", &mesh);
+  InterfaceScalarField vol_error_field("volume_error_squared", &mesh);
+
+  // also include the criteria that if there are no full cells in the
+  // neighborhood then it is underresolved
+
+  Data<double> empty_neighorhood(&mesh);
+  Data<double> vol_error(&mesh);
+
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
         const double liquid_volume_fraction =
             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        // vfrac check
-        if (liquid_volume_fraction < vfrac_threshold ||
-            liquid_volume_fraction > 1.0 - vfrac_threshold) {
-          (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
-          continue;
-        }
-        // curvature check
-        if (IRL::Paraboloid* paraboloid =
-                std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
-          const auto& aligned = paraboloid->getAlignedParaboloid();
-          const double a = aligned.a();
-          const double b = aligned.b();
-          if (std::abs(a) * mesh.dx() > kdx_threshold ||
-              std::abs(b) * mesh.dx() > kdx_threshold) {
-            (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+          double vf_supercell = 0.0;  // for clean up
+          // Fill neighborhood with polygons
+          neighborhood.emptyNeighborhood();
+          int count = 0;
+          int full_count = 0;
+          empty_neighorhood(i, j, k) = 1.0;
+          for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+            for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+              for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+                vf_supercell +=
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+                const double neighbor_vf =
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+                if (neighbor_vf > IRL::global_constants::VF_HIGH) full_count++;
+                if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                  neighborhood.addMember(polygon(ii, jj, kk));
+                  if (i == ii && j == jj && k == kk) {
+                    neighborhood.setCenterOfStencil(count);
+                  }
+                  count++;
+                }
+              }
+            }
+          }
+          neighborhood.localize();
+
+          if (full_count > 0) empty_neighorhood(i, j, k) = 0.0;
+
+          // replace by plic if vf in supercell is very small
+          if (liquid_volume_fraction < 1.0e-2 && vf_supercell < 1.0e-1)
+            continue;
+
+          // getting normal metric from the neighborhood
+          IRL::Jibben_3D jibben(&neighborhood);
+          double normal_metric = jibben.getAngularVariance();
+
+          // volume error squared
+          vol_error(i, j, k) = jibben.getVolumeErrorSquared(mesh.dx());
+
+          // use plic if metric exceeds threshold
+          underresolved(i, j, k) = false;
+          if (normal_metric > 0.2) {
+            underresolved(i, j, k) = true;
+            interface_type_field.polygon_scalar_data(i, j, k) = 1.0;
+            continue;
+          };
+          interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
+
+          // Now perform actual the Jibben fit and obtain interface
+          (*a_interface)(i, j, k) = jibben.solve2(&neighborhood);
+
+          // Match to volume fraction
+          const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+          const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                      mesh.z(k + 1));
+          auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
+                                                              upper_cell_pt);
+          IRL::setDistanceToMatchVolumeFraction(
+              cell, liquid_volume_fraction, &(*a_interface)(i, j, k), 1.0e-14);
+
+          // replace by plane if volume fraction matching fails
+          if (IRL::Paraboloid* paraboloid =
+                  std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+            const double computed_m0 =
+                IRL::getVolumeMoments<IRL::Volume>(cell, *paraboloid);
+            const double vf_diff = std::abs((computed_m0 / mesh.cell_volume()) -
+                                            liquid_volume_fraction);
+            if (vf_diff > IRL::global_constants::VF_LOW) continue;
+          } else if (IRL::PlanarSeparator* separator =
+                         std::get_if<IRL::PlanarSeparator>(
+                             &(*a_interface)(i, j, k))) {
+            const double computed_m0 =
+                IRL::getVolumeMoments<IRL::Volume>(cell, *separator);
+            const double vf_diff = std::abs((computed_m0 / mesh.cell_volume()) -
+                                            liquid_volume_fraction);
+            if (vf_diff > IRL::global_constants::VF_LOW) continue;
+          }
+
+          // checking if there are an planes generated with jibben
+          // reconstruction
+          if (IRL::PlanarSeparator* separator =
+                  std::get_if<IRL::PlanarSeparator>(&(*a_interface)(i, j, k))) {
+            std::cout << "jibben plane detected" << std::endl;
           }
         }
       }
     }
   }
+
+  // outputting cells with empty neighborhoods
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        const double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+        // storing vf for parabolic interface
+        if (IRL::Paraboloid* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+          empty_neighborhood_field.paraboloid_scalar_data(i, j, k) =
+              empty_neighorhood(i, j, k);
+          vol_error_field.paraboloid_scalar_data(i, j, k) = vol_error(i, j, k);
+        } else if (IRL::PlanarSeparator* separator =
+                       std::get_if<IRL::PlanarSeparator>(
+                           &(*a_interface)(i, j, k))) {
+          empty_neighborhood_field.polygon_scalar_data(i, j, k) =
+              empty_neighorhood(i, j, k);
+          vol_error_field.polygon_scalar_data(i, j, k) = vol_error(i, j, k);
+        }
+      }
+    }
+  }
+
+  // volume fraction scalar data
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        const double vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+        // storing vf for parabolic interface
+        if (IRL::Paraboloid* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+          vf_field.paraboloid_scalar_data(i, j, k) = vf;
+        } else if (IRL::PlanarSeparator* separator =
+                       std::get_if<IRL::PlanarSeparator>(
+                           &(*a_interface)(i, j, k))) {
+          vf_field.polygon_scalar_data(i, j, k) = vf;
+        }
+      }
+    }
+  }
+
+  a_scalar_fields->push_back(interface_type_field);
+  a_scalar_fields->push_back(vf_field);
+  a_scalar_fields->push_back(empty_neighborhood_field);
+  a_scalar_fields->push_back(vol_error_field);
 
   // Update border with simple ghost-cell fill and correct distances for
   // assumed periodic boundary
@@ -3914,7 +4131,7 @@ void JibbenPU::getReconstruction(
 
           // jibben fit
           IRL::Jibben_3D jibben_solver;
-          jibben_interface(i, j, k) = jibben_solver.solve(&neighborhood);
+          jibben_interface(i, j, k) = jibben_solver.solve2(&neighborhood);
 
           // check for squared volume error
           // double volume_error_sq =
@@ -3923,13 +4140,13 @@ void JibbenPU::getReconstruction(
           // normal error
           // double normal_error = jibben_solver.getNormalMetric();
           double normal_error = jibben_solver.getNormalEigenMetric();
-          // double normal_error = jibben_solver.getNormalVarianceMetric();
+          // double normal_error = jibben_solver.getAngularVariance();
 
           // double volume_error = jibben_solver.getVolumeError(mesh.dx());
 
           // if (volume_error_sq > 0.01) {
           // if (volume_error_sq > 0.05) {
-          if (normal_error > 0.2) {
+          if (normal_error > 0.15) {
             // if (volume_error > 0.05) {
             (*a_interface)(i, j, k) = pu_interface(i, j, k);
             interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
@@ -4349,7 +4566,7 @@ void JibbenSqPU::getReconstruction(
           //     jibben_solver.getVolumeErrorSquared(mesh.dx());
           // double normal_error = jibben_solver.getNormalMetric();
           const double normal_error = jibben_solver.getNormalEigenMetric();
-          // double normal_error = jibben_solver.getNormalVarianceMetric();
+          // double normal_error = jibben_solver.getAngularVariance();
 
           // error thresholds
           const double normal_eigen_threshold = 0.2;
