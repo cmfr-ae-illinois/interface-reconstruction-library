@@ -13,12 +13,12 @@
 
 extern "C" {
 
-double c_reconstructionMetricWithJibben3D(
-    const c_JibbenNeigh* a_jibben_neighborhood) {
-  return IRL::reconstructionMetricWithJibben3D(
-      *reinterpret_cast<const IRL::JibbenNeighborhood*>(
-          a_jibben_neighborhood->obj_ptr));
-}
+// double c_reconstructionMetricWithJibben3D(
+//     const c_JibbenNeigh* a_jibben_neighborhood) {
+//   return IRL::reconstructionMetricWithJibben3D(
+//       *reinterpret_cast<const IRL::JibbenNeighborhood*>(
+//           a_jibben_neighborhood->obj_ptr));
+// }
 
 void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
                                const double* a_delta,
@@ -32,7 +32,7 @@ void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
 }
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
-                                   c_SeparatorVariant* a_separator) {
+                                     c_SeparatorVariant* a_separator) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);

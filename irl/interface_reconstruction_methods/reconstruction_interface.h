@@ -26,9 +26,9 @@
 
 namespace IRL {
 
-/// \brief Reconstruction metric for Jibben 3D (resolved or not)
-inline double reconstructionMetricWithJibben3D(
-    const JibbenNeighborhood& a_neighborhood_geometry);
+// /// \brief Reconstruction metric for Jibben 3D (resolved or not)
+// inline double reconstructionMetricWithJibben3D(
+//     const JibbenNeighborhood& a_neighborhood_geometry);
 
 /// \brief Perform PU reconstruction for a 3D problem.
 inline Paraboloid reconstructionWithPU3D(

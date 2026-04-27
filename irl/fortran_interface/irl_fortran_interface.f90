@@ -100,5 +100,6 @@ module irl_fortran_interface
   use f_ObjServer_MixedPolygonBezierSurface_class
   use f_MixedPolygonBezierSurface_class
   use f_PUNeigh_class
+  use f_ReconstructionMetricsInterface
 
 end module irl_fortran_interface

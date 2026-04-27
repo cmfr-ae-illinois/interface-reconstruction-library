@@ -840,7 +840,7 @@ const double Jibben_3D::getNormalEigenMetric(void) const {
   return E;
 }
 
-const double Jibben_3D::getNormalVarianceMetric(void) const {
+const double Jibben_3D::getAngularVariance(void) const {
   const UnsignedIndex_t n_polygons = neighborhood_m->size();
   double mean = 0.0;
   std::vector<double> thetas(n_polygons);
@@ -889,7 +889,6 @@ Paraboloid Jibben_3D::solve2(const JibbenNeighborhood* a_neighborhood_pointer,
   // std::cout << "Number of polygons = " << npolygons << std::endl;
 
   // looping over polygons
-  int polygon_count = 1;
   for (UnsignedIndex_t n = 0; n < npolygons; n++) {
     const auto& polygon = neighborhood_m->getPolygon(n);
     const double input_weight = neighborhood_m->getWeight(n);
@@ -912,7 +911,7 @@ Paraboloid Jibben_3D::solve2(const JibbenNeighborhood* a_neighborhood_pointer,
         (1.0 + 4.0 * r) * (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r);
     double weight = input_weight * distance_weight;
 
-    weight = 1.0;
+    // weight = 1.0;
 
     // parameters of the plane
     Eigen::Vector<double, 3> b = Eigen::Vector<double, 3>::Zero();

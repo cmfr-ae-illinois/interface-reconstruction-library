@@ -50,7 +50,7 @@ class Jibben_3D {
 
   const double getNormalEigenMetric(void) const;
 
-  const double getNormalVarianceMetric(void) const;
+  const double getAngularVariance(void) const;
 
   /// \brief Jibben formulation with squared difference in volume
   Paraboloid solve2(const JibbenNeighborhood* a_neighborhood_pointer,

@@ -39,9 +39,9 @@ module f_ReconstructionInterface
   use f_R2PWeighting_class
   implicit none
 
-  interface reconstructionMetricWithJibben3D
-    module procedure reconstructionMetricWithJibben3D_JibbenNeigh
-  end interface reconstructionMetricWithJibben3D
+  ! interface reconstructionMetricWithJibben3D
+  !   module procedure reconstructionMetricWithJibben3D_JibbenNeigh
+  ! end interface reconstructionMetricWithJibben3D
 
   interface reconstructPU3D
     module procedure reconstructPU3D_Variant
@@ -205,16 +205,16 @@ module f_ReconstructionInterface
     end subroutine F_reconstructPU3D_Variant
   end interface
 
-  interface
-  function F_reconstructionMetricWithJibben3D(a_jibben_neighborhood) &
-    bind(C, name="c_reconstructionMetricWithJibben3D")
-      use, intrinsic :: iso_c_binding
-      import
-      implicit none
-      type(c_JibbenNeigh), intent(in) :: a_jibben_neighborhood
-      real(C_DOUBLE) :: F_reconstructionMetricWithJibben3D
-    end function F_reconstructionMetricWithJibben3D
-  end interface
+  ! interface
+  ! function F_reconstructionMetricWithJibben3D(a_jibben_neighborhood) &
+  !   bind(C, name="c_reconstructionMetricWithJibben3D")
+  !     use, intrinsic :: iso_c_binding
+  !     import
+  !     implicit none
+  !     type(c_JibbenNeigh), intent(in) :: a_jibben_neighborhood
+  !     real(C_DOUBLE) :: F_reconstructionMetricWithJibben3D
+  !   end function F_reconstructionMetricWithJibben3D
+  ! end interface
 
   interface
     subroutine F_reconstructELVIRA3D_Variant(a_ELVIRANeigh, a_variant) &
@@ -616,14 +616,14 @@ module f_ReconstructionInterface
 
   end subroutine reconstructPU3D_Variant
 
-  function reconstructionMetricWithJibben3D_JibbenNeigh(a_jibben_neighborhood) result(metric)
-    use, intrinsic :: iso_c_binding
-    implicit none
-    type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
-    real(IRL_double) :: metric
+  ! function reconstructionMetricWithJibben3D_JibbenNeigh(a_jibben_neighborhood) result(metric)
+  !   use, intrinsic :: iso_c_binding
+  !   implicit none
+  !   type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
+  !   real(IRL_double) :: metric
 
-    metric = F_reconstructionMetricWithJibben3D(a_jibben_neighborhood%c_object)
-  end function reconstructionMetricWithJibben3D_JibbenNeigh
+  !   metric = F_reconstructionMetricWithJibben3D(a_jibben_neighborhood%c_object)
+  ! end function reconstructionMetricWithJibben3D_JibbenNeigh
 
   subroutine reconstructELVIRA3D_Variant(a_elvira_neighborhood, a_variant)
     use, intrinsic :: iso_c_binding

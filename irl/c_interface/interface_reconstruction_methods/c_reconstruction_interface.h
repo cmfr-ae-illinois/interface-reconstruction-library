@@ -45,15 +45,15 @@ extern "C" {
 /// the individual needs of each reconstruction method,
 /// it is best to constult its specific documentation.
 
-double c_reconstructionMetricWithJibben3D(
-    const c_JibbenNeigh* a_jibben_neighborhood);
+// double c_reconstructionMetricWithJibben3D(
+//     const c_JibbenNeigh* a_jibben_neighborhood);
 
 void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
                                const double* a_delta,
                                c_SeparatorVariant* a_separator);
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
-                                   c_SeparatorVariant* a_separator);
+                                     c_SeparatorVariant* a_separator);
 
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
                                  c_Paraboloid* a_separator);
