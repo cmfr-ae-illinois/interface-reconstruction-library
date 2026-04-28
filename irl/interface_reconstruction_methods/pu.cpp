@@ -10,6 +10,13 @@
 #include "irl/interface_reconstruction_methods/pu.h"
 
 namespace IRL {
+
+PU::PU(const PUNeighborhood* a_neighborhood_pointer, const double a_delta) {
+  assert(a_neighborhood_pointer != nullptr);
+  neighborhood_m = a_neighborhood_pointer;
+  delta_m = a_delta;
+}
+
 Paraboloid PU::solve(const PUNeighborhood* a_neighborhood_pointer,
                      const double a_delta) {
   assert(a_neighborhood_pointer != nullptr);
@@ -287,9 +294,10 @@ std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> PU::getPUAndGradAndHessian(
   return std::make_tuple(PU_F, PU_gradF, PU_hessF);
 }
 
-Pt PU::projectPointonPU(const Pt& a_pt) {
+Pt PU::projectPointonPU(const Pt& a_pt, bool& success) {
   Pt projected_pt = a_pt;
   const int itmax = 50;
+  success = true;
   for (int i = 0; i < itmax; i++) {
     const auto F_and_gradF = getPUAndGrad(projected_pt);
     const double F = std::get<double>(F_and_gradF);
@@ -302,10 +310,20 @@ Pt PU::projectPointonPU(const Pt& a_pt) {
       projected_pt[d] -= F * gradF(d) * grad_norm_inv;
     }
     // return the point itself if max iterations reached
-    if (i == itmax - 1) {
+    if (i == (itmax - 1)) {
+      success = false;
       return a_pt;
     }
   }
+
+  // checking distance of projected point
+  const double dx = 1.0 / 64.0;
+  if (IRL::magnitude(projected_pt - a_pt) > 0.5 * dx) {
+    // hard coded dx for now (need to pass as an argument)
+    success = false;
+    return a_pt;
+  }
+
   return projected_pt;
 }
 
@@ -314,8 +332,10 @@ Paraboloid PU::solve(void) {
   const Pt centroid =
       neighborhood_m->getCentroid(neighborhood_m->getCenterOfStencil());
 
-  // project centroid on PU surface
-  const Pt projected_centroid = projectPointonPU(centroid);
+  bool success = true;
+
+  // project centroid on PU surface (success = false if it fails)
+  const Pt projected_centroid = projectPointonPU(centroid, success);
 
   // compute gradient and hessian at projected centroid
   const auto F_gradF_hessF = getPUAndGradAndHessian(projected_centroid);
@@ -327,7 +347,8 @@ Paraboloid PU::solve(void) {
   auto paraboloid =
       Paraboloid::fromDerivatives(projected_centroid, gradF, hessF);
 
-  if (IRL::magnitude(new_normal) < 0.9) {
+  if (!success) {
+    // std::cout << "projection failed: setting datum to infinity" << std::endl;
     // setting datum to infinity to mark as invalid paraboloid
     const double inf = std::numeric_limits<double>::infinity();
     paraboloid.setDatum(IRL::Pt(inf, inf, inf));

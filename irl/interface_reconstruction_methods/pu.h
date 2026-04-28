@@ -25,9 +25,16 @@ class PU {
   /// \brief Default constructor.
   PU(void) = default;
 
+  /// \brief Constructor with neighborhood and delta.
+  PU(const PUNeighborhood* a_neighborhood_pointer, const double a_delta);
+
   /// \brief Solve for the paraboloid using the provided neighborhood and delta.
   Paraboloid solve(const PUNeighborhood* a_neighborhood_pointer,
                    const double a_delta);
+
+  /// \brief PU surface and gradient and Hessian
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> getPUAndGradAndHessian(
+      const Pt& a_pt);
 
   /// \brief default destructor
   ~PU(void) = default;
@@ -39,12 +46,13 @@ class PU {
   /// \brief PU surface and gradient
   std::pair<double, Eigen::Vector3d> getPUAndGrad(const Pt& a_pt);
 
-  /// \brief PU surface and gradient and Hessian
-  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> getPUAndGradAndHessian(
-      const Pt& a_pt);
+  // /// \brief PU surface and gradient and Hessian
+  // std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>
+  // getPUAndGradAndHessian(
+  //     const Pt& a_pt);
 
   /// \brief Projecting point on PU surface
-  Pt projectPointonPU(const Pt& a_pt);
+  Pt projectPointonPU(const Pt& a_pt, bool& success);
 
   /// \brief getting normal weights for each interface wrt target interface
   std::vector<double> getNormalWeights(void);
