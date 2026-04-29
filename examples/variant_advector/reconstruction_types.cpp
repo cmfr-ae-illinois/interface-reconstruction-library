@@ -4395,7 +4395,7 @@ void JibbenPU::getReconstruction(
 //         // building pu paraboloid
 //         const double delta = 2.5 * mesh.dx();
 //         IRL::Paraboloid pu_paraboloid =
-//             IRL::reconstructionWithPU3D(pu_neighborhood, delta);
+//             IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
 
 //         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
 //             !std::isfinite(pu_paraboloid.getDatum()[1]) ||
@@ -4668,7 +4668,7 @@ void JibbenPU::getReconstruction(
 //         // building pu paraboloid
 //         const double delta = 2.5 * mesh.dx();
 //         IRL::Paraboloid pu_paraboloid =
-//             IRL::reconstructionWithPU3D(pu_neighborhood, delta);
+//             IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
 
 //         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
 //             !std::isfinite(pu_paraboloid.getDatum()[1]) ||
@@ -4907,7 +4907,8 @@ void TestingClasses::getReconstruction(
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        double angular_variance = jibben.getAngularVariance();
+        // double angular_variance = jibben.getAngularVariance();
+        double angular_variance = jibben.getNormalEigenMetric();
         const double angular_variance_threshold = 0.15;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;
@@ -5002,7 +5003,7 @@ void TestingClasses::getReconstruction(
         // building pu paraboloid
         const double delta = 2.5 * mesh.dx();
         IRL::Paraboloid pu_paraboloid =
-            IRL::reconstructionWithPU3D(pu_neighborhood, delta);
+            IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
 
         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
             !std::isfinite(pu_paraboloid.getDatum()[1]) ||

@@ -21,14 +21,14 @@ extern "C" {
 // }
 
 void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
-                               const double* a_delta,
+                               const double* a_delta, const double* a_dx,
                                c_SeparatorVariant* a_separator) {
   assert(a_pu_neighborhood != nullptr);
   assert(a_pu_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
   *a_separator->obj_ptr =
-      reconstructionWithPU3D(*a_pu_neighborhood->obj_ptr, *a_delta);
+      reconstructionWithPU3D(*a_pu_neighborhood->obj_ptr, *a_delta, *a_dx);
 }
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,

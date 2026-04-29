@@ -30,7 +30,7 @@ class PU {
 
   /// \brief Solve for the paraboloid using the provided neighborhood and delta.
   Paraboloid solve(const PUNeighborhood* a_neighborhood_pointer,
-                   const double a_delta);
+                   const double a_delta, const double a_dx);
 
   /// \brief PU surface and gradient and Hessian
   std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> getPUAndGradAndHessian(
@@ -61,6 +61,8 @@ class PU {
   const PUNeighborhood* neighborhood_m;
   /// \brief kernal radius for PU
   double delta_m;
+  /// \brief grid spacing
+  double dx_m;
 };
 
 }  // namespace IRL

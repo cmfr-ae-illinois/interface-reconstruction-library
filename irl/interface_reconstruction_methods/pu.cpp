@@ -18,10 +18,11 @@ PU::PU(const PUNeighborhood* a_neighborhood_pointer, const double a_delta) {
 }
 
 Paraboloid PU::solve(const PUNeighborhood* a_neighborhood_pointer,
-                     const double a_delta) {
+                     const double a_delta, const double a_dx) {
   assert(a_neighborhood_pointer != nullptr);
   neighborhood_m = a_neighborhood_pointer;
   delta_m = a_delta;
+  dx_m = a_dx;
   return this->solve();
 }
 
@@ -317,8 +318,7 @@ Pt PU::projectPointonPU(const Pt& a_pt, bool& success) {
   }
 
   // checking distance of projected point
-  const double dx = 1.0 / 64.0;
-  if (IRL::magnitude(projected_pt - a_pt) > 0.5 * dx) {
+  if (IRL::magnitude(projected_pt - a_pt) > 0.5 * dx_m) {
     // hard coded dx for now (need to pass as an argument)
     success = false;
     return a_pt;
@@ -352,6 +352,11 @@ Paraboloid PU::solve(void) {
     // setting datum to infinity to mark as invalid paraboloid
     const double inf = std::numeric_limits<double>::infinity();
     paraboloid.setDatum(IRL::Pt(inf, inf, inf));
+    auto coeffs = paraboloid.getAlignedParaboloid();
+    IRL::AlignedParaboloid new_coeffs = coeffs;
+    new_coeffs.a() = 20.0 / dx_m;
+    new_coeffs.b() = 20.0 / dx_m;
+    paraboloid.setAlignedParaboloid(new_coeffs);
   }
 
   return paraboloid;

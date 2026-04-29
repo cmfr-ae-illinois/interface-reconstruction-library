@@ -49,7 +49,7 @@ extern "C" {
 //     const c_JibbenNeigh* a_jibben_neighborhood);
 
 void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
-                               const double* a_delta,
+                               const double* a_delta, const double* a_dx,
                                c_SeparatorVariant* a_separator);
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,

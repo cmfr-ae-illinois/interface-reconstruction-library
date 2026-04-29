@@ -19,9 +19,9 @@ namespace IRL {
 // }
 
 Paraboloid reconstructionWithPU3D(const PUNeighborhood& a_neighborhood_geometry,
-                                  const double a_delta) {
+                                  const double a_delta, const double a_dx) {
   PU pu_solver;
-  return pu_solver.solve(&a_neighborhood_geometry, a_delta);
+  return pu_solver.solve(&a_neighborhood_geometry, a_delta, a_dx);
 }
 
 Paraboloid reconstructionWithJibbenSq3D(

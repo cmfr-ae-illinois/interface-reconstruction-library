@@ -194,13 +194,14 @@ module f_ReconstructionInterface
   end interface
 
   interface
-    subroutine F_reconstructPU3D_Variant(a_PUNeigh, a_delta, a_separator) &
+    subroutine F_reconstructPU3D_Variant(a_PUNeigh, a_delta, a_dx, a_separator) &
     bind(C, name="c_reconstructPU3D_Variant")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(c_PUNeigh) :: a_PUNeigh ! Pointer to a PUNeigh object
       real(C_DOUBLE), intent(in) :: a_delta
+      real(C_DOUBLE), intent(in) :: a_dx
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
     end subroutine F_reconstructPU3D_Variant
   end interface
@@ -605,14 +606,15 @@ module f_ReconstructionInterface
 
   end subroutine reconstructJibben3D_Variant
 
-  subroutine reconstructPU3D_Variant(a_pu_neighborhood, a_delta, a_separator)
+  subroutine reconstructPU3D_Variant(a_pu_neighborhood, a_delta, a_dx, a_separator)
     use, intrinsic :: iso_c_binding
     implicit none
       type(PUNeigh_type), intent(in) :: a_pu_neighborhood
       real(IRL_double), intent(in) :: a_delta
+      real(IRL_double), intent(in) :: a_dx
       type(SeparatorVariant_type), intent(inout) :: a_separator
 
-      call F_reconstructPU3D_Variant(a_pu_neighborhood%c_object, a_delta, a_separator%c_object)
+      call F_reconstructPU3D_Variant(a_pu_neighborhood%c_object, a_delta, a_dx, a_separator%c_object)
 
   end subroutine reconstructPU3D_Variant
 
