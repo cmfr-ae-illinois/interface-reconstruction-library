@@ -10,6 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <cmath>
 
 namespace IRL {
 
@@ -33,6 +34,7 @@ protected:
     //Data Parameters
     int no_batches = 256;
     int include_Moments = 0;
+    bool include_Surface_Area = false;
     bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
@@ -82,7 +84,7 @@ public:
         early_stop_patience = early_stop_pat;
     }
 
-    void updateDataParameters(int nb, int incMoments, bool incEigenvalues,
+    void updateDataParameters(int nb, int incMoments, bool incSurfaceArea, bool incEigenvalues,
                               double parab_std, double sheet_std,
                               double max_sheet_th, double sheet_th_std,
                               double max_cyl_r, double cyl_r_std,
@@ -90,6 +92,7 @@ public:
                               bool exact_2nd_mom) {
         no_batches = nb;
         include_Moments = incMoments;
+        include_Surface_Area = incSurfaceArea;
         include_Eigenvalues = incEigenvalues;
         paraboloid_coeff_stddev = parab_std;
         sheet_coeff_stddev = sheet_std;
@@ -111,7 +114,7 @@ public:
         data_gen.generateData(&statesV, &labelsV,
                                no_batches * batch_size,
                                stencil_size, output_size,
-                               include_Moments, include_Eigenvalues,
+                               include_Moments, include_Surface_Area, include_Eigenvalues,
                                paraboloid_coeff_stddev,
                                sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
                                max_cylinder_radius, cylinder_radius_stddev,
@@ -150,7 +153,7 @@ public:
         data_gen.generateData(&new_states, &new_labels,
                             no_batches * batch_size,
                             stencil_size, output_size,
-                            include_Moments, include_Eigenvalues,
+                            include_Moments, include_Surface_Area, include_Eigenvalues,
                             paraboloid_coeff_stddev,
                             sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
                             max_cylinder_radius, cylinder_radius_stddev,
@@ -197,6 +200,7 @@ public:
         meta << "no_batches loaded " << (no_batches - num_samples/batch_size) << "\n";
         meta << "total samples " << num_samples << "\n";
         meta << "include_Moments " << include_Moments << "\n";
+        meta << "include_Surface_Area " << include_Surface_Area << "\n";
         meta << "include_Eigenvalues " << include_Eigenvalues << "\n";
         meta << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
         meta << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";
@@ -232,6 +236,110 @@ public:
         std::cout << "📂 Loaded " << num_samples << " samples from " << dir_path << std::endl;
     }
 
+    void checkStatesForNaNOrInf(size_t max_print = 20, bool remove_bad_samples = false) {
+        size_t total_bad_cases = 0;
+        size_t printed_cases = 0;
+
+        if (statesV.empty()) {
+            std::cout << "No states data available to check." << std::endl;
+            return;
+        }
+
+        if (statesV.size() != labelsV.size()) {
+            std::cerr << "Warning: statesV size (" << statesV.size()
+                    << ") does not match labelsV size (" << labelsV.size()
+                    << "). Labels may be unavailable for some samples."
+                    << std::endl;
+        }
+
+        std::vector<std::vector<float>> cleaned_states;
+        std::vector<int> cleaned_labels;
+
+        if (remove_bad_samples) {
+            cleaned_states.reserve(statesV.size());
+            cleaned_labels.reserve(labelsV.size());
+        }
+
+        for (size_t sample = 0; sample < statesV.size(); ++sample) {
+            const auto& state = statesV[sample];
+
+            bool bad_sample = false;
+            size_t bad_feature = 0;
+            float bad_value = 0.0f;
+
+            for (size_t feature = 0; feature < state.size(); ++feature) {
+                if (!std::isfinite(state[feature])) {
+                    bad_sample = true;
+                    bad_feature = feature;
+                    bad_value = state[feature];
+                    break;
+                }
+            }
+
+            if (bad_sample) {
+                ++total_bad_cases;
+
+                if (printed_cases < max_print) {
+                    std::cout << "\n=== Bad stencil/state found ===" << std::endl;
+                    std::cout << "sample_index=" << sample << std::endl;
+
+                    if (sample < labelsV.size()) {
+                        std::cout << "label=" << labelsV[sample] << std::endl;
+                    } else {
+                        std::cout << "label=N/A" << std::endl;
+                    }
+
+                    std::cout << "bad_feature_index=" << bad_feature << std::endl;
+                    std::cout << "bad_value=" << bad_value << std::endl;
+                    std::cout << "state_size=" << state.size() << std::endl;
+
+                    std::cout << "full_state=[" << std::endl;
+                    for (size_t i = 0; i < state.size(); ++i) {
+                        std::cout << "  [" << i << "] " << state[i];
+
+                        if (!std::isfinite(state[i])) {
+                            std::cout << "  <-- NaN/Inf";
+                        }
+
+                        std::cout << std::endl;
+                    }
+                    std::cout << "]" << std::endl;
+
+                    ++printed_cases;
+                }
+
+                if (remove_bad_samples) {
+                    continue;
+                }
+            }
+
+            if (remove_bad_samples) {
+                cleaned_states.push_back(state);
+
+                if (sample < labelsV.size()) {
+                    cleaned_labels.push_back(labelsV[sample]);
+                }
+            }
+        }
+
+        if (remove_bad_samples) {
+            statesV = std::move(cleaned_states);
+            labelsV = std::move(cleaned_labels);
+            no_samples = statesV.size();
+        }
+
+        std::cout << "\nTotal samples containing NaN or Inf: "
+                << total_bad_cases << std::endl;
+
+        if (remove_bad_samples) {
+            std::cout << "Removed samples: "
+                    << total_bad_cases << std::endl;
+
+            std::cout << "Remaining samples: "
+                    << statesV.size() << std::endl;
+        }
+    }
+
     void canonicalize_data(int no_symmetries) { //OLD kept for compatability
         if (statesV.empty()) {
             std::cerr << "⚠ No data loaded. Cannot canonicalize." << std::endl;
@@ -244,7 +352,7 @@ public:
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::preprocess_stencil(flat, stencil_size, no_symmetries, include_Moments, false);
+            IRL::preprocess_stencil(flat, stencil_size, no_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
@@ -260,10 +368,11 @@ public:
         std::cout << "🔧 Preprocessing " << statesV.size() << " samples..." << std::endl;
         std::cout << "Length of flattened state before: " << statesV[0].size() << std::endl;
         std::cout << "including Eigenvalues: " << include_Eigenvalues << ", including Moments: " << include_Moments << std::endl;
+        std::cout << "including Surface Area: " << include_Surface_Area << std::endl;
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, include_Eigenvalues, noise_stddev);
+            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
@@ -377,6 +486,7 @@ public:
         } else {
             param_out << "no_batches " << no_batches << "\n";
             param_out << "include_Moments " << include_Moments << "\n";
+            param_out << "include_Surface_Area" << include_Surface_Area << "\n";
             param_out << "include_Eigenvalues " << include_Eigenvalues << "\n";
             param_out << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
             param_out << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";

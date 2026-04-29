@@ -20,10 +20,10 @@ public:
                  std::vector<float>* out_probs = nullptr) override {
         
         // Convert flattened_state to double vector
-        std::vector<double> flattened_state_double(flattened_state.begin(), flattened_state.end());
+        //std::vector<double> flattened_state_double(flattened_state.begin(), flattened_state.end());
         
         // Compute inertia tensor
-        Eigen::Matrix3d I = computeInertiaTensor(flattened_state_double,
+        Eigen::Matrix3d I = computeInertiaTensor(flattened_state,
                                                  stencil_size,
                                                  from_ith_moment);
 

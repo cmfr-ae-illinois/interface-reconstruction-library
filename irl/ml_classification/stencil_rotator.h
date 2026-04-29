@@ -12,6 +12,7 @@ namespace IRL {
 struct CellData {
     float vfrac;
     float mx, my, mz;  // first moments in x, y, z
+    float area;
 };
 
 // Global symmetric 2nd moment / inertia tensor packed as 6 unique components
@@ -30,12 +31,14 @@ inline int cellIndex(int i, int j, int k, int N) {
 }
 
 // Strides in the flat vector depending on include_moments
-inline int perCellStride(int include_moments) {
+inline int perCellStride(int include_moments, bool include_surface_area) {
     // include_moments:
     // 0 -> [vfrac]
     // 1 -> [vfrac, mx, my, mz]
-    // 2 -> [vfrac, mx, my, mz] + 6 global inertia at end
-    return (include_moments >= 1) ? 4 : 1;
+    // include_surface_area: +1
+    int stride = (include_moments >= 1) ? 4 : 1;
+    stride += (include_surface_area) ? 1 : 0;
+    return stride;
 }
 
 inline int globalTailStride(int include_moments, bool include_Eigenvalues = false) {
@@ -51,16 +54,20 @@ static void unpackStencil(const std::vector<float>& flat,
                           std::vector<CellData>& stencil,
                           SecondMoments* I,
                           Eigenvalues* eigenvalues,
-                          int N,
+                          int stencil_size,
                           int include_moments,
+                          bool include_Surface_Area = false,
                           bool include_Eigenvalues = false)
 {
-    const int nCells = N * N * N;
-    const int stride = perCellStride(include_moments);
+    const int nCells = stencil_size * stencil_size * stencil_size;
+    const int stride = perCellStride(include_moments, include_Surface_Area);
     stencil.resize(nCells);
 
     for (int idx = 0; idx < nCells; ++idx) {
         stencil[idx].vfrac = flat[stride * idx + 0];
+        if (stencil[idx].vfrac <= 1e-12f) {
+            stencil[idx].vfrac = 0.0f;
+        }
 
         if (include_moments >= 1) {
             stencil[idx].mx = flat[stride * idx + 1];
@@ -68,6 +75,12 @@ static void unpackStencil(const std::vector<float>& flat,
             stencil[idx].mz = flat[stride * idx + 3];
         } else {
             stencil[idx].mx = stencil[idx].my = stencil[idx].mz = 0.0f;
+        }
+
+        if (include_Surface_Area) {
+            stencil[idx].area = flat[stride * idx + 4];
+        } else {
+            stencil[idx].area = 0.0f;
         }
     }
 
@@ -116,6 +129,7 @@ inline void convert_to_local_centroids(std::vector<CellData>& stencil,
                     c.mx = 0.0f;
                     c.my = 0.0f;
                     c.mz = 0.0f;
+                    c.area = 0.0f;
                     continue;
                 }
 
@@ -151,13 +165,21 @@ static void repackStencil(std::vector<float>& flat,
                           const Eigenvalues* eigenvalues,
                           int N,
                           int include_moments,
+                          bool include_Surface_Area = false,
                           bool include_Eigenvalues = false)
 {
     std::vector<CellData> packed_stencil = stencil;
     //convert_to_local_centroids(packed_stencil, N, include_moments);
 
+    // Normalize surface areas by the liquid cell volume ^2/3
+    
+    for (auto& c : packed_stencil) {
+        c.area /= std::pow(c.vfrac, 2.0f / 3.0f) + 1e-12f; // add small epsilon to avoid division by zero
+    }
+    
+
     const int nCells = N * N * N;
-    int stride = perCellStride(include_moments);
+    int stride = perCellStride(include_moments, include_Surface_Area);
     const int tail   = globalTailStride(include_moments, include_Eigenvalues);
 
     flat.resize(stride * nCells + tail);
@@ -169,6 +191,10 @@ static void repackStencil(std::vector<float>& flat,
             flat[stride * idx + 1] = packed_stencil[idx].mx;
             flat[stride * idx + 2] = packed_stencil[idx].my;
             flat[stride * idx + 3] = packed_stencil[idx].mz;
+        }
+
+        if (include_Surface_Area) {
+            flat[stride * idx + 4] = packed_stencil[idx].area;
         }
     }
 
@@ -415,7 +441,8 @@ inline float sampleGaussian(float sigma) {
 }
 
 inline void preprocess_stencil(std::vector<float>& flat_stencil,
-                           int stencil_size, int no_symmetries, int include_moments = 1, bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
+                           int stencil_size, int no_symmetries, int include_moments = 1, bool include_Surface_Area = false,
+                           bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
 {
 
     // Unpack
@@ -424,8 +451,9 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
     SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
     Eigenvalues eig{};
     Eigenvalues* eigp = include_Eigenvalues ? &eig : nullptr;
-    unpackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
+    unpackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
 
+    // Noise
     if (noise_stddev > 1e-10f) {
         const float epsilon_noise = 1.0e-6f;
         const float c0 = 0.5f * (static_cast<float>(stencil_size) - 1.0f);
@@ -549,11 +577,13 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
 
     // If center is not positive → zero everything and return
     if (stencil[cellIndex(c,c,c,N)].vfrac <= epsilon_connect) {
+        /*
         for (auto& cell : stencil) {
             cell.vfrac = 0.0f;
             cell.mx = cell.my = cell.mz = 0.0f;
         }
-        repackStencil(flat_stencil, stencil, Ip, eigp, N, include_moments, include_Eigenvalues);
+        */
+        repackStencil(flat_stencil, stencil, Ip, eigp, N, include_moments, include_Surface_Area, include_Eigenvalues);
         return;
     }
 
@@ -605,6 +635,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
                     stencil[id].mx = 0.0f;
                     stencil[id].my = 0.0f;
                     stencil[id].mz = 0.0f;
+                    stencil[id].area = 0.0f;
                 }
             }
         }
@@ -612,7 +643,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
     
 
     if (no_symmetries < 8) {
-        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
+        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
         return;
     }
 
@@ -658,7 +689,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
     }
 
     if (no_symmetries <= 8) {
-        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
+        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
         return;
     }
 
@@ -693,7 +724,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
 
     // If we only want 24 symmetries (rotations + octant choice), stop here.
     if (no_symmetries <= 24) {
-        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
+        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
         return;
     }
 
@@ -704,7 +735,7 @@ inline void preprocess_stencil(std::vector<float>& flat_stencil,
         if (include_moments >= 2) swap_xy(I);
     }
     // Pack back into flat storage
-    repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Eigenvalues);
+    repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
 
     //m1.x / IRL::safelyEpsilon(vfrac);, recheck if -0.5,0.5 after
     // check in sheet if it is well resolved by comparing V1 and V2

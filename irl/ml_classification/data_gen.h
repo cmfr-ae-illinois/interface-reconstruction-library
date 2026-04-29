@@ -144,7 +144,8 @@ namespace IRL {
         void generateParaboloid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
-            int stencil_size, double coeff_stddev = 0.1, bool visualize = false,
+            std::vector<std::vector<std::vector<double>>>& area,
+            int stencil_size = 5, double coeff_stddev = 0.1, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
             // repeat until center cell is cut by surface
@@ -230,9 +231,10 @@ namespace IRL {
                                                         volume_and_surface.getMoments().centroid().z();
                             }
 
+                            auto surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
+                            area[i][j][k] = surface.getSurfaceArea();
+
                             if (visualize) {
-                                auto surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid).getSurface();
-                                const auto area = surface.getSurfaceArea();
                                 //surfaces.push_back(volume_and_surface.getSurface());
                                 surfaces.push_back(surface);
 
@@ -280,6 +282,7 @@ namespace IRL {
         void generateSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             int stencil_size, double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool variable_thickness = true, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
@@ -362,13 +365,12 @@ namespace IRL {
                     // If variable thickness, make sure coeffs are correlated so that sheet doesn't self-intersect
                     // add uniformly distributed noise
                     //std::uniform_real_distribution<double> noise_dist(0.0, thickness/4.0);
-                    std::uniform_real_distribution<double> noise_dist(0.0, 0.5);
 
-                    coeff1p1 += noise_dist(eng);
-                    coeff1p2 -= noise_dist(eng);
+                    coeff1p1 += sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
+                    coeff1p2 -= sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
 
-                    coeff2p1 += noise_dist(eng);
-                    coeff2p2 -= noise_dist(eng);
+                    coeff2p1 += sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
+                    coeff2p2 -= sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
                 }
 
                 auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1p1, coeff2p1);
@@ -451,14 +453,15 @@ namespace IRL {
                                     firstMoment[i][j][k] = M2 - M1;
                                 }
                             }
+                            
+                            auto surface1 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+                            auto surface2 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+
+                            area[i][j][k] = surface1.getSurfaceArea() + surface2.getSurfaceArea();
 
                             if (visualize) {
-                                auto surface1 = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
-                                auto surface2 = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
-                                //surfaces.push_back(volume_and_surface1.getSurface());
-                                //surfaces.push_back(volume_and_surface2.getSurface());
                                 surfaces.push_back(surface1);
                                 surfaces.push_back(surface2);
                                 centroid[i][j][k] = computeCentroidFromFirstMoment(
@@ -494,8 +497,9 @@ namespace IRL {
         void generateCutSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             int stencil_size, bool cutInsideCentralCell,
-            double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool visualize = false,
+            double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, bool variable_thickness = false, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
             while (true) { // keep trying until center cell has surface crossing
@@ -530,11 +534,27 @@ namespace IRL {
                 const auto frame = ReferenceFrame::fromNormal(direction);
 
                 // Random coefficients
-                std::normal_distribution<double> random_coeff(0.0, coeff_stddev);
-                double coeff1 = random_coeff(eng);
-                double coeff2 = random_coeff(eng);
-                const auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1, coeff2);
-                const auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1, coeff2);
+                double coeff1 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
+                double coeff2 = sample_truncated_normal(0.0, coeff_stddev, -1.0, 1.0);
+                double coeff1p1 = coeff1;
+                double coeff1p2 = coeff1;
+                double coeff2p1 = coeff2;
+                double coeff2p2 = coeff2;
+                // Random coefficients
+                if (variable_thickness) {
+                    // If variable thickness, make sure coeffs are correlated so that sheet doesn't self-intersect
+                    // add uniformly distributed noise
+                    //std::uniform_real_distribution<double> noise_dist(0.0, thickness/4.0);
+
+                    coeff1p1 += sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
+                    coeff1p2 -= sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
+
+                    coeff2p1 += sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
+                    coeff2p2 -= sample_truncated_normal(0.0, coeff_stddev/2, 0.0, 0.4);
+                }
+
+                auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1p1, coeff2p1);
+                auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1p2, coeff2p2);
 
                 // Random point anywhere in stencil
                 const auto sample_pt = Pt::fromRawDoublePointer(generateRandomPoint(
@@ -640,13 +660,14 @@ namespace IRL {
                                 }
                             }
 
+                            auto surface1 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+                            auto surface2 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+
+                            area[i][j][k] = surface1.getSurfaceArea() + surface2.getSurfaceArea();
+
                             if (visualize) {
-                                auto surface1 = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
-                                auto surface2 = getVolumeMoments<
-                                    VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
-                                //surfaces.push_back(volume_and_surface1.getSurface());
-                                //surfaces.push_back(volume_and_surface2.getSurface());
                                 surfaces.push_back(surface1);
                                 surfaces.push_back(surface2);
                             }
@@ -684,8 +705,10 @@ namespace IRL {
         void compressStencilRefinedToCoarse(
             const std::vector<std::vector<std::vector<double>>>& volumes_refined,
             const std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoments_refined,
+            const std::vector<std::vector<std::vector<double>>>& areas_refined,
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             int stencil_size,
             int refinement_factor,
             double compressed_cell_volume,
@@ -699,6 +722,7 @@ namespace IRL {
                     for (int k = 0; k < stencil_size; k++) {
                         double vol_sum = 0.0;
                         Eigen::Vector3d firstMoment_sum = Eigen::Vector3d::Zero();
+                        double area_sum = 0.0;
 
                         for (int m = i * refinement_factor; m < (i + 1) * refinement_factor; m++) {
                             for (int n = j * refinement_factor; n < (j + 1) * refinement_factor; n++) {
@@ -706,6 +730,7 @@ namespace IRL {
                                     double v = volumes_refined[m][n][o];
                                     vol_sum += v;
                                     firstMoment_sum += firstMoments_refined[m][n][o];
+                                    area_sum += areas_refined[m][n][o];
                                 }
                             }
                         }
@@ -714,9 +739,11 @@ namespace IRL {
                         if (vol_sum > machineZero) {
                             firstMoment[i][j][k] = firstMoment_sum;
                             vfrac[i][j][k] = vol_sum / compressed_cell_volume;
+                            area[i][j][k] = area_sum;
                         } else {
                             firstMoment[i][j][k] = Eigen::Vector3d::Zero();
                             vfrac[i][j][k] = 0.0;
+                            area[i][j][k] = 0.0;
                         }
 
                         if (visualize && centroid) {
@@ -880,6 +907,7 @@ namespace IRL {
                                 double cellV = 0.0;
                                 Eigen::Vector3d cellM1 = Eigen::Vector3d::Zero(); // raw first moment
                                 Eigen::Matrix3d cellM2 = Eigen::Matrix3d::Zero(); // raw second moment
+                                double cell_area = 0.0;
 
                                 for (int s = 0; s < nSeg; ++s) {
                                     const double tA = static_cast<double>(s) / static_cast<double>(nSeg);
@@ -911,6 +939,7 @@ namespace IRL {
                                     cellV  += V;
                                     cellM1 += V * c;
                                     cellM2 += raw2;
+                                    cell_area += M_PI * radius * radius * L;
                                 }
 
                                 if (cellV > 0.0) {
@@ -939,7 +968,9 @@ namespace IRL {
                         std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
                         std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
 
-                    
+                    std::vector<std::vector<std::vector<double>>> surface_areas_refined(refined_stencil_size,
+                        std::vector<std::vector<double>>(refined_stencil_size,
+                        std::vector<double>(refined_stencil_size)));
 
                     // Fill refined stencil
                     using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
@@ -1007,19 +1038,22 @@ namespace IRL {
                             }
                         }
                     }
-
+                    /*
                     // Compress refined → coarse stencil
                     compressStencilRefinedToCoarse(
                         volumes_refined,
                         firstMoments_refined,
+                        surface_areas_refined,
                         vfrac,
                         firstMoment,
+                        area,
                         stencil_size,
                         refinement_factor,
                         cell_volume,
                         visualize,
                         &centroid
                     );
+                    */
                 }    
                 
                 // --- check central cell ---
@@ -1091,6 +1125,7 @@ namespace IRL {
         void generateBentCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             int stencil_size, double min_radius = machineZero, double max_radius = 0.5, double radius_stddev = 0.0,
             double radius_circle_min = 2.5, double radius_circle_max = 10.0,
             bool visualize = false,
@@ -1288,6 +1323,7 @@ namespace IRL {
                                 double cellV = 0.0;
                                 Eigen::Vector3d cellM1 = Eigen::Vector3d::Zero(); // ∑ V*c within cell
                                 Eigen::Matrix3d cellM2 = Eigen::Matrix3d::Zero(); // ∑ ∫ x x^T dV within cell
+                                double cell_area = 0.0;
 
                                 for (int s = 0; s < nSeg; ++s) {
                                     const double tA = (2.0 * M_PI) * (static_cast<double>(s) / nSeg);
@@ -1321,6 +1357,7 @@ namespace IRL {
                                     cellV  += V;
                                     cellM1 += V * c;
                                     cellM2 += raw2;
+                                    cell_area += 2 * M_PI * tube_radius * L;
                                 }
 
                                 // Convert to your stored per-cell format:
@@ -1333,6 +1370,8 @@ namespace IRL {
                                     // centroid of union-of-cylinders approximation in this cell
                                     firstMoment[i][j][k] = cellM1;
 
+                                    area[i][j][k] = cell_area;
+
                                     if (secondMoment != nullptr) {
                                         // accumulate second moments to get them for the whole stencil
                                         totalV  += cellV;
@@ -1342,6 +1381,7 @@ namespace IRL {
                                 } else {
                                     vfrac[i][j][k] = 0.0;
                                     firstMoment[i][j][k].setZero();
+                                    area[i][j][k] = 0.0;
                                 }
                             }
                         }
@@ -1355,6 +1395,10 @@ namespace IRL {
                     std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
                         std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
                         std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+
+                    std::vector<std::vector<std::vector<double>>> surface_areas_refined(refined_stencil_size,
+                                            std::vector<std::vector<double>>(refined_stencil_size,
+                                            std::vector<double>(refined_stencil_size)));                    
 
                     // Fill refined stencil
                     using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
@@ -1441,8 +1485,10 @@ namespace IRL {
                                     totalMoments_refined += gm;
                                 }
 
+                                auto surface = volume_and_surface.getSurface();
+                                surface_areas_refined[i][j][k] = surface.getSurfaceArea();
+
                                 if (visualize) {
-                                    auto surface = volume_and_surface.getSurface();
                                     surfaces.push_back(surface);
                                 }
                             }
@@ -1453,8 +1499,10 @@ namespace IRL {
                     compressStencilRefinedToCoarse(
                         volumes_refined,
                         firstMoments_refined,
+                        surface_areas_refined,
                         vfrac,
                         firstMoment,
+                        area,
                         stencil_size,
                         refinement_factor,
                         cell_volume,
@@ -1511,9 +1559,6 @@ namespace IRL {
             double qv = q.dot(v);
             return std::atan2(qv, qu);
         }
-
-        
-
 
         void generateTruncatedCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
@@ -1670,6 +1715,7 @@ namespace IRL {
                                 double cellV = 0.0;
                                 Eigen::Vector3d cellM1 = Eigen::Vector3d::Zero(); // raw first moment
                                 Eigen::Matrix3d cellM2 = Eigen::Matrix3d::Zero(); // raw second moment
+                                double cell_surface_area = 0.0;
 
                                 for (int s = 0; s < nSeg; ++s) {
                                     const double tA = static_cast<double>(s) / static_cast<double>(nSeg);
@@ -1719,11 +1765,13 @@ namespace IRL {
                                     cellV  += V;
                                     cellM1 += V * c;
                                     cellM2 += raw2;
+                                    cell_surface_area += 2.0 * M_PI * radius * L; // lateral surface area
                                 }
 
                                 if (cellV > 0.0) {
                                     vfrac[i][j][k] = std::min(cellV / cell_volume, 1.0);
                                     firstMoment[i][j][k] = cellM1; // raw first moment
+
 
                                     if (secondMoment != nullptr) {
                                         totalV  += cellV;
@@ -1824,19 +1872,22 @@ namespace IRL {
                             }
                         }
                     }
-
+                    /*
                     // Compress refined → coarse stencil
                     compressStencilRefinedToCoarse(
                         volumes_refined,
                         firstMoments_refined,
+
                         vfrac,
                         firstMoment,
+                        
                         stencil_size,
                         refinement_factor,
                         cell_volume,
                         visualize,
                         &centroid
                     );
+                    */
                 }
 
                 int mid = stencil_size / 2;
@@ -1870,6 +1921,7 @@ namespace IRL {
         void generateSpecificSphere(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& centroid,
             std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& surfaces,
             int stencil_size,
@@ -1910,7 +1962,6 @@ namespace IRL {
                 (origin.x() - radius >= x0) && (origin.x() + radius <= x1) &&
                 (origin.y() - radius >= y0) && (origin.y() + radius <= y1) &&
                 (origin.z() - radius >= z0) && (origin.z() + radius <= z1);
-
             if (sphereFullyInsideSomeCell) {
                 // zero everything
                 for (int i = 0; i < stencil_size; ++i) {
@@ -1918,6 +1969,7 @@ namespace IRL {
                         for (int k = 0; k < stencil_size; ++k) {
                             vfrac[i][j][k] = 0.0;
                             firstMoment[i][j][k].setZero();
+                            area[i][j][k] = 0.0;
                         }
                     }
                 }
@@ -1931,6 +1983,8 @@ namespace IRL {
                     // centered second moment tensor for a solid sphere about its centroid: (V r^2 / 5) * I
                     *secondMoment = (V * radius * radius / 5.0) * Eigen::Matrix3d::Identity();
                 }
+
+                area[ci][cj][ck] = 4.0 * M_PI * radius * radius;
 
                 if (visualize) {
                     std::cout << "Sphere fully inside coarse cell ("
@@ -1962,6 +2016,7 @@ namespace IRL {
                     for (int coarse_k = 0; coarse_k < stencil_size; ++coarse_k) {
                         vfrac[coarse_i][coarse_j][coarse_k] = 0.0;
                         firstMoment[coarse_i][coarse_j][coarse_k].setZero();
+                        area[coarse_i][coarse_j][coarse_k] = 0.0;
                         if (visualize) {
                             centroid[coarse_i][coarse_j][coarse_k].setZero();
                         }
@@ -2121,6 +2176,10 @@ namespace IRL {
                                     vfrac[coarse_i][coarse_j][coarse_k] += refined_volume;
                                     firstMoment[coarse_i][coarse_j][coarse_k] += refined_first_moment;
 
+                                    auto surface = volume_and_surface.getSurface();
+
+                                    area[coarse_i][coarse_j][coarse_k] += surface.getSurfaceArea();
+
                                     // Accumulate exact raw 0th/1st/2nd moments if requested
                                     if (secondMoment != nullptr) {
                                         auto refined_general_moments =
@@ -2129,7 +2188,7 @@ namespace IRL {
                                     }
 
                                     if (visualize) {
-                                        surfaces.push_back(volume_and_surface.getSurface());
+                                        surfaces.push_back(surface);
                                     }
                                 }
                             }
@@ -2147,6 +2206,7 @@ namespace IRL {
         void generateSphere (
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             int stencil_size, double min_radius = machineZero, double max_radius = 0.5, double radius_stddev = 0.0, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
             {
@@ -2180,6 +2240,7 @@ namespace IRL {
                     generateSpecificSphere(
                         vfrac,
                         firstMoment,
+                        area,
                         centroid,
                         surfaces,
                         stencil_size,
@@ -2209,6 +2270,7 @@ namespace IRL {
         void generateBentTruncatedCylinder(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
             int stencil_size, bool truncateInsideCentralCell, double min_radius = machineZero, double max_radius = 0.5, double radius_stddev = 0.0, 
             double radius_circle_min = 2.5, double radius_circle_max = 10.0,
             bool visualize = false,
@@ -2384,6 +2446,7 @@ namespace IRL {
                             for (int k = 0; k < stencil_size; ++k) {
                                 vfrac[i][j][k] = 0.0;
                                 firstMoment[i][j][k].setZero();
+                                area[i][j][k] = 0.0;
                             }
                     
                     // Build sphere
@@ -2397,6 +2460,7 @@ namespace IRL {
                     generateSpecificSphere(
                         vfrac,
                         firstMoment,
+                        area,
                         centroid,
                         surfaces,
                         stencil_size,
@@ -2475,6 +2539,7 @@ namespace IRL {
                                 double cellV = 0.0;
                                 Eigen::Vector3d cellM1 = Eigen::Vector3d::Zero(); // ∫ x dV
                                 Eigen::Matrix3d cellM2 = Eigen::Matrix3d::Zero(); // ∫ x x^T dV
+                                double cell_area = 0.0;
 
                                 for (int s = 0; s < nSeg; ++s) {
                                     // theta along the truncated arc, linearly in parameter
@@ -2512,10 +2577,12 @@ namespace IRL {
                                     cellV  += V;
                                     cellM1 += V * c;
                                     cellM2 += raw2;
+                                    cell_area += 2 * M_PI * tube_radius * L;
                                 }
 
                                 if (cellV > 0.0) {
                                     double addV = cellV / cell_volume;
+                                    area[i][j][k] += cell_area;
 
                                     // limit so final volume fraction does not exceed 1
                                     addV = std::min(addV, 1.0 - vfrac[i][j][k]);
@@ -2546,6 +2613,10 @@ namespace IRL {
                     std::vector<std::vector<std::vector<Eigen::Vector3d>>> firstMoments_refined(refined_stencil_size,
                         std::vector<std::vector<Eigen::Vector3d>>(refined_stencil_size,
                         std::vector<Eigen::Vector3d>(refined_stencil_size, Eigen::Vector3d::Zero())));
+
+                    std::vector<std::vector<std::vector<double>>> areas_refined(refined_stencil_size,
+                        std::vector<std::vector<double>>(refined_stencil_size,
+                        std::vector<double>(refined_stencil_size)));
 
                     using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
 
@@ -2678,13 +2749,15 @@ namespace IRL {
                                                                 volume_and_surface.getMoments().centroid().y(),
                                                                 volume_and_surface.getMoments().centroid().z();
 
+                                auto surface = volume_and_surface.getSurface();
+                                areas_refined[i][j][k] = surface.getSurfaceArea();
+
                                 if (secondMoment != nullptr) {
                                     auto gm = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
                                     totalMoments_refined += gm;
                                 }
 
                                 if (visualize) {
-                                    auto surface = volume_and_surface.getSurface();
                                     surfaces.push_back(surface);
                                 }
                             }
@@ -2695,8 +2768,10 @@ namespace IRL {
                     compressStencilRefinedToCoarse(
                         volumes_refined,
                         firstMoments_refined,
+                        areas_refined,
                         vfrac,
                         firstMoment,
+                        area,
                         stencil_size,
                         refinement_factor,
                         cell_volume,
@@ -2763,7 +2838,7 @@ namespace IRL {
         }
 
 
-        std::vector<float> generateState(int datapoint_type, int stencil_size, int include_Moments = 0, bool include_Eigenvalues = false,
+        std::vector<float> generateState(int datapoint_type, int stencil_size, int include_Moments = 0, bool include_Surface_Area = false, bool include_Eigenvalues = false,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
                                         double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0, 
@@ -2790,6 +2865,16 @@ namespace IRL {
                 )
             );
 
+            std::vector<std::vector<std::vector<double>>> area(
+                stencil_size, 
+                std::vector<std::vector<double>>(
+                    stencil_size, 
+                    std::vector<double>(
+                        stencil_size
+                    )
+                )
+            );
+
             Eigen::Matrix3d secondMoment;
             Eigen::Matrix3d* secondMomentPtr = nullptr;    // default: disabled using exact 2nd moment
 
@@ -2809,6 +2894,8 @@ namespace IRL {
             double min_cylinder_radius = machineZero;
             double min_sheet_thickness = machineZero;
             double min_sphere_radius = machineZero;
+
+            bool variable_sheet_thickness = true;
             
 
             //std::cout<<"Generating datapoint of type "<<datapoint_type<<std::endl;
@@ -2819,45 +2906,80 @@ namespace IRL {
                     if (p1 < 0.2) {
                         // 20% chance → truncated cylinder
                         //generateTruncatedCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
-                        generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                        generateBentTruncatedCylinder(vfrac, firstMoment, area, stencil_size, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     } else {
                         // 80% chance → normal cylinder
                         //generateCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
-                        generateBentCylinder(vfrac, firstMoment, stencil_size, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                        generateBentCylinder(vfrac, firstMoment, area, stencil_size, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     }
 
                     break;
                 }
                 case 2:
-                    generateSphere(vfrac, firstMoment, stencil_size, min_sphere_radius, max_sphere_radius, sphere_radius_stddev, visualize, secondMomentPtr);
+                    generateSphere(vfrac, firstMoment, area, stencil_size, min_sphere_radius, max_sphere_radius, sphere_radius_stddev, visualize, secondMomentPtr);
                     break;
                 case 3: {
                     double p2 = prob_dist(eng);  // draw a random number in [0,1)
                     //generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
-                    if (p2 < 0.2) {
-                        // 20% chance → cut sheet
-                        generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                    if (p2 < 0.1) {
+                        // 10% chance → cut sheet with variable thickness if option selected
+                        generateCutSheet(vfrac, firstMoment, area, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
                     } else {
-                        if (p2 < 0.6) {
-                            // 40% chance → sheet with variable thickness
-                            generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, true, visualize, secondMomentPtr);
+                        // 90% chance → normal sheet without variable thickness if option selected
+                        if (p2 < 0.2) {
+                            generateCutSheet(vfrac, firstMoment, area, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
                         } else {
-                            // 40% chance → normal sheet
-                            generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
+                            if (p2 < 0.6) {
+                                // 40% chance → sheet with variable thickness
+                                generateSheet(vfrac, firstMoment, area, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
+                            } else {
+                                // 40% chance → normal sheet
+                                generateSheet(vfrac, firstMoment, area, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
+                            }
                         }
+                        
                     }
                     break;
                 }
                 case 4:
-                    generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                    generateBentTruncatedCylinder(vfrac, firstMoment, area, stencil_size, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     //generateBentCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
                     //generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size, truncateInsideCentrCell, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
                     //generateCutSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
                     //generateSphere(vfrac, firstMoment, stencil_size, max_sphere_radius, sphere_radius_stddev, visualize, secondMomentPtr);
                     break;
                 case 5:
-                    generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ true, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                    generateCutSheet(vfrac, firstMoment, area, stencil_size, /*cutinsidecentralcell*/ true, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
                     break;
+                case 6:
+                    generateParaboloid(vfrac, firstMoment, area, stencil_size,
+                                            paraboloid_coeff_stddev, visualize, secondMomentPtr);
+                    break;
+                /*
+                    case 7:
+                    generateCutSheet(vfrac, firstMoment, area, stencil_size, true, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
+                    break;
+                case 8:
+                    generateCutSheet(vfrac, firstMoment, area, stencil_size, false, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
+                    break;
+                case 9:
+                    generateSheet(vfrac, firstMoment, area, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, true, visualize, secondMomentPtr);
+                    break;
+                case 10:
+                    generateBentCylinder(vfrac, firstMoment, area, stencil_size, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                    break;
+                case 11:
+                    generateBentTruncatedCylinder(vfrac, firstMoment, area, stencil_size, false, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
+                    break;
+                case 12: {
+                    std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroidS;
+                    std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfacesS;
+                    const Eigen::Vector3d originS(0.25, 0.0, 0.0);
+                    double radiusS = 0.4;
+                    std::vector<double> coarse_coordsS(stencil_size + 1);
+                    generateSpecificSphere(vfrac, firstMoment, area, centroidS, surfacesS, stencil_size, originS, radiusS, coarse_coordsS, visualize, secondMomentPtr);
+                    break; }
+                */
                 default:
                     std::vector<double> weights(
                         class0_subclass_weights.begin(),
@@ -2877,7 +2999,7 @@ namespace IRL {
 
                     switch (subtype0) {
                         case 0:
-                            generateParaboloid(vfrac, firstMoment, stencil_size,
+                            generateParaboloid(vfrac, firstMoment, area, stencil_size,
                                             paraboloid_coeff_stddev, visualize, secondMomentPtr);
                             break;
 
@@ -2886,7 +3008,7 @@ namespace IRL {
                             double p3 = prob_dist(eng);  // draw a random number in [0,1)
 
                             if (p3 < 0.2) {
-                                generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size,
+                                generateBentTruncatedCylinder(vfrac, firstMoment, area, stencil_size,
                                                         /*truncateinsidecentralcell*/ false,
                                                         resolved_min_cylinder_radius,
                                                         resolved_max_cylinder_radius,
@@ -2894,7 +3016,7 @@ namespace IRL {
                                                         radius_circ_min, radius_circ_max,
                                                         visualize, secondMomentPtr);
                             } else {
-                                generateBentCylinder(vfrac, firstMoment, stencil_size,
+                                generateBentCylinder(vfrac, firstMoment, area, stencil_size,
                                                     resolved_min_cylinder_radius,
                                                     resolved_max_cylinder_radius,
                                                     cylinder_radius_stddev,
@@ -2906,8 +3028,8 @@ namespace IRL {
 
                         case 2:
                             // Well-resolved drop-like object
-                            
-                            generateSphere(vfrac, firstMoment, stencil_size,
+
+                            generateSphere(vfrac, firstMoment, area, stencil_size,
                                         resolved_min_sphere_radius,
                                         resolved_max_sphere_radius,
                                         sphere_radius_stddev,
@@ -2923,23 +3045,29 @@ namespace IRL {
                             // Well-resolved sheet-like object
                             double p4 = prob_dist(eng);  // draw a random number in [0,1)
                             
-                            if (p4 < 0.2) {
-                                // 20% chance → cut sheet
-                                generateCutSheet(vfrac, firstMoment, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, visualize, secondMomentPtr);
+                            if (p4 < 0.1) {
+                                // 10% chance → cut sheet with variable thickness if option selected
+                                generateCutSheet(vfrac, firstMoment, area, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, resolved_min_sheet_thickness, resolved_max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
                             } else {
-                                if (p4 < 0.6) {
-                                    // 40% chance → sheet with variable thickness
-                                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, true, visualize, secondMomentPtr);
+                                // 90% chance → normal sheet without variable thickness if option selected
+                                if (p4 < 0.2) {
+                                    generateCutSheet(vfrac, firstMoment, area, stencil_size, /*cutinsidecentralcell*/ false,sheet_coeff_stddev, resolved_min_sheet_thickness, resolved_max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
                                 } else {
-                                    // 40% chance → normal sheet
-                                    generateSheet(vfrac, firstMoment, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
+                                    if (p4 < 0.6) {
+                                        // 40% chance → sheet with variable thickness
+                                        generateSheet(vfrac, firstMoment, area, stencil_size, sheet_coeff_stddev, resolved_min_sheet_thickness,resolved_max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
+                                    } else {
+                                        // 40% chance → normal sheet
+                                        generateSheet(vfrac, firstMoment, area, stencil_size, sheet_coeff_stddev, resolved_min_sheet_thickness,resolved_max_sheet_thickness, sheet_thickness_stddev, false, visualize, secondMomentPtr);
+                                    }
                                 }
+                                
                             }
                             break;
                         }
                         case 4:
                             // Well-resolved ligament-tip-like object
-                            generateBentTruncatedCylinder(vfrac, firstMoment, stencil_size,
+                            generateBentTruncatedCylinder(vfrac, firstMoment, area, stencil_size,
                                                         /*truncateinsidecentralcell*/ true,
                                                         resolved_min_cylinder_radius,
                                                         resolved_max_cylinder_radius,
@@ -2950,17 +3078,18 @@ namespace IRL {
 
                         case 5:
                             // Well-resolved sheet-edge-like object
-                            generateCutSheet(vfrac, firstMoment, stencil_size,
+                            generateCutSheet(vfrac, firstMoment, area, stencil_size,
                                             /*cutinsidecentralcell*/ true,
                                             sheet_coeff_stddev,
                                             resolved_min_sheet_thickness,
                                             resolved_max_sheet_thickness,
                                             sheet_thickness_stddev,
+                                            variable_sheet_thickness,
                                             visualize, secondMomentPtr);
                             break;
 
                         default:
-                            generateParaboloid(vfrac, firstMoment, stencil_size,
+                            generateParaboloid(vfrac, firstMoment, area, stencil_size,
                                             paraboloid_coeff_stddev, visualize, secondMomentPtr);
                             break;
                     }
@@ -2981,33 +3110,39 @@ namespace IRL {
                             flattened_state.push_back(firstMoment[i][j][k].y());
                             flattened_state.push_back(firstMoment[i][j][k].z());
                         }
+                        if (include_Surface_Area) {
+                            flattened_state.push_back(area[i][j][k]);
+                        }
                     }
                 }
             }
 
+            // make flattened_state a vector of floats
+            std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
+
             if (include_Moments >= 2) {
                 if (exact_2nd_moments) {
                     // Append exact 2nd moments to flattened_state
-                    flattened_state.push_back(secondMoment(0, 0)); // Ixx
-                    flattened_state.push_back(secondMoment(1, 1)); // Iyy
-                    flattened_state.push_back(secondMoment(2, 2)); // Izz
-                    flattened_state.push_back(secondMoment(0, 1)); // Ixy
-                    flattened_state.push_back(secondMoment(0, 2)); // Ixz
-                    flattened_state.push_back(secondMoment(1, 2)); // Iyz
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(0, 0))); // Ixx
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(1, 1))); // Iyy
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(2, 2))); // Izz
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(0, 1))); // Ixy
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(0, 2))); // Ixz
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(1, 2))); // Iyz
                 } else {
                     // Append approximate 2nd moments to flattened_state
-                    Eigen::Matrix3d approxSecondMoment = IRL::compute2ndMoment(flattened_state, stencil_size, 1);
-                    flattened_state.push_back(approxSecondMoment(0, 0)); // Ixx
-                    flattened_state.push_back(approxSecondMoment(1, 1)); // Iyy
-                    flattened_state.push_back(approxSecondMoment(2, 2)); // Izz
-                    flattened_state.push_back(approxSecondMoment(0, 1)); // Ixy
-                    flattened_state.push_back(approxSecondMoment(0, 2)); // Ixz
-                    flattened_state.push_back(approxSecondMoment(1, 2)); // Iyz
+                    Eigen::Matrix3d approxSecondMoment = IRL::compute2ndMoment(flattened_state_float, stencil_size, 1, include_Surface_Area);
+                    flattened_state_float.push_back(static_cast<float>(approxSecondMoment(0, 0))); // Ixx
+                    flattened_state_float.push_back(static_cast<float>(approxSecondMoment(1, 1))); // Iyy
+                    flattened_state_float.push_back(static_cast<float>(approxSecondMoment(2, 2))); // Izz
+                    flattened_state_float.push_back(static_cast<float>(approxSecondMoment(0, 1))); // Ixy
+                    flattened_state_float.push_back(static_cast<float>(approxSecondMoment(0, 2))); // Ixz
+                    flattened_state_float.push_back(static_cast<float>(approxSecondMoment(1, 2))); // Iyz
                 }
             }
 
             if (include_Eigenvalues) {
-                IRL::appendInertiaEigenvalues(flattened_state, stencil_size, include_Moments, 1, machineZero);
+                IRL::appendInertiaEigenvalues(flattened_state_float, stencil_size, include_Moments, 1, include_Surface_Area, machineZero);
                 /*
                 Eigen::Matrix3d I = IRL::computeInertiaTensor(flattened_state, stencil_size, include_Moments, machineZero);
 
@@ -3040,35 +3175,33 @@ namespace IRL {
 
                 
             }
-
+            /*
             if (include_Moments >= 4) {
                 // This is for testing: compute approximate 2nd moments from flattened_state and compare to exact 2nd moments
 
                 // Compare exact vs approximate 2nd moments
-                Eigen::Matrix3d secondMomentFrom1 = IRL::compute2ndMoment(flattened_state, stencil_size, 1);
+                Eigen::Matrix3d secondMomentFrom1 = IRL::compute2ndMoment(flattened_state_float, stencil_size, 1);
                 
-                double frobeniusError = (secondMoment - secondMomentFrom1).norm() / (secondMoment.norm() + 1e-12);
+                double frobeniusError = (secondMoment - static_cast secondMomentFrom1).norm() / (secondMoment.norm() + 1e-12);
                 // Since this in only used for comparison, return a vector with only the fabrenius error as component
                 return std::vector<float>(1, static_cast<float>(frobeniusError));
                 
 
-                /*
+                
                 flattened_state.push_back(inertia(0, 0)); // Ixx
                 flattened_state.push_back(inertia(1, 1)); // Iyy
                 flattened_state.push_back(inertia(2, 2)); // Izz
                 flattened_state.push_back(inertia(0, 1)); // Ixy
                 flattened_state.push_back(inertia(0, 2)); // Ixz
                 flattened_state.push_back(inertia(1, 2)); // Iyz
-                */
+                
             }
-
-            // make flattened_state a vector of floats
-            std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
+            */
             return flattened_state_float;
         }
 
         void generateData (std::vector<std::vector<float>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, 
-                                        int include_Moments = 0, bool include_Eigenvalues = false,
+                                        int include_Moments = 0, bool include_Surface_Area = false, bool include_Eigenvalues = false,
                                         double paraboloid_coeff_stddev = 0.1,
                                         double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
                                         double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0,
@@ -3095,6 +3228,7 @@ namespace IRL {
                     datapoint_type,
                     stencil_size,
                     include_Moments,
+                    include_Surface_Area,
                     include_Eigenvalues,
                     paraboloid_coeff_stddev,
                     sheet_coeff_stddev,

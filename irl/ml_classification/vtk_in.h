@@ -4,30 +4,31 @@
 #include <chrono>
 #include "stencil_rotator.h"
 
-#include <vtkSmartPointer.h>
-#include <vtkEnSightGoldBinaryReader.h>
-#include <vtkMultiBlockDataSet.h>
-#include <vtkDataSet.h>
-#include <vtkCellData.h>
-#include <vtkDataArray.h>
-#include <vtkInformation.h>
-#include <vtkStreamingDemandDrivenPipeline.h>
-#include <vtkRectilinearGrid.h>
-#include <vtkUnstructuredGrid.h>
-#include <vtkDoubleArray.h>
-#include <vtkFloatArray.h>
-#include <vtkIntArray.h>
-#include <vtkXMLUnstructuredGridWriter.h>
-#include <vtkXMLRectilinearGridWriter.h>
-#include <vtkAppendFilter.h>
-#include <vtkCellLocator.h>
-#include <vtkPolygon.h>
-#include <vtkCellCenters.h>
+#include "vtkSmartPointer.h"
+#include "vtkEnSightGoldBinaryReader.h"
+#include "vtkMultiBlockDataSet.h"
+#include "vtkDataSet.h"
+#include "vtkCellData.h"
+#include "vtkDataArray.h"
+#include "vtkInformation.h"
+#include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkRectilinearGrid.h"
+#include "vtkUnstructuredGrid.h"
+#include "vtkDoubleArray.h"
+#include "vtkFloatArray.h"
+#include "vtkIntArray.h"
+#include "vtkXMLUnstructuredGridWriter.h"
+#include "vtkXMLRectilinearGridWriter.h"
+#include "vtkAppendFilter.h"
+#include "vtkCellLocator.h"
+#include "vtkPolygon.h"
+#include "vtkCellCenters.h"
+#include "irl/generic_cutting/cut_polygon.h"
 
 namespace IRL {
 
 void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
-    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connectivity = 1e-10f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2) 
+    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Surface_Area = false, bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connectivity = 1e-10f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2) 
     {
     auto reader = vtkSmartPointer<vtkEnSightGoldBinaryReader>::New();
     reader->SetCaseFileName(filenameNGA.c_str());
@@ -97,23 +98,33 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     cell_center_filter->SetInputData(plic_grid);
     cell_center_filter->Update();
     auto cell_centers = cell_center_filter->GetOutput()->GetPoints();
-    
+
     // Regenerate first moments and surface area from PLIC
-    auto liquid_barycenter = vtkSmartPointer<vtkDoubleArray>::New();
-    liquid_barycenter->SetName("M1"); //WRONG? "Liquid_Barycenter"
-    liquid_barycenter->SetNumberOfComponents(3);
-    liquid_barycenter->SetNumberOfTuples(grid->GetNumberOfCells());
-    //auto surface_area = vtkSmartPointer<vtkDoubleArray>::New();
-    //surface_area->SetName("Surface Area");
-    //surface_area->SetNumberOfComponents(1);
-    //surface_area->SetNumberOfTuples(grid->GetNumberOfCells());
+    auto first_moment = vtkSmartPointer<vtkDoubleArray>::New();
+    first_moment->SetName("M1"); //WRONG? "first_moment"
+    first_moment->SetNumberOfComponents(3);
+    first_moment->SetNumberOfTuples(grid->GetNumberOfCells());
+    auto surface_area = vtkSmartPointer<vtkDoubleArray>::New();
+    surface_area->SetName("SurfaceArea");
+    surface_area->SetNumberOfComponents(1);
+    surface_area->SetNumberOfTuples(grid->GetNumberOfCells());
+    auto nplanes = vtkSmartPointer<vtkIntArray>::New();
+    nplanes->SetName("NPlanes");
+    nplanes->SetNumberOfComponents(1);
+    nplanes->SetNumberOfTuples(grid->GetNumberOfCells());
+    auto reconstructed_vfrac = vtkSmartPointer<vtkDoubleArray>::New();
+    reconstructed_vfrac->SetName("ReconstructedVOF");
+    reconstructed_vfrac->SetNumberOfComponents(1);
+    reconstructed_vfrac->SetNumberOfTuples(grid->GetNumberOfCells());
     for (int i = 0; i < grid->GetNumberOfCells(); i++) {
         double center[3];
         grid_cell_centers->GetPoint(i, center);
-        liquid_barycenter->SetTuple3(i, center[0], center[1], center[2]);
-        //surface_area->SetValue(i, 0.0);
+        first_moment->SetTuple3(i, 0.0, 0.0, 0.0);
+        surface_area->SetValue(i, 0.0);
+        nplanes->SetValue(i, 0);
+        reconstructed_vfrac->SetValue(i, 0.0);
     }
-    double max_vfrac_error = 0.0, rms_vfrac_error = 0.0;
+ 
     for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
         auto plic_cell = plic_grid->GetCell(i);
         if (plic_cell->GetCellType() == VTK_POLYGON) {
@@ -135,28 +146,92 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 std::cerr << "Warning: could not find valid cell for PLIC polygon " << i << ", skipping..." << std::endl;
                 continue; // skip invalid polygons (outside grid)
             }
+            // Increment number of planes
+            nplanes->SetValue(cell_id, nplanes->GetValue(cell_id) + 1);
+            const int nplanes_cell = nplanes->GetValue(cell_id);
             // Construct IRL rectangular cuboid matching local cell
             double bds[6];
             grid->GetCellBounds(cell_id, bds);
             const auto irl_cell = IRL::RectangularCuboid::fromBoundingPts(IRL::Pt(bds[0], bds[2], bds[4]), IRL::Pt(bds[1], bds[3], bds[5]));
             // Get volume moments for that cell
             auto moments = IRL::getVolumeMoments<IRL::VolumeMoments>(irl_cell, irl_separator);
-            moments.centroid() /= IRL::safelyEpsilon(moments.volume());
-            liquid_barycenter->SetTuple3(cell_id, moments.centroid()[0], moments.centroid()[1], moments.centroid()[2]); // was i instead of cell_id
-            // Compute vfrac to monitor error
-            const double vfrac = moments.volume() / irl_cell.calculateVolume();
-            const double vfrac_error = std::fabs(vfrac - vofArray->GetComponent(cell_id, 0));
-            max_vfrac_error = std::max(max_vfrac_error, vfrac_error);
-            rms_vfrac_error += vfrac_error * vfrac_error;
+            //moments.centroid() /= IRL::safelyEpsilon(moments.volume()); // OLD, TO GET CENTROID INSTEAD
 
+            // Get cell volumes and volume fraction alpha
+            const double cell_volume = irl_cell.calculateVolume();
+            const double V_cur = moments.volume();
+            const double alpha_cur = V_cur / cell_volume;
+
+            if (nplanes_cell == 1) {
+                first_moment->SetTuple3(cell_id, moments.centroid()[0], moments.centroid()[1], moments.centroid()[2]);
+                reconstructed_vfrac->SetValue(cell_id, alpha_cur);
+            }
+            else if (nplanes_cell == 2) {
+                // Average centroids if multiple planes in the same cell (e.g. thin sheet)
+                double prev_m1[3];
+                first_moment->GetTuple(cell_id, prev_m1);
+                double cell_center[3];
+                grid_cell_centers->GetPoint(cell_id, cell_center);
+                first_moment->SetTuple3(cell_id, prev_m1[0] + moments.centroid()[0] - cell_center[0] * cell_volume, prev_m1[1] + moments.centroid()[1] - cell_center[1] * cell_volume, prev_m1[2] + moments.centroid()[2] - cell_center[2] * cell_volume);
+                
+                const double alpha_prev = reconstructed_vfrac->GetValue(cell_id);
+                double alpha_rec = alpha_prev + alpha_cur - 1.0;
+
+                // Optional guard against tiny roundoff outside [0,1].
+                if (alpha_rec < 0.0 && alpha_rec > -1e-12) {
+                    alpha_rec = 0.0;
+                }
+                if (alpha_rec > 1.0 && alpha_rec < 1.0 + 1e-12) {
+                    alpha_rec = 1.0;
+                }
+
+                reconstructed_vfrac->SetValue(cell_id, alpha_rec);
+
+            } else if (nplanes_cell > 2) {
+                std::cerr << "Warning: more than 2 PLIC planes in cell " << cell_id << ", results may be inaccurate!" << std::endl;
+                continue;
+            }
             // Get surface area from polygon
-            const double area = polygon->ComputeArea(); //Actually returns area
-            //surface_area->SetValue(cell_id, area);
+            auto irl_polygon = IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(irl_cell, irl_separator, irl_separator[0]);
+            const auto area = irl_polygon.calculateVolume() / std::pow(irl_cell.calculateVolume(), 2.0 / 3.0);
+            surface_area->SetValue(cell_id, area + surface_area->GetValue(cell_id));
         }
     }
-    rms_vfrac_error = std::sqrt(rms_vfrac_error / static_cast<double>(plic_grid->GetNumberOfCells()));
-    std::cout << "MAX reconstruted vfrac error = " << max_vfrac_error << std::endl;
-    std::cout << "RMS reconstruted vfrac error = " << rms_vfrac_error << " (should be O(FLOAT_EPSILON) = 1.2e-7)" << std::endl;
+
+    // Monitor volume fraction reconstruction error
+    double max_vfrac_error = 0.0;
+    double rms_vfrac_error = 0.0;
+    int n_checked = 0;
+
+    for (vtkIdType cell_id = 0; cell_id < grid->GetNumberOfCells(); ++cell_id) {
+        const int np = nplanes->GetValue(cell_id);
+
+        // Only compare cells for which we reconstructed at least one PLIC plane.
+        if (np == 0 || np > 2) {
+            continue;
+        }
+
+        const double alpha_rec = reconstructed_vfrac->GetValue(cell_id);
+        const double alpha_ref = vofArray->GetComponent(cell_id, 0);
+
+        const double err = std::fabs(alpha_rec - alpha_ref);
+
+        max_vfrac_error = std::max(max_vfrac_error, err);
+        rms_vfrac_error += err * err;
+        ++n_checked;
+    }
+
+    if (n_checked > 0) {
+        rms_vfrac_error =
+            std::sqrt(rms_vfrac_error / static_cast<double>(n_checked));
+    }
+
+    std::cout << "MAX reconstructed vfrac error = "
+            << max_vfrac_error << std::endl;
+    std::cout << "RMS reconstructed vfrac error = "
+            << rms_vfrac_error << std::endl;
+    std::cout << "Checked reconstructed cells = "
+            << n_checked << std::endl;
 
     // Create new coordinate arrays
     auto newXCoords = vtkSmartPointer<vtkDoubleArray>::New();
@@ -187,61 +262,133 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     newVOF->SetNumberOfComponents(1);
     newVOF->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
 
-    // Create new Liquid_Barycenter array
-    auto newLiquidBarycenter = vtkSmartPointer<vtkDoubleArray>::New();
-    newLiquidBarycenter->SetName("LiquidBarycenter");
-    newLiquidBarycenter->SetNumberOfComponents(3);
-    newLiquidBarycenter->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
+    // Create new first_moment array
+    auto newFirstMoment = vtkSmartPointer<vtkDoubleArray>::New();
+    newFirstMoment->SetName("M1");
+    newFirstMoment->SetNumberOfComponents(3);
+    newFirstMoment->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
 
     //Create new surface area array
-    
+    auto newSurfaceArea = vtkSmartPointer<vtkDoubleArray>::New();
+    newSurfaceArea->SetName("SurfaceArea");
+    newSurfaceArea->SetNumberOfComponents(1);
+    newSurfaceArea->SetNumberOfTuples(newCellDims[0] * newCellDims[1] * newCellDims[2]);
 
-    // Downsample cell data
+    // Downsample cell data and convert to coarse-cell unit coordinates
     int idx = 0;
     for (int K = 0; K < newCellDims[2]; ++K) {
         for (int J = 0; J < newCellDims[1]; ++J) {
             for (int I = 0; I < newCellDims[0]; ++I) {
 
-                double sum_alpha = 0.0;
-                double sum_m1x = 0.0, sum_m1y = 0.0, sum_m1z = 0.0;
-                int count = 0;
+                double sum_liquid_volume = 0.0;
+                double sum_cell_volume = 0.0;
+
+                // Physical first moment over the whole coarse cell
+                double sum_m1x_phys = 0.0;
+                double sum_m1y_phys = 0.0;
+                double sum_m1z_phys = 0.0;
+
+                // Physical surface area over the whole coarse cell
+                double sum_area_phys = 0.0;
+
+                // Coarse-cell bounds
+                const double x0c = newXCoords->GetValue(I);
+                const double x1c = newXCoords->GetValue(I + 1);
+                const double y0c = newYCoords->GetValue(J);
+                const double y1c = newYCoords->GetValue(J + 1);
+                const double z0c = newZCoords->GetValue(K);
+                const double z1c = newZCoords->GetValue(K + 1);
+
+                const double dxc = x1c - x0c;
+                const double dyc = y1c - y0c;
+                const double dzc = z1c - z0c;
+
+                const double cxc = 0.5 * (x0c + x1c);
+                const double cyc = 0.5 * (y0c + y1c);
+                const double czc = 0.5 * (z0c + z1c);
+
+                const double coarse_cell_volume = dxc * dyc * dzc;
 
                 // Aggregate fine cells within this coarse block
                 for (int dK = 0; dK < downsample[2]; ++dK) {
                     for (int dJ = 0; dJ < downsample[1]; ++dJ) {
                         for (int dI = 0; dI < downsample[0]; ++dI) {
-                            int oldI = I * downsample[0] + dI;
-                            int oldJ = J * downsample[1] + dJ;
-                            int oldK = K * downsample[2] + dK;
+                            const int oldI = I * downsample[0] + dI;
+                            const int oldJ = J * downsample[1] + dJ;
+                            const int oldK = K * downsample[2] + dK;
 
-                            int oldIdx = oldK * (cellDims[0] * cellDims[1]) + oldJ * cellDims[0] + oldI;
+                            const int oldIdx =
+                                oldK * (cellDims[0] * cellDims[1])
+                            + oldJ * cellDims[0]
+                            + oldI;
 
-                            // Fine-grid volume fraction and barycenter
-                            double alpha = vofArray->GetComponent(oldIdx, 0);
-                            double bary[3];
-                            liquid_barycenter->GetTuple(oldIdx, bary);
+                            // Fine-cell bounds
+                            const double x0f = oldX->GetComponent(oldI,     0);
+                            const double x1f = oldX->GetComponent(oldI + 1, 0);
+                            const double y0f = oldY->GetComponent(oldJ,     0);
+                            const double y1f = oldY->GetComponent(oldJ + 1, 0);
+                            const double z0f = oldZ->GetComponent(oldK,     0);
+                            const double z1f = oldZ->GetComponent(oldK + 1, 0);
 
-                            // Accumulate weighted first moments
-                            sum_alpha += alpha;
-                            sum_m1x += alpha * bary[0];
-                            sum_m1y += alpha * bary[1];
-                            sum_m1z += alpha * bary[2];
+                            const double fine_cell_volume =
+                                (x1f - x0f) * (y1f - y0f) * (z1f - z0f);
 
-                            ++count;
+                            const double alpha = vofArray->GetComponent(oldIdx, 0);
+                            const double fine_liquid_volume = alpha * fine_cell_volume;
+
+                            double m1_phys[3];
+                            first_moment->GetTuple(oldIdx, m1_phys);
+
+                            const double area_phys =
+                                surface_area->GetComponent(oldIdx, 0);
+
+                            sum_cell_volume += fine_cell_volume;
+                            sum_liquid_volume += fine_liquid_volume;
+
+                            // Raw physical first moments are additive.
+                            sum_m1x_phys += m1_phys[0];
+                            sum_m1y_phys += m1_phys[1];
+                            sum_m1z_phys += m1_phys[2];
+
+                            // Physical surface areas are additive.
+                            sum_area_phys += area_phys;
                         }
                     }
                 }
 
-                // Compute coarse cell barycenter (physical coordinates)
-                double cx = 0.0, cy = 0.0, cz = 0.0;
-                if (sum_alpha > 1e-16) {
-                    cx = sum_m1x / sum_alpha;
-                    cy = sum_m1y / sum_alpha;
-                    cz = sum_m1z / sum_alpha;
+                double alpha_coarse = 0.0;
+                if (coarse_cell_volume > 1e-16) {
+                    alpha_coarse = sum_liquid_volume / coarse_cell_volume;
+                }
+                // Convert physical first moment to moment in the coarse unit cell
+                double m1x_unit = 0.0;
+                double m1y_unit = 0.0;
+                double m1z_unit = 0.0;
+
+                if (sum_liquid_volume > 1e-16 && coarse_cell_volume > 1e-16) {
+                    m1x_unit =
+                        (sum_m1x_phys - cxc * sum_liquid_volume)
+                        / (dxc * coarse_cell_volume);
+
+                    m1y_unit =
+                        (sum_m1y_phys - cyc * sum_liquid_volume)
+                        / (dyc * coarse_cell_volume);
+
+                    m1z_unit =
+                        (sum_m1z_phys - czc * sum_liquid_volume)
+                        / (dzc * coarse_cell_volume);
                 }
 
-                newVOF->SetValue(idx, sum_alpha / count);
-                newLiquidBarycenter->SetTuple3(idx, cx, cy, cz);
+                // Convert physical surface area to unit-cell surface area
+                double area_unit = 0.0;
+                if (coarse_cell_volume > 1e-16) {
+                    area_unit =
+                        sum_area_phys / std::pow(coarse_cell_volume, 2.0 / 3.0);
+                }
+
+                newVOF->SetValue(idx, alpha_coarse);
+                newFirstMoment->SetTuple3(idx, m1x_unit, m1y_unit, m1z_unit);
+                newSurfaceArea->SetValue(idx, area_unit);
 
                 ++idx;
             }
@@ -250,7 +397,8 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     // Add arrays to grid
     downsampledGrid->GetCellData()->AddArray(newVOF);
-    downsampledGrid->GetCellData()->AddArray(newLiquidBarycenter);
+    downsampledGrid->GetCellData()->AddArray(newFirstMoment);
+    downsampledGrid->GetCellData()->AddArray(newSurfaceArea);
 
 
     // Convert point dims to cell dims (cells = points - 1)
@@ -313,73 +461,6 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     double start_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
-    // Preprocessing Herrmann2010a below
-    /*
-    std::vector<int> structure_id(newVOF->GetNumberOfTuples(), -1);
-
-    auto coarseId = [&](int ii, int jj, int kk) -> vtkIdType {
-        return ii + jj * nx + kk * nx * ny;
-    };
-
-    static const int n6[6][3] = {
-        {+1, 0, 0}, {-1, 0, 0},
-        { 0,+1, 0}, { 0,-1, 0},
-        { 0, 0,+1}, { 0, 0,-1}
-    };
-
-    int next_id = 0;
-
-    // Loop over all coarse cells and flood-fill each untagged liquid component
-    for (int i = 0; i < nx; ++i) {
-        for (int j = 0; j < ny; ++j) {
-            for (int k = 0; k < nz; ++k) {
-
-                vtkIdType seed = coarseId(i,j,k);
-                if (structure_id[seed] != -1) continue;
-
-                double a_seed = newVOF->GetComponent(seed, 0);
-                if (a_seed <= epsilon) continue;   // not in "liquid region" => no structure id
-
-                // Start BFS for this structure
-                const int my_id = next_id++;
-                structure_id[seed] = my_id;
-
-                std::vector<vtkIdType> q;
-                q.reserve(1024);
-                q.push_back(seed);
-
-                for (size_t qi = 0; qi < q.size(); ++qi) {
-                    vtkIdType cid = q[qi];
-
-                    // Convert cid -> (ci,cj,ck)
-                    int ck = static_cast<int>(cid / (nx * ny));
-                    int rem = static_cast<int>(cid - ck * nx * ny);
-                    int cj = rem / nx;
-                    int ci = rem - cj * nx;
-
-                    for (int n = 0; n < 6; ++n) {
-                        int ni = ci + n6[n][0];
-                        int nj = cj + n6[n][1];
-                        int nk = ck + n6[n][2];
-                        if (ni < 0 || ni >= nx || nj < 0 || nj >= ny || nk < 0 || nk >= nz) continue;
-
-                        vtkIdType nid = coarseId(ni,nj,nk);
-                        if (structure_id[nid] != -1) continue;
-
-                        if (newVOF->GetComponent(nid, 0) > epsilon) {
-                            structure_id[nid] = my_id;
-                            q.push_back(nid);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    std::cout << "Global structure identification (coarse grid): "
-            << next_id << " structures tagged." << std::endl;
-    */
-
     // Loop through interior cells (excluding half-cell boundary)
     for (int i = half; i < nx - half; ++i) {
         for (int j = half; j < ny - half; ++j) {
@@ -392,8 +473,6 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 if (vof_center <= epsilon || vof_center >= 1.0 - epsilon) {
                     continue;
                 }
-
-                //int center_sid = structure_id[centerCellId]; // for pre-processing Herrmann style
 
                 no_filled_cells++;
 
@@ -425,6 +504,12 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         stencil_size_reader,
                         std::vector<Eigen::Vector3d>(stencil_size_reader, Eigen::Vector3d::Zero())));
 
+                std::vector<std::vector<std::vector<double>>> surfaceArea(
+                    stencil_size_reader,
+                    std::vector<std::vector<double>>(
+                        stencil_size_reader,
+                        std::vector<double>(stencil_size_reader, 0.0)));
+
                 // Loop over neighborhood cells in stencil
                 for (int di = -half; di <= half; ++di) {
                     for (int dj = -half; dj <= half; ++dj) {
@@ -438,70 +523,18 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                             if (cellId < 0 || cellId >= newVOF->GetNumberOfTuples())
                                 continue;
 
-                            // Get local cell size and center
-                            double x0 = newXCoords->GetValue(ni);
-                            double x1 = newXCoords->GetValue(ni + 1);
-                            double y0 = newYCoords->GetValue(nj);
-                            double y1 = newYCoords->GetValue(nj + 1);
-                            double z0 = newZCoords->GetValue(nk);
-                            double z1 = newZCoords->GetValue(nk + 1);
-
-                            double dx = x1 - x0;
-                            double dy = y1 - y0;
-                            double dz = z1 - z0;
-                            double cx = 0.5 * (x0 + x1);
-                            double cy = 0.5 * (y0 + y1);
-                            double cz = 0.5 * (z0 + z1);
-
-                            // Retrieve data for Herrmann2010a preprocessing
-                            //int sid = structure_id[cellId];
-
-                            // If center has no structure id (shouldn't happen if vof_center is interface), skip cell
-                            // And if neighbor is not part of the same structure, ignore it for classification.
                             double alpha = newVOF->GetComponent(cellId, 0);
-                            double bary[3];
-                            newLiquidBarycenter->GetTuple(cellId, bary);
-                            
-                            // Below is Herrmann2010a preprocessing
-                            /*
-                            if (preProcess) {
-                                if (center_sid < 0) {
-                                    // no liquid structure attached to center; safest is to skip classification. Should not happen.
-                                    continue; 
-                                }
-                                if (sid != center_sid) {
-                                    alpha = 0.0;
-                                    bary[0] = cx; bary[1] = cy; bary[2] = cz; // doesn't matter since alpha=0, but keeps physics correct
-                                }
-                            }
-                            */
-
-                            // Step 1: normalize position of cell center relative to central cell
-                            // The cell centers form a grid in the training coordinate system
-                            double center_rel_x = (cx - cx_c) / dx_c;
-                            double center_rel_y = (cy - cy_c) / dy_c;
-                            double center_rel_z = (cz - cz_c) / dz_c;
-
-                            // Step 2: normalize barycenter relative to its own cell center
-                            double local_rel_x = (bary[0] - cx) / dx;
-                            double local_rel_y = (bary[1] - cy) / dy;
-                            double local_rel_z = (bary[2] - cz) / dz;
-
-                            // Step 3: combine both transforms
-                            // The total normalized barycenter position (in training coordinate frame)
-                            double bx_unit = center_rel_x + local_rel_x;
-                            double by_unit = center_rel_y + local_rel_y;
-                            double bz_unit = center_rel_z + local_rel_z;
-
-                            // --- Compute first moment in this normalized unit frame ---
-                            Eigen::Vector3d m1(alpha * bx_unit, alpha * by_unit, alpha * bz_unit);
+                            double m1[3] = {0.0, 0.0, 0.0};
+                            newFirstMoment->GetTuple(cellId, m1);
+                            double area = newSurfaceArea->GetComponent(cellId, 0);
 
                             int si = di + half;
                             int sj = dj + half;
                             int sk = dk + half;
 
                             vfrac[si][sj][sk] = alpha;
-                            firstMoment[si][sj][sk] = m1;
+                            firstMoment[si][sj][sk] = Eigen::Vector3d(m1[0], m1[1], m1[2]);
+                            surfaceArea[si][sj][sk] = area;
                         }
                     }
                 }
@@ -519,31 +552,45 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                                 flattened_state.push_back(firstMoment[si][sj][sk].y());
                                 flattened_state.push_back(firstMoment[si][sj][sk].z());
                             }
+                            if (include_Surface_Area) {
+                                flattened_state.push_back(surfaceArea[si][sj][sk]);
+                            }
                         }
                     }
                 }
+
+                // Make flattened_state a float vector
+                std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
+
                 if (include_Moments >= 2) {
-                    Eigen::Matrix3d secondMoment = IRL::compute2ndMoment(flattened_state, stencil_size_reader, /*from_ith_moment=*/1);
-                    flattened_state.push_back(secondMoment(0, 0)); // xx
-                    flattened_state.push_back(secondMoment(1, 1)); // yy
-                    flattened_state.push_back(secondMoment(2, 2)); // zz
-                    flattened_state.push_back(secondMoment(0, 1)); // xy
-                    flattened_state.push_back(secondMoment(0, 2)); // xz
-                    flattened_state.push_back(secondMoment(1, 2)); // yz
+                    Eigen::Matrix3d secondMoment = IRL::compute2ndMoment(flattened_state_float, stencil_size_reader, /*from_ith_moment=*/1);
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(0, 0))); // xx
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(1, 1))); // yy
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(2, 2))); // zz
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(0, 1))); // xy
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(0, 2))); // xz
+                    flattened_state_float.push_back(static_cast<float>(secondMoment(1, 2))); // yz
                 }
 
                 if (include_Eigenvalues) {
-                    IRL::appendInertiaEigenvalues(flattened_state, stencil_size_reader, 1);
+                    IRL::appendInertiaEigenvalues(flattened_state_float, stencil_size_reader, 1);
                 }
 
                 //print length of flattened state for debugging
                 //std::cout << "Flattened state length: " << flattened_state.size() << std::endl;
 
-                // Make flattened_state a float vector
-                std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
+                
 
                 //Preprocess stencil
-                IRL::preprocess_stencil(flattened_state_float, stencil_size_reader, cannonicalize_symmetries, include_Moments, include_Eigenvalues, noise_stddev, epsilon_connectivity);
+                
+                IRL::preprocess_stencil(flattened_state_float,
+                        stencil_size_reader,
+                        cannonicalize_symmetries,
+                        include_Moments,
+                        include_Surface_Area,
+                        include_Eigenvalues,
+                        noise_stddev,
+                        epsilon_connectivity);
                 
 
                 // Classify
@@ -577,7 +624,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         no_cut_sheets++;
                         interface_type->SetValue(centerCellId, 5);
 
-                        /*
+                        
                         // Debugging: print stencil and moments for first few class 5 predictions
                         static int printed_class5 = 0;
                         if (printed_class5 < 5) {
@@ -596,6 +643,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                                 dbg_eigp,
                                 stencil_size_reader,
                                 include_Moments,
+                                include_Surface_Area,
                                 include_Eigenvalues
                             );
 
@@ -606,6 +654,9 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                             std::cout << "vof_center = " << vof_center << "\n";
                             std::cout << "certainty = " << max_prob << "\n";
                             std::cout << "stencil_size = " << stencil_size_reader << "\n";
+                            std::cout << "Include moments: " << include_Moments << "\n";
+                            std::cout << "Include surface area: " << include_Surface_Area << "\n";
+                            std::cout << "Include eigenvalues: " << include_Eigenvalues << "\n";
 
                             for (int sk = 0; sk < stencil_size_reader; ++sk) {
                                 std::cout << "\n----- z-slice k = " << sk << " -----\n";
@@ -615,15 +666,19 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                                         const CellData& c = dbg_stencil[cellIndex(si, sj, sk, stencil_size_reader)];
 
                                         float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+                                        float surfArea = 0.0f;
                                         if (include_Moments >= 1 && c.vfrac > 1.0e-12f) {
                                             cx = c.mx / c.vfrac;
                                             cy = c.my / c.vfrac;
                                             cz = c.mz / c.vfrac;
+                                            if (include_Surface_Area) {
+                                                surfArea = c.area;
+                                            }
                                         }
 
                                         std::cout << "[" << si << "," << sj << "," << sk << "] "
                                                 << c.vfrac << " "
-                                                << "(" << cx << ", " << cy << ", " << cz << ")";
+                                                << "(" << cx << ", " << cy << ", " << cz << ")" << " A=" << surfArea;
 
                                         if (si < stencil_size_reader - 1) {
                                             std::cout << "    ";
@@ -652,7 +707,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
                             std::cout << "============================================================\n";
                         }
-                        */
+                        
                         /*
                         if (certainty->GetValue(centerCellId) < 0.95f) {
                             predicted_class = 3; // re-assign to cut sheet if certainty is low, since class 3 is "catch-all" for hard cases and should be most robust

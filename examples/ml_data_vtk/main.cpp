@@ -10,6 +10,9 @@
 #include <cmath>
 #include <vtkCellCenters.h>
 
+#include <limits>
+#include <stdexcept>
+
 #include "irl/ml_classification/data_gen.h"
 #include "irl/ml_classification/inertia_classifier.h"
 #include "irl/ml_classification/vtk_in.h"
@@ -155,12 +158,14 @@ void simulation_stability_analysis() {
     //IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     
+    /*
     ml.updateDataParameters(no_batches, include_Moments,
                             paraboloid_coeff_stddev,
                             sheet_coeff_stddev,
                             max_sheet_thickness, sheet_thickness_stddev,
                             max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
-                            max_sphere_radius, sphere_radius_stddev, false);                    
+                            max_sphere_radius, sphere_radius_stddev, false);     
+    */               
     
     ml.loadDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_3M/data/data.bin");
     //ml.generateDataset();
@@ -284,34 +289,187 @@ static void print_decoded_state(const std::vector<float>& flat,
     }
 }
 
+// Below for calculating surface areas of generated shapes:
+
+double computeTotalSurfaceArea(const std::vector<float>& state,
+                               int stencil_size,
+                               int include_moments,
+                               bool include_surface_area)
+{
+    if (!include_surface_area) {
+        return 0.0;
+    }
+
+    const std::size_t n_cells =
+        static_cast<std::size_t>(stencil_size) *
+        static_cast<std::size_t>(stencil_size) *
+        static_cast<std::size_t>(stencil_size);
+
+    const std::size_t comps_per_cell =
+        1 +                               // vfrac
+        (include_moments >= 1 ? 3 : 0) + // mx, my, mz
+        1;                               // area
+
+    const std::size_t area_offset =
+        1 + (include_moments >= 1 ? 3 : 0);
+
+    const std::size_t required_size = n_cells * comps_per_cell;
+    if (state.size() < required_size) {
+        throw std::runtime_error("State vector is smaller than expected.");
+    }
+
+    double total_area = 0.0;
+    for (std::size_t c = 0; c < n_cells; ++c) {
+        total_area += static_cast<double>(state[c * comps_per_cell + area_offset]);
+    }
+
+    return total_area;
+}
+
+struct Stats {
+    double mean = 0.0;
+    double stddev = 0.0;
+    double min = 0.0;
+    double max = 0.0;
+};
+
+Stats computeStats(const std::vector<double>& values)
+{
+    Stats s;
+    if (values.empty()) {
+        return s;
+    }
+
+    double sum = 0.0;
+    s.min = std::numeric_limits<double>::max();
+    s.max = std::numeric_limits<double>::lowest();
+
+    for (double v : values) {
+        sum += v;
+        if (v < s.min) s.min = v;
+        if (v > s.max) s.max = v;
+    }
+
+    s.mean = sum / static_cast<double>(values.size());
+
+    double sq_sum = 0.0;
+    for (double v : values) {
+        const double d = v - s.mean;
+        sq_sum += d * d;
+    }
+
+    // sample standard deviation
+    if (values.size() > 1) {
+        s.stddev = std::sqrt(sq_sum / static_cast<double>(values.size() - 1));
+    } else {
+        s.stddev = 0.0;
+    }
+
+    return s;
+}
+
 
 int main(int argc, char* argv[]) {
+
+    IRL::Data_gen gen; 
+    constexpr int stencil_size = 5; 
+    constexpr int include_moments = 2; 
+    constexpr bool include_Eigenvalues = true; 
+    std::vector<float> state = gen.generateState(12,5,include_moments,true,include_Eigenvalues,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,false); // Sum up every cells 5th component, the surface area, to get total surface area of the interface in the stencil. This is a simple check to see if the data looks reasonable, since we know the exact surface area for a sphere or paraboloid. 
     
+    IRL::preprocess_stencil(state,
+                            stencil_size,
+                            1,                  // no_symmetries
+                            include_moments,
+                            true,               // include_Surface_Area
+                            include_Eigenvalues,
+                            0.0f,               // noise_stddev
+                            1e-12f);            // epsilon_connect
+
+    float total_surface_area = 0.0f; 
+    for (size_t i = 0; i < state.size(); i += 5) { 
+        total_surface_area += state[i + 4]; // 5th component is surface area if include_Surface_Area is true, otherwise it would be the 1st moment mx. 
+    } 
+    std::cout << "Total surface area in stencil: " << total_surface_area << std::endl;
+    
+    // For debugging, print the entire stencil 
+    for (size_t i = 0; i < stencil_size*stencil_size*stencil_size*5; i += 5) { 
+        std::cout << "Cell " << (i / 5) << ": vfrac=" << state[i] << ", mx=" << state[i + 1] << ", my=" << state[i + 2] << ", mz=" << state[i + 3] << ", area=" << state[i + 4] << "\n"; 
+    }
+    for (size_t i = stencil_size*stencil_size*stencil_size*5; i < state.size(); i++)
+    {
+        std::cout << state[i] << "\n";
+    }
+    
+
+    /*
+    // Below for getting surface areas for all classes and comparing statistics:
     IRL::Data_gen gen;
 
     constexpr int stencil_size = 5;
     constexpr int include_moments = 1;
-    constexpr bool include_Eigenvalues = false;
+    constexpr bool include_surface_area = true;
+    constexpr bool include_eigenvalues = false;
 
-    for (int t = 0; t < 6; ++t) {
-        // do it 10 times per state
-        for (int i = 0; i < 10; ++i) {
-            // print current state for debugging
-            std::cout << "State " << t << std::endl;
-            std::vector<float> state = gen.generateState(t,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,false);
+    constexpr int first_datapoint_type = 0;
+    constexpr int last_datapoint_type = 11;
+    constexpr int n_examples_per_class = 100;
 
-            IRL::preprocess_stencil(state,
-                                    stencil_size,
-                                    1,                  // no_symmetries
-                                    include_moments,
-                                    include_Eigenvalues,
-                                    0.0f,               // noise_stddev
-                                    1e-12f);            // epsilon_connect
+    // generation parameters
+    constexpr double paraboloid_coeff_stddev = 0.1;
+    constexpr double sheet_coeff_stddev = 0.1;
+    constexpr double max_sheet_thickness = 0.5;
+    constexpr double sheet_thickness_stddev = 0.0;
+    constexpr double max_cylinder_radius = 0.5;
+    constexpr double cylinder_radius_stddev = 0.0;
+    constexpr double max_sphere_radius = 0.5;
+    constexpr double sphere_radius_stddev = 0.0;
+    constexpr bool visualize = false;
+
+    std::cout << std::fixed << std::setprecision(8);
+
+    for (int datapoint_type = first_datapoint_type;
+         datapoint_type <= last_datapoint_type;
+         ++datapoint_type)
+    {
+        std::vector<double> total_areas;
+        total_areas.reserve(n_examples_per_class);
+
+        for (int sample_idx = 0; sample_idx < n_examples_per_class; ++sample_idx) {
+            std::vector<float> state = gen.generateState(
+                datapoint_type,
+                stencil_size,
+                include_moments,
+                include_surface_area,
+                include_eigenvalues,
+                paraboloid_coeff_stddev,
+                sheet_coeff_stddev,
+                max_sheet_thickness,
+                sheet_thickness_stddev,
+                max_cylinder_radius,
+                cylinder_radius_stddev,
+                max_sphere_radius,
+                sphere_radius_stddev,
+                visualize
+            );
+
+            const double total_surface_area =
+                computeTotalSurfaceArea(state, stencil_size, include_moments, include_surface_area);
+
+            total_areas.push_back(total_surface_area);
         }
+
+        const Stats stats = computeStats(total_areas);
+
+        std::cout << "Datapoint type " << datapoint_type << '\n';
+        std::cout << "  average total surface area = " << stats.mean << '\n';
+        std::cout << "  stddev                     = " << stats.stddev << '\n';
+        std::cout << "  min                        = " << stats.min << '\n';
+        std::cout << "  max                        = " << stats.max << "\n\n";
     }
+    */
 
     
-
     /*
 
     constexpr int stencil_size = 5;
