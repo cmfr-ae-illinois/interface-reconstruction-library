@@ -4907,9 +4907,8 @@ void TestingClasses::getReconstruction(
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        // double angular_variance = jibben.getAngularVariance();
         double angular_variance = jibben.getNormalEigenMetric();
-        const double angular_variance_threshold = 0.15;
+        const double angular_variance_threshold = 0.10;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;
         }
@@ -4949,15 +4948,15 @@ void TestingClasses::getReconstruction(
         // updating pu neighborhood with paraboloids
         const auto& aligned_paraboloid =
             jibben_paraboloid.getAlignedParaboloid();
-        // if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
-        //     std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0 &&
-        //     !is_underresolved(i, j, k)) {
-        //   pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
-        // }
         if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
-            std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0) {
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0 &&
+            !is_underresolved(i, j, k)) {
           pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
         }
+        // if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+        //     std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0) {
+        //   pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        // }
       }
     }
   }
@@ -5000,6 +4999,11 @@ void TestingClasses::getReconstruction(
             }
           }
         }
+        // neighbor count check
+        if (pu_count < 2) {
+          continue;
+        }
+
         // building pu paraboloid
         const double delta = 2.5 * mesh.dx();
         IRL::Paraboloid pu_paraboloid =
