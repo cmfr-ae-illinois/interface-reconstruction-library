@@ -150,6 +150,8 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
       const amrex::Geometry& a_geom, const double a_dt);
 
+  void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
+
   ////////////////
   // private data members
 

@@ -152,6 +152,9 @@ void AmrCoreAdv::InitData() {
     ReadCheckpointFile();
   }
 
+  MultiFab test;
+  BuildUniformFinestMoments(test);
+
   if (plot_int > 0) {
     WritePlotFile();
   }
@@ -1403,3 +1406,53 @@ void AmrCoreAdv::DefineVelocityAtLevel(int lev, Real time) {
 Real AmrCoreAdv::RecTime() { return reconstruction_time; }
 
 Real AmrCoreAdv::AdvTime() { return advection_time; }
+
+void AmrCoreAdv::BuildUniformFinestMoments(
+    amrex::MultiFab& a_uniform_moments) const {
+  const int finest = finest_level;
+  const int ncomp = ncomp_moments;
+  const int ngrow = 0;
+
+  // building uniform grid at finest amr resolution
+  BoxArray uniform_ba(Geom(finest).Domain());
+  const amrex::Box& domain_box = uniform_ba[0];
+
+  amrex::Print() << "uniform_ba[0] = " << domain_box << "\n";
+  amrex::Print() << "lo = " << domain_box.smallEnd() << "\n";
+  amrex::Print() << "hi = " << domain_box.bigEnd() << "\n";
+  amrex::Print() << "box array size = " << uniform_ba.size() << "\n";
+
+  DistributionMapping uniform_dm(uniform_ba);
+
+  a_uniform_moments.define(uniform_ba, uniform_dm, ncomp, ngrow);
+  a_uniform_moments.setVal(0.0);
+
+  // Finest-level geometry.
+  const auto fine_dx = Geom(finest).CellSizeArray();
+  const auto problo = Geom(finest).ProbLoArray();
+  amrex::Print() << "problo = " << problo[0] << " " << problo[1] << " "
+                 << problo[2] << "\n";
+
+  const Real fine_vol = fine_dx[0] * fine_dx[1] * fine_dx[2];
+
+  const Box& fine_domain = Geom(finest).Domain();
+  const IntVect fine_dom_lo = fine_domain.smallEnd();
+
+  const int fine_lo_x = fine_dom_lo[0];
+  const int fine_lo_y = fine_dom_lo[1];
+  const int fine_lo_z = fine_dom_lo[2];
+
+  for (int lev = 0; lev <= finest; ++lev) {
+    // refinement ratio from this level to finest level
+    IntVect ratio_vect(AMREX_D_DECL(1, 1, 1));
+
+    for (int l = lev; l < finest; ++l) {
+      ratio_vect *= refRatio(l);
+    }
+    std::cout << "lev = " << lev << ", ratio_vect = " << ratio_vect << "\n";
+
+    const int rx = ratio_vect[0];
+    const int ry = ratio_vect[1];
+    const int rz = ratio_vect[2];
+  }
+}

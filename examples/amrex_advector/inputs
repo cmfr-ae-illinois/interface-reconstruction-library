@@ -3,7 +3,7 @@
 #     whichever comes first
 # *****************************************************************
 max_step  = 2000
-stop_time = 3.0
+stop_time = 0.0
 
 # *****************************************************************
 # Which case to run?
@@ -13,7 +13,7 @@ case.name = deformation3d
 # *****************************************************************
 # Which interface reconstruction method to use?
 # *****************************************************************
-reconstruction.name = jibben
+reconstruction.name = lvira
 
 # *****************************************************************
 # Which interface advection method to use?
