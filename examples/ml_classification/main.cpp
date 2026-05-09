@@ -253,38 +253,36 @@ static double compute_mean_instability(const std::vector<std::vector<int>>& pred
 void stable_classification() {
     int stencil_size = 5;
 
-    // Data parameters
-    int no_batches = 4096*4;
-    int include_Moments = 0;
+    //Data parameters
+    int no_batches = 4096;
+    int include_Moments = 1;
     bool include_Surface_Area = false;
-    bool include_Eigenvalues = false;
+    bool include_Eigenvalues = true;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
     double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    bool include_truncated_cylinder = true;
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
-    bool exact_2nd_moment = true;
+    bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    float epsilon_connectivity = 1e-12f;
 
     // Net Parameters
-    int input_size =
-        stencil_size * stencil_size * stencil_size *
-        (include_Moments >= 1 ? 4 : 1) +
-        (include_Moments >= 2 ? 6 : 0) +
-        (include_Moments >= 3 ? 3 : 0);
-
+    int input_size = stencil_size * stencil_size * stencil_size 
+    * (include_Moments >= 1 ? (include_Surface_Area ? 5 : 4) : 1)  // 4 if include_Moments >= 1 because we have vfrac + (mx,my,mz) per cell, otherwise just vfrac
+    + (include_Moments >= 2 ? 6 : 0)  // +6 if include_Moments >= 2 because we have (xx, yy, zz, xy, xz, yz) components of the 2nd moment tensor; otherwise none
+    + (include_Eigenvalues ? 3 : 0); // +3 if include_Eigenvalues because we add the 3 eigenvalues of the inertia matrix; otherwise none
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
-    int output_size = 4; //CHANGED 4 to 6
+    int output_size = 6; //CHANGED 4 to 6
 
-    // Training parameters
-    double learning_rate = 0.001;
+    //Training parameters
+    double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int max_epochs = 20;
+    int max_epochs = 50;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
@@ -292,6 +290,7 @@ void stable_classification() {
     int canonicalize_symmetries = 48;
     const int no_runs = 10;
     float noise_stddev = 0.0f;
+    int downsample_factor = 2; // set to 2 to only classify every 2nd cell in each dimension (8x fewer cells, faster but less accurate)
 
     // Simulation file
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
@@ -299,7 +298,7 @@ void stable_classification() {
 
     // Dataset
     //std::string dataset_path = "/home/quirin/mlcfd/Datasets/SixClasses/FirstMoment/s5_1M/data/data.bin";
-    std::string dataset_path = "/home/quirin/mlcfd/Datasets/float/ZeroethMoment/s5_1M/data/data.bin";
+    std::string dataset_path = "/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/data/data.bin";
 
     // Output directory for this whole experiment (distinct per call)
     // Example: stable_run_models/2026-02-25_153012/
@@ -339,16 +338,17 @@ void stable_classification() {
         // Create a fresh classifier each run (only one dataset in RAM at a time)
         IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
 
-        ml.updateDataParameters(no_batches, include_Moments, include_Surface_Area,
-                                paraboloid_coeff_stddev,
-                                sheet_coeff_stddev,
-                                max_sheet_thickness, sheet_thickness_stddev,
-                                max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
-                                max_sphere_radius, sphere_radius_stddev,
-                                exact_2nd_moment);
+        ml.updateDataParameters(no_batches, include_Moments, include_Surface_Area, include_Eigenvalues,
+                            paraboloid_coeff_stddev,
+                            sheet_coeff_stddev,
+                            max_sheet_thickness, sheet_thickness_stddev,
+                            max_cylinder_radius, cylinder_radius_stddev,
+                            max_sphere_radius, sphere_radius_stddev,
+                            exact_2nd_moment);           
 
         ml.loadDataset(dataset_path);
-        ml.canonicalize_data(canonicalize_symmetries);
+        //ml.canonicalize_data(canonicalize_symmetries);
+        ml.preprocess_data(canonicalize_symmetries, noise_stddev);
         ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
 
         // In the future, could use seed setter
@@ -357,8 +357,9 @@ void stable_classification() {
         ml.trainModel();
 
         std::vector<int> savedClasses;
-        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, 1e-10f, &savedClasses);
-        
+        //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, 1e-10f, &savedClasses);
+        IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, &savedClasses, downsample_factor);
+    
         if (r > 0 && savedClasses.size() != predictions[0].size()) {
             throw std::runtime_error("Saved class vector size differs between runs!");
         }
@@ -416,8 +417,11 @@ void stable_classification() {
         most_agreeing.loadModel(most_agreeing_model_path.string(), false);
 
         // Classify again using the most agreeing model
-        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, 1e-10f, nullptr);
+        //IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, 1e-10f, nullptr);
+        IRL::classify_simulation(most_agreeing, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
+    
     }
+
 }
 
 int main (int argc, char* argv[]) {
@@ -425,8 +429,8 @@ int main (int argc, char* argv[]) {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096*2;
-    int include_Moments = 2;
+    int no_batches = 4096;
+    int include_Moments = 1;
     bool include_Surface_Area = false;
     bool include_Eigenvalues = true;
     double paraboloid_coeff_stddev = 0.1;
@@ -445,9 +449,9 @@ int main (int argc, char* argv[]) {
     * (include_Moments >= 1 ? (include_Surface_Area ? 5 : 4) : 1)  // 4 if include_Moments >= 1 because we have vfrac + (mx,my,mz) per cell, otherwise just vfrac
     + (include_Moments >= 2 ? 6 : 0)  // +6 if include_Moments >= 2 because we have (xx, yy, zz, xy, xz, yz) components of the 2nd moment tensor; otherwise none
     + (include_Eigenvalues ? 3 : 0); // +3 if include_Eigenvalues because we add the 3 eigenvalues of the inertia matrix; otherwise none
-    int hidden_size1 = 512;
-    int hidden_size2 = 128;
-    int hidden_size3 = 64;
+    int hidden_size1 = 256;
+    int hidden_size2 = 64;
+    int hidden_size3 = 32;
     int output_size = 6; //CHANGED 4 to 6
 
     //Training parameters
@@ -485,16 +489,16 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
-    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxEigenv/s5_524k/model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxEigenvSurfaces/s5_524k/model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-07_220909/run_5/ml_model.pt");
 
     // vtk reader
-    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bag/nga.case";
-    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bag/plic.case";
-    int downsample_factor = 1;
-    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
-        
-    //stable_classification();
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
+    int downsample_factor = 2;
+    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
+    
+    stable_classification();
 
     //IRL::Data_gen gen;
 
