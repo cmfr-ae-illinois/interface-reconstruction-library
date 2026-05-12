@@ -699,6 +699,17 @@ Normal PU<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
       // simplicity
       STCoeff = STCoeff + Marangoni[2] * (Marangoni[0] * intersections[j][0] +
                                           Marangoni[1] * intersections[j][1]);
+      if (Marangoni[2] == 0.0 &&
+          (Marangoni[0] != 0.0 ||
+           Marangoni[1] != 0.0)) {  // Force droplet breakup
+        double gamma0 = 1.0;        // Base surface tension coefficient
+        double R = 1.0;             // Characteristic length scale
+
+        // Linear decrease in surface tension with x-coordinate - Al-Saud
+        // Style
+        STCoeff =
+            gamma0 * std::max(1 - 1.25 * std::abs(intersections[j][0]), 0.1);
+      }
       // If facing inside, multiply by negative
       // If facing outside, leave the same
       double Scale = OutwardsNormal * tangent;
@@ -951,9 +962,10 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
         normal.normalize();
 
         // here is where we get the surface tension coefficient
-        double ST = stencil_m.getScalar(pt);
-
-        if (Marangoni[2] == 0.0 &&
+        // double ST = stencil_m.getScalar(pt);
+        double ST = STCoeff + Marangoni[2] *
+                                  (Marangoni[0] * pt[0] + Marangoni[1] * pt[1]);
+        if (Marangoni[2] == -1.0 &&
             (Marangoni[0] != 0.0 ||
              Marangoni[1] != 0.0)) {  // Force droplet breakup
           double gamma0 = 1.0;        // Base surface tension coefficient
@@ -997,7 +1009,7 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       }
     }
   }
-  return total;
+  return -total;
 }
 
 template <class CellType>
