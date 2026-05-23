@@ -461,7 +461,7 @@ int main (int argc, char* argv[]) {
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
-    //IRL::InertiaClassifier inertia_classifier(stencil_size, 1, 0.85, 1.5);
+    IRL::InertiaClassifier inertia_classifier(stencil_size, 1, 0.85, 1.5);
     //IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     
@@ -490,15 +490,15 @@ int main (int argc, char* argv[]) {
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-07_220909/run_5/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
 
     // vtk reader
-    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jet/nga.case";
-    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jet/plic.case";
-    int downsample_factor = 2;
-    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000005new.vtr";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000005.vtu";
+    int downsample_factor = 1;
+    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
     
-    stable_classification();
+    //stable_classification();
 
     //IRL::Data_gen gen;
 
