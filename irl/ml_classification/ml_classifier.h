@@ -580,6 +580,60 @@ public:
 
         return probs.argmax().item<int>();
     }
+
+    void exportRuntimeWeights(const std::string& filename) const {
+        std::ofstream out(filename, std::ios::binary);
+        if (!out) {
+            throw std::runtime_error("Failed to open " + filename);
+        }
+
+        const char magic[8] = {'I', 'R', 'L', 'M', 'L', 'P', '1', '\0'};
+        const std::uint32_t version = 1;
+
+        out.write(magic, sizeof(magic));
+        out.write(reinterpret_cast<const char*>(&version), sizeof(version));
+
+        const std::int32_t dims[5] = {
+            static_cast<std::int32_t>(input_size),
+            static_cast<std::int32_t>(hidden_size1),
+            static_cast<std::int32_t>(hidden_size2),
+            static_cast<std::int32_t>(hidden_size3),
+            static_cast<std::int32_t>(output_size)
+        };
+
+        out.write(reinterpret_cast<const char*>(dims), sizeof(dims));
+
+        auto write_tensor = [&out](const torch::Tensor& tensor, const std::string& name) {
+            torch::Tensor cpu = tensor.detach()
+                                    .to(torch::kCPU)
+                                    .to(torch::kFloat32)
+                                    .contiguous();
+
+            const auto nbytes = cpu.numel() * static_cast<int64_t>(sizeof(float));
+
+            out.write(reinterpret_cast<const char*>(cpu.data_ptr<float>()),
+                    static_cast<std::streamsize>(nbytes));
+
+            if (!out) {
+                throw std::runtime_error("Failed while writing tensor " + name);
+            }
+        };
+
+        write_tensor(net.fc1->weight, "fc1.weight");
+        write_tensor(net.fc1->bias,   "fc1.bias");
+
+        write_tensor(net.fc2->weight, "fc2.weight");
+        write_tensor(net.fc2->bias,   "fc2.bias");
+
+        write_tensor(net.fc3->weight, "fc3.weight");
+        write_tensor(net.fc3->bias,   "fc3.bias");
+
+        write_tensor(net.fc4->weight, "fc4.weight");
+        write_tensor(net.fc4->bias,   "fc4.bias");
+
+        std::cout << "Exported Torch-free runtime weights to "
+                << filename << std::endl;
+    }
 };
 
 } // namespace IRL

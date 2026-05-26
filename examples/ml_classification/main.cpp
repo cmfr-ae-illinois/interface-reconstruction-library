@@ -6,6 +6,7 @@
 #include "irl/ml_classification/hybid_classifier.h"
 #include "irl/ml_classification/data_gen.h"
 #include "irl/ml_classification/ml_classifier_e3nn.h"
+#include "irl/ml_classification/ml_classifier_notorch.h"
 
 #include <vector>
 #include <array>
@@ -430,9 +431,9 @@ int main (int argc, char* argv[]) {
 
     //Data parameters
     int no_batches = 4096;
-    int include_Moments = 1;
+    int include_Moments = 0;
     bool include_Surface_Area = false;
-    bool include_Eigenvalues = true;
+    bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 1.0;
@@ -489,14 +490,18 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/model/ml_model.pt");
-    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
+    ml.exportRuntimeWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
+
+    IRL::MLClassifierNoTorch ml_no_torch(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
+    ml_no_torch.loadWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
 
     // vtk reader
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000005new.vtr";
     std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000005.vtu";
     int downsample_factor = 1;
-    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
+    IRL::classify_simulation(ml_no_torch, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
     
     //stable_classification();
 
