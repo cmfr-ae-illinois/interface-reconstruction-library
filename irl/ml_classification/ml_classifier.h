@@ -581,57 +581,137 @@ public:
         return probs.argmax().item<int>();
     }
 
-    void exportRuntimeWeights(const std::string& filename) const {
-        std::ofstream out(filename, std::ios::binary);
+    void exportRuntimeWeightsAndBiasesHeader(const std::string& filename = "ml_classifier_weights_and_biases.h") const {
+        std::ofstream out(filename);
         if (!out) {
             throw std::runtime_error("Failed to open " + filename);
         }
 
-        const char magic[8] = {'I', 'R', 'L', 'M', 'L', 'P', '1', '\0'};
-        const std::uint32_t version = 1;
-
-        out.write(magic, sizeof(magic));
-        out.write(reinterpret_cast<const char*>(&version), sizeof(version));
-
-        const std::int32_t dims[5] = {
-            static_cast<std::int32_t>(input_size),
-            static_cast<std::int32_t>(hidden_size1),
-            static_cast<std::int32_t>(hidden_size2),
-            static_cast<std::int32_t>(hidden_size3),
-            static_cast<std::int32_t>(output_size)
+        auto tensor_to_cpu_double = [](const torch::Tensor& tensor) {
+            return tensor.detach()
+                        .to(torch::kCPU)
+                        .to(torch::kFloat64)
+                        .contiguous();
         };
 
-        out.write(reinterpret_cast<const char*>(dims), sizeof(dims));
+        auto write_vector = [&out, &tensor_to_cpu_double](
+                                const std::string& name,
+                                const torch::Tensor& tensor,
+                                int size) {
+            torch::Tensor cpu = tensor_to_cpu_double(tensor);
 
-        auto write_tensor = [&out](const torch::Tensor& tensor, const std::string& name) {
-            torch::Tensor cpu = tensor.detach()
-                                    .to(torch::kCPU)
-                                    .to(torch::kFloat32)
-                                    .contiguous();
-
-            const auto nbytes = cpu.numel() * static_cast<int64_t>(sizeof(float));
-
-            out.write(reinterpret_cast<const char*>(cpu.data_ptr<float>()),
-                    static_cast<std::streamsize>(nbytes));
-
-            if (!out) {
-                throw std::runtime_error("Failed while writing tensor " + name);
+            if (cpu.dim() != 1 || cpu.size(0) != size) {
+                throw std::runtime_error("Unexpected shape for " + name);
             }
+
+            const double* data = cpu.data_ptr<double>();
+
+            out << "static constexpr std::array<double, "
+                << size << "> " << name << " {{\n";
+
+            out << std::setprecision(std::numeric_limits<double>::max_digits10)
+                << std::scientific;
+
+            for (int i = 0; i < size; ++i) {
+                if (!std::isfinite(data[i])) {
+                    throw std::runtime_error("Non-finite value found in " + name);
+                }
+
+                out << "    " << data[i];
+
+                if (i + 1 < size) {
+                    out << ",";
+                }
+
+                out << "\n";
+            }
+
+            out << "}};\n\n";
         };
 
-        write_tensor(net.fc1->weight, "fc1.weight");
-        write_tensor(net.fc1->bias,   "fc1.bias");
+        auto write_matrix = [&out, &tensor_to_cpu_double](
+                                const std::string& name,
+                                const torch::Tensor& tensor,
+                                int rows,
+                                int cols) {
+            torch::Tensor cpu = tensor_to_cpu_double(tensor);
 
-        write_tensor(net.fc2->weight, "fc2.weight");
-        write_tensor(net.fc2->bias,   "fc2.bias");
+            if (cpu.dim() != 2 || cpu.size(0) != rows || cpu.size(1) != cols) {
+                throw std::runtime_error("Unexpected shape for " + name);
+            }
 
-        write_tensor(net.fc3->weight, "fc3.weight");
-        write_tensor(net.fc3->bias,   "fc3.bias");
+            const double* data = cpu.data_ptr<double>();
 
-        write_tensor(net.fc4->weight, "fc4.weight");
-        write_tensor(net.fc4->bias,   "fc4.bias");
+            out << "static constexpr std::array<std::array<double, "
+                << cols << ">, " << rows << "> " << name << " {{\n";
 
-        std::cout << "Exported Torch-free runtime weights to "
+            out << std::setprecision(std::numeric_limits<double>::max_digits10)
+                << std::scientific;
+
+            for (int r = 0; r < rows; ++r) {
+                out << "    {{";
+
+                for (int c = 0; c < cols; ++c) {
+                    const double value = data[r * cols + c];
+
+                    if (!std::isfinite(value)) {
+                        throw std::runtime_error("Non-finite value found in " + name);
+                    }
+
+                    out << value;
+
+                    if (c + 1 < cols) {
+                        out << ", ";
+                    }
+                }
+
+                out << "}}";
+
+                if (r + 1 < rows) {
+                    out << ",";
+                }
+
+                out << "\n";
+            }
+
+            out << "}};\n\n";
+        };
+
+        out << "// This file was generated from a trained LibTorch model.\n";
+        out << "// Do not edit by hand unless you know what you are doing.\n\n";
+
+        out << "#ifndef IRL_ML_CLASSIFIER_WEIGHTS_AND_BIASES_H_\n";
+        out << "#define IRL_ML_CLASSIFIER_WEIGHTS_AND_BIASES_H_\n\n";
+
+        out << "#include <array>\n\n";
+
+        out << "namespace IRL {\n";
+        out << "namespace mlclassifier {\n\n";
+
+        out << "static constexpr int input_size = " << input_size << ";\n";
+        out << "static constexpr int hidden_size1 = " << hidden_size1 << ";\n";
+        out << "static constexpr int hidden_size2 = " << hidden_size2 << ";\n";
+        out << "static constexpr int hidden_size3 = " << hidden_size3 << ";\n";
+        out << "static constexpr int output_size = " << output_size << ";\n\n";
+
+        write_matrix("fc1_weight", net.fc1->weight, hidden_size1, input_size);
+        write_vector("fc1_bias",   net.fc1->bias,   hidden_size1);
+
+        write_matrix("fc2_weight", net.fc2->weight, hidden_size2, hidden_size1);
+        write_vector("fc2_bias",   net.fc2->bias,   hidden_size2);
+
+        write_matrix("fc3_weight", net.fc3->weight, hidden_size3, hidden_size2);
+        write_vector("fc3_bias",   net.fc3->bias,   hidden_size3);
+
+        write_matrix("fc4_weight", net.fc4->weight, output_size, hidden_size3);
+        write_vector("fc4_bias",   net.fc4->bias,   output_size);
+
+        out << "}  // namespace mlclassifier\n";
+        out << "}  // namespace IRL\n\n";
+
+        out << "#endif  // IRL_ML_CLASSIFIER_WEIGHTS_AND_BIASES_H_\n";
+
+        std::cout << "Exported compile-time runtime weights to "
                 << filename << std::endl;
     }
 };

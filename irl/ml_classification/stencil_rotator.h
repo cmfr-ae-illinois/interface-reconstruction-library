@@ -166,16 +166,20 @@ static void repackStencil(std::vector<float>& flat,
                           int N,
                           int include_moments,
                           bool include_Surface_Area = false,
+                          //bool include_Total_Surface_Area = false,
                           bool include_Eigenvalues = false)
 {
     std::vector<CellData> packed_stencil = stencil;
     //convert_to_local_centroids(packed_stencil, N, include_moments);
 
     // Normalize surface areas by the liquid cell volume ^2/3
-    
+    /*
     for (auto& c : packed_stencil) {
-        c.area /= std::pow(c.vfrac, 2.0f / 3.0f) + 1e-12f; // add small epsilon to avoid division by zero
+        //c.area /= std::pow(c.vfrac, 2.0f / 3.0f) + 1e-12f; // add small epsilon to avoid division by zero
+        // get thickness parameter
+        c.area = c.vfrac / (c.area + 1e-12f);
     }
+    */    
     
 
     const int nCells = N * N * N;
@@ -183,6 +187,10 @@ static void repackStencil(std::vector<float>& flat,
     const int tail   = globalTailStride(include_moments, include_Eigenvalues);
 
     flat.resize(stride * nCells + tail);
+    // omit surface area if total surface area is wanted
+    if (include_Surface_Area /*&& include_Total_Surface_Area*/) {
+        flat.resize((stride-1) * nCells + tail + 1); // +1 for total surface area at the end
+    }
 
     for (int idx = 0; idx < nCells; ++idx) {
         flat[stride * idx + 0] = packed_stencil[idx].vfrac;
@@ -218,6 +226,17 @@ static void repackStencil(std::vector<float>& flat,
             flat[base + 2] = eigenvalues->lambda3;
         }
     }
+    /* Below was a quick test to see if total surface area is benefitial, did not seem to help, so no better embedding into the code has happened
+    if (include_Total_Surface_Area) {
+        float total_area = 0.0f;
+        for (const auto& c : packed_stencil) {
+            total_area += c.area;
+        }
+        flat.back() = total_area;
+    }
+
+    std::cout << "Repacked stencil length = " << flat.size() << "\n";
+    */
 }
 
 // Symmetry helpers
@@ -441,10 +460,9 @@ inline float sampleGaussian(float sigma) {
 }
 
 inline void preprocess_stencil(std::vector<float>& flat_stencil,
-                           int stencil_size, int no_symmetries, int include_moments = 1, bool include_Surface_Area = false,
+                           int stencil_size, int no_symmetries, int include_moments = 1, bool include_Surface_Area = false, 
                            bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
 {
-
     // Unpack
     std::vector<CellData> stencil;
     SecondMoments I{};

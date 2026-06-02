@@ -431,9 +431,9 @@ int main (int argc, char* argv[]) {
 
     //Data parameters
     int no_batches = 4096;
-    int include_Moments = 0;
+    int include_Moments = 1;
     bool include_Surface_Area = false;
-    bool include_Eigenvalues = false;
+    bool include_Eigenvalues = true;
     double paraboloid_coeff_stddev = 0.1;
     double sheet_coeff_stddev = 0.1;
     double max_sheet_thickness = 1.0;
@@ -447,9 +447,9 @@ int main (int argc, char* argv[]) {
 
     // Net Parameters
     int input_size = stencil_size * stencil_size * stencil_size 
-    * (include_Moments >= 1 ? (include_Surface_Area ? 5 : 4) : 1)  // 4 if include_Moments >= 1 because we have vfrac + (mx,my,mz) per cell, otherwise just vfrac
+    * (include_Moments >= 1 ? /*(include_Surface_Area ? 5 : 4) ---> remove the 4 again if uncommenting ->*/ 4 : 1)  // 4 if include_Moments >= 1 because we have vfrac + (mx,my,mz) per cell, otherwise just vfrac
     + (include_Moments >= 2 ? 6 : 0)  // +6 if include_Moments >= 2 because we have (xx, yy, zz, xy, xz, yz) components of the 2nd moment tensor; otherwise none
-    + (include_Eigenvalues ? 3 : 0); // +3 if include_Eigenvalues because we add the 3 eigenvalues of the inertia matrix; otherwise none
+    + (include_Eigenvalues ? 3 : 0);
     int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
@@ -476,13 +476,14 @@ int main (int argc, char* argv[]) {
     
     //ml.generateDataset();
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxEigenvSurfaces/s5_524k/data/data.bin");
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxEigenvSurfaces/s5_524k/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentSurfaces/s5_262kRAW/data/data.bin");
 
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
     float noise_stddev = 0.0f;
     //ml.preprocess_data(canonicalize_symmetries, noise_stddev);
+    //ml.saveDataset("data");
 
     //ml.checkStatesForNaNOrInf();
 
@@ -490,16 +491,18 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
-    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
-    ml.exportRuntimeWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
+    //ml.exportRuntimeWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
+    //ml.exportRuntimeWeightsAndBiasesHeader();
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentSurfaces/s5_262kRAW/model/ml_model.pt");
 
-    IRL::MLClassifierNoTorch ml_no_torch(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
-    ml_no_torch.loadWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
+    IRL::MLClassifierNoTorch ml_no_torch(stencil_size);
+    //ml_no_torch.loadWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
 
     // vtk reader
-    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000005new.vtr";
-    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000005.vtu";
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000001.vtu";
     int downsample_factor = 1;
     IRL::classify_simulation(ml_no_torch, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
     
