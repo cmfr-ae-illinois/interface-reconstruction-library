@@ -475,10 +475,10 @@ int main (int argc, char* argv[]) {
                             exact_2nd_moment);                    
     
     //ml.generateDataset();
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/SecondApproxEigenvSurfaces/s5_524k/data/data.bin");
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentSurfaces/s5_262kRAW/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin");
 
-    //ml.appendDataset("/home/quirin/mlcfd/Datasets/float/From1/s5_2M/data/data.bin", false);
+    //ml.appendDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
     float noise_stddev = 0.0f;
@@ -492,19 +492,19 @@ int main (int argc, char* argv[]) {
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/ml_model.pt");
-    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
     //ml.exportRuntimeWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
-    //ml.exportRuntimeWeightsAndBiasesHeader();
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentSurfaces/s5_262kRAW/model/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_524k/model/ml_model.pt");
+    ml.exportRuntimeWeightsAndBiasesHeader();
 
-    IRL::MLClassifierNoTorch ml_no_torch(stencil_size);
+    //IRL::MLClassifierNoTorch ml_no_torch(stencil_size);
     //ml_no_torch.loadWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
 
     // vtk reader
     std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr";
     std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000001.vtu";
     int downsample_factor = 1;
-    IRL::classify_simulation(ml_no_torch, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
+    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
     
     //stable_classification();
 

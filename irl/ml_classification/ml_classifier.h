@@ -45,6 +45,8 @@ protected:
     double max_sphere_radius = 0.5;
     double sphere_radius_stddev = 0.0;
     bool exact_2nd_moment = false;
+    bool visualize = false;
+    double class0_max_characteristic = 2.5;
 
     //Internals
     Net net;
@@ -84,13 +86,13 @@ public:
         early_stop_patience = early_stop_pat;
     }
 
-    void updateDataParameters(int nb, int incMoments, bool incSurfaceArea, bool incEigenvalues,
+    void updateDataParameters(int incMoments, bool incSurfaceArea, bool incEigenvalues,
                               double parab_std, double sheet_std,
                               double max_sheet_th, double sheet_th_std,
                               double max_cyl_r, double cyl_r_std,
                               double max_sph_r, double sph_r_std,
-                              bool exact_2nd_mom) {
-        no_batches = nb;
+                              bool exact_2nd_mom, bool visualize_in = false,
+                              double class0_max_characteristic_in = 2.5) {
         include_Moments = incMoments;
         include_Surface_Area = incSurfaceArea;
         include_Eigenvalues = incEigenvalues;
@@ -103,6 +105,8 @@ public:
         max_sphere_radius = max_sph_r;
         sphere_radius_stddev = sph_r_std;
         exact_2nd_moment = exact_2nd_mom;
+        visualize = visualize_in;
+        class0_max_characteristic = class0_max_characteristic_in;
     }
 
     void generateDataset() {
@@ -111,32 +115,11 @@ public:
         // Record start time
         auto start_time = high_resolution_clock::now();
         
-        data_gen.generateData(&statesV, &labelsV,
-                               no_batches * batch_size,
-                               stencil_size, output_size,
-                               include_Moments, include_Surface_Area, include_Eigenvalues,
-                               paraboloid_coeff_stddev,
-                               sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                               max_cylinder_radius, cylinder_radius_stddev,
-                               max_sphere_radius, sphere_radius_stddev);
-        /*
-        void generateData (std::vector<std::vector<double>>* statesV, std::vector<int>* labelsV, int no_datapoints, int stencil_size = 3, int no_datapoint_types_in = 4, int include_Moments = 0,
-                                        double paraboloid_coeff_stddev = 0.1,
-                                        double sheet_coeff_stddev = 0.1, double max_sheet_thickness = 0.5, double sheet_thickness_stddev = 0.0,
-                                        double max_cylinder_radius = 0.5, double cylinder_radius_stddev = 0.0,
-                                        double max_sphere_radius = 0.5, double sphere_radius_stddev = 0.0)
-
-        */
-        /*
-        data_gen.generateData(&statesV, &labelsV,
-                               no_batches * batch_size,
-                               stencil_size);
-        */
+        data_gen.generateData(&statesV, &labelsV);
+        
         // Record end time
         auto end_time = high_resolution_clock::now();
         generation_time = duration_cast<seconds>(end_time - start_time).count();
-
-        //saveDataset("data");
     }
 
     void appendDataset(const std::string& existing_path, bool save_combined = false) {
@@ -150,14 +133,7 @@ public:
         using namespace std::chrono;
         auto start_time = high_resolution_clock::now();
 
-        data_gen.generateData(&new_states, &new_labels,
-                            no_batches * batch_size,
-                            stencil_size, output_size,
-                            include_Moments, include_Surface_Area, include_Eigenvalues,
-                            paraboloid_coeff_stddev,
-                            sheet_coeff_stddev, max_sheet_thickness, sheet_thickness_stddev,
-                            max_cylinder_radius, cylinder_radius_stddev,
-                            max_sphere_radius, sphere_radius_stddev);
+        data_gen.generateData(&new_states, &new_labels);
 
         auto end_time = high_resolution_clock::now();
         generation_time = duration_cast<seconds>(end_time - start_time).count();

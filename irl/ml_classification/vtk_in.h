@@ -183,6 +183,35 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     if (!plic_grid) {
         throw std::runtime_error("Failed to read PLIC unstructured grid from file: " + filenamePlic);
     }
+
+    // Optional diagnostic: if downsample_factor == 1 and the PLIC file has
+    // a cell-data array named "nplane", evaluate how many nplane=2 cells
+    // are classified as sheet or sheet edge.
+    vtkDataArray* nplaneArray = nullptr;
+    bool evaluateNplane2Sheets = false;
+
+    if (downsample_factor == 1) {
+        nplaneArray = vtkDataArray::SafeDownCast(
+            plic_grid->GetCellData()->GetArray("nplane")
+        );
+
+        if (nplaneArray && nplaneArray->GetNumberOfComponents() == 1) {
+            evaluateNplane2Sheets = true;
+
+            std::cout << "Found optional PLIC cell array 'nplane'. "
+                    << "Will evaluate nplane=2 classification because downsample_factor == 1."
+                    << std::endl;
+        } else {
+            std::cout << "Optional PLIC cell array 'nplane' not found or invalid. "
+                    << "Skipping nplane=2 diagnostic."
+                    << std::endl;
+        }
+    } else {
+        std::cout << "Skipping nplane=2 diagnostic because downsample_factor = "
+                << downsample_factor
+                << " instead of 1."
+                << std::endl;
+    }
     
     // Cell cell locator and plic centroids
     auto locator_finegrid = vtkSmartPointer<vtkCellLocator>::New();
@@ -761,6 +790,21 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     std::cout << "Ligament tips:        " << no_ligament_tip << std::endl;
     std::cout << "Sheet Edges:          " << no_cut_sheets << std::endl;
 
+    // Get average certainty
+    double certainty_sum = 0.0;
+    double minimum_certainty = 1.0;
+    int no_cells_cert = 0;
+    for (int i = 0; i < certainty->GetNumberOfTuples(); i++) {
+        if (certainty->GetComponent(i, 0) > 1.0e-6) {
+            certainty_sum += certainty->GetComponent(i, 0);
+            minimum_certainty = std::min(minimum_certainty, certainty->GetComponent(i, 0));
+            no_cells_cert++;
+        }
+    }
+
+    std::cout << "Average certainty: " << (certainty_sum / no_cells_cert) << std::endl;
+    std::cout << "Minimum certainty: " << minimum_certainty << std::endl;
+
     // Write Grid file
     grid->GetCellData()->AddArray(interface_type);
     grid->GetCellData()->AddArray(certainty);
@@ -773,13 +817,98 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     auto locator = vtkSmartPointer<vtkCellLocator>::New();
     locator->SetDataSet(downsampledGrid);
     locator->BuildLocator();
-    
+    /*
     // Convert interface_type to PLIC array
     for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
         auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
         plic_interface_type->SetValue(i, type);
         auto cert = certainty->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
         plic_certainty->SetValue(i, cert);
+    }
+    */
+    
+    // Optional nplane=2 diagnostic counters.
+    // Denominator: all PLIC cells with nplane == 2.
+    // True positives: those classified as sheet or sheet edge.
+    int nplane2_total = 0;
+    int nplane2_true_positive = 0;
+    int nplane2_as_sheet = 0;
+    int nplane2_as_sheet_edge = 0;
+    int nplane2_as_other = 0;
+    int nplane2_unmapped = 0;
+
+    // Convert interface_type to PLIC array
+    for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
+
+        vtkIdType mappedCellId = locator->FindCell(cell_centers->GetPoint(i));
+
+        int type = -1;
+        float cert = 0.0f;
+
+        if (mappedCellId >= 0) {
+            type = interface_type->GetValue(mappedCellId);
+            cert = certainty->GetValue(mappedCellId);
+        }
+
+        plic_interface_type->SetValue(i, type);
+        plic_certainty->SetValue(i, cert);
+
+        if (evaluateNplane2Sheets) {
+            int nplane = static_cast<int>(
+                std::lround(nplaneArray->GetComponent(i, 0))
+            );
+
+            if (nplane == 2) {
+                ++nplane2_total;
+
+                if (mappedCellId < 0) {
+                    ++nplane2_unmapped;
+                } else if (type == 3) {
+                    // Class 3 = sheet
+                    ++nplane2_true_positive;
+                    ++nplane2_as_sheet;
+                } else if (type == 5) {
+                    // Class 5 = sheet edge / cut sheet
+                    ++nplane2_true_positive;
+                    ++nplane2_as_sheet_edge;
+                } else {
+                    ++nplane2_as_other;
+                }
+            }
+        }
+    }
+
+    if (evaluateNplane2Sheets) {
+        std::cout << "\n=== nplane=2 Sheet Diagnostic ===" << std::endl;
+        std::cout << "PLIC cells with nplane = 2:           "
+                << nplane2_total << std::endl;
+
+        std::cout << "Correctly classified as sheet/edge:   "
+                << nplane2_true_positive << std::endl;
+
+        std::cout << "  classified as sheet, class 3:       "
+                << nplane2_as_sheet << std::endl;
+
+        std::cout << "  classified as sheet edge, class 5:  "
+                << nplane2_as_sheet_edge << std::endl;
+
+        std::cout << "Classified as other type:             "
+                << nplane2_as_other << std::endl;
+
+        std::cout << "Unmapped PLIC cells:                  "
+                << nplane2_unmapped << std::endl;
+
+        if (nplane2_total > 0) {
+            const double recall =
+                static_cast<double>(nplane2_true_positive)
+                / static_cast<double>(nplane2_total);
+
+            std::cout << "nplane=2 sheet/sheet-edge recall:     "
+                    << recall << std::endl;
+        } else {
+            std::cout << "nplane=2 sheet/sheet-edge recall:     undefined, no nplane=2 cells"
+                    << std::endl;
+        }
     }
 
     // Write PLIC file
