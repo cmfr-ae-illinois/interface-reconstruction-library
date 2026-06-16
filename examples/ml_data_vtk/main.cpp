@@ -372,10 +372,8 @@ Stats computeStats(const std::vector<double>& values)
 int main(int argc, char* argv[]) {
 
     IRL::Data_gen gen; 
-    constexpr int stencil_size = 5; 
-    constexpr int include_moments = 1; 
-    constexpr bool include_Eigenvalues = false; 
-    std::vector<float> state = gen.generateState(14,5,include_moments,true,include_Eigenvalues,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true); // Sum up every cells 5th component, the surface area, to get total surface area of the interface in the stencil. This is a simple check to see if the data looks reasonable, since we know the exact surface area for a sphere or paraboloid. 
+    gen.setVisualize();
+    std::vector<float> state = gen.generateState(false, 14);  
     /*
     IRL::preprocess_stencil(state,
                             stencil_size,

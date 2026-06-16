@@ -21,24 +21,27 @@ namespace IRL {
         int no_datapoints = 4096*64;
         int include_Moments = 1;
         bool include_Surface_Area = false;
-        bool include_Eigenvalues = true;
+        bool include_Eigenvalues = false;
         double paraboloid_coeff_stddev = 0.1;
+        double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
         double sheet_coeff_stddev = 0.1;
-        double max_sheet_thickness = 1.0;
         double sheet_thickness_stddev = 0.0;
-        double max_cylinder_radius = 0.5;
         double cylinder_radius_stddev = 0.0;
         double radius_circle_min = 2.5;
         double radius_circle_max = 10.0;
-        double max_sphere_radius = 0.5;
         double sphere_radius_stddev = 0.0;
+        double ellipsoid_subgrid_stddev = 0.7;
+        double min_long_ellipsoid_axis = 3.0;
+        double max_long_ellipsoid_axis = 5.0;
         bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
         bool visualize = false; // if true, print centroids and / or write surfaces
+        double machineZero = 1e-12;
+        double lower_limit_subgrid = machineZero;
+        double upper_limit_subgrid = std::sqrt(3.0);
         double class0_max_characteristic = 2.5;
 
         public:
         std::mt19937_64 eng;
-        static constexpr double machineZero = 1e-12;
         //int stencil_size = 3;
         //std::vector<std::vector<std::vector<double>>> vfrac(stencil_size, std::vector<std::vector<double>>(stencil_size, std::vector<double>(stencil_size)));
 
@@ -51,28 +54,38 @@ namespace IRL {
         }
 
         void updateDataParameters(int no_datapoints_in, int include_Moments_in, bool include_Surface_Area_in, bool include_Eigenvalues_in,
-                                double paraboloid_coeff_stddev_in,
+                                double paraboloid_coeff_stddev_in, double hyperbolic_cylinder_opening_angle_stddev_in,
                                 double sheet_coeff_stddev_in, double max_sheet_thickness_in, double sheet_thickness_stddev_in,
                                 double max_cylinder_radius_in, double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
-                                double max_sphere_radius_in, double sphere_radius_stddev_in,
-                                bool exact_2nd_mom = false, bool visualize_in = false, double class0_max_characteristic_in = 2.5) {
+                                double max_sphere_radius_in, double sphere_radius_stddev_in, 
+                                double ellipsoid_subgrid_stddev_in, double min_long_ellipsoid_axis_in, double max_long_ellipsoid_axis_in,
+                                bool exact_2nd_mom = false, bool visualize_in = false, double machineZero_in = 1e-12, 
+                                double lower_limit_subgrid_in = 1e-12, double upper_limit_subgrid_in = 1.732, double class0_max_characteristic_in = 2.5) {
             no_datapoints = no_datapoints_in;
             include_Moments = include_Moments_in;
             include_Surface_Area = include_Surface_Area_in;
             include_Eigenvalues = include_Eigenvalues_in;
             paraboloid_coeff_stddev = paraboloid_coeff_stddev_in;
+            hyperbolic_cylinder_opening_angle_stddev = hyperbolic_cylinder_opening_angle_stddev_in;
             sheet_coeff_stddev = sheet_coeff_stddev_in;
-            max_sheet_thickness = max_sheet_thickness_in;
             sheet_thickness_stddev = sheet_thickness_stddev_in;
-            max_cylinder_radius = max_cylinder_radius_in;
             cylinder_radius_stddev = cylinder_radius_stddev_in;
             radius_circle_min = radius_circle_min_in;
             radius_circle_max = radius_circle_max_in;
-            max_sphere_radius = max_sphere_radius_in;
             sphere_radius_stddev = sphere_radius_stddev_in;
+            ellipsoid_subgrid_stddev = ellipsoid_subgrid_stddev_in;
+            min_long_ellipsoid_axis = min_long_ellipsoid_axis_in;
+            max_long_ellipsoid_axis = max_long_ellipsoid_axis_in;
             exact_2nd_moment = exact_2nd_mom;
             visualize = visualize_in;
+            machineZero = machineZero_in;
+            lower_limit_subgrid = lower_limit_subgrid_in;
+            upper_limit_subgrid = upper_limit_subgrid_in;
             class0_max_characteristic = class0_max_characteristic_in;
+        }
+
+        void setVisualize (bool viz = true) {
+            visualize = viz;
         }
 
         Eigen::Vector3d computeCentroidFromFirstMoment(const Eigen::Vector3d& firstMoment, double volume){
@@ -207,9 +220,7 @@ namespace IRL {
                 const double cell_volume = 1.0;
 
                 // Random paraboloid parameters
-                Eigen::Vector3d datumVec = generateRandomPoint(
-                    -0.5*static_cast<double>(stencil_size),
-                    0.5*static_cast<double>(stencil_size), eng);
+                Eigen::Vector3d datumVec = generateRandomPoint(-2.5, 2.5, eng);
 
                 Eigen::Vector3d direction = generateRandomDirection(eng);
 
@@ -308,7 +319,137 @@ namespace IRL {
                 // else: reject and try again (loop restarts)
             }
         }
+        
+        void generateHyperbolicCylinder(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            double min_thickness, double max_thickness, double max_opening_angle = 45,
+            Eigen::Matrix3d* secondMoment = nullptr) 
+        {
+            // repeat until center cell is cut by surface
+            while (true) {
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+                // TODO make similar to sheet
+                // Defining cell coordinates
+                auto coords = makeCenteredCoords(stencil_size);
+                const double cell_volume = 1.0;
 
+                // Random paraboloid parameters
+                Eigen::Vector3d datumVec = generateRandomPoint(-2.5, 2.5, eng);
+
+                Eigen::Vector3d direction = generateRandomDirection(eng);
+
+                // Build orthonormal frame aligned with direction
+                Eigen::Vector3d helper = generateRandomDirection(eng); // safe random helper
+                Eigen::Vector3d hyperbolic_cylinder_x = direction.cross(helper);
+                if (hyperbolic_cylinder_x.norm() < 1e-12) {
+                    // fallback: pick fixed axis if helper was parallel
+                    hyperbolic_cylinder_x = direction.cross(Eigen::Vector3d(1,0,0));
+                }
+                hyperbolic_cylinder_x.normalize();
+                Eigen::Vector3d hyperbolic_cylinder_y = direction.cross(hyperbolic_cylinder_x);
+                hyperbolic_cylinder_y.normalize();
+                Eigen::Vector3d hyperbolic_cylinder_z = direction;
+
+                const auto frame = IRL::ReferenceFrame(
+                    IRL::Normal(hyperbolic_cylinder_x.x(), hyperbolic_cylinder_x.y(), hyperbolic_cylinder_x.z()), 
+                    IRL::Normal(hyperbolic_cylinder_y.x(), hyperbolic_cylinder_y.y(), hyperbolic_cylinder_y.z()), 
+                    IRL::Normal(hyperbolic_cylinder_z.x(), hyperbolic_cylinder_z.y(), hyperbolic_cylinder_z.z()));
+
+                IRL::Pt datum(datumVec.x(), datumVec.y(), datumVec.z());
+
+                std::uniform_real_distribution<double> random_thickness(min_thickness, max_thickness);
+                double thickness = random_thickness(eng);
+                double opening_angle = 0.0;
+                if (hyperbolic_cylinder_opening_angle_stddev > 0.0) {
+                    opening_angle = sample_truncated_normal(0.0, hyperbolic_cylinder_opening_angle_stddev, 0.0, max_opening_angle);
+                } else {
+                    //Use uniform distribution
+                    std::uniform_real_distribution<double> random_angle(0.0, max_opening_angle);
+                    opening_angle = random_angle(eng);
+                }
+
+                double coeff_r = 0.25 * thickness * thickness;
+                double coeff_b = -std::pow(std::tan(0.5 * opening_angle), 2);
+
+                const auto hyperbolic_cylinder = Cylinder(datum, frame, coeff_r, coeff_b);
+                // Initialize field
+                std::vector<CylinderParametrizedSurfaceOutput> surfaces;
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
+                IRL::GeneralMoments3D<2> totalMoments = IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For 2nd moment shift later
+
+                // Loop over cells in stencil
+                for (int i = 0; i < stencil_size; i++) {
+                    for (int j = 0; j < stencil_size; j++) {
+                        for (int k = 0; k < stencil_size; k++) {
+                            auto cell = RectangularCuboid::fromBoundingPts(
+                                Pt(coords[i], coords[j], coords[k]),
+                                Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                            // auto volume_and_surface = getVolumeMoments<
+                             //   AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
+                              //  cell, paraboloid);
+
+                            if (secondMoment != nullptr) {
+                                fillCellFromGeneralMoments2(
+                                    cell, hyperbolic_cylinder, cell_volume,
+                                    vfrac[i][j][k],
+                                    firstMoment[i][j][k],
+                                    totalMoments
+                                );
+
+                            } else {
+                                auto volume_and_surface = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, hyperbolic_cylinder);
+                                vfrac[i][j][k] = volume_and_surface.getMoments().volume() / cell_volume;
+                                firstMoment[i][j][k] << volume_and_surface.getMoments().centroid().x(),
+                                                        volume_and_surface.getMoments().centroid().y(),
+                                                        volume_and_surface.getMoments().centroid().z();
+                            }
+
+                            auto surface = getVolumeMoments<VolumeMomentsAndSurface>(cell, hyperbolic_cylinder).getSurface();
+                            area[i][j][k] = surface.getSurfaceArea();
+
+                            if (visualize) {
+                                //surfaces.push_back(volume_and_surface.getSurface());
+                                surfaces.push_back(surface);
+
+                                centroid[i][j][k] = computeCentroidFromFirstMoment(
+                                    firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
+                            }
+                        }
+                    }
+                }
+
+                // Check central cell
+                if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
+                    // Accept this sample
+                    
+                    // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments);
+                    }
+
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                        printCentroids(centroid);
+                    }
+                    return; // done with this function, exit
+                }
+
+                // else: reject and try again (loop restarts)
+            }
+        }
+        
 
         double sample_truncated_normal(double mean, double stddev,
                                double lower, double upper)
@@ -476,11 +617,13 @@ namespace IRL {
                                 double Vdiff = V2 - V1;
 
                                 // When in central cell, check if V1 is very small, meaning the central cell does not have 2 interfaces
+                                /*
                                 if (i == stencil_size/2 && j == stencil_size/2 && k == stencil_size/2) {
                                     if (V1 < machineZero) {
                                         Vdiff = 0.0; // treat as empty cell, will be rejected and regenerated
                                     }
                                 }
+                                */
 
                                 Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
                                                 volume_and_surface1.getMoments().centroid().y(),
@@ -545,7 +688,7 @@ namespace IRL {
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
             bool cutInsideCentralCell,
-            double min_thickness = machineZero, 
+            double min_thickness = 1e-12, 
             double max_thickness = 0.5, 
             bool variable_thickness = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
@@ -808,7 +951,7 @@ namespace IRL {
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
             bool thick_central_cell = false,
-            double min_thickness = machineZero,
+            double min_thickness = 1e-12,
             double max_thickness = 0.5,
             double max_thick_thickness = 2.5,
             Eigen::Matrix3d* secondMoment = nullptr)
@@ -1007,12 +1150,13 @@ namespace IRL {
 
                 bool central_cell_ok = false;
 
-                if (central_uses_thick) {
+                //Changed below: No need to require two interfaces in the central cell
+                //if (central_uses_thick) {
                     // Thick central cell: only require a partial volume fraction.
                     central_cell_ok =
                         central_Vsheet > machineZero &&
                         central_Vsheet < coarse_cell_volume - machineZero;
-                } else {
+                /*} else {
                     // Thin central cell: require two interfaces.
                     //
                     // The requested subtraction test is:
@@ -1032,7 +1176,7 @@ namespace IRL {
                         central_Vsheet < coarse_cell_volume - machineZero &&
                         subtraction_changes_from_V2 &&
                         outer_paraboloid_not_saturated;
-                }
+                }*/
 
                 if (!central_cell_ok) {
                     continue;
@@ -1542,7 +1686,7 @@ namespace IRL {
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
-            double min_radius = machineZero, double max_radius = 0.5, 
+            double min_radius = 1e-12, double max_radius = 0.5, 
             //double radius_circle_min = 2.5, double radius_circle_max = 10.0,
             //bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr)
@@ -2619,7 +2763,7 @@ namespace IRL {
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
-            double min_radius = machineZero, double max_radius = 0.5, //double radius_stddev = 0.0, bool visualize = false,
+            double min_radius = 1e-12, double max_radius = 0.5, //double radius_stddev = 0.0, bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
             {
                 while (true) { // keep trying until center cell has surface crossing
@@ -2676,56 +2820,500 @@ namespace IRL {
                 }
         }
 
-        void generateEllipsoid(
+        void generateSpecificEllipsoid(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
-            int stencil_size,
-            double min_axis = machineZero,
-            double max_axis = 0.5,
-            double axis_stddev = 0.0,
-            bool visualize = false,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& centroid,
+            std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& surfaces,
+            const Eigen::Vector3d& origin,
+            const Eigen::Vector3d& axis0_direction,
+            const Eigen::Vector3d& axis1_direction,
+            const Eigen::Vector3d& axis2_direction,
+            double axis0_length,
+            double axis1_length,
+            double axis2_length,
+            std::vector<double>& coarse_coords,
             Eigen::Matrix3d* secondMoment = nullptr)
         {
-            while (true) {
-                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
-                std::vector<double> coarse_coords(stencil_size + 1);
+            if (axis0_length <= machineZero ||
+                axis1_length <= machineZero ||
+                axis2_length <= machineZero) {
+                throw std::runtime_error("generateSpecificEllipsoid: all axis lengths must be positive.");
+            }
 
-                const double coarse_stencil_min = -0.5 * static_cast<double>(stencil_size);
+            const double a = axis0_length;
+            const double b = axis1_length;
+            const double c = axis2_length;
 
-                for (int coarse_index = 0; coarse_index <= stencil_size; ++coarse_index) {
-                    coarse_coords[coarse_index] = coarse_stencil_min + static_cast<double>(coarse_index);
+            const Eigen::Vector3d semi_axes(a, b, c);
+            const double min_semi_axis = semi_axes.minCoeff();
+
+            // Build an orthonormal frame from the three input directions.
+            //
+            // axis0_direction corresponds to length a
+            // axis1_direction corresponds to length b
+            // axis2_direction is used mainly to choose the handedness/sign
+
+            Eigen::Vector3d e0 = axis0_direction.normalized();
+
+            Eigen::Vector3d e1 =
+                axis1_direction - axis1_direction.dot(e0) * e0;
+
+            if (e1.norm() < 1.0e-14) {
+                e1 = e0.unitOrthogonal();
+            } else {
+                e1.normalize();
+            }
+
+            Eigen::Vector3d e2 = e0.cross(e1).normalized();
+
+            // Try to preserve the sign/orientation suggested by axis2_direction.
+            if (axis2_direction.dot(e2) < 0.0) {
+                e2 *= -1.0;
+                e1 = e2.cross(e0).normalized();
+            }
+
+            Eigen::Matrix3d R;
+            R.col(0) = e0;
+            R.col(1) = e1;
+            R.col(2) = e2;
+
+            // Stencil coordinates
+            const double coarse_stencil_min = -0.5 * static_cast<double>(stencil_size);
+
+            for (int coarse_index = 0; coarse_index <= stencil_size; ++coarse_index) {
+                coarse_coords[coarse_index] =
+                    coarse_stencil_min + static_cast<double>(coarse_index);
+            }
+
+            auto clamp_coarse_index = [&](int idx) {
+                return std::max(0, std::min(stencil_size - 1, idx));
+            };
+
+            // World-space implicit ellipsoid:
+            //
+            //     (x - origin)^T A (x - origin) = 1
+            //
+            // R stores the ellipsoid frame:
+            //
+            //     R.col(0) = direction of axis a
+            //     R.col(1) = direction of axis b
+            //     R.col(2) = direction of axis c
+
+            const Eigen::Vector3d inv_axes_sq(
+                1.0 / (a * a),
+                1.0 / (b * b),
+                1.0 / (c * c)
+            );
+
+            const Eigen::Matrix3d A =
+                R * inv_axes_sq.asDiagonal() * R.transpose();
+
+            // Exact axis-aligned bounding box half-widths of rotated ellipsoid
+            Eigen::Vector3d half_extent;
+            for (int d = 0; d < 3; ++d) {
+                half_extent[d] = std::sqrt(
+                    std::pow(R(d, 0) * a, 2) +
+                    std::pow(R(d, 1) * b, 2) +
+                    std::pow(R(d, 2) * c, 2)
+                );
+            }
+
+            const double ellipsoid_min_x = origin.x() - half_extent.x();
+            const double ellipsoid_max_x = origin.x() + half_extent.x();
+            const double ellipsoid_min_y = origin.y() - half_extent.y();
+            const double ellipsoid_max_y = origin.y() + half_extent.y();
+            const double ellipsoid_min_z = origin.z() - half_extent.z();
+            const double ellipsoid_max_z = origin.z() + half_extent.z();
+
+            // Zero outputs
+            for (int i = 0; i < stencil_size; ++i) {
+                for (int j = 0; j < stencil_size; ++j) {
+                    for (int k = 0; k < stencil_size; ++k) {
+                        vfrac[i][j][k] = 0.0;
+                        firstMoment[i][j][k].setZero();
+                        area[i][j][k] = 0.0;
+
+                        if (visualize) {
+                            centroid[i][j][k].setZero();
+                        }
+                    }
+                }
+            }
+
+            using VolumeMomentsAndSurface =
+                AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+
+            IRL::GeneralMoments3D<2> total_general_moments =
+                IRL::GeneralMoments3D<2>::fromScalarConstant(0.0);
+
+            // Analytical shortcut if the whole ellipsoid AABB fits inside one coarse cell
+            int ci = clamp_coarse_index(
+                static_cast<int>(std::floor(origin.x() - coarse_stencil_min))
+            );
+            int cj = clamp_coarse_index(
+                static_cast<int>(std::floor(origin.y() - coarse_stencil_min))
+            );
+            int ck = clamp_coarse_index(
+                static_cast<int>(std::floor(origin.z() - coarse_stencil_min))
+            );
+
+            const double x0 = coarse_stencil_min + static_cast<double>(ci);
+            const double x1 = x0 + 1.0;
+            const double y0 = coarse_stencil_min + static_cast<double>(cj);
+            const double y1 = y0 + 1.0;
+            const double z0 = coarse_stencil_min + static_cast<double>(ck);
+            const double z1 = z0 + 1.0;
+
+            const bool ellipsoid_fully_inside_some_cell =
+                (ellipsoid_min_x >= x0) && (ellipsoid_max_x <= x1) &&
+                (ellipsoid_min_y >= y0) && (ellipsoid_max_y <= y1) &&
+                (ellipsoid_min_z >= z0) && (ellipsoid_max_z <= z1);
+
+            if (ellipsoid_fully_inside_some_cell) {
+                const double V = (4.0 / 3.0) * M_PI * a * b * c;
+
+                vfrac[ci][cj][ck] = V;
+                firstMoment[ci][cj][ck] = V * origin;
+
+                // Knud Thomsen approximation for ellipsoid surface area
+                const double p = 1.6075;
+                area[ci][cj][ck] =
+                    4.0 * M_PI *
+                    std::pow(
+                        (
+                            std::pow(a, p) * std::pow(b, p) +
+                            std::pow(a, p) * std::pow(c, p) +
+                            std::pow(b, p) * std::pow(c, p)
+                        ) / 3.0,
+                        1.0 / p
+                    );
+
+                if (secondMoment != nullptr) {
+                    const Eigen::Vector3d axes_sq(a * a, b * b, c * c);
+
+                    // Centered second moment tensor of a solid ellipsoid
+                    *secondMoment =
+                        (V / 5.0) *
+                        R * axes_sq.asDiagonal() * R.transpose();
                 }
 
-                auto clamp_coarse_index = [&](int idx) {
-                    return std::max(0, std::min(stencil_size - 1, idx));
-                };
+                return;
+            }
 
-                auto sample_axis = [&]() {
-                    if (axis_stddev > 0.0) {
-                        return sample_truncated_normal(0.0, axis_stddev, min_axis, max_axis);
-                    } else {
-                        std::uniform_real_distribution<double> random_axis(min_axis, max_axis);
-                        return random_axis(eng);
-                    }
-                };
+            // Refined paraboloid intersection path
+            const int min_refined_cells_across_smallest_diameter = 5;
 
-                // Random ellipsoid semi-axes.
-                const Eigen::Vector3d semi_axes(
-                    sample_axis(),
-                    sample_axis(),
-                    sample_axis()
+            const int refinement_factor = std::max(
+                1,
+                static_cast<int>(
+                    std::ceil(
+                        static_cast<double>(min_refined_cells_across_smallest_diameter) /
+                        (2.0 * min_semi_axis)
+                    )
+                )
+            );
+
+            const double refined_cell_size =
+                1.0 / static_cast<double>(refinement_factor);
+
+            auto clamp_refined_index = [&](int index_value) {
+                return std::max(0, std::min(refinement_factor - 1, index_value));
+            };
+
+            int coarse_i_start = clamp_coarse_index(
+                static_cast<int>(std::floor(ellipsoid_min_x - coarse_stencil_min))
+            );
+            int coarse_i_end = clamp_coarse_index(
+                static_cast<int>(std::floor(ellipsoid_max_x - coarse_stencil_min))
+            );
+
+            int coarse_j_start = clamp_coarse_index(
+                static_cast<int>(std::floor(ellipsoid_min_y - coarse_stencil_min))
+            );
+            int coarse_j_end = clamp_coarse_index(
+                static_cast<int>(std::floor(ellipsoid_max_y - coarse_stencil_min))
+            );
+
+            int coarse_k_start = clamp_coarse_index(
+                static_cast<int>(std::floor(ellipsoid_min_z - coarse_stencil_min))
+            );
+            int coarse_k_end = clamp_coarse_index(
+                static_cast<int>(std::floor(ellipsoid_max_z - coarse_stencil_min))
+            );
+
+            for (int coarse_i = coarse_i_start; coarse_i <= coarse_i_end; ++coarse_i) {
+                const double coarse_x0 =
+                    coarse_stencil_min + static_cast<double>(coarse_i);
+
+                int refined_i_start = clamp_refined_index(
+                    static_cast<int>(
+                        std::floor((ellipsoid_min_x - coarse_x0) / refined_cell_size)
+                    )
                 );
 
-                const double a = semi_axes.x();
-                const double b = semi_axes.y();
-                const double c = semi_axes.z();
+                int refined_i_end = clamp_refined_index(
+                    static_cast<int>(
+                        std::floor((ellipsoid_max_x - coarse_x0) / refined_cell_size)
+                    )
+                );
 
-                const double min_semi_axis = semi_axes.minCoeff();
-                const double max_semi_axis = semi_axes.maxCoeff();
+                if (refined_i_end < refined_i_start) continue;
 
-                // Random uniform 3D rotation using a unit quaternion.
+                for (int coarse_j = coarse_j_start; coarse_j <= coarse_j_end; ++coarse_j) {
+                    const double coarse_y0 =
+                        coarse_stencil_min + static_cast<double>(coarse_j);
+
+                    int refined_j_start = clamp_refined_index(
+                        static_cast<int>(
+                            std::floor((ellipsoid_min_y - coarse_y0) / refined_cell_size)
+                        )
+                    );
+
+                    int refined_j_end = clamp_refined_index(
+                        static_cast<int>(
+                            std::floor((ellipsoid_max_y - coarse_y0) / refined_cell_size)
+                        )
+                    );
+
+                    if (refined_j_end < refined_j_start) continue;
+
+                    for (int coarse_k = coarse_k_start; coarse_k <= coarse_k_end; ++coarse_k) {
+                        const double coarse_z0 =
+                            coarse_stencil_min + static_cast<double>(coarse_k);
+
+                        int refined_k_start = clamp_refined_index(
+                            static_cast<int>(
+                                std::floor((ellipsoid_min_z - coarse_z0) / refined_cell_size)
+                            )
+                        );
+
+                        int refined_k_end = clamp_refined_index(
+                            static_cast<int>(
+                                std::floor((ellipsoid_max_z - coarse_z0) / refined_cell_size)
+                            )
+                        );
+
+                        if (refined_k_end < refined_k_start) continue;
+
+                        for (int refined_i_in_coarse = refined_i_start;
+                            refined_i_in_coarse <= refined_i_end;
+                            ++refined_i_in_coarse) {
+
+                            const double refined_x0 =
+                                coarse_x0 +
+                                static_cast<double>(refined_i_in_coarse) * refined_cell_size;
+
+                            const double refined_x1 = refined_x0 + refined_cell_size;
+
+                            for (int refined_j_in_coarse = refined_j_start;
+                                refined_j_in_coarse <= refined_j_end;
+                                ++refined_j_in_coarse) {
+
+                                const double refined_y0 =
+                                    coarse_y0 +
+                                    static_cast<double>(refined_j_in_coarse) * refined_cell_size;
+
+                                const double refined_y1 = refined_y0 + refined_cell_size;
+
+                                for (int refined_k_in_coarse = refined_k_start;
+                                    refined_k_in_coarse <= refined_k_end;
+                                    ++refined_k_in_coarse) {
+
+                                    const double refined_z0 =
+                                        coarse_z0 +
+                                        static_cast<double>(refined_k_in_coarse) *
+                                        refined_cell_size;
+
+                                    const double refined_z1 =
+                                        refined_z0 + refined_cell_size;
+
+                                    auto refined_cell = IRL::RectangularCuboid::fromBoundingPts(
+                                        IRL::Pt(refined_x0, refined_y0, refined_z0),
+                                        IRL::Pt(refined_x1, refined_y1, refined_z1)
+                                    );
+
+                                    const Eigen::Vector3d refined_cell_center(
+                                        0.5 * (refined_x0 + refined_x1),
+                                        0.5 * (refined_y0 + refined_y1),
+                                        0.5 * (refined_z0 + refined_z1)
+                                    );
+
+                                    Eigen::Vector3d direction =
+                                        refined_cell_center - origin;
+
+                                    if (direction.norm() < 1.0e-14) {
+                                        direction = R.col(0);
+                                    }
+
+                                    direction.normalize();
+
+                                    // Ray/ellipsoid intersection:
+                                    //
+                                    //     datum = origin + t direction
+                                    //     t = 1 / sqrt(direction^T A direction)
+                                    //
+                                    const double ray_denominator =
+                                        std::sqrt(direction.dot(A * direction));
+
+                                    const Eigen::Vector3d datum_eigen =
+                                        origin + direction / ray_denominator;
+
+                                    const IRL::Pt datum_paraboloid(
+                                        datum_eigen.x(),
+                                        datum_eigen.y(),
+                                        datum_eigen.z()
+                                    );
+
+                                    const Eigen::Vector3d centered_datum =
+                                        datum_eigen - origin;
+
+                                    Eigen::Vector3d normal =
+                                        A * centered_datum;
+
+                                    const double normal_denominator = normal.norm();
+
+                                    if (normal_denominator < 1.0e-14) {
+                                        continue;
+                                    }
+
+                                    normal /= normal_denominator;
+
+                                    const Eigen::Vector3d tangent0 =
+                                        normal.unitOrthogonal();
+
+                                    const Eigen::Vector3d tangent1 =
+                                        normal.cross(tangent0).normalized();
+
+                                    Eigen::Matrix2d curvature_matrix;
+                                    curvature_matrix(0, 0) =
+                                        tangent0.dot(A * tangent0) / normal_denominator;
+                                    curvature_matrix(0, 1) =
+                                        tangent0.dot(A * tangent1) / normal_denominator;
+                                    curvature_matrix(1, 0) =
+                                        curvature_matrix(0, 1);
+                                    curvature_matrix(1, 1) =
+                                        tangent1.dot(A * tangent1) / normal_denominator;
+
+                                    Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d>
+                                        curvature_solver(curvature_matrix);
+
+                                    const Eigen::Vector2d eigvec0 =
+                                        curvature_solver.eigenvectors().col(0);
+
+                                    const Eigen::Vector2d eigvec1 =
+                                        curvature_solver.eigenvectors().col(1);
+
+                                    Eigen::Vector3d paraboloid_x_axis =
+                                        eigvec0.x() * tangent0 + eigvec0.y() * tangent1;
+
+                                    Eigen::Vector3d paraboloid_y_axis =
+                                        eigvec1.x() * tangent0 + eigvec1.y() * tangent1;
+
+                                    paraboloid_x_axis.normalize();
+                                    paraboloid_y_axis.normalize();
+
+                                    if (paraboloid_x_axis.cross(paraboloid_y_axis).dot(normal) < 0.0) {
+                                        paraboloid_y_axis *= -1.0;
+                                    }
+
+                                    const double coeff1 =
+                                        0.5 * std::max(0.0, curvature_solver.eigenvalues()(0));
+
+                                    const double coeff2 =
+                                        0.5 * std::max(0.0, curvature_solver.eigenvalues()(1));
+
+                                    const auto reference_frame = IRL::ReferenceFrame(
+                                        IRL::Normal(
+                                            paraboloid_x_axis.x(),
+                                            paraboloid_x_axis.y(),
+                                            paraboloid_x_axis.z()
+                                        ),
+                                        IRL::Normal(
+                                            paraboloid_y_axis.x(),
+                                            paraboloid_y_axis.y(),
+                                            paraboloid_y_axis.z()
+                                        ),
+                                        IRL::Normal(
+                                            normal.x(),
+                                            normal.y(),
+                                            normal.z()
+                                        )
+                                    );
+
+                                    const auto paraboloid = IRL::Paraboloid(
+                                        datum_paraboloid,
+                                        reference_frame,
+                                        coeff1,
+                                        coeff2
+                                    );
+
+                                    auto volume_and_surface =
+                                        getVolumeMoments<VolumeMomentsAndSurface>(
+                                            refined_cell,
+                                            paraboloid
+                                        );
+
+                                    const double refined_volume =
+                                        volume_and_surface.getMoments().volume();
+
+                                    const Eigen::Vector3d refined_first_moment(
+                                        volume_and_surface.getMoments().centroid().x(),
+                                        volume_and_surface.getMoments().centroid().y(),
+                                        volume_and_surface.getMoments().centroid().z()
+                                    );
+
+                                    vfrac[coarse_i][coarse_j][coarse_k] += refined_volume;
+
+                                    firstMoment[coarse_i][coarse_j][coarse_k] +=
+                                        refined_first_moment;
+
+                                    auto surface = volume_and_surface.getSurface();
+
+                                    area[coarse_i][coarse_j][coarse_k] +=
+                                        surface.getSurfaceArea();
+
+                                    if (secondMoment != nullptr) {
+                                        auto refined_general_moments =
+                                            IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(
+                                                refined_cell,
+                                                paraboloid
+                                            );
+
+                                        total_general_moments += refined_general_moments;
+                                    }
+
+                                    if (visualize) {
+                                        surfaces.push_back(surface);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (secondMoment != nullptr) {
+                *secondMoment = centeredSecondMomentFromTotal(total_general_moments);
+            }
+        }
+
+        void generateEllipsoidDroplet(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            double min_axis = 1e-12,
+            double max_axis = 0.8,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            if (min_axis <= machineZero || max_axis <= min_axis) {
+                throw std::runtime_error("generateEllipsoidDroplet: invalid axis bounds.");
+            }
+
+            auto random_rotation_matrix = [&]() {
                 std::uniform_real_distribution<double> random_unit(0.0, 1.0);
+
                 const double u1 = random_unit(eng);
                 const double u2 = random_unit(eng);
                 const double u3 = random_unit(eng);
@@ -2735,30 +3323,42 @@ namespace IRL {
                 const double qz = std::sqrt(u1)       * std::sin(2.0 * M_PI * u3);
                 const double qw = std::sqrt(u1)       * std::cos(2.0 * M_PI * u3);
 
-                Eigen::Quaterniond random_quaternion(qw, qx, qy, qz);
-                random_quaternion.normalize();
+                Eigen::Quaterniond q(qw, qx, qy, qz);
+                q.normalize();
 
-                const Eigen::Matrix3d R = random_quaternion.toRotationMatrix();
+                return q.toRotationMatrix();
+            };
 
-                // Random position. This lets the ellipsoid intersect the central cell
-                // from many offsets, similar to the sphere generator.
-                const Eigen::Vector3d origin =
-                    generateRandomPoint(-0.5 - max_semi_axis, 0.5 + max_semi_axis, eng);
-
-                // World-space implicit ellipsoid matrix:
-                //
-                //     (x - origin)^T A (x - origin) = 1
-                //
-                const Eigen::Vector3d inv_axes_sq(
-                    1.0 / (a * a),
-                    1.0 / (b * b),
-                    1.0 / (c * c)
+            while (true) {
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
                 );
 
-                const Eigen::Matrix3d A =
-                    R * inv_axes_sq.asDiagonal() * R.transpose();
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+                std::vector<double> coarse_coords(stencil_size + 1);
 
-                // Exact world-space AABB half-widths of the rotated ellipsoid.
+                double a = max_axis;
+                double b = max_axis;
+                double c = max_axis;
+
+                if (ellipsoid_subgrid_stddev > 0.0) {
+                    // Sample axis lengths from truncated normal distributions
+                    a = sample_truncated_normal(max_axis, ellipsoid_subgrid_stddev, min_axis, max_axis);
+                    b = sample_truncated_normal(max_axis, ellipsoid_subgrid_stddev, min_axis, max_axis);
+                    c = sample_truncated_normal(max_axis, ellipsoid_subgrid_stddev, min_axis, max_axis);
+                } else {
+                    std::uniform_real_distribution<double> random_axis(min_axis, max_axis);
+                    a = random_axis(eng);
+                    b = random_axis(eng);
+                    c = random_axis(eng);
+                }
+
+                const Eigen::Matrix3d R = random_rotation_matrix();
+
                 Eigen::Vector3d half_extent;
                 for (int d = 0; d < 3; ++d) {
                     half_extent[d] = std::sqrt(
@@ -2768,391 +3368,618 @@ namespace IRL {
                     );
                 }
 
-                const double ellipsoid_min_x = origin.x() - half_extent.x();
-                const double ellipsoid_max_x = origin.x() + half_extent.x();
-                const double ellipsoid_min_y = origin.y() - half_extent.y();
-                const double ellipsoid_max_y = origin.y() + half_extent.y();
-                const double ellipsoid_min_z = origin.z() - half_extent.z();
-                const double ellipsoid_max_z = origin.z() + half_extent.z();
+                // Origin within central cell plus 1/2 of the rotated ellipsoid AABB
+                // in each coordinate direction.
+                std::uniform_real_distribution<double> random_x(
+                    -0.5 - half_extent.x(),
+                    0.5 + half_extent.x()
+                );
 
-                // Zero outputs before accumulation.
-                for (int i = 0; i < stencil_size; ++i) {
-                    for (int j = 0; j < stencil_size; ++j) {
-                        for (int k = 0; k < stencil_size; ++k) {
-                            vfrac[i][j][k] = 0.0;
-                            firstMoment[i][j][k].setZero();
-                            area[i][j][k] = 0.0;
-                        }
+                std::uniform_real_distribution<double> random_y(
+                    -0.5 - half_extent.y(),
+                    0.5 + half_extent.y()
+                );
+
+                std::uniform_real_distribution<double> random_z(
+                    -0.5 - half_extent.z(),
+                    0.5 + half_extent.z()
+                );
+
+                const Eigen::Vector3d origin(
+                    random_x(eng),
+                    random_y(eng),
+                    random_z(eng)
+                );
+
+                generateSpecificEllipsoid(
+                    vfrac,
+                    firstMoment,
+                    area,
+                    centroid,
+                    surfaces,
+                    origin,
+                    R.col(0),
+                    R.col(1),
+                    R.col(2),
+                    a,
+                    b,
+                    c,
+                    coarse_coords,
+                    secondMoment
+                );
+
+                const int mid = stencil_size / 2;
+                const double center_vfrac = vfrac[mid][mid][mid];
+
+                if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
+                    if (visualize) {
+                        WriteField(stencil_size, coarse_coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
                     }
+
+                    return;
                 }
+            }
+        }
 
-                using VolumeMomentsAndSurface =
-                    AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+        void generateEllipsoidLigament(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            double min_long_axis = 1.5,
+            double max_long_axis = 2.5,
+            double min_short_axis = 1e-12,
+            double max_short_axis = 0.8,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            if (min_long_axis <= machineZero ||
+                max_long_axis <= min_long_axis ||
+                min_short_axis <= machineZero ||
+                max_short_axis <= min_short_axis) {
+                throw std::runtime_error("generateEllipsoidLigament: invalid axis bounds.");
+            }
 
-                IRL::GeneralMoments3D<2> total_general_moments =
-                    IRL::GeneralMoments3D<2>::fromScalarConstant(0.0);
+            auto random_rotation_matrix = [&]() {
+                std::uniform_real_distribution<double> random_unit(0.0, 1.0);
 
-                // ------------------------------------------------------------
-                // Analytical shortcut if the entire rotated ellipsoid AABB fits
-                // inside one coarse cell.
-                // ------------------------------------------------------------
-                int ci = clamp_coarse_index(
-                    static_cast<int>(std::floor(origin.x() - coarse_stencil_min))
+                const double u1 = random_unit(eng);
+                const double u2 = random_unit(eng);
+                const double u3 = random_unit(eng);
+
+                const double qx = std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
+                const double qy = std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
+                const double qz = std::sqrt(u1)       * std::sin(2.0 * M_PI * u3);
+                const double qw = std::sqrt(u1)       * std::cos(2.0 * M_PI * u3);
+
+                Eigen::Quaterniond q(qw, qx, qy, qz);
+                q.normalize();
+
+                return q.toRotationMatrix();
+            };
+
+            while (true) {
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
                 );
-                int cj = clamp_coarse_index(
-                    static_cast<int>(std::floor(origin.y() - coarse_stencil_min))
-                );
-                int ck = clamp_coarse_index(
-                    static_cast<int>(std::floor(origin.z() - coarse_stencil_min))
-                );
 
-                const double x0 = coarse_stencil_min + static_cast<double>(ci);
-                const double x1 = x0 + 1.0;
-                const double y0 = coarse_stencil_min + static_cast<double>(cj);
-                const double y1 = y0 + 1.0;
-                const double z0 = coarse_stencil_min + static_cast<double>(ck);
-                const double z1 = z0 + 1.0;
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+                std::vector<double> coarse_coords(stencil_size + 1);
 
-                const bool ellipsoid_fully_inside_some_cell =
-                    (ellipsoid_min_x >= x0) && (ellipsoid_max_x <= x1) &&
-                    (ellipsoid_min_y >= y0) && (ellipsoid_max_y <= y1) &&
-                    (ellipsoid_min_z >= z0) && (ellipsoid_max_z <= z1);
+                double a = max_long_axis;
+                double b = max_short_axis;
+                double c = max_short_axis;
 
-                if (ellipsoid_fully_inside_some_cell) {
-                    const double V = (4.0 / 3.0) * M_PI * a * b * c;
-
-                    vfrac[ci][cj][ck] = V;
-                    firstMoment[ci][cj][ck] = V * origin;
-
-                    // Knud Thomsen approximation for ellipsoid surface area.
-                    const double p = 1.6075;
-                    area[ci][cj][ck] =
-                        4.0 * M_PI *
-                        std::pow(
-                            (
-                                std::pow(a, p) * std::pow(b, p) +
-                                std::pow(a, p) * std::pow(c, p) +
-                                std::pow(b, p) * std::pow(c, p)
-                            ) / 3.0,
-                            1.0 / p
-                        );
-
-                    if (secondMoment != nullptr) {
-                        const Eigen::Vector3d axes_sq(a * a, b * b, c * c);
-
-                        // Centered second moment tensor of a solid ellipsoid.
-                        *secondMoment =
-                            (V / 5.0) *
-                            R * axes_sq.asDiagonal() * R.transpose();
-                    }
+                if (ellipsoid_subgrid_stddev > 0.0) {
+                    // Sample axis lengths from truncated normal distributions
+                    b = sample_truncated_normal(max_short_axis, ellipsoid_subgrid_stddev, min_short_axis, max_short_axis);
+                    c = sample_truncated_normal(max_short_axis, ellipsoid_subgrid_stddev, min_short_axis, max_short_axis);
                 } else {
-                    // ------------------------------------------------------------
-                    // Refined paraboloid intersection path.
-                    // ------------------------------------------------------------
+                    std::uniform_real_distribution<double> random_axis(min_short_axis, max_short_axis);
+                    b = random_axis(eng);
+                    c = random_axis(eng);
+                }
 
-                    const int min_refined_cells_across_smallest_diameter = 5;
+                std::uniform_real_distribution<double> random_long_axis(
+                    min_long_axis,
+                    max_long_axis
+                );
+                a = random_long_axis(eng);
 
-                    const int refinement_factor = std::max(
-                        1,
-                        static_cast<int>(
-                            std::ceil(
-                                static_cast<double>(min_refined_cells_across_smallest_diameter) /
-                                (2.0 * min_semi_axis)
-                            )
-                        )
-                    );
+                const double shortest_axis = std::min(b, c);
 
-                    const double refined_cell_size =
-                        1.0 / static_cast<double>(refinement_factor);
+                const Eigen::Matrix3d R = random_rotation_matrix();
 
-                    auto clamp_refined_index = [&](int index_value) {
-                        return std::max(0, std::min(refinement_factor - 1, index_value));
-                    };
+                // Origin within central cell plus shortest axis.
+                std::uniform_real_distribution<double> random_origin_coord(
+                    -0.5 - shortest_axis,
+                    0.5 + shortest_axis
+                );
 
-                    int coarse_i_start = clamp_coarse_index(
-                        static_cast<int>(std::floor(ellipsoid_min_x - coarse_stencil_min))
-                    );
-                    int coarse_i_end = clamp_coarse_index(
-                        static_cast<int>(std::floor(ellipsoid_max_x - coarse_stencil_min))
-                    );
+                const Eigen::Vector3d origin(
+                    random_origin_coord(eng),
+                    random_origin_coord(eng),
+                    random_origin_coord(eng)
+                );
 
-                    int coarse_j_start = clamp_coarse_index(
-                        static_cast<int>(std::floor(ellipsoid_min_y - coarse_stencil_min))
-                    );
-                    int coarse_j_end = clamp_coarse_index(
-                        static_cast<int>(std::floor(ellipsoid_max_y - coarse_stencil_min))
-                    );
+                generateSpecificEllipsoid(
+                    vfrac,
+                    firstMoment,
+                    area,
+                    centroid,
+                    surfaces,
+                    origin,
+                    R.col(0),
+                    R.col(1),
+                    R.col(2),
+                    a,
+                    b,
+                    c,
+                    coarse_coords,
+                    secondMoment
+                );
 
-                    int coarse_k_start = clamp_coarse_index(
-                        static_cast<int>(std::floor(ellipsoid_min_z - coarse_stencil_min))
-                    );
-                    int coarse_k_end = clamp_coarse_index(
-                        static_cast<int>(std::floor(ellipsoid_max_z - coarse_stencil_min))
-                    );
+                const int mid = stencil_size / 2;
+                const double center_vfrac = vfrac[mid][mid][mid];
 
-                    for (int coarse_i = coarse_i_start; coarse_i <= coarse_i_end; ++coarse_i) {
-                        const double coarse_x0 = coarse_stencil_min + static_cast<double>(coarse_i);
-
-                        int refined_i_start = clamp_refined_index(
-                            static_cast<int>(
-                                std::floor((ellipsoid_min_x - coarse_x0) / refined_cell_size)
-                            )
-                        );
-                        int refined_i_end = clamp_refined_index(
-                            static_cast<int>(
-                                std::floor((ellipsoid_max_x - coarse_x0) / refined_cell_size)
-                            )
-                        );
-
-                        if (refined_i_end < refined_i_start) continue;
-
-                        for (int coarse_j = coarse_j_start; coarse_j <= coarse_j_end; ++coarse_j) {
-                            const double coarse_y0 = coarse_stencil_min + static_cast<double>(coarse_j);
-
-                            int refined_j_start = clamp_refined_index(
-                                static_cast<int>(
-                                    std::floor((ellipsoid_min_y - coarse_y0) / refined_cell_size)
-                                )
-                            );
-                            int refined_j_end = clamp_refined_index(
-                                static_cast<int>(
-                                    std::floor((ellipsoid_max_y - coarse_y0) / refined_cell_size)
-                                )
-                            );
-
-                            if (refined_j_end < refined_j_start) continue;
-
-                            for (int coarse_k = coarse_k_start; coarse_k <= coarse_k_end; ++coarse_k) {
-                                const double coarse_z0 = coarse_stencil_min + static_cast<double>(coarse_k);
-
-                                int refined_k_start = clamp_refined_index(
-                                    static_cast<int>(
-                                        std::floor((ellipsoid_min_z - coarse_z0) / refined_cell_size)
-                                    )
-                                );
-                                int refined_k_end = clamp_refined_index(
-                                    static_cast<int>(
-                                        std::floor((ellipsoid_max_z - coarse_z0) / refined_cell_size)
-                                    )
-                                );
-
-                                if (refined_k_end < refined_k_start) continue;
-
-                                for (int refined_i_in_coarse = refined_i_start;
-                                    refined_i_in_coarse <= refined_i_end;
-                                    ++refined_i_in_coarse) {
-
-                                    const double refined_x0 =
-                                        coarse_x0 +
-                                        static_cast<double>(refined_i_in_coarse) * refined_cell_size;
-
-                                    const double refined_x1 = refined_x0 + refined_cell_size;
-
-                                    for (int refined_j_in_coarse = refined_j_start;
-                                        refined_j_in_coarse <= refined_j_end;
-                                        ++refined_j_in_coarse) {
-
-                                        const double refined_y0 =
-                                            coarse_y0 +
-                                            static_cast<double>(refined_j_in_coarse) * refined_cell_size;
-
-                                        const double refined_y1 = refined_y0 + refined_cell_size;
-
-                                        for (int refined_k_in_coarse = refined_k_start;
-                                            refined_k_in_coarse <= refined_k_end;
-                                            ++refined_k_in_coarse) {
-
-                                            const double refined_z0 =
-                                                coarse_z0 +
-                                                static_cast<double>(refined_k_in_coarse) *
-                                                refined_cell_size;
-
-                                            const double refined_z1 =
-                                                refined_z0 + refined_cell_size;
-
-                                            auto refined_cell = IRL::RectangularCuboid::fromBoundingPts(
-                                                IRL::Pt(refined_x0, refined_y0, refined_z0),
-                                                IRL::Pt(refined_x1, refined_y1, refined_z1)
-                                            );
-
-                                            const Eigen::Vector3d refined_cell_center(
-                                                0.5 * (refined_x0 + refined_x1),
-                                                0.5 * (refined_y0 + refined_y1),
-                                                0.5 * (refined_z0 + refined_z1)
-                                            );
-
-                                            // Direction from ellipsoid center to this refined cell.
-                                            Eigen::Vector3d direction = refined_cell_center - origin;
-
-                                            if (direction.norm() < 1.0e-14) {
-                                                direction = R.col(0);
-                                            }
-
-                                            direction.normalize();
-
-                                            // Ray/ellipsoid intersection:
-                                            //
-                                            //     datum = origin + t direction
-                                            //     t = 1 / sqrt(direction^T A direction)
-                                            //
-                                            const double ray_denominator =
-                                                std::sqrt(direction.dot(A * direction));
-
-                                            const Eigen::Vector3d datum_eigen =
-                                                origin + direction / ray_denominator;
-
-                                            const IRL::Pt datum_paraboloid(
-                                                datum_eigen.x(),
-                                                datum_eigen.y(),
-                                                datum_eigen.z()
-                                            );
-
-                                            // Outward normal of implicit ellipsoid:
-                                            //
-                                            //     F = y^T A y - 1
-                                            //     grad(F) = 2 A y
-                                            //
-                                            const Eigen::Vector3d centered_datum =
-                                                datum_eigen - origin;
-
-                                            Eigen::Vector3d normal =
-                                                A * centered_datum;
-
-                                            const double normal_denominator = normal.norm();
-
-                                            if (normal_denominator < 1.0e-14) {
-                                                continue;
-                                            }
-
-                                            normal /= normal_denominator;
-
-                                            // Build tangent basis.
-                                            const Eigen::Vector3d tangent0 =
-                                                normal.unitOrthogonal();
-
-                                            const Eigen::Vector3d tangent1 =
-                                                normal.cross(tangent0).normalized();
-
-                                            // Curvature matrix in the tangent plane.
-                                            //
-                                            // For F = y^T A y - 1, the normal curvature in
-                                            // tangent direction t is:
-                                            //
-                                            //     k(t) = t^T A t / |A y|
-                                            //
-                                            Eigen::Matrix2d curvature_matrix;
-                                            curvature_matrix(0, 0) =
-                                                tangent0.dot(A * tangent0) / normal_denominator;
-                                            curvature_matrix(0, 1) =
-                                                tangent0.dot(A * tangent1) / normal_denominator;
-                                            curvature_matrix(1, 0) = curvature_matrix(0, 1);
-                                            curvature_matrix(1, 1) =
-                                                tangent1.dot(A * tangent1) / normal_denominator;
-
-                                            Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d>
-                                                curvature_solver(curvature_matrix);
-
-                                            const Eigen::Vector2d eigvec0 =
-                                                curvature_solver.eigenvectors().col(0);
-
-                                            const Eigen::Vector2d eigvec1 =
-                                                curvature_solver.eigenvectors().col(1);
-
-                                            Eigen::Vector3d paraboloid_x_axis =
-                                                eigvec0.x() * tangent0 + eigvec0.y() * tangent1;
-
-                                            Eigen::Vector3d paraboloid_y_axis =
-                                                eigvec1.x() * tangent0 + eigvec1.y() * tangent1;
-
-                                            paraboloid_x_axis.normalize();
-                                            paraboloid_y_axis.normalize();
-
-                                            // Ensure right-handed frame.
-                                            if (paraboloid_x_axis.cross(paraboloid_y_axis).dot(normal) < 0.0) {
-                                                paraboloid_y_axis *= -1.0;
-                                            }
-
-                                            const double coeff1 =
-                                                0.5 * std::max(0.0, curvature_solver.eigenvalues()(0));
-
-                                            const double coeff2 =
-                                                0.5 * std::max(0.0, curvature_solver.eigenvalues()(1));
-
-                                            const auto reference_frame = IRL::ReferenceFrame(
-                                                IRL::Normal(
-                                                    paraboloid_x_axis.x(),
-                                                    paraboloid_x_axis.y(),
-                                                    paraboloid_x_axis.z()
-                                                ),
-                                                IRL::Normal(
-                                                    paraboloid_y_axis.x(),
-                                                    paraboloid_y_axis.y(),
-                                                    paraboloid_y_axis.z()
-                                                ),
-                                                IRL::Normal(
-                                                    normal.x(),
-                                                    normal.y(),
-                                                    normal.z()
-                                                )
-                                            );
-
-                                            const auto paraboloid = IRL::Paraboloid(
-                                                datum_paraboloid,
-                                                reference_frame,
-                                                coeff1,
-                                                coeff2
-                                            );
-
-                                            auto volume_and_surface =
-                                                getVolumeMoments<VolumeMomentsAndSurface>(
-                                                    refined_cell,
-                                                    paraboloid
-                                                );
-
-                                            const double refined_volume =
-                                                volume_and_surface.getMoments().volume();
-
-                                            const Eigen::Vector3d refined_first_moment(
-                                                volume_and_surface.getMoments().centroid().x(),
-                                                volume_and_surface.getMoments().centroid().y(),
-                                                volume_and_surface.getMoments().centroid().z()
-                                            );
-
-                                            vfrac[coarse_i][coarse_j][coarse_k] += refined_volume;
-                                            firstMoment[coarse_i][coarse_j][coarse_k] +=
-                                                refined_first_moment;
-
-                                            auto surface = volume_and_surface.getSurface();
-
-                                            area[coarse_i][coarse_j][coarse_k] +=
-                                                surface.getSurfaceArea();
-
-                                            if (secondMoment != nullptr) {
-                                                auto refined_general_moments =
-                                                    IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(
-                                                        refined_cell,
-                                                        paraboloid
-                                                    );
-
-                                                total_general_moments += refined_general_moments;
-                                            }
-
-                                            if (visualize) {
-                                                surfaces.push_back(surface);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
+                    if (visualize) {
+                        WriteField(stencil_size, coarse_coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
                     }
 
-                    if (secondMoment != nullptr) {
-                        *secondMoment = centeredSecondMomentFromTotal(total_general_moments);
+                    return;
+                }
+            }
+        }
+
+        void generateEllipsoidLigamentTip(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            double min_long_axis = 1.5,
+            double max_long_axis = 2.5,
+            double min_short_axis = 1e-12,
+            double max_short_axis = 0.8,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            if (min_long_axis <= machineZero ||
+                max_long_axis <= min_long_axis ||
+                min_short_axis < machineZero ||
+                max_short_axis <= min_short_axis) {
+                throw std::runtime_error("generateEllipsoidLigamentTip: invalid axis bounds.");
+            }
+
+            auto random_rotation_matrix = [&]() {
+                std::uniform_real_distribution<double> random_unit(0.0, 1.0);
+
+                const double u1 = random_unit(eng);
+                const double u2 = random_unit(eng);
+                const double u3 = random_unit(eng);
+
+                const double qx = std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
+                const double qy = std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
+                const double qz = std::sqrt(u1)       * std::sin(2.0 * M_PI * u3);
+                const double qw = std::sqrt(u1)       * std::cos(2.0 * M_PI * u3);
+
+                Eigen::Quaterniond q(qw, qx, qy, qz);
+                q.normalize();
+
+                return q.toRotationMatrix();
+            };
+
+            while (true) {
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+                std::vector<double> coarse_coords(stencil_size + 1);
+
+                std::uniform_real_distribution<double> random_long_axis(
+                    min_long_axis,
+                    max_long_axis
+                );
+
+                double a = random_long_axis(eng);
+                double b = max_short_axis;
+                double c = max_short_axis;
+
+                if (ellipsoid_subgrid_stddev > 0.0) {
+                    b = sample_truncated_normal(
+                        max_short_axis,
+                        ellipsoid_subgrid_stddev,
+                        min_short_axis,
+                        max_short_axis
+                    );
+
+                    c = sample_truncated_normal(
+                        max_short_axis,
+                        ellipsoid_subgrid_stddev,
+                        min_short_axis,
+                        max_short_axis
+                    );
+                } else {
+                    std::uniform_real_distribution<double> random_short_axis(
+                        min_short_axis,
+                        max_short_axis
+                    );
+
+                    b = random_short_axis(eng);
+                    c = random_short_axis(eng);
+                }
+
+                const Eigen::Matrix3d R = random_rotation_matrix();
+
+                const Eigen::Vector3d long_axis_direction = R.col(0);
+
+                // ligament tip point
+                const Eigen::Vector3d ligament_tip =
+                    generateRandomPoint(-0.5, 0.5, eng);
+                // origin is shifted from ligament tip by a along the long axis direction, so that the ligament tip is at the surface of the ellipsoid
+                const Eigen::Vector3d origin =
+                    ligament_tip + a * long_axis_direction;
+
+                generateSpecificEllipsoid(
+                    vfrac,
+                    firstMoment,
+                    area,
+                    centroid,
+                    surfaces,
+                    origin,
+                    R.col(0),
+                    R.col(1),
+                    R.col(2),
+                    a,
+                    b,
+                    c,
+                    coarse_coords,
+                    secondMoment
+                );
+
+                const int mid = stencil_size / 2;
+                const double center_vfrac = vfrac[mid][mid][mid];
+
+                if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
+                    if (visualize) {
+                        WriteField(stencil_size, coarse_coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        void generateEllipsoidSheet(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            double min_long_axis = 8.66,
+            double max_long_axis = 15.0,
+            double min_short_axis = 1e-12,
+            double max_short_axis = 0.8,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            if (min_long_axis <= machineZero ||
+                max_long_axis <= min_long_axis ||
+                min_short_axis <= machineZero ||
+                max_short_axis <= min_short_axis) {
+                throw std::runtime_error("generateEllipsoidLigament: invalid axis bounds.");
+            }
+
+            auto random_rotation_matrix = [&]() {
+                std::uniform_real_distribution<double> random_unit(0.0, 1.0);
+
+                const double u1 = random_unit(eng);
+                const double u2 = random_unit(eng);
+                const double u3 = random_unit(eng);
+
+                const double qx = std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
+                const double qy = std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
+                const double qz = std::sqrt(u1)       * std::sin(2.0 * M_PI * u3);
+                const double qw = std::sqrt(u1)       * std::cos(2.0 * M_PI * u3);
+
+                Eigen::Quaterniond q(qw, qx, qy, qz);
+                q.normalize();
+
+                return q.toRotationMatrix();
+            };
+
+            while (true) {
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+                std::vector<double> coarse_coords(stencil_size + 1);
+
+                double a = max_long_axis;
+                double b = max_short_axis;
+                double c = max_short_axis;
+
+                if (ellipsoid_subgrid_stddev > 0.0) {
+                    // Sample axis lengths from truncated normal distributions
+                    c = sample_truncated_normal(max_short_axis, ellipsoid_subgrid_stddev, min_short_axis, max_short_axis);
+                } else {
+                    std::uniform_real_distribution<double> random_axis(min_short_axis, max_short_axis);
+                    c = random_axis(eng);
+                }
+
+                std::uniform_real_distribution<double> random_long_axis(
+                    min_long_axis,
+                    max_long_axis
+                );
+                a = random_long_axis(eng);
+                b = random_long_axis(eng);
+
+                const double shortest_axis = c;
+
+                const Eigen::Matrix3d R = random_rotation_matrix();
+
+                // Origin within central cell plus shortest axis.
+                std::uniform_real_distribution<double> random_origin_coord(
+                    -0.5 - shortest_axis,
+                    0.5 + shortest_axis
+                );
+
+                const Eigen::Vector3d origin(
+                    random_origin_coord(eng),
+                    random_origin_coord(eng),
+                    random_origin_coord(eng)
+                );
+
+                generateSpecificEllipsoid(
+                    vfrac,
+                    firstMoment,
+                    area,
+                    centroid,
+                    surfaces,
+                    origin,
+                    R.col(0),
+                    R.col(1),
+                    R.col(2),
+                    a,
+                    b,
+                    c,
+                    coarse_coords,
+                    secondMoment
+                );
+
+                const int mid = stencil_size / 2;
+                const double center_vfrac = vfrac[mid][mid][mid];
+
+                if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
+                    if (visualize) {
+                        WriteField(stencil_size, coarse_coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        void generateEllipsoidSheetEdge(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            double min_large_axis = 3.0,
+            double max_large_axis = 5.0,
+            double min_short_axis = 1e-12,
+            double max_short_axis = 1.6,
+            bool cut_inside_central_cell = true,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            if (min_large_axis <= machineZero ||
+                max_large_axis <= min_large_axis ||
+                min_short_axis < machineZero ||
+                max_short_axis <= min_short_axis) {
+                throw std::runtime_error("generate_ellipsoid_sheet_edge: invalid axis bounds.");
+            }
+
+            auto random_rotation_matrix = [&]() {
+                std::uniform_real_distribution<double> random_unit(0.0, 1.0);
+
+                const double u1 = random_unit(eng);
+                const double u2 = random_unit(eng);
+                const double u3 = random_unit(eng);
+
+                const double qx = std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
+                const double qy = std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
+                const double qz = std::sqrt(u1)       * std::sin(2.0 * M_PI * u3);
+                const double qw = std::sqrt(u1)       * std::cos(2.0 * M_PI * u3);
+
+                Eigen::Quaterniond q(qw, qx, qy, qz);
+                q.normalize();
+
+                return q.toRotationMatrix();
+            };
+
+            auto distance_to_box_exit = [](
+                const Eigen::Vector3d& point,
+                const Eigen::Vector3d& direction,
+                double box_min,
+                double box_max)
+            {
+                double distance = std::numeric_limits<double>::infinity();
+
+                for (int d = 0; d < 3; ++d) {
+                    if (direction[d] > 1.0e-14) {
+                        distance = std::min(
+                            distance,
+                            (box_max - point[d]) / direction[d]
+                        );
+                    } else if (direction[d] < -1.0e-14) {
+                        distance = std::min(
+                            distance,
+                            (box_min - point[d]) / direction[d]
+                        );
                     }
                 }
 
-                // Same acceptance logic as your sphere generator.
+                return distance;
+            };
+
+            while (true) {
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+                std::vector<double> coarse_coords(stencil_size + 1);
+
+                std::uniform_real_distribution<double> random_large_axis(
+                    min_large_axis,
+                    max_large_axis
+                );
+
+                double a = random_large_axis(eng);
+                double b = random_large_axis(eng);
+                double c = max_short_axis;
+
+                if (ellipsoid_subgrid_stddev > 0.0) {
+                    c = sample_truncated_normal(
+                        max_short_axis,
+                        ellipsoid_subgrid_stddev,
+                        min_short_axis,
+                        max_short_axis
+                    );
+                } else {
+                    std::uniform_real_distribution<double> random_short_axis(
+                        min_short_axis,
+                        max_short_axis
+                    );
+
+                    c = random_short_axis(eng);
+                }
+
+                // Ranfom Orientation
+                const Eigen::Matrix3d R = random_rotation_matrix();
+
+                const Eigen::Vector3d a_direction = R.col(0);
+                const Eigen::Vector3d b_direction = R.col(1);
+                const Eigen::Vector3d c_direction = R.col(2);
+
+                Eigen::Vector3d origin;
+
+                // Origin Placement
+                if (cut_inside_central_cell) {
+                    const Eigen::Vector3d sheet_edge_point =
+                        generateRandomPoint(-0.5, 0.5, eng);
+
+                    origin = sheet_edge_point + a * a_direction;
+                } else {
+                    // Sheet plane cuts the central cell, but the ellipsoid
+                    // center is shifted in the negative a-direction.
+                    //
+                    // We first choose a point in the central cell. This point
+                    // lies in the sheet plane spanned by a_direction and
+                    // b_direction.
+                    //
+                    // Then we move the origin negatively along a_direction.
+                    //
+                    // Minimum distance:
+                    //     far enough that the origin leaves the central cell.
+                    //
+                    // Maximum distance:
+                    //     as far as possible before reaching the stencil edge.
+
+                    const Eigen::Vector3d central_plane_point =
+                        generateRandomPoint(-0.5, 0.5, eng);
+
+                    const Eigen::Vector3d negative_a_direction =
+                        -a_direction;
+
+                    const double distance_to_leave_central_cell =
+                        distance_to_box_exit(
+                            central_plane_point,
+                            negative_a_direction,
+                            -0.5,
+                            0.5
+                        );
+
+                    const double stencil_min =
+                        -0.5 * static_cast<double>(stencil_size);
+
+                    const double stencil_max =
+                        0.5 * static_cast<double>(stencil_size);
+
+                    const double distance_to_stencil_edge =
+                        distance_to_box_exit(
+                            central_plane_point,
+                            negative_a_direction,
+                            stencil_min,
+                            stencil_max
+                        );
+
+                    // Need a small positive buffer so the origin is actually
+                    // outside the central cell, not exactly on its boundary.
+                    const double min_shift =
+                        distance_to_leave_central_cell + 1.0e-10;
+
+                    // To keep the chosen central point inside the ellipsoid
+                    // along the a-direction, the shift should not exceed a.
+                    //
+                    // The requested geometric maximum is the stencil edge.
+                    // This cap keeps the construction useful/rejects less often.
+                    const double max_shift =
+                        std::min(distance_to_stencil_edge, 0.999 * a);
+
+                    if (max_shift <= min_shift) {
+                        continue;
+                    }
+
+                    std::uniform_real_distribution<double> random_shift(
+                        min_shift,
+                        max_shift
+                    );
+
+                    const double shift = random_shift(eng);
+
+                    origin = central_plane_point + shift * negative_a_direction;
+
+                    // Equivalent:
+                    //
+                    //     origin = central_plane_point - shift * a_direction
+                    //
+                    // so the center is outside the central cell in the
+                    // negative-a direction, while central_plane_point remains
+                    // in the sheet's a-b plane.
+                }
+
+                generateSpecificEllipsoid(
+                    vfrac,
+                    firstMoment,
+                    area,
+                    centroid,
+                    surfaces,
+                    origin,
+                    a_direction,
+                    b_direction,
+                    c_direction,
+                    a,
+                    b,
+                    c,
+                    coarse_coords,
+                    secondMoment
+                );
+
                 const int mid = stencil_size / 2;
                 const double center_vfrac = vfrac[mid][mid][mid];
 
@@ -3171,7 +3998,7 @@ namespace IRL {
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
-            bool truncateInsideCentralCell, double min_radius = machineZero, double max_radius = 0.5, //double radius_stddev = 0.0, 
+            bool truncateInsideCentralCell, double min_radius = 1e-12, double max_radius = 0.5, //double radius_stddev = 0.0, 
             //double radius_circle_min = 2.5, double radius_circle_max = 10.0,
             //bool visualize = false,
             Eigen::Matrix3d* secondMoment = nullptr)
@@ -3250,39 +4077,147 @@ namespace IRL {
                 }
                 */
 
+                // Refined mesh
+                const double cell_volume = 1.0;
+                double max_refinement_factor = 8.0;
+                double refinement_factor_double = std::ceil(3.0/(2.0*tube_radius)); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
+                int refinement_factor = static_cast<int>(refinement_factor_double);
+                int refined_stencil_size = refinement_factor * stencil_size;
+                bool approximate_with_cylinders = false;
+                if (refinement_factor_double > max_refinement_factor) {
+                    approximate_with_cylinders = true;
+                    sphere_radius = 0.0; //In this case don't consider a sphere cap
+                }
+
                 // pick random theta_cut on full circle and accept only if it satisfies your constraints
                 double theta_cut = 0.0;
                 Eigen::Vector3d sphere_origin = Eigen::Vector3d::Zero();
 
-                // distance from origin to closest point on the circle (d_min_circle)
-                // (use closest-point angle for origin)
                 {
-                    Eigen::Vector3d O(0.0, 0.0, 0.0);
-                    double theta_star_O = angleOnCirclePlane(O, c0, u, v);
-                    Eigen::Vector3d closest_O = centerlinePoint(theta_star_O, c0, radius_circle, u, v);
-                    double d_min_circle = closest_O.norm();
+                    // Exact central coarse-cell box.
+                    // For stencil_size = 5 this is [-0.5, 0.5]^3.
+                    auto coords_for_center_cell = makeCenteredCoords(stencil_size);
+                    const int mid = stencil_size / 2;
 
-                    // Try a few theta samples; if none work, restart outer while(true)
+                    const Eigen::Vector3d central_min(
+                        coords_for_center_cell[mid],
+                        coords_for_center_cell[mid],
+                        coords_for_center_cell[mid]);
+
+                    const Eigen::Vector3d central_max(
+                        coords_for_center_cell[mid + 1],
+                        coords_for_center_cell[mid + 1],
+                        coords_for_center_cell[mid + 1]);
+
+                    auto pointAABBDistanceSq = [](
+                        const Eigen::Vector3d& p,
+                        const Eigen::Vector3d& bmin,
+                        const Eigen::Vector3d& bmax)
+                    {
+                        double d2 = 0.0;
+
+                        for (int a = 0; a < 3; ++a) {
+                            if (p[a] < bmin[a]) {
+                                const double d = bmin[a] - p[a];
+                                d2 += d * d;
+                            } else if (p[a] > bmax[a]) {
+                                const double d = p[a] - bmax[a];
+                                d2 += d * d;
+                            }
+                        }
+
+                        return d2;
+                    };
+
+                    auto pointAABBFarthestDistanceSq = [](
+                        const Eigen::Vector3d& p,
+                        const Eigen::Vector3d& bmin,
+                        const Eigen::Vector3d& bmax)
+                    {
+                        double d2 = 0.0;
+
+                        for (int a = 0; a < 3; ++a) {
+                            const double d_to_min = std::abs(p[a] - bmin[a]);
+                            const double d_to_max = std::abs(p[a] - bmax[a]);
+                            const double d = std::max(d_to_min, d_to_max);
+                            d2 += d * d;
+                        }
+
+                        return d2;
+                    };
+
+                    auto sphereSurfaceCutsAABB = [&](
+                        const Eigen::Vector3d& center,
+                        const double radius,
+                        const Eigen::Vector3d& bmin,
+                        const Eigen::Vector3d& bmax)
+                    {
+                        const double r2 = radius * radius;
+                        const double eps = 1.0e-12;
+
+                        const double dmin2 = pointAABBDistanceSq(center, bmin, bmax);
+                        const double dmax2 = pointAABBFarthestDistanceSq(center, bmin, bmax);
+
+                        // Surface cuts the box iff the box contains points both inside and outside
+                        // the sphere, including tangential tolerance.
+                        return dmin2 <= r2 + eps && dmax2 >= r2 - eps;
+                    };
+
+                    auto sphereSolidIntersectsAABB = [&](
+                        const Eigen::Vector3d& center,
+                        const double radius,
+                        const Eigen::Vector3d& bmin,
+                        const Eigen::Vector3d& bmax)
+                    {
+                        const double r2 = radius * radius;
+                        const double eps = 1.0e-12;
+
+                        const double dmin2 = pointAABBDistanceSq(center, bmin, bmax);
+
+                        // Solid sphere intersects the box iff the closest point in the box is
+                        // within the radius.
+                        return dmin2 <= r2 + eps;
+                    };
+
+                    // Try a few theta samples; if none work, restart outer while(true).
                     bool found = false;
                     std::uniform_real_distribution<double> dist_theta(-M_PI, M_PI);
-                    for (int tries = 0; tries < 64; ++tries) {
-                        double t = dist_theta(eng);
-                        Eigen::Vector3d p_cut = centerlinePoint(t, c0, radius_circle, u, v);
 
-                        // within stencil + sphere_radius (use infinity norm / bounding cube check)
-                        double half = 0.5 * static_cast<double>(stencil_size);
-                        double maxAbs = std::max({std::abs(p_cut.x()), std::abs(p_cut.y()), std::abs(p_cut.z())});
+                    for (int tries = 0; tries < 64; ++tries) {
+                        const double t = dist_theta(eng);
+                        const Eigen::Vector3d p_cut = centerlinePoint(t, c0, radius_circle, u, v);
+
+                        // Keep cap center close enough to the stencil that the truncation is relevant.
+                        const double half = 0.5 * static_cast<double>(stencil_size);
+                        const double maxAbs = p_cut.cwiseAbs().maxCoeff();
                         if (maxAbs > half + sphere_radius) continue;
 
-                        // If truncateInsideCentralCell == false: require OUTSIDE  => ||p_cut|| > d_min_circle + sphere_radius
-                        // If truncateInsideCentralCell == true : require INSIDE   => ||p_cut|| <= d_min_circle + sphere_radius
-                        const double thresh_outside = half_diag;
-                        const double thresh_inside = 0.5;
-                        const double dist_p_cut  = p_cut.norm(); // distance from origin to point on circle at theta_cut, which is the center of the spherical truncation cap
-                        if (!truncateInsideCentralCell) {
-                            if (std::abs(dist_p_cut - sphere_radius) < thresh_outside) continue; // want outside, but it's inside
+                        if (truncateInsideCentralCell) {
+                            // Tip case:
+                            // Require the spherical cap surface to actually cut the central cell.
+                            // This excludes cap spheres that are fully outside or fully contain
+                            // the central cell.
+                            const bool cap_cuts_central_cell =
+                                sphereSurfaceCutsAABB(
+                                    p_cut,
+                                    sphere_radius,
+                                    central_min,
+                                    central_max);
+
+                            if (!cap_cuts_central_cell) continue;
                         } else {
-                            if (std::abs(dist_p_cut - sphere_radius) > thresh_inside) continue; // want inside, but it's outside
+                            // Non-tip truncated-cylinder case:
+                            // Require theta_cut to be outside the central-cell + sphere-radius
+                            // region. Equivalently, the cap sphere must not touch the central
+                            // cell at all: not fully inside, not partially intersecting, not cutting.
+                            const bool cap_touches_central_cell =
+                                sphereSolidIntersectsAABB(
+                                    p_cut,
+                                    sphere_radius,
+                                    central_min,
+                                    central_max);
+
+                            if (cap_touches_central_cell) continue;
                         }
 
                         theta_cut = t;
@@ -3290,6 +4225,7 @@ namespace IRL {
                         found = true;
                         break;
                     }
+
                     if (!found) continue;
                 }
 
@@ -3304,13 +4240,8 @@ namespace IRL {
                     return (t >= theta_start && t <= theta_cut);
                 };
 
-                // Refined mesh
-                const double cell_volume = 1.0;
-                double max_refinement_factor = 8.0;
-                double refinement_factor_double = std::ceil(3.0/(2.0*tube_radius)); // want at least ~3 samples across the tube diameter for decent accuracy, can adjust this heuristic as needed
-                int refinement_factor = static_cast<int>(refinement_factor_double);
-                int refined_stencil_size = refinement_factor * stencil_size;
-                // need to declare refined coords outside if below:
+                
+
                 // Refined cell coordinates
                 auto coords = std::vector<double>(refined_stencil_size + 1);
                 for (int i = 0; i <= refined_stencil_size; i++) {
@@ -3329,7 +4260,7 @@ namespace IRL {
                 Eigen::Matrix3d totalM2 = Eigen::Matrix3d::Zero(); // raw second moment = ∑ ∫ x x^T dV
 
                 if (refinement_factor_double > max_refinement_factor) {
-                    // Analytical approximation with cylinders and a sphere
+                    // Analytical approximation with cylinders
                     const double maxSegLen = 0.25;   // max line length in world units (cell size = 1)
                     const double cell_volume = 1.0;
                     const int mid = stencil_size / 2;
@@ -3356,7 +4287,7 @@ namespace IRL {
                         IRL::GeneralMoments3D<2>::fromScalarConstant(0.0);
 
                     std::vector<double> sphere_coarse_coords(stencil_size + 1); // Should be the same as coarse coords above
-
+                    /* In the past I made a sphere + the cylinders, that led to a confusion with the sphere only class
                     generateSpecificSphere(
                         vfrac,
                         firstMoment,
@@ -3367,7 +4298,7 @@ namespace IRL {
                         sphere_radius,
                         sphere_coarse_coords,
                         nullptr   // do not compute centered 2nd moment here, this would require more effort to combine
-                    );
+                    );*/
 
                     // Clip segment p(t)=p0+t*(p1-p0), t in [0,1], to Cell AABB [bmin,bmax]; returns ta,tb range inside box.
                     auto clipSegmentToCell = [&](const Eigen::Vector3d& p0,
@@ -3741,31 +4672,35 @@ namespace IRL {
                 secondMomentPtr = &secondMoment; // This enables calculation of exact 2nd moments for all switch cases below
             }
 
-            // Initialize min and max characteristic lengths
-            double upper_limit_subgrid = std::cbrt(1.0);
-
+            // Initialize characteristic lengths and set min bounds
             double min_cylinder_radius = machineZero;
             double min_sheet_thickness = machineZero;
             double min_sphere_radius = machineZero;
+            double min_small_ellipsoid_axis = 0.42;
             
             double max_cylinder_radius = upper_limit_subgrid/2.0;
             double max_sheet_thickness = upper_limit_subgrid;
             double max_sphere_radius = upper_limit_subgrid/2.0;
+            double max_small_ellipsoid_axis = upper_limit_subgrid/2.0;
 
             // Adjust bounds if well-resolved
             if (well_resolved) {
                 min_cylinder_radius = max_cylinder_radius;
                 min_sheet_thickness = max_sheet_thickness;
                 min_sphere_radius = max_sphere_radius;
+                min_small_ellipsoid_axis = max_small_ellipsoid_axis;
 
-                max_cylinder_radius = class0_max_characteristic;
+                max_cylinder_radius = class0_max_characteristic/2.0;
                 max_sheet_thickness = class0_max_characteristic;
-                max_sphere_radius = class0_max_characteristic;
+                max_sphere_radius = class0_max_characteristic/2.0;
+                max_small_ellipsoid_axis = class0_max_characteristic/2.0;
             }
 
             double transition_sheet_min_subgrid_thickness = machineZero;
             double transition_sheet_max_subgrid_thickness = upper_limit_subgrid;
             double transition_sheet_well_resolved_thickness = class0_max_characteristic;
+
+            
 
             // Decide which shapes to generate
             std::uniform_real_distribution<double> prob_dist(0.0, 1.0);
@@ -3886,10 +4821,23 @@ namespace IRL {
                         break;
                     */
                 case 14:
-                    std::cout << "Generate Ellipsoid" << std::endl;
-                    generateEllipsoid(vfrac, firstMoment, area, stencil_size,
-                                        machineZero, 0.5, 0.0, true, nullptr);
+                    std::cout << "Generate Ellipsoid Droplet" << std::endl;
+                    generateEllipsoidDroplet(vfrac, firstMoment, area, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
                     break;
+                case 15:
+                    std::cout << "Generate Ellipsoid Ligament" << std::endl;
+                    generateEllipsoidLigament(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
+                    break;
+                case 16:
+                    std::cout << "Generate Ellipsoid Ligament Tip" << std::endl;
+                    generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
+                    break;
+                case 17:
+                    std::cout << "Generate Ellipsoid Sheet" << std::endl;
+                    generateEllipsoidSheet(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
+                case 18:
+                    std::cout << "Generate Ellipsoid Sheet Edge" << std::endl;
+                    generateEllipsoidSheetEdge(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, true, nullptr);
                 default:
                     // Paraboloid = case 0
                     generateParaboloid(vfrac, firstMoment, area, secondMomentPtr);
@@ -3920,6 +4868,8 @@ namespace IRL {
             // make flattened_state a vector of floats
             std::vector<float> flattened_state_float(flattened_state.begin(), flattened_state.end());
 
+            // Below: Append 2nd moments and eigenvalues. Now moved to preprocessing. This removes the ability to use accurate 2nd moments, but this has not shown significant improvement yet.
+            /*
             if (include_Moments >= 2) {
                 if (exact_2nd_moment) {
                     // Append exact 2nd moments to flattened_state
@@ -3944,6 +4894,7 @@ namespace IRL {
             if (include_Eigenvalues) {
                 IRL::appendInertiaEigenvalues(flattened_state_float, stencil_size, include_Moments, 1, include_Surface_Area, machineZero);
             }
+            */
 
             return flattened_state_float;
         }

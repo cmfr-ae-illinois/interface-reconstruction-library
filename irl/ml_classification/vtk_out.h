@@ -66,7 +66,8 @@ void WriteField(const int ncells, const std::vector<double>& coords,
   fclose(file);
 }
 
-void WriteSurface(const std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& surfaces,
+template <class SurfaceType>
+void WriteSurface(const std::vector<SurfaceType>& surfaces,
                   const std::string& file_subname) {
   const auto file_name = "./" + file_subname + ".vtu";
   std::vector<IRL::TriangulatedSurfaceOutput> triangulated_surface;

@@ -24,19 +24,29 @@ namespace fs = std::filesystem;
 void find_dataset_size() {
     int stencil_size = 5;
 
-    // Data parameters
+    //Data parameters
+    int no_batches;
     int include_Moments = 1;
     bool include_Surface_Area = false;
+    bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
+    double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
     double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
-    double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    bool include_truncated_cylinder = true;
-    double max_sphere_radius = 0.5;
+    double radius_circle_min = 2.5;
+    double radius_circle_max = 10.0;
     double sphere_radius_stddev = 0.0;
-    bool exact_2nd_moment = true;
+    double ellipsoid_subgrid_stddev = 0.7;
+    double min_long_ellipsoid_axis = 3.0;
+    double max_long_ellipsoid_axis = 5.0;
+    bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    bool visualize = false; // if true, print centroids and / or write surfaces
+    double machineZero = 1e-12;
+    double lower_limit_subgrid = machineZero;
+    double upper_limit_subgrid = std::sqrt(3.0);
+    double class0_max_characteristic = 2.5;
+    float epsilon_connectivity = 1e-12f;
 
     // Net parameters
     int input_size = stencil_size * stencil_size * stencil_size
@@ -102,14 +112,28 @@ void find_dataset_size() {
 
             // For generation/appending, no_batches is only the increment
             ml.updateDataParameters(
-                batch_increment, include_Moments, include_Surface_Area,
+                no_batches,
+                include_Moments,
+                include_Surface_Area,
+                include_Eigenvalues,
                 paraboloid_coeff_stddev,
+                hyperbolic_cylinder_opening_angle_stddev,
                 sheet_coeff_stddev,
-                max_sheet_thickness, sheet_thickness_stddev,
-                max_cylinder_radius, cylinder_radius_stddev, include_truncated_cylinder,
-                max_sphere_radius, sphere_radius_stddev,
-                exact_2nd_moment
-            );
+                sheet_thickness_stddev,
+                cylinder_radius_stddev,
+                radius_circle_min,
+                radius_circle_max,
+                sphere_radius_stddev,
+                ellipsoid_subgrid_stddev,
+                min_long_ellipsoid_axis,
+                max_long_ellipsoid_axis,
+                exact_2nd_moment,
+                visualize,
+                machineZero,
+                lower_limit_subgrid,
+                upper_limit_subgrid,
+                class0_max_characteristic
+            );                
 
             ml.updateTrainingParameters(
                 learning_rate, batch_size, max_epochs,
@@ -255,19 +279,27 @@ void stable_classification() {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096;
+    int no_batches;
     int include_Moments = 1;
     bool include_Surface_Area = false;
-    bool include_Eigenvalues = true;
+    bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
+    double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
     double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
-    double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    double max_sphere_radius = 0.5;
+    double radius_circle_min = 2.5;
+    double radius_circle_max = 10.0;
     double sphere_radius_stddev = 0.0;
+    double ellipsoid_subgrid_stddev = 0.7;
+    double min_long_ellipsoid_axis = 3.0;
+    double max_long_ellipsoid_axis = 5.0;
     bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    bool visualize = false; // if true, print centroids and / or write surfaces
+    double machineZero = 1e-12;
+    double lower_limit_subgrid = machineZero;
+    double upper_limit_subgrid = std::sqrt(3.0);
+    double class0_max_characteristic = 2.5;
     float epsilon_connectivity = 1e-12f;
 
     // Net Parameters
@@ -339,13 +371,29 @@ void stable_classification() {
         // Create a fresh classifier each run (only one dataset in RAM at a time)
         IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
 
-        ml.updateDataParameters(no_batches, include_Moments, include_Surface_Area, include_Eigenvalues,
-                            paraboloid_coeff_stddev,
-                            sheet_coeff_stddev,
-                            max_sheet_thickness, sheet_thickness_stddev,
-                            max_cylinder_radius, cylinder_radius_stddev,
-                            max_sphere_radius, sphere_radius_stddev,
-                            exact_2nd_moment);           
+        ml.updateDataParameters(
+            no_batches,
+            include_Moments,
+            include_Surface_Area,
+            include_Eigenvalues,
+            paraboloid_coeff_stddev,
+            hyperbolic_cylinder_opening_angle_stddev,
+            sheet_coeff_stddev,
+            sheet_thickness_stddev,
+            cylinder_radius_stddev,
+            radius_circle_min,
+            radius_circle_max,
+            sphere_radius_stddev,
+            ellipsoid_subgrid_stddev,
+            min_long_ellipsoid_axis,
+            max_long_ellipsoid_axis,
+            exact_2nd_moment,
+            visualize,
+            machineZero,
+            lower_limit_subgrid,
+            upper_limit_subgrid,
+            class0_max_characteristic
+        );                      
 
         ml.loadDataset(dataset_path);
         //ml.canonicalize_data(canonicalize_symmetries);
@@ -430,19 +478,27 @@ int main (int argc, char* argv[]) {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096;
+    int no_batches;
     int include_Moments = 1;
     bool include_Surface_Area = false;
     bool include_Eigenvalues = true;
     double paraboloid_coeff_stddev = 0.1;
+    double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
     double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 1.0;
     double sheet_thickness_stddev = 0.0;
-    double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    double max_sphere_radius = 0.5;
+    double radius_circle_min = 2.5;
+    double radius_circle_max = 10.0;
     double sphere_radius_stddev = 0.0;
+    double ellipsoid_subgrid_stddev = 0.7;
+    double min_long_ellipsoid_axis = 3.0;
+    double max_long_ellipsoid_axis = 5.0;
     bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    bool visualize = false; // if true, print centroids and / or write surfaces
+    double machineZero = 1e-12;
+    double lower_limit_subgrid = machineZero;
+    double upper_limit_subgrid = std::sqrt(3.0);
+    double class0_max_characteristic = 2.5;
     float epsilon_connectivity = 1e-12f;
 
     // Net Parameters
@@ -466,35 +522,51 @@ int main (int argc, char* argv[]) {
     //IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     
-    ml.updateDataParameters(no_batches, include_Moments, include_Surface_Area, include_Eigenvalues,
-                            paraboloid_coeff_stddev,
-                            sheet_coeff_stddev,
-                            max_sheet_thickness, sheet_thickness_stddev,
-                            max_cylinder_radius, cylinder_radius_stddev,
-                            max_sphere_radius, sphere_radius_stddev,
-                            exact_2nd_moment);                    
-    
+    ml.updateDataParameters(
+            no_batches,
+            include_Moments,
+            include_Surface_Area,
+            include_Eigenvalues,
+            paraboloid_coeff_stddev,
+            hyperbolic_cylinder_opening_angle_stddev,
+            sheet_coeff_stddev,
+            sheet_thickness_stddev,
+            cylinder_radius_stddev,
+            radius_circle_min,
+            radius_circle_max,
+            sphere_radius_stddev,
+            ellipsoid_subgrid_stddev,
+            min_long_ellipsoid_axis,
+            max_long_ellipsoid_axis,
+            exact_2nd_moment,
+            visualize,
+            machineZero,
+            lower_limit_subgrid,
+            upper_limit_subgrid,
+            class0_max_characteristic
+        );                    
+    ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
+
     //ml.generateDataset();
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/data/data.bin");
+    ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k_new/data/data.bin");
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin");
 
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin", false);
     //ml.saveDataset("data");
     int canonicalize_symmetries = 48;
     float noise_stddev = 0.0f;
-    //ml.preprocess_data(canonicalize_symmetries, noise_stddev);
+    ml.preprocess_data(canonicalize_symmetries, noise_stddev);
     //ml.saveDataset("data");
 
     //ml.checkStatesForNaNOrInf();
-
-    ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
-    //ml.trainModel();
-    //ml.outputTrainingResults();
-    //ml.saveModel("model/");
+    
+    ml.trainModel();
+    ml.outputTrainingResults();
+    ml.saveModel("model/");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/ml_model.pt");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/FirstMomentEigenv/s5_262k/stable_run_models/2026-05-09_110350/most agreeing/ml_model.pt");
     //ml.exportRuntimeWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
-    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_524k/model/ml_model.pt");
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_524k/model/ml_model.pt");
     ml.exportRuntimeWeightsAndBiasesHeader();
 
     //IRL::MLClassifierNoTorch ml_no_torch(stencil_size);

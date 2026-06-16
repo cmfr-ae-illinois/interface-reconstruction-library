@@ -32,20 +32,27 @@ protected:
     int early_stop_patience = 8;
 
     //Data Parameters
-    int no_batches = 256;
-    int include_Moments = 0;
+    int no_batches;
+    int no_datapoints = no_batches * batch_size;
+    int include_Moments = 1;
     bool include_Surface_Area = false;
     bool include_Eigenvalues = false;
     double paraboloid_coeff_stddev = 0.1;
+    double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
     double sheet_coeff_stddev = 0.1;
-    double max_sheet_thickness = 0.5;
     double sheet_thickness_stddev = 0.0;
-    double max_cylinder_radius = 0.5;
     double cylinder_radius_stddev = 0.0;
-    double max_sphere_radius = 0.5;
+    double radius_circle_min = 2.5;
+    double radius_circle_max = 10.0;
     double sphere_radius_stddev = 0.0;
-    bool exact_2nd_moment = false;
-    bool visualize = false;
+    double ellipsoid_subgrid_stddev = 0.7;
+    double min_long_ellipsoid_axis = 3.0;
+    double max_long_ellipsoid_axis = 5.0;
+    bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    bool visualize = false; // if true, print centroids and / or write surfaces
+    double machineZero = 1e-12;
+    double lower_limit_subgrid = machineZero;
+    double upper_limit_subgrid = std::sqrt(3.0);
     double class0_max_characteristic = 2.5;
 
     //Internals
@@ -86,31 +93,63 @@ public:
         early_stop_patience = early_stop_pat;
     }
 
-    void updateDataParameters(int incMoments, bool incSurfaceArea, bool incEigenvalues,
-                              double parab_std, double sheet_std,
-                              double max_sheet_th, double sheet_th_std,
-                              double max_cyl_r, double cyl_r_std,
-                              double max_sph_r, double sph_r_std,
-                              bool exact_2nd_mom, bool visualize_in = false,
-                              double class0_max_characteristic_in = 2.5) {
-        include_Moments = incMoments;
-        include_Surface_Area = incSurfaceArea;
-        include_Eigenvalues = incEigenvalues;
-        paraboloid_coeff_stddev = parab_std;
-        sheet_coeff_stddev = sheet_std;
-        max_sheet_thickness = max_sheet_th;
-        sheet_thickness_stddev = sheet_th_std;
-        max_cylinder_radius = max_cyl_r;
-        cylinder_radius_stddev = cyl_r_std;
-        max_sphere_radius = max_sph_r;
-        sphere_radius_stddev = sph_r_std;
+    void updateDataParameters(int no_batches_in, int include_Moments_in, bool include_Surface_Area_in, bool include_Eigenvalues_in,
+                                double paraboloid_coeff_stddev_in, double hyperbolic_cylinder_opening_angle_stddev_in,
+                                double sheet_coeff_stddev_in, double max_sheet_thickness_in, double sheet_thickness_stddev_in,
+                                double max_cylinder_radius_in, double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
+                                double max_sphere_radius_in, double sphere_radius_stddev_in, 
+                                double ellipsoid_subgrid_stddev_in, double min_long_ellipsoid_axis_in, double max_long_ellipsoid_axis_in,
+                                bool exact_2nd_mom = false, bool visualize_in = false, double machineZero_in = 1e-12, 
+                                double lower_limit_subgrid_in = 1e-12, double upper_limit_subgrid_in = 1.732, double class0_max_characteristic_in = 2.5) {
+        no_batches = no_batches_in;
+        no_datapoints = no_batches * batch_size;
+        include_Moments = include_Moments_in;
+        include_Surface_Area = include_Surface_Area_in;
+        include_Eigenvalues = include_Eigenvalues_in;
+        paraboloid_coeff_stddev = paraboloid_coeff_stddev_in;
+        hyperbolic_cylinder_opening_angle_stddev = hyperbolic_cylinder_opening_angle_stddev_in;
+        sheet_coeff_stddev = sheet_coeff_stddev_in;
+        sheet_thickness_stddev = sheet_thickness_stddev_in;
+        cylinder_radius_stddev = cylinder_radius_stddev_in;
+        radius_circle_min = radius_circle_min_in;
+        radius_circle_max = radius_circle_max_in;
+        sphere_radius_stddev = sphere_radius_stddev_in;
+        ellipsoid_subgrid_stddev = ellipsoid_subgrid_stddev_in;
+        min_long_ellipsoid_axis = min_long_ellipsoid_axis_in;
+        max_long_ellipsoid_axis = max_long_ellipsoid_axis_in;
         exact_2nd_moment = exact_2nd_mom;
         visualize = visualize_in;
+        machineZero = machineZero_in;
+        lower_limit_subgrid = lower_limit_subgrid_in;
+        upper_limit_subgrid = upper_limit_subgrid_in;
         class0_max_characteristic = class0_max_characteristic_in;
     }
 
     void generateDataset() {
         IRL::Data_gen data_gen;
+        data_gen.updateDataParameters(
+            no_datapoints,
+            include_Moments,
+            include_Surface_Area,
+            include_Eigenvalues,
+            paraboloid_coeff_stddev,
+            hyperbolic_cylinder_opening_angle_stddev,
+            sheet_coeff_stddev,
+            sheet_thickness_stddev,
+            cylinder_radius_stddev,
+            radius_circle_min,
+            radius_circle_max,
+            sphere_radius_stddev,
+            ellipsoid_subgrid_stddev,
+            min_long_ellipsoid_axis,
+            max_long_ellipsoid_axis,
+            exact_2nd_moment,
+            visualize,
+            machineZero,
+            lower_limit_subgrid,
+            upper_limit_subgrid,
+            class0_max_characteristic
+        );
         using namespace std::chrono;
         // Record start time
         auto start_time = high_resolution_clock::now();
@@ -129,6 +168,29 @@ public:
         std::vector<int> new_labels;
 
         IRL::Data_gen data_gen;
+        data_gen.updateDataParameters(
+            no_datapoints,
+            include_Moments,
+            include_Surface_Area,
+            include_Eigenvalues,
+            paraboloid_coeff_stddev,
+            hyperbolic_cylinder_opening_angle_stddev,
+            sheet_coeff_stddev,
+            sheet_thickness_stddev,
+            cylinder_radius_stddev,
+            radius_circle_min,
+            radius_circle_max,
+            sphere_radius_stddev,
+            ellipsoid_subgrid_stddev,
+            min_long_ellipsoid_axis,
+            max_long_ellipsoid_axis,
+            exact_2nd_moment,
+            visualize,
+            machineZero,
+            lower_limit_subgrid,
+            upper_limit_subgrid,
+            class0_max_characteristic
+        );
 
         using namespace std::chrono;
         auto start_time = high_resolution_clock::now();
@@ -171,22 +233,27 @@ public:
         meta << "output_size " << output_size << "\n";
         meta << "no_batches generated " << no_batches << "\n";
         meta << "batch_size " << batch_size << "\n";
-        meta << "no_samples generated " << no_batches*batch_size << "\n";
-        meta << "generation_time " << generation_time << "\n";
-        meta << "no_batches loaded " << (no_batches - num_samples/batch_size) << "\n";
-        meta << "total samples " << num_samples << "\n";
+        meta << "no_samples generated " << no_datapoints << "\n";
         meta << "include_Moments " << include_Moments << "\n";
         meta << "include_Surface_Area " << include_Surface_Area << "\n";
         meta << "include_Eigenvalues " << include_Eigenvalues << "\n";
         meta << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
+        meta << "hyperbolic_cylinder_opening_angle_stddev " << hyperbolic_cylinder_opening_angle_stddev << "\n";
         meta << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";
-        meta << "max_sheet_thickness " << max_sheet_thickness << "\n";
         meta << "sheet_thickness_stddev " << sheet_thickness_stddev << "\n";
-        meta << "max_cylinder_radius " << max_cylinder_radius << "\n";
         meta << "cylinder_radius_stddev " << cylinder_radius_stddev << "\n";
-        meta << "max_sphere_radius " << max_sphere_radius << "\n";
+        meta << "radius_circle_min " << radius_circle_min << "\n";
+        meta << "radius_circle_max " << radius_circle_max << "\n";
         meta << "sphere_radius_stddev " << sphere_radius_stddev << "\n";
+        meta << "ellipsoid_subgrid_stddev " << ellipsoid_subgrid_stddev << "\n";
+        meta << "min_long_ellipsoid_axis " << min_long_ellipsoid_axis << "\n";
+        meta << "max_long_ellipsoid_axis " << max_long_ellipsoid_axis << "\n";
         meta << "exact_2nd_moment " << exact_2nd_moment << "\n";
+        meta << "visualize " << visualize << "\n";
+        meta << "machineZero " << machineZero << "\n";
+        meta << "lower_limit_subgrid " << lower_limit_subgrid << "\n";
+        meta << "upper_limit_subgrid " << upper_limit_subgrid << "\n";
+        meta << "class0_max_characteristic " << class0_max_characteristic << "\n";
         meta.close();
 
         std::cout << "💾 Dataset and parameters saved to " << dir_path << std::endl;
@@ -460,18 +527,31 @@ public:
         if (!dataset_path.empty()) {
             param_out << dataset_path << std::endl;
         } else {
-            param_out << "no_batches " << no_batches << "\n";
+            param_out << "stencil_size " << stencil_size << "\n";
+            param_out << "output_size " << output_size << "\n";
+            param_out << "no_batches generated " << no_batches << "\n";
+            param_out << "batch_size " << batch_size << "\n";
+            param_out << "no_samples generated " << no_datapoints << "\n";
             param_out << "include_Moments " << include_Moments << "\n";
-            param_out << "include_Surface_Area" << include_Surface_Area << "\n";
+            param_out << "include_Surface_Area " << include_Surface_Area << "\n";
             param_out << "include_Eigenvalues " << include_Eigenvalues << "\n";
             param_out << "paraboloid_coeff_stddev " << paraboloid_coeff_stddev << "\n";
+            param_out << "hyperbolic_cylinder_opening_angle_stddev " << hyperbolic_cylinder_opening_angle_stddev << "\n";
             param_out << "sheet_coeff_stddev " << sheet_coeff_stddev << "\n";
-            param_out << "max_sheet_thickness " << max_sheet_thickness << "\n";
             param_out << "sheet_thickness_stddev " << sheet_thickness_stddev << "\n";
-            param_out << "max_cylinder_radius " << max_cylinder_radius << "\n";
             param_out << "cylinder_radius_stddev " << cylinder_radius_stddev << "\n";
-            param_out << "max_sphere_radius " << max_sphere_radius << "\n";
+            param_out << "radius_circle_min " << radius_circle_min << "\n";
+            param_out << "radius_circle_max " << radius_circle_max << "\n";
             param_out << "sphere_radius_stddev " << sphere_radius_stddev << "\n";
+            param_out << "ellipsoid_subgrid_stddev " << ellipsoid_subgrid_stddev << "\n";
+            param_out << "min_long_ellipsoid_axis " << min_long_ellipsoid_axis << "\n";
+            param_out << "max_long_ellipsoid_axis " << max_long_ellipsoid_axis << "\n";
+            param_out << "exact_2nd_moment " << exact_2nd_moment << "\n";
+            param_out << "visualize " << visualize << "\n";
+            param_out << "machineZero " << machineZero << "\n";
+            param_out << "lower_limit_subgrid " << lower_limit_subgrid << "\n";
+            param_out << "upper_limit_subgrid " << upper_limit_subgrid << "\n";
+            param_out << "class0_max_characteristic " << class0_max_characteristic << "\n";
         }
 
         param_out << "[Network]\n";

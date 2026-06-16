@@ -680,7 +680,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     case 5:
                         no_cut_sheets++;
                         interface_type->SetValue(centerCellId, 5);
-
+                        /*
                         // Debugging: print stencil and moments for first few class 5 predictions
                         static int printed_class5 = 0;
                         if (printed_class5 < 5) {
@@ -702,7 +702,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                                 include_Surface_Area,
                                 include_Eigenvalues
                             );
-
+                            
                             std::cout << "\n============================================================\n";
                             std::cout << "CLASS 5 STENCIL DEBUG #" << printed_class5 << "\n";
                             std::cout << "domain cell = [" << i << "," << j << "," << k << "]\n";
@@ -763,7 +763,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
                             std::cout << "============================================================\n";
                         }
-
+                        */
                         break;
                     default:
                         std::cerr << "Warning: unknown predicted_class = " << predicted_class << std::endl;
