@@ -41,3 +41,5 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/pl
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/plicnet.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/reconstruction_metrics_interface.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/reconstruction_metrics_interface.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/iterative_jibben.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/iterative_jibben.cpp)
