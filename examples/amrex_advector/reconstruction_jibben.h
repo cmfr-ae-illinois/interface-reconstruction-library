@@ -22,7 +22,9 @@ struct Jibben {
                                 SepUnionMultiFab& interface_with_ghost,
                                 const MultiFab& moments, const Geometry& geom) {
     // Produce initial guess with PLICNet
-    PLICNet::GetReconstruction(interface, interface_with_ghost, moments, geom);
+    // PLICNet::GetReconstruction(interface, interface_with_ghost, moments,
+    // geom);
+    LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom);
 
     // Now compute Jibben's reconstruction
     const auto dx = geom.CellSizeArray();
