@@ -118,6 +118,62 @@ const IRL::Polyhedron24 constructCorrectedPreimage(
   return IRL::Polyhedron24::fromRawPtPointer(14, preimage.data());
 };
 
+// using exact velocities for rotation test case
+// const IRL::Polyhedron24 constructCorrectedPreimage(
+//     const int i, const int j, const int k, const double a_dt,
+//     const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
+//     a_W) {
+//   const BasicMesh& mesh = a_U.getMesh();
+//   std::array<IRL::Pt, 14> cell, preimage;
+//   IRL::CappedDodecahedron flux;
+//   // Initialize cell corners
+//   cell[0] = IRL::Pt(mesh.x(i + 1), mesh.y(j), mesh.z(k + 1));
+//   cell[1] = IRL::Pt(mesh.x(i + 1), mesh.y(j), mesh.z(k));
+//   cell[2] = IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k));
+//   cell[3] = IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
+//   cell[4] = IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k + 1));
+//   cell[5] = IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k));
+//   cell[6] = IRL::Pt(mesh.x(i), mesh.y(j + 1), mesh.z(k));
+//   cell[7] = IRL::Pt(mesh.x(i), mesh.y(j + 1), mesh.z(k + 1));
+//   // Compute the back projected cell corners
+//   for (int n = 0; n < 8; ++n) {
+//     preimage[n] = project_vertex(cell[n], -a_dt, a_U, a_V, a_W);
+//   }
+//   // Compute soleinoidal flux volumes
+//   const IRL::Pt xlo_face(mesh.x(i), mesh.ym(j), mesh.zm(k));
+//   const IRL::Pt xhi_face(mesh.x(i + 1), mesh.ym(j), mesh.zm(k));
+//   const IRL::Pt ylo_face(mesh.xm(i), mesh.y(j), mesh.zm(k));
+//   const IRL::Pt yhi_face(mesh.xm(i), mesh.y(j + 1), mesh.zm(k));
+//   const IRL::Pt zlo_face(mesh.xm(i), mesh.ym(j), mesh.z(k));
+//   const IRL::Pt zhi_face(mesh.xm(i), mesh.ym(j), mesh.z(k + 1));
+//   // Exact velocities at face centers
+//   const auto u_xlo = getRotationTestCaseVelocity(xlo_face);
+//   const auto u_xhi = getRotationTestCaseVelocity(xhi_face);
+//   const auto u_ylo = getRotationTestCaseVelocity(ylo_face);
+//   const auto u_yhi = getRotationTestCaseVelocity(yhi_face);
+//   const auto u_zlo = getRotationTestCaseVelocity(zlo_face);
+//   const auto u_zhi = getRotationTestCaseVelocity(zhi_face);
+//   std::array<double, 6> flux_volumes;
+//   flux_volumes[0] = a_dt * u_xlo[0] * mesh.dy() * mesh.dz();
+//   flux_volumes[1] = a_dt * u_xhi[0] * mesh.dy() * mesh.dz();
+//   flux_volumes[2] = a_dt * u_ylo[1] * mesh.dx() * mesh.dz();
+//   flux_volumes[3] = a_dt * u_yhi[1] * mesh.dx() * mesh.dz();
+//   flux_volumes[4] = a_dt * u_zlo[2] * mesh.dx() * mesh.dy();
+//   flux_volumes[5] = a_dt * u_zhi[2] * mesh.dx() * mesh.dy();
+//   // Create face flux hexahedra to compute correction
+//   for (int f = 0; f < 6; f++) {
+//     for (int i = 0; i < 4; i++) {
+//       flux[i] = cell[flux_id_table[f][i]];
+//       flux[i + 4] = preimage[flux_id_table[f][i]];
+//     }
+//     flux[8] = project_vertex(0.25 * (flux[0] + flux[1] + flux[2] + flux[3]),
+//                              -a_dt, a_U, a_V, a_W);
+//     flux.adjustCapToMatchVolume(flux_volumes[f]);
+//     preimage[face_center_id_table[f]] = flux[8];
+//   }
+//   return IRL::Polyhedron24::fromRawPtPointer(14, preimage.data());
+// };
+
 void FullLagrangianCorrected::advectVOF(
     const std::string& a_reconstruction_method, const double a_dt,
     const double a_time, const Data<double>& a_U, const Data<double>& a_V,

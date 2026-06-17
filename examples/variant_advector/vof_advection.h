@@ -59,6 +59,8 @@ inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
 void correctMomentLocations(Data<IRL::VolumeMoments>* a_liq_moments,
                             Data<IRL::VolumeMoments>* a_gas_moments);
 
+inline IRL::Vec3<double> getRotationTestCaseVelocity(const IRL::Pt& a_location);
+
 // ************************************************
 //     Inlined functions below this
 // ************************************************
@@ -87,6 +89,23 @@ inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
          IRL::Pt::fromVec3(a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
 }
 
+// projecting vertices using exact velocities from the rotation test case
+// inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
+//                               const Data<double>& a_U, const Data<double>&
+//                               a_V, const Data<double>& a_W) {
+//   auto v1 = getRotationTestCaseVelocity(a_initial_pt);
+//   // return a_initial_pt + IRL::Pt::fromVec3(a_dt * v1);
+//   auto v2 = getRotationTestCaseVelocity(a_initial_pt +
+//                                         IRL::Pt::fromVec3(0.5 * a_dt * v1));
+//   auto v3 = getRotationTestCaseVelocity(a_initial_pt +
+//                                         IRL::Pt::fromVec3(0.5 * a_dt * v2));
+//   auto v4 =
+//       getRotationTestCaseVelocity(a_initial_pt + IRL::Pt::fromVec3(a_dt *
+//       v3));
+//   return a_initial_pt +
+//          IRL::Pt::fromVec3(a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
+// }
+
 // Lookup tables for construction of flux-corrected Poly24
 static const std::array<std::array<int, 4>, 6> flux_id_table = {{{4, 5, 6, 7},
                                                                  {0, 1, 2, 3},
@@ -95,5 +114,21 @@ static const std::array<std::array<int, 4>, 6> flux_id_table = {{{4, 5, 6, 7},
                                                                  {6, 5, 1, 2},
                                                                  {7, 4, 0, 3}}};
 static const std::array<int, 6> face_center_id_table = {{13, 8, 9, 11, 10, 12}};
+
+// get rotation test case velocity
+inline IRL::Vec3<double> getRotationTestCaseVelocity(
+    const IRL::Pt& a_location) {
+  double T = 1.0;
+  const double vel_scale = 2.0 * M_PI * T;
+  auto plane_normal = IRL::Normal(1.0, 2.0, 3.0);
+  plane_normal.normalize();
+  const auto plane_loc = IRL::Pt(
+      a_location - plane_normal * IRL::dotProduct(plane_normal, a_location));
+  auto vel_dir = IRL::Normal(IRL::crossProduct(plane_normal, plane_loc));
+  vel_dir.normalize();
+  const double vel_mag = vel_scale * IRL::magnitude(plane_loc);
+  return IRL::Vec3<double>(vel_mag * vel_dir[0], vel_mag * vel_dir[1],
+                           vel_mag * vel_dir[2]);
+}
 
 #endif  // EXAMPLES_VARIANT_ADVECTOR_VOF_ADVECTION_H_
