@@ -150,7 +150,20 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
       const amrex::Geometry& a_geom, const double a_dt);
 
-  void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
+  //   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
+
+  //   void WriteUniformMomentsBinary(const amrex::MultiFab& a_uniform_moments,
+  //                                  const std::string& a_filename) const;
+
+  //   std::string UniformMomentsBinaryFileName(const std::string& a_label)
+  //   const;
+
+  amrex::Real ComputeCompositeM0() const;
+
+  //   void ComputeUniformMomentL1Errors(const amrex::MultiFab& a_initial,
+  //                                     const amrex::MultiFab& a_final) const;
+
+  amrex::Real ComputeL1ErrorM0() const;
 
   ////////////////
   // private data members
@@ -228,6 +241,10 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // Number of ghost layers needed for advection
   int num_grow = 1;
+
+  amrex::Real initial_liquid_mass = 0.0;
+  //   amrex::MultiFab uniform_initial_moments;
+  amrex::MultiFab initial_moments;
 };
 
 #include "examples/amrex_advector/amrcore_advector.tpp"
