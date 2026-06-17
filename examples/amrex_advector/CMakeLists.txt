@@ -9,6 +9,7 @@ IRLAddExample_cpp(
   "amrcore_advector.tpp"
   "case_deformation_3d.h"
   "case_translation_3d.h"
+  "case_rotation_3d.h"
   "cases.h"
   "reconstruction_elvira.h"
   "reconstruction_mof1.h"

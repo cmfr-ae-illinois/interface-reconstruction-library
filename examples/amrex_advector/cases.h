@@ -11,6 +11,7 @@
 #define EXAMPLES_AMREX_ADVECTOR_CASES_H_
 
 #include "examples/amrex_advector/case_deformation_3d.h"
+#include "examples/amrex_advector/case_rotation_3d.h"
 #include "examples/amrex_advector/case_translation_3d.h"
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_CASES_H_
