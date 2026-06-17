@@ -12,6 +12,7 @@ IRLAddExample_cpp(
   "solver.h"
   "vof_advection.h"
   "vtk.h"
+  "rotation_3d.h"
   SRCS
   "main.cpp"
   "basic_mesh.cpp"
@@ -21,6 +22,7 @@ IRLAddExample_cpp(
   "translation_3d.cpp"
   "deformation_3d.cpp"
   "vtk.cpp"
+  "rotation_3d.cpp"
   OUTPUT_DIR
   "${IRL_EXAMPLES_OUTPUT_DIR}/variant_advector"
   COLLECTION
