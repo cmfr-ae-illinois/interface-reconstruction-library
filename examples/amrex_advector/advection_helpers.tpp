@@ -23,29 +23,101 @@ inline IRL::Vec3<double> GetVelocity(const IRL::Pt& pt,
   const auto& prob_lo = a_geom.ProbLoArray();
   const auto& lo = lbound(bx);
   const auto& hi = ubound(bx);
-  // Find which cell the point falls in
-  int i = static_cast<int>(Math::floor((pt[0] - prob_lo[0]) / dx[0]));
-  int j = static_cast<int>(Math::floor((pt[1] - prob_lo[1]) / dx[1]));
-  int k = static_cast<int>(Math::floor((pt[2] - prob_lo[2]) / dx[2]));
-  if (!bx.contains(i, j, k)) {
-    std::ostringstream oss;
-    oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
-        << ") leads to index (" << i << "," << j << "," << k
-        << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z << ")x("
-        << hi.x << "," << hi.y << "," << hi.z << ")";
-    throw std::runtime_error(oss.str());
+
+  IRL::Vec3<double> interpolated_velocity =
+      IRL::Vec3<double>::fromScalarConstant(0.0);
+
+  {  // X-component
+    int i = static_cast<int>(Math::floor((pt[0] - prob_lo[0]) / dx[0]));
+    int j = static_cast<int>(Math::floor((pt[1] - prob_lo[1]) / dx[1] - 0.5));
+    int k = static_cast<int>(Math::floor((pt[2] - prob_lo[2]) / dx[2] - 0.5));
+    if (!bx.contains(i, j, k)) {
+      std::ostringstream oss;
+      oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
+          << ") leads to index (" << i << "," << j << "," << k
+          << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z << ")x("
+          << hi.x << "," << hi.y << "," << hi.z << ")";
+      throw std::runtime_error(oss.str());
+    }
+    // Cell lo face positions
+    Real xlo = prob_lo[0] + i * dx[0];
+    Real ylo = prob_lo[1] + j * dx[1] + 0.5 * dx[1];
+    Real zlo = prob_lo[2] + k * dx[2] + 0.5 * dx[2];
+    // Normalized position within cell [0,1]
+    Real tx = (pt[0] - xlo) / dx[0];
+    Real ty = (pt[1] - ylo) / dx[1];
+    Real tz = (pt[2] - zlo) / dx[2];
+    // Trilinear interpolation
+    interpolated_velocity[0] =
+        tz * (ty * (tx * vx(i + 1, j + 1, k + 1) +
+                    (1.0 - tx) * vx(i, j + 1, k + 1)) +
+              (1.0 - ty) *
+                  (tx * vx(i + 1, j, k + 1) + (1.0 - tx) * vx(i, j, k + 1))) +
+        (1.0 - tz) *
+            (ty * (tx * vx(i + 1, j + 1, k) + (1.0 - tx) * vx(i, j + 1, k)) +
+             (1.0 - ty) * (tx * vx(i + 1, j, k) + (1.0 - tx) * vx(i, j, k)));
   }
-  // Cell lo face positions
-  Real xlo = prob_lo[0] + i * dx[0];
-  Real ylo = prob_lo[1] + j * dx[1];
-  Real zlo = prob_lo[2] + k * dx[2];
-  // Normalized position within cell [0,1]
-  Real tx = (pt[0] - xlo) / dx[0];
-  Real ty = (pt[1] - ylo) / dx[1];
-  Real tz = (pt[2] - zlo) / dx[2];
-  return IRL::Vec3<double>(vx(i, j, k) * (1.0 - tx) + vx(i + 1, j, k) * tx,
-                           vy(i, j, k) * (1.0 - ty) + vy(i, j + 1, k) * ty,
-                           vz(i, j, k) * (1.0 - tz) + vz(i, j, k + 1) * tz);
+  {  // Y-component
+    int i = static_cast<int>(Math::floor((pt[0] - prob_lo[0]) / dx[0] - 0.5));
+    int j = static_cast<int>(Math::floor((pt[1] - prob_lo[1]) / dx[1]));
+    int k = static_cast<int>(Math::floor((pt[2] - prob_lo[2]) / dx[2] - 0.5));
+    if (!bx.contains(i, j, k)) {
+      std::ostringstream oss;
+      oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
+          << ") leads to index (" << i << "," << j << "," << k
+          << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z << ")x("
+          << hi.x << "," << hi.y << "," << hi.z << ")";
+      throw std::runtime_error(oss.str());
+    }
+    // Cell lo face positions
+    Real xlo = prob_lo[0] + i * dx[0] + 0.5 * dx[0];
+    Real ylo = prob_lo[1] + j * dx[1];
+    Real zlo = prob_lo[2] + k * dx[2] + 0.5 * dx[2];
+    // Normalized position within cell [0,1]
+    Real tx = (pt[0] - xlo) / dx[0];
+    Real ty = (pt[1] - ylo) / dx[1];
+    Real tz = (pt[2] - zlo) / dx[2];
+    // Trilinear interpolation
+    interpolated_velocity[1] =
+        tz * (ty * (tx * vy(i + 1, j + 1, k + 1) +
+                    (1.0 - tx) * vy(i, j + 1, k + 1)) +
+              (1.0 - ty) *
+                  (tx * vy(i + 1, j, k + 1) + (1.0 - tx) * vy(i, j, k + 1))) +
+        (1.0 - tz) *
+            (ty * (tx * vy(i + 1, j + 1, k) + (1.0 - tx) * vy(i, j + 1, k)) +
+             (1.0 - ty) * (tx * vy(i + 1, j, k) + (1.0 - tx) * vy(i, j, k)));
+  }
+  {  // Z-component
+    int i = static_cast<int>(Math::floor((pt[0] - prob_lo[0]) / dx[0] - 0.5));
+    int j = static_cast<int>(Math::floor((pt[1] - prob_lo[1]) / dx[1] - 0.5));
+    int k = static_cast<int>(Math::floor((pt[2] - prob_lo[2]) / dx[2]));
+    if (!bx.contains(i, j, k)) {
+      std::ostringstream oss;
+      oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
+          << ") leads to index (" << i << "," << j << "," << k
+          << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z << ")x("
+          << hi.x << "," << hi.y << "," << hi.z << ")";
+      throw std::runtime_error(oss.str());
+    }
+    // Cell lo face positions
+    Real xlo = prob_lo[0] + i * dx[0] + 0.5 * dx[0];
+    Real ylo = prob_lo[1] + j * dx[1] + 0.5 * dx[1];
+    Real zlo = prob_lo[2] + k * dx[2];
+    // Normalized position within cell [0,1]
+    Real tx = (pt[0] - xlo) / dx[0];
+    Real ty = (pt[1] - ylo) / dx[1];
+    Real tz = (pt[2] - zlo) / dx[2];
+    // Trilinear interpolation
+    interpolated_velocity[2] =
+        tz * (ty * (tx * vz(i + 1, j + 1, k + 1) +
+                    (1.0 - tx) * vz(i, j + 1, k + 1)) +
+              (1.0 - ty) *
+                  (tx * vz(i + 1, j, k + 1) + (1.0 - tx) * vz(i, j, k + 1))) +
+        (1.0 - tz) *
+            (ty * (tx * vz(i + 1, j + 1, k) + (1.0 - tx) * vz(i, j + 1, k)) +
+             (1.0 - ty) * (tx * vz(i + 1, j, k) + (1.0 - tx) * vz(i, j, k)));
+  }
+  return interpolated_velocity;
 }
 
 inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,

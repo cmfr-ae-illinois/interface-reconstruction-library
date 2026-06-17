@@ -54,14 +54,21 @@ struct Jibben {
 
         // Fill in Jibben neighborhood
         IRL::JibbenNeighborhood neighborhood;
-        const int nstencil = 125;  // 5^3 stencil
+        const int nlayers = 1;
+        const int nstencil =
+            (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
         neighborhood.reserve(nstencil);
         neighborhood.setDelta(2.5 * dx_avg);
         neighborhood.emptyNeighborhood();
         int count = 0;
-        for (int kk = k - 2; kk <= k + 2; ++kk) {
-          for (int jj = j - 2; jj <= j + 2; ++jj) {
-            for (int ii = i - 2; ii <= i + 2; ++ii) {
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              const double vfrac_local = moments_array(ii, jj, kk) * vol_inv;
+              if (vfrac_local < IRL::global_constants::VF_LOW ||
+                  vfrac_local > IRL::global_constants::VF_HIGH) {
+                continue;
+              }
               const double xx = problo[0] + ii * dx[0];
               const double yy = problo[1] + jj * dx[1];
               const double zz = problo[2] + kk * dx[2];
@@ -73,7 +80,7 @@ struct Jibben {
               const auto polygon =
                   IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
                       cell, planar_separator, planar_separator[0]);
-              if (polygon.getNumberOfVertices() > 2) {
+              if (polygon.getNumberOfVertices() > 0) {
                 neighborhood.addMember(polygon);
                 if (i == ii && j == jj && k == kk) {
                   neighborhood.setCenterOfStencil(count);
@@ -103,13 +110,13 @@ struct Jibben {
             std::max(std::fabs(paraboloid.getAlignedParaboloid().a()),
                      std::fabs(paraboloid.getAlignedParaboloid().b()));
 
-        if (distance_to_datum < 2.0 * dx_avg && max_curvature * dx_avg < 0.5) {
-          // Assign paraboloid to interface array
-          interface_array(i, j, k) = paraboloid;
-          // Match to volume fraction
-          IRL::setDistanceToMatchVolumeFraction(cell, vfrac,
-                                                &interface_array(i, j, k));
-        }
+        // if (distance_to_datum < 2.0 * dx_avg && max_curvature * dx_avg < 0.5)
+        // { Assign paraboloid to interface array
+        interface_array(i, j, k) = paraboloid;
+        // Match to volume fraction
+        IRL::setDistanceToMatchVolumeFraction(
+            cell, vfrac, &interface_array(i, j, k), 1.0e-14);
+        // }
       });
     }  // end mfi
 
