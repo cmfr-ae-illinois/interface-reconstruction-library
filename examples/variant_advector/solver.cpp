@@ -210,9 +210,13 @@ void printError(const BasicMesh& mesh,
     double l2_error_m0 = 0.0, l2_error_m1 = 0.0;
     double scale_m0 = 1.0 / std::pow(mesh.dx(), 3.0);
     double scale_m1 = 1.0 / std::pow(mesh.dx(), 4.0);
+    double total_starting_volume = 0.0;
+    double total_ending_volume = 0.0;
     for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
       for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
         for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+          total_starting_volume += starting_liq_moments(i, j, k).volume();
+          total_ending_volume += liq_moments(i, j, k).volume();
           const double liquid_volume_fraction =
               liq_moments(i, j, k).volume() / mesh.cell_volume();
           // if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
@@ -237,6 +241,12 @@ void printError(const BasicMesh& mesh,
         }
       }
     }
+    std::cout << "shape error = " << l1_error_m0 << std::endl;
+    std::cout << std::scientific << std::setprecision(16)
+              << "total starting volume = " << total_starting_volume
+              << std::endl;
+    std::cout << std::scientific << std::setprecision(16)
+              << "total ending volume = " << total_ending_volume << std::endl;
     l1_error_m0 /=
         (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
     l1_error_m1 /=

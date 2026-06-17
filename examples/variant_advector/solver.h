@@ -132,12 +132,27 @@ int runSimulation(const std::string& a_case_name,
   setPhaseQuantities(interface, &liq_moments, &gas_moments);
   const auto starting_liq_moments = liq_moments;
 
+  // printing sum of liquid moments at initial time step
+  double total_moments_sum_initial = 0.0;
+  for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+    for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+      for (int k = cc_mesh.kmin(); k <= cc_mesh.kmax(); ++k) {
+        total_moments_sum_initial += liq_moments(i, j, k).volume();
+      }
+    }
+  }
+  std::cout << std::scientific << std::setprecision(16)
+            << "total moments sum at initial time = "
+            << total_moments_sum_initial << std::endl;
+
   VTKOutput vtk_io("viz_out", "viz", cc_mesh);
   vtk_io.addData("VelocityX", velU);
   vtk_io.addData("VelocityY", velV);
   vtk_io.addData("VelocityZ", velW);
   double simulation_time = 0.0;
   int iteration = 0;
+
+  writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io, true);
 
   if (rank == 0) {
     vtk_io.writeVTKFile(simulation_time);
@@ -146,7 +161,8 @@ int runSimulation(const std::string& a_case_name,
                     velU, velV, velW, &interface);
   resetMoments(link_localized_interface, &liq_moments, &gas_moments);
 
-  writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io, true);
+  // writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
+  // true);
   if (rank == 0) {
     writeDiagnosticsHeader();
   }
@@ -164,6 +180,7 @@ int runSimulation(const std::string& a_case_name,
   while (simulation_time < a_end_time) {
     const double time_step_to_use =
         std::fmin(timestep, a_end_time - simulation_time);
+    // std::cout << "dt = " << time_step_to_use << std::endl;
     SimulationType::setVelocity(simulation_time + 0.5 * time_step_to_use, &velU,
                                 &velV, &velW);
 
@@ -185,6 +202,19 @@ int runSimulation(const std::string& a_case_name,
                                    a_end_time, a_end_time);
         setPhaseQuantities(ref_interface, &ref_liq_moments, &ref_gas_moments);
         printError(cc_mesh, liq_moments, ref_liq_moments);
+
+        // total moments at final time step
+        double total_moments_sum = 0.0;
+        for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+          for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+            for (int k = cc_mesh.kmin(); k <= cc_mesh.kmax(); ++k) {
+              total_moments_sum += liq_moments(i, j, k).volume();
+            }
+          }
+        }
+        std::cout << std::scientific << std::setprecision(16)
+                  << "total moments sum at final time = " << total_moments_sum
+                  << std::endl;
       }
     }
 
