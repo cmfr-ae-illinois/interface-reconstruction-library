@@ -22,3 +22,7 @@ add_subdirectory(variant_reconstruction)
 
 add_subdirectory(c_interface)
 add_subdirectory(fortran_interface)
+
+if(IRL_BUILD_AMREX_INTERFACE)
+    add_subdirectory(amrex)
+endif()

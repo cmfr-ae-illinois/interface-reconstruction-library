@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9...3.18)
+cmake_minimum_required(VERSION 3.18)
 
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
   cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
@@ -8,7 +8,7 @@ endif()
 # Listing the version is nice here since it sets lots of useful variables
 project(IRL VERSION 0.1.0
   DESCRIPTION "Interface Reconstruction Library"
-  LANGUAGES CXX Fortran)
+  LANGUAGES C CXX Fortran)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -88,6 +88,12 @@ if(IRL_USE_ABSL)
   set(BUILD_TESTING OFF)
   set(CMAKE_INSTALL_PREFIX_ORIG "${CMAKE_INSTALL_PREFIX}")
   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/absl")
+  if(APPLE)
+    message("-- macOS version is: ${CMAKE_SYSTEM_VERSION}")
+    if("${CMAKE_SYSTEM_VERSION}" VERSION_GREATER "25.0")
+      add_compile_definitions(_XOPEN_SOURCE=0) # This patch is needed to compile Abseil with GCC-15 on MacOS Tahoe 26.1
+    endif()
+  endif()
   add_subdirectory(${ABSEIL_DIR})
   set(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX_ORIG}")
   set(BUILD_TESTING ${BUILD_TESTING_ORIG})
@@ -121,6 +127,15 @@ endif()
 # endif()
 # target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.h")
 # target_sources(irl PRIVATE "external/geogram.psm.Delaunay/Delaunay_psm.cpp")
+
+if(IRL_BUILD_AMREX_INTERFACE)
+  if((DEFINED ENV{AMREX_DIR}) AND ((NOT DEFINED ENV{AMReX_DIR}) OR (NOT DEFINED ENV{AMReX_ROOT})))
+    set(AMReX_ROOT "$ENV{AMREX_DIR}")
+  endif()
+  set(IRL_CXX_FLAGS "${IRL_CXX_FLAGS} -D IRL_BUILD_AMREX_INTERFACE -D AMREX_SPACEDIM=3")
+  find_package(AMReX REQUIRED)
+  target_link_libraries(irl PUBLIC AMReX::amrex)
+endif()
 
 # C++ IRL Base
 target_include_directories(irl PUBLIC "${PROJECT_SOURCE_DIR}")

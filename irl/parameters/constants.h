@@ -10,8 +10,8 @@
 #ifndef IRL_PARAMETERS_CONSTANTS_H_
 #define IRL_PARAMETERS_CONSTANTS_H_
 
-#include <cmath>
 #include <float.h>
+#include <cmath>
 
 #include "irl/parameters/defined_types.h"
 
@@ -73,6 +73,7 @@ static constexpr double ARBITRARILY_LARGE_DISTANCE = 0.5 * DBL_MAX;
 /// \brief Default tolerance to achieve in matching volume fraction during two
 /// plane reconstructions.
 extern double TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE;
+extern double VOLUME_FRACTION_MATCHING_TOLERANCE;
 
 /// \brief Maximum number of planes that will below in a PlanarSeparator
 constexpr UnsignedIndex_t MAX_PLANAR_SEPARATOR_PLANES = 2;
@@ -96,8 +97,8 @@ extern double MINIMUM_VOLUME_TO_TRACK;
 /// \brief Minimum surface area we care about keeping track of
 extern double MINIMUM_SURFACE_AREA_TO_TRACK;
 
-} // namespace global_constants
+}  // namespace global_constants
 
-} // namespace IRL
+}  // namespace IRL
 
-#endif // SRC_PARAMETERS_CONSTANTS_H_
+#endif  // SRC_PARAMETERS_CONSTANTS_H_

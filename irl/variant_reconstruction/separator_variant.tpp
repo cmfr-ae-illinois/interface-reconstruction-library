@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_TPP_
-#define IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_TPP_
+#ifndef IRL_SEPARATOR_VARIANT_TPP_
+#define IRL_SEPARATOR_VARIANT_TPP_
 
 namespace IRL {
 
@@ -117,4 +117,4 @@ inline std::ostream& operator<<(std::ostream& out,
 
 }  // namespace IRL
 
-#endif  // IRL_PLANAR_RECONSTRUCTION_SEPARATOR_VARIANT_TPP_
+#endif  // IRL_SEPARATOR_VARIANT_TPP_

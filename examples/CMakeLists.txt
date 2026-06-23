@@ -17,3 +17,8 @@ add_subdirectory("./advector")
 add_subdirectory("./paraboloid_advector")
 add_subdirectory("./variant_advector")
 add_subdirectory("./implicit_surface_reconstruction")
+
+if(IRL_BUILD_AMREX_INTERFACE)
+    add_custom_target(examples_amrex_advector)
+    add_subdirectory("./amrex_advector")
+endif()

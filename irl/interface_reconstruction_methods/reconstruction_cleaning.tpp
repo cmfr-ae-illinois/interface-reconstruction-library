@@ -80,6 +80,31 @@ void setToPurePhaseReconstruction(const double a_internal_volume_fraction,
       throw std::runtime_error(
           "Unknown SeparatorVariant type in setToPurePhaseReconstruction");
     }
+  } else if constexpr (std::is_same_v<ReconstructionType, SeparatorUnion>) {
+    if (a_reconstruction->type() == SeparatorUnion::SeparatorType::OnePlane ||
+        a_reconstruction->type() == SeparatorUnion::SeparatorType::TwoPlanes) {
+      *a_reconstruction =
+          Plane(Normal(0.0, 0.0, 0.0),
+                std::copysign(global_constants::ARBITRARILY_LARGE_DISTANCE,
+                              a_internal_volume_fraction - 0.5));
+    } else if (a_reconstruction->type() ==
+               SeparatorUnion::SeparatorType::Paraboloid) {
+      if (wantPurelyInternal(a_internal_volume_fraction)) {
+        a_reconstruction->getParaboloid().markAsAlwaysAbove();
+      } else {
+        a_reconstruction->getParaboloid().markAsAlwaysBelow();
+      }
+    } else if (a_reconstruction->type() ==
+               SeparatorUnion::SeparatorType::Cylinder) {
+      if (wantPurelyInternal(a_internal_volume_fraction)) {
+        a_reconstruction->getCylinder().markAsAlwaysAbove();
+      } else {
+        a_reconstruction->getCylinder().markAsAlwaysBelow();
+      }
+    } else {
+      throw std::runtime_error(
+          "Unknown SeparatorUnion type in setToPurePhaseReconstruction");
+    }
   } else {
     *a_reconstruction = ReconstructionType::fromOnePlane(
         Plane(Normal(0.0, 0.0, 0.0),

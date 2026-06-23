@@ -20,6 +20,7 @@
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.h"
 #include "irl/parameters/constants.h"
 #include "irl/planar_reconstruction/planar_separator_path_group.h"
+#include "irl/variant_reconstruction/separator_union.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
@@ -29,7 +30,7 @@ inline void setDistanceToMatchVolumeFraction(
     const CellType& a_cell, const double a_volume_fraction,
     ReconstructionType* a_reconstruction,
     const double a_volume_fraction_tolerance =
-        global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
+        global_constants::VOLUME_FRACTION_MATCHING_TOLERANCE);
 
 template <class CellType, class VolumeFractionArrayType>
 inline void setGroupDistanceToMatchVolumeFraction(
@@ -78,10 +79,18 @@ inline void setDistanceToMatchVolumeFractionPartialFill(
     const double a_volume_fraction_tolerance =
         global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
 
+template <class CellType>
+inline void setDistanceToMatchVolumeFractionPartialFill(
+    const CellType& a_cell, const double a_volume_fraction,
+    SeparatorUnion* a_reconstruction,
+    const double a_volume_fraction_tolerance =
+        global_constants::TWO_PLANE_DISTANCE_VOLUME_FRACTION_TOLERANCE);
+
 /// \brief Specialization for RectangularCuboids that calls Analytical distance
 /// finding if a single plane.
 template <class ReconstructionType>
-inline enable_if_t<not std::is_same_v<ReconstructionType, SeparatorVariant>,
+inline enable_if_t<not(std::is_same_v<ReconstructionType, SeparatorVariant> ||
+                       std::is_same_v<ReconstructionType, SeparatorUnion>),
                    void>
 setDistanceToMatchVolumeFractionPartialFill(
     const RectangularCuboid& a_cell, const double a_volume_fraction,
@@ -92,7 +101,8 @@ setDistanceToMatchVolumeFractionPartialFill(
 /// \brief Specialization for Tet  that calls Analytical distance
 /// finding if a single plane.
 template <class ReconstructionType>
-inline enable_if_t<not std::is_same_v<ReconstructionType, SeparatorVariant>,
+inline enable_if_t<not(std::is_same_v<ReconstructionType, SeparatorVariant> ||
+                       std::is_same_v<ReconstructionType, SeparatorUnion>),
                    void>
 setDistanceToMatchVolumeFractionPartialFill(
     const Tet& a_cell, const double a_volume_fraction,

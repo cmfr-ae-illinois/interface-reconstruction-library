@@ -28,6 +28,7 @@
 #include "irl/planar_reconstruction/null_reconstruction.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 #include "irl/planar_reconstruction/planar_separator_path_group.h"
+#include "irl/variant_reconstruction/separator_union.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
