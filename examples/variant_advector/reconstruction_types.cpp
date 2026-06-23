@@ -18,6 +18,7 @@
 #include "irl/geometry/polygons/polygon.h"
 #include "irl/interface_reconstruction_methods/constrained_optimization_behavior.h"
 #include "irl/interface_reconstruction_methods/elvira_neighborhood.h"
+#include "irl/interface_reconstruction_methods/iterative_jibben.h"
 #include "irl/interface_reconstruction_methods/jibben_neighborhood.h"
 #include "irl/interface_reconstruction_methods/plvira_neighborhood.h"
 #include "irl/interface_reconstruction_methods/progressive_distance_solver_paraboloid.h"
@@ -60,6 +61,9 @@ void getReconstruction(const std::string& a_reconstruction_method,
   } else if (a_reconstruction_method == "Jibben") {
     Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                               a_interface, a_scalar_fields);
+  } else if (a_reconstruction_method == "iJibben") {
+    iJibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                               a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Jibben2") {
     Jibben2::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
                                a_W, a_interface, a_scalar_fields);
@@ -106,8 +110,8 @@ void getReconstruction(const std::string& a_reconstruction_method,
     JibbenPU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
                                 a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Testing") {
-    TestingClasses::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U,
-                                      a_V, a_W, a_interface, a_scalar_fields);
+    Testing::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+                               a_W, a_interface, a_scalar_fields);
   } else if (a_reconstruction_method == "Hybrid2") {
     Hybrid2::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
                                a_W, a_interface, a_scalar_fields);
@@ -612,6 +616,297 @@ void Jibben::getReconstruction(
   correctInterfaceBorders(a_interface);
 }
 
+// ================= iterative jibben fit =========================
+
+IRL::Normal localToGlobalNormal(const IRL::Normal& a_local_normal,
+                                const IRL::ReferenceFrame& a_local_frame) {
+  const IRL::Normal& e_xi = a_local_frame[0];
+  const IRL::Normal& e_eta = a_local_frame[1];
+  const IRL::Normal& e_zeta = a_local_frame[2];
+  IRL::Normal global_normal(
+      a_local_normal[0] * e_xi[0] + a_local_normal[1] * e_eta[0] +
+          a_local_normal[2] * e_zeta[0],
+      a_local_normal[0] * e_xi[1] + a_local_normal[1] * e_eta[1] +
+          a_local_normal[2] * e_zeta[1],
+      a_local_normal[0] * e_xi[2] + a_local_normal[1] * e_eta[2] +
+          a_local_normal[2] * e_zeta[2]);
+  global_normal.normalize();
+  return global_normal;
+}
+// iterative jibben method proposed by Lopez
+void iJibben::getReconstruction(
+    const Data<IRL::VolumeMoments>& a_liq_moments,
+    const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
+    const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
+    Data<IRL::SeparatorVariant>* a_interface,
+    std::vector<InterfaceScalarField>* a_scalar_fields,
+    const bool a_plic_already_built, Data<IRL::Pt>* a_centroids,
+    Data<double>* a_areas, Data<double>* a_errors) {
+  // initial plic reconstruction
+  if (a_plic_already_built == false) {
+    LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                             a_interface, a_scalar_fields);
+  }
+  const BasicMesh& mesh = a_liq_moments.getMesh();
+  // some params
+  constexpr int nlayers = 1;
+  constexpr int max_iter = 5;
+  constexpr double alpha_deg = 50.0;
+  constexpr double alpha_rad = alpha_deg * M_PI / 180.0;
+  constexpr double cos_alpha = std::cos(alpha_rad);
+  constexpr double eps_kappa = 1.0e-3;
+  const int nstencil =
+      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  auto volumeFraction = [&](const int i, const int j, const int k) {
+    return a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+  };
+  auto isInterfacial = [&](const int i, const int j, const int k) {
+    const double vf = volumeFraction(i, j, k);
+    return vf >= IRL::global_constants::VF_LOW &&
+           vf <= IRL::global_constants::VF_HIGH;
+  };
+  auto makeCell = [&](const int i, const int j, const int k) {
+    return IRL::RectangularCuboid::fromBoundingPts(
+        IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+        IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+  };
+  auto makeVolumeMatchedPLIC =
+      [&](const int i, const int j, const int k,
+          const IRL::Normal& normal) -> IRL::PlanarSeparator {
+    auto cell = makeCell(i, j, k);
+    const double vf = volumeFraction(i, j, k);
+    IRL::PlanarSeparator plic =
+        IRL::PlanarSeparator::fromOnePlane(IRL::Plane(normal, 0.0));
+    IRL::setDistanceToMatchVolumeFraction(cell, vf, &plic, 1.0e-14);
+    return plic;
+  };
+  auto polygonFromPLIC = [&](const int i, const int j, const int k,
+                             const IRL::PlanarSeparator& plic) -> IRL::Polygon {
+    auto cell = makeCell(i, j, k);
+    return IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(cell, plic,
+                                                                plic[0]);
+  };
+  // some storage
+  Data<IRL::Polygon> polygon(&mesh);
+  Data<IRL::Normal> init_normal(&mesh);
+  Data<IRL::Normal> current_normal(&mesh);
+  Data<bool> marked(&mesh);
+  Data<bool> fallback_to_plic(&mesh);
+  Data<double> kappa_r(&mesh);
+  Data<double> kappa_rm1(&mesh);
+  Data<double> kappa_rm2(&mesh);
+  // initializing with the initial PLIC reconstruction.
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        polygon(i, j, k) = IRL::Polygon();
+        marked(i, j, k) = false;
+        fallback_to_plic(i, j, k) = false;
+        kappa_r(i, j, k) = 0.0;
+        kappa_rm1(i, j, k) = 0.0;
+        kappa_rm2(i, j, k) = 0.0;
+        if (!isInterfacial(i, j, k)) {
+          continue;
+        }
+        const auto initial_plic =
+            std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+        init_normal(i, j, k) = initial_plic[0].normal();
+        current_normal(i, j, k) = init_normal(i, j, k);
+        polygon(i, j, k) = polygonFromPLIC(i, j, k, initial_plic);
+        marked(i, j, k) = true;
+      }
+    }
+  }
+  updatePolygonBorder(&polygon);
+  // main ippic iteration loop
+  for (int iter = 1; iter <= max_iter; ++iter) {
+    for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+        for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+          if (!marked(i, j, k)) {
+            continue;
+          }
+          IRL::PlanarSeparator plic;
+          if (iter == 1) {
+            plic = std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+          } else {
+            plic = makeVolumeMatchedPLIC(i, j, k, current_normal(i, j, k));
+            (*a_interface)(i, j, k) = plic;
+          }
+          polygon(i, j, k) = polygonFromPLIC(i, j, k, plic);
+        }
+      }
+    }
+    updatePolygonBorder(&polygon);
+    // For each marked cell, build filtered stencil, fit paraboloid and update
+    // normal/curvature.
+    for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+        for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+          if (!marked(i, j, k)) {
+            continue;
+          }
+          // Under-resolved condition
+          if ((init_normal(i, j, k) * current_normal(i, j, k)) < cos_alpha) {
+            fallback_to_plic(i, j, k) = true;
+            marked(i, j, k) = false;
+            const auto initial_plic =
+                makeVolumeMatchedPLIC(i, j, k, init_normal(i, j, k));
+            (*a_interface)(i, j, k) = initial_plic;
+            polygon(i, j, k) = polygonFromPLIC(i, j, k, initial_plic);
+            continue;
+          }
+          IRL::JibbenNeighborhood neighborhood;
+          neighborhood.reserve(nstencil);
+          int count = 0;
+          int center_count = -1;
+          IRL::Pt local_datum;
+          IRL::ReferenceFrame local_frame;
+          // one-layer stencil with normal-alignment filter
+          for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+            for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+              for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+                if (!isInterfacial(ii, jj, kk)) continue;
+                if (polygon(ii, jj, kk).getNumberOfVertices() == 0) continue;
+                const double alignment =
+                    init_normal(ii, jj, kk) * current_normal(i, j, k);
+                if (alignment < cos_alpha) {
+                  continue;
+                }
+                neighborhood.addMember(polygon(ii, jj, kk));
+                if (ii == i && jj == j && kk == k) {
+                  center_count = count;
+                  neighborhood.setCenterOfStencil(count);
+                  local_datum = polygon(ii, jj, kk).calculateCentroid();
+                  local_frame =
+                      IRL::ReferenceFrame::fromNormal(current_normal(i, j, k));
+                }
+                ++count;
+              }
+            }
+          }
+          // Under-resolved condition:
+          // fewer than 6 stencil polygons for six paraboloid coefficients.
+          if (count < 6 || center_count < 0) {
+            fallback_to_plic(i, j, k) = true;
+            marked(i, j, k) = false;
+            const auto initial_plic =
+                makeVolumeMatchedPLIC(i, j, k, init_normal(i, j, k));
+            (*a_interface)(i, j, k) = initial_plic;
+            polygon(i, j, k) = polygonFromPLIC(i, j, k, initial_plic);
+            continue;
+          }
+          neighborhood.localize();
+          IRL::iJibben_3D ijibben(&neighborhood);
+          ijibben.getParaboloidCoefficients();
+          const std::pair<double, IRL::Normal> fit_result =
+              ijibben.computeAveragedCurvatureAndNormal();
+          const double kappa_new = fit_result.first;
+          // Eq. (48)
+          double kappa_accepted = kappa_new;
+          if (iter > 2) {
+            const double new_change = std::abs(kappa_new - kappa_rm1(i, j, k));
+            const double old_change =
+                std::abs(kappa_rm1(i, j, k) - kappa_rm2(i, j, k));
+            if (new_change < old_change) {
+              kappa_accepted = kappa_new;
+            } else {
+              kappa_accepted = kappa_rm1(i, j, k);
+            }
+          }
+          kappa_r(i, j, k) = kappa_accepted;
+          // Update global normal using the averaged local normal
+          current_normal(i, j, k) =
+              localToGlobalNormal(fit_result.second, local_frame);
+          // Convergence condition, Eq. (20)
+          if (iter > 2) {
+            const double denom = std::max(std::abs(kappa_r(i, j, k)), 1.0e-14);
+            const double rel_change =
+                std::abs(kappa_r(i, j, k) - kappa_rm1(i, j, k)) / denom;
+            if (rel_change < eps_kappa) {
+              marked(i, j, k) = false;
+            }
+          }
+          // Shift curvature history
+          kappa_rm2(i, j, k) = kappa_rm1(i, j, k);
+          kappa_rm1(i, j, k) = kappa_r(i, j, k);
+        }
+      }
+    }
+  }
+  // final ppic reconstructon
+  updatePolygonBorder(&polygon);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        if (!isInterfacial(i, j, k)) {
+          continue;
+        }
+        const double liquid_volume_fraction = volumeFraction(i, j, k);
+        if (fallback_to_plic(i, j, k)) continue;
+        const auto final_plic =
+            makeVolumeMatchedPLIC(i, j, k, current_normal(i, j, k));
+        (*a_interface)(i, j, k) = final_plic;
+        polygon(i, j, k) = polygonFromPLIC(i, j, k, final_plic);
+      }
+    }
+  }
+  updatePolygonBorder(&polygon);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        if (!isInterfacial(i, j, k)) continue;
+        if (fallback_to_plic(i, j, k)) continue;
+        IRL::JibbenNeighborhood neighborhood;
+        neighborhood.reserve(nstencil);
+        int count = 0;
+        int center_count = -1;
+        IRL::Pt local_datum;
+        IRL::ReferenceFrame local_frame;
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (!isInterfacial(ii, jj, kk)) continue;
+              if (polygon(ii, jj, kk).getNumberOfVertices() == 0) continue;
+              const double alignment =
+                  init_normal(ii, jj, kk) * current_normal(i, j, k);
+              if (alignment < cos_alpha) continue;
+              neighborhood.addMember(polygon(ii, jj, kk));
+              if (ii == i && jj == j && kk == k) {
+                center_count = count;
+                neighborhood.setCenterOfStencil(count);
+                local_datum = polygon(ii, jj, kk).calculateCentroid();
+                local_frame =
+                    IRL::ReferenceFrame::fromNormal(current_normal(i, j, k));
+              }
+              ++count;
+            }
+          }
+        }
+        if (count < 6 || center_count < 0) {
+          const auto initial_plic =
+              makeVolumeMatchedPLIC(i, j, k, init_normal(i, j, k));
+          (*a_interface)(i, j, k) = initial_plic;
+          continue;
+        }
+        neighborhood.localize();
+        IRL::iJibben_3D ijibben(&neighborhood);
+        ijibben.getParaboloidCoefficients();
+        // (*a_interface)(i, j, k) =
+        //     ijibben.makeParaboloid(local_datum, local_frame);
+        (*a_interface)(i, j, k) = ijibben.makeParaboloid2(&neighborhood);
+        auto cell = makeCell(i, j, k);
+        double liquid_volume_fraction =
+            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        IRL::setDistanceToMatchVolumeFraction(
+            cell, liquid_volume_fraction, &(*a_interface)(i, j, k), 1.0e-14);
+      }
+    }
+  }
+  a_interface->updateBorder();
+  correctInterfaceBorders(a_interface);
+}
+
 // ============ Jibben based on squared volume ===============
 void Jibben2::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
@@ -662,11 +957,11 @@ void Jibben2::getReconstruction(
   neighborhood.reserve(nstencil);
   neighborhood.setDelta(delta);
 
-  InterfaceScalarField normal_error("normal_metric", &mesh);
-  InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
-  InterfaceScalarField normal_std_error("normal_std_metric", &mesh);
-  InterfaceScalarField squared_volume_error("squared_volume_error_metric",
-                                            &mesh);
+  // InterfaceScalarField normal_error("normal_metric", &mesh);
+  // InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
+  // InterfaceScalarField normal_std_error("normal_std_metric", &mesh);
+  // InterfaceScalarField squared_volume_error("squared_volume_error_metric",
+  //                                           &mesh);
 
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
@@ -699,11 +994,11 @@ void Jibben2::getReconstruction(
 
           // error metrics
           // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
-          double normal_err = jibben_solver.getNormalMetric();
-          double normal_eigen_err = jibben_solver.getNormalEigenMetric();
-          double normal_std_err = jibben_solver.getAngularVariance();
-          double squared_vol_err =
-              jibben_solver.getVolumeErrorSquared(mesh.dx());
+          // double normal_err = jibben_solver.getNormalMetric();
+          // double normal_eigen_err = jibben_solver.getNormalEigenMetric();
+          // double normal_std_err = jibben_solver.getAngularVariance();
+          // double squared_vol_err =
+          //     jibben_solver.getVolumeErrorSquared(mesh.dx());
 
           // Match to volume fraction
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
@@ -714,29 +1009,31 @@ void Jibben2::getReconstruction(
           IRL::setDistanceToMatchVolumeFraction(
               cell, liquid_volume_fraction, &(*a_interface)(i, j, k), 1.0e-14);
 
-          if (const auto ptr =
-                  std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
-            normal_error.paraboloid_scalar_data(i, j, k) = normal_err;
-            normal_eigen_error.paraboloid_scalar_data(i, j, k) =
-                normal_eigen_err;
-            normal_std_error.paraboloid_scalar_data(i, j, k) = normal_std_err;
-            squared_volume_error.paraboloid_scalar_data(i, j, k) =
-                squared_vol_err;
-          } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
-                         &(*a_interface)(i, j, k))) {
-            normal_error.polygon_scalar_data(i, j, k) = normal_err;
-            normal_eigen_error.polygon_scalar_data(i, j, k) = normal_eigen_err;
-            normal_std_error.polygon_scalar_data(i, j, k) = normal_std_err;
-            squared_volume_error.polygon_scalar_data(i, j, k) = squared_vol_err;
-          }
+          // if (const auto ptr =
+          //         std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+          //   normal_error.paraboloid_scalar_data(i, j, k) = normal_err;
+          //   normal_eigen_error.paraboloid_scalar_data(i, j, k) =
+          //       normal_eigen_err;
+          //   normal_std_error.paraboloid_scalar_data(i, j, k) =
+          //   normal_std_err; squared_volume_error.paraboloid_scalar_data(i, j,
+          //   k) =
+          //       squared_vol_err;
+          // } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
+          //                &(*a_interface)(i, j, k))) {
+          //   normal_error.polygon_scalar_data(i, j, k) = normal_err;
+          //   normal_eigen_error.polygon_scalar_data(i, j, k) =
+          //   normal_eigen_err; normal_std_error.polygon_scalar_data(i, j, k) =
+          //   normal_std_err; squared_volume_error.polygon_scalar_data(i, j, k)
+          //   = squared_vol_err;
+          // }
         }
       }
     }
   }
-  a_scalar_fields->push_back(normal_error);
-  a_scalar_fields->push_back(normal_eigen_error);
-  a_scalar_fields->push_back(normal_std_error);
-  a_scalar_fields->push_back(squared_volume_error);
+  // a_scalar_fields->push_back(normal_error);
+  // a_scalar_fields->push_back(normal_eigen_error);
+  // a_scalar_fields->push_back(normal_std_error);
+  // a_scalar_fields->push_back(squared_volume_error);
 
   // Update border with simple ghost-cell fill and correct datum for
   // assumed periodic boundary
@@ -841,7 +1138,7 @@ void JibbenCubic::getReconstruction(
   correctInterfaceBorders(a_interface);
 }
 
-// ============ Modified jibben to output metrics ===============
+// ============ final hybrid method ===============
 void JibbenM::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
@@ -854,16 +1151,18 @@ void JibbenM::getReconstruction(
 
   // Then, let's compute the PLIC polygons
   const BasicMesh& mesh = a_liq_moments.getMesh();
+  Data<double> liq_vf(&mesh);
+  Data<bool> underresolved(&mesh);
 
   Data<IRL::Polygon> polygon(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        underresolved(i, j, k) = false;
         polygon(i, j, k) = IRL::Polygon();
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
-            liquid_volume_fraction > IRL::global_constants::VF_HIGH) {
+        liq_vf(i, j, k) = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH) {
           continue;
         }
         auto cell = IRL::RectangularCuboid::fromBoundingPts(
@@ -880,6 +1179,23 @@ void JibbenM::getReconstruction(
   }
   updatePolygonBorder(&polygon);
 
+  // storing plic initially
+  Data<IRL::SeparatorVariant> jibben_interface(&a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        jibben_interface(i, j, k) = (*a_interface)(i, j, k);
+        pu_interface(i, j, k) = (*a_interface)(i, j, k);
+      }
+    }
+  }
+
+  // getting pu reconstruction
+  std::vector<InterfaceScalarField> dummy_scalar_fields;
+  PU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
+                        &pu_interface, &dummy_scalar_fields, true);
+
   // Now let's compute the Jibben parabolic fit
   IRL::JibbenNeighborhood neighborhood;
   const int nlayers = 1;
@@ -889,29 +1205,28 @@ void JibbenM::getReconstruction(
   neighborhood.setDelta(2.5 * mesh.dx());
 
   // InterfaceScalarField squared_vol_error("squared_volume_error", &mesh);
-  InterfaceScalarField normal_error("normal_metric", &mesh);
-  InterfaceScalarField normal_eigen_error("normal_eigen_metric", &mesh);
-  InterfaceScalarField normal_std_error("normal_std_metric", &mesh);
+  InterfaceScalarField is_underresolved("is_underresolved", &mesh);
 
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+        if (liq_vf(i, j, k) >= IRL::global_constants::VF_LOW &&
+            liq_vf(i, j, k) <= IRL::global_constants::VF_HIGH) {
           // Fill neighborhood with polygons
           neighborhood.emptyNeighborhood();
-          int count = 0;
+          double vf_supercell = 0.0;
+          int jibben_count = 0;
           for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
             for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
               for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
                 if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
                   neighborhood.addMember(polygon(ii, jj, kk));
                   if (i == ii && j == jj && k == kk) {
-                    neighborhood.setCenterOfStencil(count);
+                    neighborhood.setCenterOfStencil(jibben_count);
                   }
-                  count++;
+                  jibben_count++;
+                  vf_supercell +=
+                      a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
                 }
               }
             }
@@ -920,47 +1235,113 @@ void JibbenM::getReconstruction(
 
           // jibben fit
           IRL::Jibben_3D jibben_solver;
-          (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood);
-          // IRL::Jibben_3D jibben_solver;
-          // (*a_interface)(i, j, k) = jibben_solver.solve2(&neighborhood);
+          IRL::Paraboloid jibben_paraboloid =
+              jibben_solver.solve2(&neighborhood);
 
-          // error metrics
-          // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
-          double normal_err = jibben_solver.getNormalMetric();
-          double normal_eigen_err = jibben_solver.getNormalEigenMetric();
-          double normal_std_err = jibben_solver.getAngularVariance();
+          // checking normal scatter
+          double normal_scatter = jibben_solver.getNormalEigenMetric();
+          if (normal_scatter > 0.10) {
+            underresolved(i, j, k) = true;
+          }
+
+          // checking squared volume error
+          double volume_error = jibben_solver.getVolumeErrorSquared(mesh.dx());
+          const double volume_error_threshold = 0.05;
+          if (volume_error > volume_error_threshold) {
+            underresolved(i, j, k) = true;
+          }
+
+          // volume fraction checks
+          if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+            underresolved(i, j, k) = true;
+          }
+
+          // checking number of neighbors
+          if (jibben_count < 2) {
+            underresolved(i, j, k) = true;
+          }
+
+          // checking curvature
+          IRL::AlignedParaboloid jibben_aligned_paraboloid =
+              jibben_paraboloid.getAlignedParaboloid();
+          if (std::fabs(jibben_aligned_paraboloid.a()) * mesh.dx() > 4.0 ||
+              std::fabs(jibben_aligned_paraboloid.b()) * mesh.dx() > 4.0) {
+            underresolved(i, j, k) = true;
+          }
+
+          // revert to plic if it is under-resvoled
+          if (underresolved(i, j, k)) {
+            continue;
+          }
 
           // Match to volume fraction
+          const auto new_datum = jibben_paraboloid.getDatum();
+          const auto new_frame = jibben_paraboloid.getReferenceFrame();
           const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
           const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
                                       mesh.z(k + 1));
-          auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
-                                                              upper_cell_pt);
-          IRL::setDistanceToMatchVolumeFraction(
-              cell, liquid_volume_fraction, &(*a_interface)(i, j, k), 1.0e-14);
+          const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+              lower_cell_pt, upper_cell_pt);
+          IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+              solver_distance(cell, liq_vf(i, j, k), 1.0e-14,
+                              jibben_paraboloid);
+          jibben_paraboloid.setDatum(IRL::Pt(
+              new_datum + solver_distance.getDistance() * new_frame[2]));
 
-          if (const auto ptr =
-                  std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
-            normal_error.paraboloid_scalar_data(i, j, k) = normal_err;
-            normal_eigen_error.paraboloid_scalar_data(i, j, k) =
-                normal_eigen_err;
-            normal_std_error.paraboloid_scalar_data(i, j, k) = normal_std_err;
-            // squared_vol_error.paraboloid_scalar_data(i, j, k) = err;
-          } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
-                         &(*a_interface)(i, j, k))) {
-            normal_error.polygon_scalar_data(i, j, k) = normal_err;
-            normal_eigen_error.polygon_scalar_data(i, j, k) = normal_eigen_err;
-            normal_std_error.polygon_scalar_data(i, j, k) = normal_std_err;
-            // squared_vol_error.polygon_scalar_data(i, j, k) = err;
-          }
+          jibben_interface(i, j, k) = jibben_paraboloid;
         }
       }
     }
   }
-  // a_scalar_fields->push_back(squared_vol_error);
-  a_scalar_fields->push_back(normal_error);
-  a_scalar_fields->push_back(normal_eigen_error);
-  a_scalar_fields->push_back(normal_std_error);
+
+  // final interfaces
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (underresolved(i, j, k)) {
+          (*a_interface)(i, j, k) = pu_interface(i, j, k);
+        } else {
+          (*a_interface)(i, j, k) = jibben_interface(i, j, k);
+        }
+      }
+    }
+  }
+
+  // coloring interfaces
+  InterfaceScalarField interface_type(
+      "interface_type",
+      &mesh);  // 0 for plic, 1 for jibben, 2 for underresolved
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH) {
+          continue;
+        }
+        if (const auto ptr =
+                std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+          if (underresolved(i, j, k)) {
+            is_underresolved.paraboloid_scalar_data(i, j, k) = 1.0;
+            interface_type.paraboloid_scalar_data(i, j, k) = 2.0;
+          } else {
+            is_underresolved.paraboloid_scalar_data(i, j, k) = 0.0;
+            interface_type.paraboloid_scalar_data(i, j, k) = 1.0;
+          }
+        } else if (const auto ptr = std::get_if<IRL::PlanarSeparator>(
+                       &(*a_interface)(i, j, k))) {
+          if (underresolved(i, j, k)) {
+            is_underresolved.polygon_scalar_data(i, j, k) = 1.0;
+          } else {
+            is_underresolved.polygon_scalar_data(i, j, k) = 0.0;
+          }
+          interface_type.polygon_scalar_data(i, j, k) = 0.0;
+        }
+      }
+    }
+  }
+
+  a_scalar_fields->push_back(is_underresolved);
+  a_scalar_fields->push_back(interface_type);
 
   // Update border with simple ghost-cell fill and correct datum for
   // assumed periodic boundary
@@ -1279,6 +1660,152 @@ const IRL::Pt projectCentroidOnPU(
   return projected_pt;
 }
 
+// void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+//                            const Data<IRL::VolumeMoments>& a_gas_moments,
+//                            const double a_dt, const Data<double>& a_U,
+//                            const Data<double>& a_V, const Data<double>& a_W,
+//                            Data<IRL::SeparatorVariant>* a_interface,
+//                            std::vector<InterfaceScalarField>*
+//                            a_scalar_fields, const bool a_plic_already_built)
+//                            {
+//   // First, we need to build the plic
+//   if (a_plic_already_built == false) {
+//     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+//     a_W,
+//                              a_interface, a_scalar_fields);
+//   }
+
+//   const BasicMesh& mesh = a_liq_moments.getMesh();
+//   Data<IRL::SeparatorVariant> plic_reconstruction(&mesh);
+//   Data<IRL::SeparatorVariant> jibben_reconstruction(&mesh);
+//   // A element-wise copy is needed since std::memcpy is not safe with
+//   variants for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
+//     for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
+//       for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
+//         plic_reconstruction(i, j, k) = (*a_interface)(i, j, k);
+//         jibben_reconstruction(i, j, k) = (*a_interface)(i, j, k);
+//       }
+//     }
+//   }
+
+//   // Compute Jibben fit and plic centroids
+//   Data<IRL::Pt> interface_centroids(&mesh);
+//   Data<double> interface_areas(&mesh), jibben_errors(&mesh);
+//   Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
+//   a_W,
+//                             &jibben_reconstruction, a_scalar_fields, true,
+//                             &interface_centroids, &interface_areas,
+//                             &jibben_errors);
+
+//   // Cleanup jibben
+//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+//         const double liquid_volume_fraction =
+//             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+//         if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+//             liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+//           if (IRL::Paraboloid* paraboloid = std::get_if<IRL::Paraboloid>(
+//                   &jibben_reconstruction(i, j, k))) {
+//             const auto& aligned_paraboloid =
+//             paraboloid->getAlignedParaboloid(); if
+//             (std::fabs(aligned_paraboloid.a()) > 1.0 / mesh.dx() ||
+//                 std::fabs(aligned_paraboloid.b()) > 1.0 / mesh.dx()) {
+//               jibben_reconstruction(i, j, k) = plic_reconstruction(i, j, k);
+//             }
+//           }
+//         }
+//       }
+//     }
+//   }
+
+//   const int nlayers = 1;
+//   // const double delta = 5.0 * mesh.dx();
+//   const double delta = 2.5 * mesh.dx();
+//   // const double jibben_error_threshold = 5.0e-3;
+
+//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+//         const double liquid_volume_fraction =
+//             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+//         if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+//             liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+//           // Project local interface centroid on PU approximation
+//           const IRL::Pt pt_on_PU = projectCentroidOnPU(
+//               a_liq_moments, jibben_reconstruction, interface_centroids,
+//               interface_areas, nlayers, delta, i, j, k);
+
+//           // Compute local gradient and hessian of PU approximation
+//           const auto F_and_gradF_and_hessF = getPUAndGradAndHessian(
+//               a_liq_moments, jibben_reconstruction, interface_centroids,
+//               interface_areas, nlayers, delta, i, j, k, pt_on_PU);
+//           const Eigen::Vector3d gradF =
+//               std::get<Eigen::Vector3d>(F_and_gradF_and_hessF);
+//           const Eigen::Matrix3d hessF =
+//               std::get<Eigen::Matrix3d>(F_and_gradF_and_hessF);
+//           auto new_normal = IRL::Normal(gradF(0), gradF(1), gradF(2));
+//           new_normal.normalize();
+
+//           // Generate paraboloid and match volume fraction
+//           if (IRL::magnitude(new_normal) > 0.9) {
+//             // Generate paraboloid from gradient and hessian of surface
+//             auto paraboloid =
+//                 IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
+//             const double A = paraboloid.getAlignedParaboloid().a();
+//             const double B = paraboloid.getAlignedParaboloid().b();
+//             if (std::fabs(A) * mesh.dx() > 4.0 ||
+//                 std::fabs(B) * mesh.dx() > 4.0) {
+//               continue;
+//             }
+//             // Translate paraboloid to match volume fraction
+//             const auto new_datum = paraboloid.getDatum();
+//             const auto new_frame = paraboloid.getReferenceFrame();
+//             const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+//             const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+//                                         mesh.z(k + 1));
+//             const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+//                 lower_cell_pt, upper_cell_pt);
+//             IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+//                 solver_distance(cell, liquid_volume_fraction, 1.0e-14,
+//                                 paraboloid);
+//             paraboloid.setDatum(IRL::Pt(
+//                 new_datum + solver_distance.getDistance() * new_frame[2]));
+//             (*a_interface)(i, j, k) = paraboloid;
+//           }
+//         }
+//       }
+//     }
+//   }
+
+//   // Cleanup
+//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+//         const double liquid_volume_fraction =
+//             a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+//         if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+//             liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+//           double volume_supercell = 0.0;
+//           for (int kk = k - 1; kk <= k + 1; ++kk) {
+//             for (int jj = j - 1; jj <= j + 1; ++jj) {
+//               for (int ii = i - 1; ii <= i + 1; ++ii) {
+//                 volume_supercell +=
+//                     a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+//               }
+//             }
+//           }
+//           if (liquid_volume_fraction < 1.0e-2 && volume_supercell < 1.0e-1) {
+//             (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+//           }
+//         }
+//       }
+//     }
+//   }
+//   a_interface->updateBorder();
+//   correctInterfaceBorders(a_interface);
+// }
+
 void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                            const Data<IRL::VolumeMoments>& a_gas_moments,
                            const double a_dt, const Data<double>& a_U,
@@ -1286,137 +1813,307 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                            Data<IRL::SeparatorVariant>* a_interface,
                            std::vector<InterfaceScalarField>* a_scalar_fields,
                            const bool a_plic_already_built) {
-  // First, we need to build the plic
   if (a_plic_already_built == false) {
     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
                              a_interface, a_scalar_fields);
   }
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
-  Data<IRL::SeparatorVariant> plic_reconstruction(&mesh);
-  Data<IRL::SeparatorVariant> jibben_reconstruction(&mesh);
-  // A element-wise copy is needed since std::memcpy is not safe with variants
-  for (int k = mesh.kmino(); k <= mesh.kmaxo(); ++k) {
-    for (int j = mesh.jmino(); j <= mesh.jmaxo(); ++j) {
-      for (int i = mesh.imino(); i <= mesh.imaxo(); ++i) {
-        plic_reconstruction(i, j, k) = (*a_interface)(i, j, k);
-        jibben_reconstruction(i, j, k) = (*a_interface)(i, j, k);
+
+  // storing plics for all reconstructions initially
+  Data<IRL::SeparatorVariant> jibben_interface(&a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> pu_neighborhood_interface(
+      &a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> final_interface(&a_liq_moments.getMesh());
+  Data<bool> is_underresolved(&mesh);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        final_interface(i, j, k) = (*a_interface)(i, j, k);
+        jibben_interface(i, j, k) = (*a_interface)(i, j, k);
+        pu_neighborhood_interface(i, j, k) = (*a_interface)(
+            i, j, k);  // stores interfaces to be used for the pu neighborhood
+        pu_interface(i, j, k) =
+            (*a_interface)(i, j, k);  // stores reconstruction obtained from PU
+        is_underresolved(i, j, k) =
+            false;  // marking everything as resolved first
       }
     }
   }
 
-  // Compute Jibben fit and plic centroids
-  Data<IRL::Pt> interface_centroids(&mesh);
-  Data<double> interface_areas(&mesh), jibben_errors(&mesh);
-  Jibben::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                            &jibben_reconstruction, a_scalar_fields, true,
-                            &interface_centroids, &interface_areas,
-                            &jibben_errors);
-
-  // Cleanup jibben
-  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          if (IRL::Paraboloid* paraboloid = std::get_if<IRL::Paraboloid>(
-                  &jibben_reconstruction(i, j, k))) {
-            const auto& aligned_paraboloid = paraboloid->getAlignedParaboloid();
-            if (std::fabs(aligned_paraboloid.a()) > 1.0 / mesh.dx() ||
-                std::fabs(aligned_paraboloid.b()) > 1.0 / mesh.dx()) {
-              jibben_reconstruction(i, j, k) = plic_reconstruction(i, j, k);
-            }
-          }
-        }
-      }
-    }
-  }
-
+  // neighborhoods for jibben and pu reconstruction
+  IRL::JibbenNeighborhood jibben_neighborhood;
+  IRL::PUNeighborhood pu_neighborhood;
   const int nlayers = 1;
-  // const double delta = 5.0 * mesh.dx();
-  const double delta = 2.5 * mesh.dx();
-  // const double jibben_error_threshold = 5.0e-3;
+  const int nstencil =
+      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  jibben_neighborhood.reserve(nstencil);
+  jibben_neighborhood.setDelta(2.5 * mesh.dx());
+  pu_neighborhood.reserve(nstencil);
 
-  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+  // plic polygons
+  Data<IRL::Polygon> polygon(&mesh);
+  Data<double> liq_vf(&mesh);
+  for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          // Project local interface centroid on PU approximation
-          const IRL::Pt pt_on_PU = projectCentroidOnPU(
-              a_liq_moments, jibben_reconstruction, interface_centroids,
-              interface_areas, nlayers, delta, i, j, k);
-
-          // Compute local gradient and hessian of PU approximation
-          const auto F_and_gradF_and_hessF = getPUAndGradAndHessian(
-              a_liq_moments, jibben_reconstruction, interface_centroids,
-              interface_areas, nlayers, delta, i, j, k, pt_on_PU);
-          const Eigen::Vector3d gradF =
-              std::get<Eigen::Vector3d>(F_and_gradF_and_hessF);
-          const Eigen::Matrix3d hessF =
-              std::get<Eigen::Matrix3d>(F_and_gradF_and_hessF);
-          auto new_normal = IRL::Normal(gradF(0), gradF(1), gradF(2));
-          new_normal.normalize();
-
-          // Generate paraboloid and match volume fraction
-          if (IRL::magnitude(new_normal) > 0.9) {
-            // Generate paraboloid from gradient and hessian of surface
-            auto paraboloid =
-                IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
-            const double A = paraboloid.getAlignedParaboloid().a();
-            const double B = paraboloid.getAlignedParaboloid().b();
-            if (std::fabs(A) * mesh.dx() > 4.0 ||
-                std::fabs(B) * mesh.dx() > 4.0) {
-              continue;
-            }
-            // Translate paraboloid to match volume fraction
-            const auto new_datum = paraboloid.getDatum();
-            const auto new_frame = paraboloid.getReferenceFrame();
-            const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-            const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-                                        mesh.z(k + 1));
-            const auto cell = IRL::RectangularCuboid::fromBoundingPts(
-                lower_cell_pt, upper_cell_pt);
-            IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
-                solver_distance(cell, liquid_volume_fraction, 1.0e-14,
-                                paraboloid);
-            paraboloid.setDatum(IRL::Pt(
-                new_datum + solver_distance.getDistance() * new_frame[2]));
-            (*a_interface)(i, j, k) = paraboloid;
-          }
-        }
+      for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+        polygon(i, j, k) = IRL::Polygon();
+        liq_vf(i, j, k) = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
+            IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
+        const auto planar_separator =
+            std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
+        polygon(i, j, k) = IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+            cell, planar_separator, planar_separator[0]);
       }
     }
   }
+  updatePolygonBorder(&polygon);
 
-  // Cleanup
+  // jibben reconstruction
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          double volume_supercell = 0.0;
-          for (int kk = k - 1; kk <= k + 1; ++kk) {
-            for (int jj = j - 1; jj <= j + 1; ++jj) {
-              for (int ii = i - 1; ii <= i + 1; ++ii) {
-                volume_supercell +=
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        jibben_neighborhood.emptyNeighborhood();
+        int jibben_count = 0;
+        double vf_supercell = 0.0;
+        // building jibben neighborhood
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                jibben_neighborhood.addMember(polygon(ii, jj, kk));
+                if (i == ii && j == jj && k == kk) {
+                  jibben_neighborhood.setCenterOfStencil(jibben_count);
+                }
+                jibben_count++;
+                vf_supercell +=
                     a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
               }
             }
           }
-          if (liquid_volume_fraction < 1.0e-2 && volume_supercell < 1.0e-1) {
-            (*a_interface)(i, j, k) = plic_reconstruction(i, j, k);
+        }
+        // neighborhood to local frame
+        jibben_neighborhood.localize();
+
+        // jibben class
+        IRL::Jibben_3D jibben(&jibben_neighborhood);
+
+        // angular variance
+        double angular_variance = jibben.getNormalEigenMetric();
+        const double angular_variance_threshold = 0.10;
+        if (angular_variance > angular_variance_threshold) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // squared volume error
+        double volume_error = jibben.getVolumeErrorSquared(mesh.dx());
+        const double volume_error_threshold = 0.05;
+        if (volume_error > volume_error_threshold) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // super cell check
+        if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // neighbor count check
+        if (jibben_count < 2) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // solving for jibben reconstruction
+        // IRL::Paraboloid jibben_paraboloid =
+        //     IRL::reconstructionWithJibben3D(jibben_neighborhood);
+        IRL::Paraboloid jibben_paraboloid = jibben.solve2(&jibben_neighborhood);
+        jibben_interface(i, j, k) = jibben_paraboloid;
+
+        // matching volume fraction
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
+                                                            upper_cell_pt);
+        IRL::setDistanceToMatchVolumeFraction(
+            cell, liq_vf(i, j, k), &(jibben_interface)(i, j, k), 1.0e-14);
+
+        // updating pu neighborhood with paraboloids
+        const auto& aligned_paraboloid =
+            jibben_paraboloid.getAlignedParaboloid();
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0 &&
+            !is_underresolved(i, j, k)) {
+          pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        }
+        // if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+        //     std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0) {
+        //   pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        // }
+      }
+    }
+  }
+
+  // pu reconstruction
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        pu_neighborhood.emptyNeighborhood();
+        int pu_count = 0;
+        // building pu neighborhood
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                double area_weight = polygon(ii, jj, kk).calculateVolume() /
+                                     (mesh.dx() * mesh.dx());
+                double vfrac_weight = 1.0;
+                if (liq_vf(ii, jj, kk) < 0.1) {
+                  vfrac_weight =
+                      0.5 - 0.5 * std::cos(10.0 * M_PI * liq_vf(ii, jj, kk));
+                } else if (liq_vf(ii, jj, kk) > 0.9) {
+                  vfrac_weight =
+                      0.5 -
+                      0.5 * std::cos(10.0 * M_PI * (1.0 - liq_vf(ii, jj, kk)));
+                }
+                const double weight = area_weight * vfrac_weight;
+                const IRL::Pt centroid =
+                    polygon(ii, jj, kk).calculateCentroid();
+                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
+                                          centroid, weight);
+                if (i == ii && j == jj && k == kk) {
+                  pu_neighborhood.setCenterOfStencil(pu_count);
+                }
+                pu_count++;
+              }
+            }
+          }
+        }
+        // neighbor count check
+        if (pu_count < 2) {
+          continue;
+        }
+
+        // building pu paraboloid
+        const double delta = 2.5 * mesh.dx();
+        IRL::Paraboloid pu_paraboloid =
+            IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
+
+        if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
+            !std::isfinite(pu_paraboloid.getDatum()[1]) ||
+            !std::isfinite(pu_paraboloid.getDatum()[2])) {
+          // std::cout << "reverting to PLIC" << std::endl;
+          continue;
+        }
+
+        // revert to plic if curvature is too large
+        const auto& aligned_paraboloid = pu_paraboloid.getAlignedParaboloid();
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() > 4.0 ||
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() > 4.0)
+          continue;
+
+        // volume fraction matching
+        const auto new_datum = pu_paraboloid.getDatum();
+        const auto new_frame = pu_paraboloid.getReferenceFrame();
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+            solver_distance(cell, liq_vf(i, j, k), 1.0e-14, pu_paraboloid);
+        pu_paraboloid.setDatum(
+            IRL::Pt(new_datum + solver_distance.getDistance() * new_frame[2]));
+        pu_interface(i, j, k) = pu_paraboloid;
+      }
+    }
+  }
+
+  // pu clean up
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) >= IRL::global_constants::VF_LOW &&
+            liq_vf(i, j, k) <= IRL::global_constants::VF_HIGH) {
+          double vf_supercell = 0.0;
+          for (int kk = k - 1; kk <= k + 1; ++kk) {
+            for (int jj = j - 1; jj <= j + 1; ++jj) {
+              for (int ii = i - 1; ii <= i + 1; ++ii) {
+                vf_supercell +=
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+              }
+            }
+          }
+          if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+            pu_interface(i, j, k) = (*a_interface)(i, j, k);
           }
         }
       }
     }
   }
+
+  // choosing between jibben and final interface
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        final_interface(i, j, k) = pu_interface(i, j, k);
+      }
+    }
+  }
+
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        // checking if volume fraction is matched or not by pu
+        if (IRL::Paraboloid* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(final_interface)(i, j, k))) {
+          const double computed_m0 =
+              IRL::getVolumeMoments<IRL::Volume>(cell, *paraboloid);
+          const double vf_diff =
+              std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
+          if (vf_diff > IRL::global_constants::VF_LOW) {
+            std::cout << vf_diff << std::endl;
+            continue;
+          }
+        } else if (IRL::PlanarSeparator* separator =
+                       std::get_if<IRL::PlanarSeparator>(
+                           &(final_interface(i, j, k)))) {
+          const double computed_m0 =
+              IRL::getVolumeMoments<IRL::Volume>(cell, *separator);
+          const double vf_diff =
+              std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
+          if (vf_diff > IRL::global_constants::VF_LOW) {
+            std::cout << vf_diff << std::endl;
+            continue;
+          }
+        }
+        (*a_interface)(i, j, k) = final_interface(i, j, k);
+      }
+    }
+  }
+
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);
 }
@@ -4085,34 +4782,49 @@ void JibbenPU::getReconstruction(
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
 
-  // plic for jibben and PU
+  // storing plics for all reconstructions initially
   Data<IRL::SeparatorVariant> jibben_interface(&a_liq_moments.getMesh());
   Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> pu_neighborhood_interface(
+      &a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> final_interface(&a_liq_moments.getMesh());
+  Data<bool> is_underresolved(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
       for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        final_interface(i, j, k) = (*a_interface)(i, j, k);
         jibben_interface(i, j, k) = (*a_interface)(i, j, k);
-        pu_interface(i, j, k) = (*a_interface)(i, j, k);
+        pu_neighborhood_interface(i, j, k) = (*a_interface)(
+            i, j, k);  // stores interfaces to be used for the pu neighborhood
+        pu_interface(i, j, k) =
+            (*a_interface)(i, j, k);  // stores reconstruction obtained from PU
+        is_underresolved(i, j, k) =
+            false;  // marking everything as resolved first
       }
     }
   }
 
-  // PU reconstruction
-  PU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                        &pu_interface, a_scalar_fields, true);
+  // neighborhoods for jibben and pu reconstruction
+  IRL::JibbenNeighborhood jibben_neighborhood;
+  IRL::PUNeighborhood pu_neighborhood;
+  const int nlayers = 1;
+  const int nstencil =
+      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  jibben_neighborhood.reserve(nstencil);
+  jibben_neighborhood.setDelta(2.5 * mesh.dx());
+  pu_neighborhood.reserve(nstencil);
 
   // plic polygons
   Data<IRL::Polygon> polygon(&mesh);
+  Data<double> liq_vf(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
         polygon(i, j, k) = IRL::Polygon();
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
-            liquid_volume_fraction > IRL::global_constants::VF_HIGH) {
+        liq_vf(i, j, k) = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
           continue;
-        }
         auto cell = IRL::RectangularCuboid::fromBoundingPts(
             IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
             IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
@@ -4125,687 +4837,290 @@ void JibbenPU::getReconstruction(
   }
   updatePolygonBorder(&polygon);
 
-  // jibben fit
-  IRL::JibbenNeighborhood neighborhood;
-  const int nlayers = 1;
-  const int nstencil =
-      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
-  neighborhood.reserve(nstencil);
-  neighborhood.setDelta(2.5 * mesh.dx());
-
-  InterfaceScalarField interface_type_field("interface_type", &mesh);
-
+  // jibben reconstruction
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          // Fill neighborhood with polygons
-          neighborhood.emptyNeighborhood();
-          int count = 0;
-          for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-            for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-              for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-                if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-                  neighborhood.addMember(polygon(ii, jj, kk));
-                  if (i == ii && j == jj && k == kk) {
-                    neighborhood.setCenterOfStencil(count);
-                  }
-                  count++;
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        jibben_neighborhood.emptyNeighborhood();
+        int jibben_count = 0;
+        double vf_supercell = 0.0;
+        // building jibben neighborhood
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                jibben_neighborhood.addMember(polygon(ii, jj, kk));
+                if (i == ii && j == jj && k == kk) {
+                  jibben_neighborhood.setCenterOfStencil(jibben_count);
                 }
+                jibben_count++;
+                vf_supercell +=
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
               }
             }
           }
-          neighborhood.localize();
+        }
+        // neighborhood to local frame
+        jibben_neighborhood.localize();
 
-          // jibben fit
-          IRL::Jibben_3D jibben_solver;
-          jibben_interface(i, j, k) = jibben_solver.solve2(&neighborhood);
+        // jibben class
+        IRL::Jibben_3D jibben(&jibben_neighborhood);
 
-          // check for squared volume error
-          // double volume_error_sq =
-          //     jibben_solver.getVolumeErrorSquared(mesh.dx());
+        // angular variance
+        double angular_variance = jibben.getNormalEigenMetric();
+        const double angular_variance_threshold = 0.10;
+        if (angular_variance > angular_variance_threshold) {
+          is_underresolved(i, j, k) = true;
+        }
 
-          // normal error
-          // double normal_error = jibben_solver.getNormalMetric();
-          double normal_error = jibben_solver.getNormalEigenMetric();
-          // double normal_error = jibben_solver.getAngularVariance();
+        // squared volume error
+        double volume_error = jibben.getVolumeErrorSquared(mesh.dx());
+        const double volume_error_threshold = 0.05;
+        if (volume_error > volume_error_threshold) {
+          is_underresolved(i, j, k) = true;
+        }
 
-          // double volume_error = jibben_solver.getVolumeError(mesh.dx());
+        // super cell check
+        if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+          is_underresolved(i, j, k) = true;
+        }
 
-          // if (volume_error_sq > 0.01) {
-          // if (volume_error_sq > 0.05) {
-          if (normal_error > 0.15) {
-            // if (volume_error > 0.05) {
-            (*a_interface)(i, j, k) = pu_interface(i, j, k);
-            interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
-          } else {
-            const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-            const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-                                        mesh.z(k + 1));
-            auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
-                                                                upper_cell_pt);
-            IRL::setDistanceToMatchVolumeFraction(cell, liquid_volume_fraction,
-                                                  &(jibben_interface)(i, j, k),
-                                                  1.0e-14);
-            (*a_interface)(i, j, k) = jibben_interface(i, j, k);
-            interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
+        // neighbor count check
+        if (jibben_count < 2) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // solving for jibben reconstruction
+        // IRL::Paraboloid jibben_paraboloid =
+        //     IRL::reconstructionWithJibben3D(jibben_neighborhood);
+        IRL::Paraboloid jibben_paraboloid = jibben.solve(&jibben_neighborhood);
+        jibben_interface(i, j, k) = jibben_paraboloid;
+
+        // matching volume fraction
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
+                                                            upper_cell_pt);
+        IRL::setDistanceToMatchVolumeFraction(
+            cell, liq_vf(i, j, k), &(jibben_interface)(i, j, k), 1.0e-14);
+
+        // updating pu neighborhood with paraboloids
+        const auto& aligned_paraboloid =
+            jibben_paraboloid.getAlignedParaboloid();
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0 &&
+            !is_underresolved(i, j, k)) {
+          pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        }
+        // if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+        //     std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0) {
+        //   pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        // }
+      }
+    }
+  }
+
+  // pu reconstruction
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        pu_neighborhood.emptyNeighborhood();
+        int pu_count = 0;
+        // building pu neighborhood
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                double area_weight = polygon(ii, jj, kk).calculateVolume() /
+                                     (mesh.dx() * mesh.dx());
+                double vfrac_weight = 1.0;
+                if (liq_vf(ii, jj, kk) < 0.1) {
+                  vfrac_weight =
+                      0.5 - 0.5 * std::cos(10.0 * M_PI * liq_vf(ii, jj, kk));
+                } else if (liq_vf(ii, jj, kk) > 0.9) {
+                  vfrac_weight =
+                      0.5 -
+                      0.5 * std::cos(10.0 * M_PI * (1.0 - liq_vf(ii, jj, kk)));
+                }
+                const double weight = area_weight * vfrac_weight;
+                const IRL::Pt centroid =
+                    polygon(ii, jj, kk).calculateCentroid();
+                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
+                                          centroid, weight);
+                if (i == ii && j == jj && k == kk) {
+                  pu_neighborhood.setCenterOfStencil(pu_count);
+                }
+                pu_count++;
+              }
+            }
+          }
+        }
+        // neighbor count check
+        if (pu_count < 2) {
+          continue;
+        }
+
+        // building pu paraboloid
+        const double delta = 2.5 * mesh.dx();
+        IRL::Paraboloid pu_paraboloid =
+            IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
+
+        if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
+            !std::isfinite(pu_paraboloid.getDatum()[1]) ||
+            !std::isfinite(pu_paraboloid.getDatum()[2])) {
+          // std::cout << "reverting to PLIC" << std::endl;
+          continue;
+        }
+
+        // revert to plic if curvature is too large
+        const auto& aligned_paraboloid = pu_paraboloid.getAlignedParaboloid();
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() > 4.0 ||
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() > 4.0)
+          continue;
+
+        // volume fraction matching
+        const auto new_datum = pu_paraboloid.getDatum();
+        const auto new_frame = pu_paraboloid.getReferenceFrame();
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+            solver_distance(cell, liq_vf(i, j, k), 1.0e-14, pu_paraboloid);
+        pu_paraboloid.setDatum(
+            IRL::Pt(new_datum + solver_distance.getDistance() * new_frame[2]));
+        pu_interface(i, j, k) = pu_paraboloid;
+      }
+    }
+  }
+
+  // pu clean up
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) >= IRL::global_constants::VF_LOW &&
+            liq_vf(i, j, k) <= IRL::global_constants::VF_HIGH) {
+          double vf_supercell = 0.0;
+          for (int kk = k - 1; kk <= k + 1; ++kk) {
+            for (int jj = j - 1; jj <= j + 1; ++jj) {
+              for (int ii = i - 1; ii <= i + 1; ++ii) {
+                vf_supercell +=
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+              }
+            }
+          }
+          if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+            pu_interface(i, j, k) = (*a_interface)(i, j, k);
           }
         }
       }
     }
   }
 
-  // outputting plane detections
+  // choosing between jibben and final interface
   for (int i = mesh.imin(); i <= mesh.imax(); i++) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-        double liq_vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liq_vf < IRL::global_constants::VF_LOW ||
-            liq_vf > IRL::global_constants::VF_HIGH) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
           continue;
-        }
-        if (IRL::PlanarSeparator* separator =
-                std::get_if<IRL::PlanarSeparator>(&((*a_interface)(i, j, k)))) {
-          std::cout << "plane detected" << std::endl;
+        if (is_underresolved(i, j, k)) {
+          final_interface(i, j, k) = pu_interface(i, j, k);
+        } else {
+          final_interface(i, j, k) = jibben_interface(i, j, k);
         }
       }
     }
   }
 
-  a_scalar_fields->push_back(interface_type_field);
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        // checking if volume fraction is matched or not by pu
+        if (IRL::Paraboloid* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(final_interface)(i, j, k))) {
+          const double computed_m0 =
+              IRL::getVolumeMoments<IRL::Volume>(cell, *paraboloid);
+          const double vf_diff =
+              std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
+          if (vf_diff > IRL::global_constants::VF_LOW) {
+            std::cout << vf_diff << std::endl;
+            continue;
+          }
+        } else if (IRL::PlanarSeparator* separator =
+                       std::get_if<IRL::PlanarSeparator>(
+                           &(final_interface(i, j, k)))) {
+          const double computed_m0 =
+              IRL::getVolumeMoments<IRL::Volume>(cell, *separator);
+          const double vf_diff =
+              std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
+          if (vf_diff > IRL::global_constants::VF_LOW) {
+            std::cout << vf_diff << std::endl;
+            continue;
+          }
+        }
+        (*a_interface)(i, j, k) = final_interface(i, j, k);
+      }
+    }
+  }
+
+  // // final interfaces
+  // InterfaceScalarField interface_type_field("interface_type", &mesh);
+  // for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+  //   for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+  //     for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+  //       if (is_underresolved(i, j, k)) {
+  //         (*a_interface)(i, j, k) = temp_pu_interface(i, j, k);
+  //         interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
+  //       } else {
+  //         (*a_interface)(i, j, k) = jibben_interface(i, j, k);
+  //         interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
+  //       }
+  //     }
+  //   }
+  // }
+
+  // // outputting plane detections
+  // for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+  //   for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+  //     for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+  //       double liq_vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+  //       if (liq_vf < IRL::global_constants::VF_LOW ||
+  //           liq_vf > IRL::global_constants::VF_HIGH)
+  //         continue;
+
+  //       if (IRL::PlanarSeparator* separator =
+  //               std::get_if<IRL::PlanarSeparator>(&((*a_interface)(i, j,
+  //               k)))) {
+  //         std::cout << "plane detected" << std::endl;
+  //       }
+  //     }
+  //   }
+  // }
+
+  // a_scalar_fields->push_back(interface_type_field);
 
   a_interface->updateBorder();
   correctInterfaceBorders(a_interface);
 }
 
-// void TestingClasses::getReconstruction(
-//     const Data<IRL::VolumeMoments>& a_liq_moments,
-//     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
-//     const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
-//     a_W, Data<IRL::SeparatorVariant>* a_interface,
-//     std::vector<InterfaceScalarField>* a_scalar_fields,
-//     const bool a_plic_already_built) {
-//   if (a_plic_already_built == false) {
-//     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-//     a_W,
-//                              a_interface, a_scalar_fields);
-//   }
-
-//   const BasicMesh& mesh = a_liq_moments.getMesh();
-
-//   // storing plics for all reconstructions initially
-//   Data<IRL::SeparatorVariant> jibben_interface(&a_liq_moments.getMesh());
-//   Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
-//   Data<IRL::SeparatorVariant> temp_pu_interface(&a_liq_moments.getMesh());
-//   Data<bool> is_underresolved(&mesh);
-//   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//       for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//         jibben_interface(i, j, k) = (*a_interface)(i, j, k);
-//         pu_interface(i, j, k) = (*a_interface)(
-//             i, j, k);  // stores interfaces to be used for the pu
-//             neighborhood
-//         temp_pu_interface(i, j, k) =
-//             (*a_interface)(i, j, k);  // stores reconstruction obtained from
-//             PU
-//         is_underresolved(i, j, k) = false;
-//       }
-//     }
-//   }
-
-//   // neighborhoods for jibben and pu reconstruction
-//   IRL::JibbenNeighborhood jibben_neighborhood;
-//   IRL::PUNeighborhood pu_neighborhood;
-//   const int nlayers = 1;
-//   const int nstencil =
-//       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
-//   jibben_neighborhood.reserve(nstencil);
-//   jibben_neighborhood.setDelta(2.5 * mesh.dx());
-//   pu_neighborhood.reserve(nstencil);
-
-//   // plic polygons
-//   Data<IRL::Polygon> polygon(&mesh);
-//   Data<double> liq_vf(&mesh);
-//   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//         polygon(i, j, k) = IRL::Polygon();
-//         liq_vf(i, j, k) = a_liq_moments(i, j, k).volume() /
-//         mesh.cell_volume(); if (liq_vf(i, j, k) <
-//         IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         auto cell = IRL::RectangularCuboid::fromBoundingPts(
-//             IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
-//             IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
-//         const auto planar_separator =
-//             std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
-//         polygon(i, j, k) =
-//         IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
-//             cell, planar_separator, planar_separator[0]);
-//       }
-//     }
-//   }
-//   updatePolygonBorder(&polygon);
-
-//   // jibben reconstruction
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         jibben_neighborhood.emptyNeighborhood();
-//         int jibben_count = 0;
-//         // building jibben neighborhood
-//         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-//           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-//             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-//               if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-//                 jibben_neighborhood.addMember(polygon(ii, jj, kk));
-//                 if (i == ii && j == jj && k == kk) {
-//                   jibben_neighborhood.setCenterOfStencil(jibben_count);
-//                 }
-//                 jibben_count++;
-//               }
-//             }
-//           }
-//         }
-//         // finished building jibben neighborhood
-
-//         // neighborhood to local frame
-//         jibben_neighborhood.localize();
-
-//         // checking normal metric
-//         IRL::Jibben_3D jibben_solver(&jibben_neighborhood);
-//         double normal_error = jibben_solver.getNormalEigenMetric();
-//         if (normal_error > 0.2) {
-//           is_underresolved(i, j, k) = true;
-//         }
-
-//         // solving for jibben reconstruction
-//         IRL::Paraboloid jibben_paraboloid =
-//             IRL::reconstructionWithJibben3D(jibben_neighborhood);
-//         jibben_interface(i, j, k) = jibben_paraboloid;
-
-//         // matching volume fraction
-//         const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-//         const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-//                                     mesh.z(k + 1));
-//         auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
-//                                                             upper_cell_pt);
-//         IRL::setDistanceToMatchVolumeFraction(
-//             cell, liq_vf(i, j, k), &(jibben_interface)(i, j, k), 1.0e-14);
-
-//         // curvature checks for pu local approximants
-//         const auto& aligned_paraboloid =
-//             jibben_paraboloid.getAlignedParaboloid();
-//         if (std::fabs(aligned_paraboloid.a()) <= 1.0 / mesh.dx() &&
-//             std::fabs(aligned_paraboloid.b()) <= 1.0 / mesh.dx()) {
-//           pu_interface(i, j, k) = jibben_interface(i, j, k);
-//         }
-//       }
-//     }
-//   }
-
-//   // pu reconstruction
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         pu_neighborhood.emptyNeighborhood();
-//         int pu_count = 0;
-//         // building jibben neighborhood
-//         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-//           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-//             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-//               if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-//                 double area_weight = polygon(ii, jj, kk).calculateVolume() /
-//                                      (mesh.dx() * mesh.dx());
-//                 double vfrac_weight = 1.0;
-//                 if (liq_vf(ii, jj, kk) < 0.1) {
-//                   vfrac_weight =
-//                       0.5 - 0.5 * std::cos(10.0 * M_PI * liq_vf(ii, jj, kk));
-//                 } else if (liq_vf(ii, jj, kk) > 0.9) {
-//                   vfrac_weight =
-//                       0.5 -
-//                       0.5 * std::cos(10.0 * M_PI * (1.0 - liq_vf(ii, jj,
-//                       kk)));
-//                 }
-//                 const double weight = area_weight * vfrac_weight;
-//                 const IRL::Pt centroid =
-//                     polygon(ii, jj, kk).calculateCentroid();
-//                 pu_neighborhood.addMember(pu_interface(ii, jj, kk), centroid,
-//                                           weight);
-//                 if (i == ii && j == jj && k == kk) {
-//                   pu_neighborhood.setCenterOfStencil(pu_count);
-//                 }
-//                 pu_count++;
-//               }
-//             }
-//           }
-//         }
-//         // finished building pu neighborhood
-
-//         // building pu paraboloid
-//         const double delta = 2.5 * mesh.dx();
-//         IRL::Paraboloid pu_paraboloid =
-//             IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
-
-//         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
-//             !std::isfinite(pu_paraboloid.getDatum()[1]) ||
-//             !std::isfinite(pu_paraboloid.getDatum()[2])) {
-//           continue;
-//         }
-
-//         // curvature checks
-//         const auto& aligned_paraboloid =
-//         pu_paraboloid.getAlignedParaboloid(); if
-//         (std::fabs(aligned_paraboloid.a()) > 4.0 / mesh.dx() ||
-//             std::fabs(aligned_paraboloid.b()) > 4.0 / mesh.dx()) {
-//           continue;
-//         }
-
-//         // volume fraction matching
-//         const auto new_datum = pu_paraboloid.getDatum();
-//         const auto new_frame = pu_paraboloid.getReferenceFrame();
-//         const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-//         const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-//                                     mesh.z(k + 1));
-//         const auto cell = IRL::RectangularCuboid::fromBoundingPts(
-//             lower_cell_pt, upper_cell_pt);
-//         IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
-//             solver_distance(cell, liq_vf(i, j, k), 1.0e-14, pu_paraboloid);
-//         pu_paraboloid.setDatum(
-//             IRL::Pt(new_datum + solver_distance.getDistance() *
-//             new_frame[2]));
-//         temp_pu_interface(i, j, k) = pu_paraboloid;
-//       }
-//     }
-//   }
-
-//   // pu clean up
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         if (liq_vf(i, j, k) >= IRL::global_constants::VF_LOW &&
-//             liq_vf(i, j, k) <= IRL::global_constants::VF_HIGH) {
-//           double volume_supercell = 0.0;
-//           for (int kk = k - 1; kk <= k + 1; ++kk) {
-//             for (int jj = j - 1; jj <= j + 1; ++jj) {
-//               for (int ii = i - 1; ii <= i + 1; ++ii) {
-//                 volume_supercell +=
-//                     a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
-//               }
-//             }
-//           }
-//           if (liq_vf(i, j, k) < 1.0e-2 && volume_supercell < 1.0e-1) {
-//             temp_pu_interface(i, j, k) = (*a_interface)(i, j, k);
-//           }
-//         }
-//       }
-//     }
-//   }
-
-//   // final interfaces
-//   InterfaceScalarField interface_type_field("interface_type", &mesh);
-//   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//       for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//         if (is_underresolved(i, j, k)) {
-//           (*a_interface)(i, j, k) = temp_pu_interface(i, j, k);
-//           interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
-//         } else {
-//           (*a_interface)(i, j, k) = jibben_interface(i, j, k);
-//           interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
-//         }
-//       }
-//     }
-//   }
-
-//   // outputting plane detections
-//   for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//         double liq_vf = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-//         if (liq_vf < IRL::global_constants::VF_LOW ||
-//             liq_vf > IRL::global_constants::VF_HIGH)
-//           continue;
-
-//         if (IRL::PlanarSeparator* separator =
-//                 std::get_if<IRL::PlanarSeparator>(&((*a_interface)(i, j,
-//                 k)))) {
-//           std::cout << "plane detected" << std::endl;
-//         }
-//       }
-//     }
-//   }
-
-//   a_scalar_fields->push_back(interface_type_field);
-
-//   a_interface->updateBorder();
-//   correctInterfaceBorders(a_interface);
-// }
-
-// void TestingClasses::getReconstruction(
-//     const Data<IRL::VolumeMoments>& a_liq_moments,
-//     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
-//     const Data<double>& a_U, const Data<double>& a_V, const Data<double>&
-//     a_W, Data<IRL::SeparatorVariant>* a_interface,
-//     std::vector<InterfaceScalarField>* a_scalar_fields,
-//     const bool a_plic_already_built) {
-//   if (a_plic_already_built == false) {
-//     LVIRA::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V,
-//     a_W,
-//                              a_interface, a_scalar_fields);
-//   }
-
-//   const BasicMesh& mesh = a_liq_moments.getMesh();
-
-//   // storing plics for all reconstructions initially
-//   Data<IRL::SeparatorVariant> jibben_interface(&a_liq_moments.getMesh());
-//   Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
-//   Data<IRL::SeparatorVariant> pu_neighborhood_interface(
-//       &a_liq_moments.getMesh());
-//   Data<bool> is_underresolved(&mesh);
-//   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//       for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//         jibben_interface(i, j, k) = (*a_interface)(i, j, k);
-//         pu_neighborhood_interface(i, j, k) = (*a_interface)(
-//             i, j, k);  // stores interfaces to be used for the pu
-//             neighborhood
-//         pu_interface(i, j, k) =
-//             (*a_interface)(i, j, k);  // stores reconstruction obtained from
-//             PU
-//         is_underresolved(i, j, k) =
-//             false;  // marking everything as resolved first
-//       }
-//     }
-//   }
-
-//   // neighborhoods for jibben and pu reconstruction
-//   IRL::JibbenNeighborhood jibben_neighborhood;
-//   IRL::PUNeighborhood pu_neighborhood;
-//   const int nlayers = 1;
-//   const int nstencil =
-//       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
-//   jibben_neighborhood.reserve(nstencil);
-//   jibben_neighborhood.setDelta(2.5 * mesh.dx());
-//   pu_neighborhood.reserve(nstencil);
-
-//   // plic polygons
-//   Data<IRL::Polygon> polygon(&mesh);
-//   Data<double> liq_vf(&mesh);
-//   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//         polygon(i, j, k) = IRL::Polygon();
-//         liq_vf(i, j, k) = a_liq_moments(i, j, k).volume() /
-//         mesh.cell_volume(); if (liq_vf(i, j, k) <
-//         IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         auto cell = IRL::RectangularCuboid::fromBoundingPts(
-//             IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
-//             IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
-//         const auto planar_separator =
-//             std::get<IRL::PlanarSeparator>((*a_interface)(i, j, k));
-//         polygon(i, j, k) =
-//         IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
-//             cell, planar_separator, planar_separator[0]);
-//       }
-//     }
-//   }
-//   updatePolygonBorder(&polygon);
-
-//   // jibben reconstruction
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         jibben_neighborhood.emptyNeighborhood();
-//         int jibben_count = 0;
-//         // building jibben neighborhood
-//         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-//           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-//             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-//               if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-//                 jibben_neighborhood.addMember(polygon(ii, jj, kk));
-//                 if (i == ii && j == jj && k == kk) {
-//                   jibben_neighborhood.setCenterOfStencil(jibben_count);
-//                 }
-//                 jibben_count++;
-//               }
-//             }
-//           }
-//         }
-//         // neighborhood to local frame
-//         jibben_neighborhood.localize();
-
-//         // // checking normal metric
-//         // IRL::Jibben_3D jibben_solver(&jibben_neighborhood);
-//         // double normal_error = jibben_solver.getNormalEigenMetric();
-//         // if (normal_error > 0.2) {
-//         //   is_underresolved(i, j, k) = true;
-//         // }
-
-//         // solving for jibben reconstruction
-//         IRL::Jibben_3D jibben(&jibben_neighborhood);
-//         // IRL::Paraboloid jibben_paraboloid =
-//         //     IRL::reconstructionWithJibben3D(jibben_neighborhood);
-//         IRL::Paraboloid jibben_paraboloid =
-//         jibben.solve2(&jibben_neighborhood); jibben_interface(i, j, k) =
-//         jibben_paraboloid;
-
-//         // matching volume fraction
-//         const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-//         const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-//                                     mesh.z(k + 1));
-//         auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
-//                                                             upper_cell_pt);
-//         IRL::setDistanceToMatchVolumeFraction(
-//             cell, liq_vf(i, j, k), &(jibben_interface)(i, j, k), 1.0e-14);
-
-//         // updating pu neighborhood with paraboloids
-//         const auto& aligned_paraboloid =
-//             jibben_paraboloid.getAlignedParaboloid();
-//         if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
-//             std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0) {
-//           pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
-//         }
-//       }
-//     }
-//   }
-
-//   // pu reconstruction
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         pu_neighborhood.emptyNeighborhood();
-//         int pu_count = 0;
-//         // building pu neighborhood
-//         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-//           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-//             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-//               if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-//                 double area_weight = polygon(ii, jj, kk).calculateVolume() /
-//                                      (mesh.dx() * mesh.dx());
-//                 double vfrac_weight = 1.0;
-//                 if (liq_vf(ii, jj, kk) < 0.1) {
-//                   vfrac_weight =
-//                       0.5 - 0.5 * std::cos(10.0 * M_PI * liq_vf(ii, jj, kk));
-//                 } else if (liq_vf(ii, jj, kk) > 0.9) {
-//                   vfrac_weight =
-//                       0.5 -
-//                       0.5 * std::cos(10.0 * M_PI * (1.0 - liq_vf(ii, jj,
-//                       kk)));
-//                 }
-//                 const double weight = area_weight * vfrac_weight;
-//                 const IRL::Pt centroid =
-//                     polygon(ii, jj, kk).calculateCentroid();
-//                 pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj,
-//                 kk),
-//                                           centroid, weight);
-//                 if (i == ii && j == jj && k == kk) {
-//                   pu_neighborhood.setCenterOfStencil(pu_count);
-//                 }
-//                 pu_count++;
-//               }
-//             }
-//           }
-//         }
-//         // building pu paraboloid
-//         const double delta = 2.5 * mesh.dx();
-//         IRL::Paraboloid pu_paraboloid =
-//             IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
-
-//         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
-//             !std::isfinite(pu_paraboloid.getDatum()[1]) ||
-//             !std::isfinite(pu_paraboloid.getDatum()[2])) {
-//           // std::cout << "reverting to PLIC" << std::endl;
-//           continue;
-//         }
-
-//         // revert to plic if curvature is too large
-//         const auto& aligned_paraboloid =
-//         pu_paraboloid.getAlignedParaboloid(); if
-//         (std::fabs(aligned_paraboloid.a()) * mesh.dx() > 4.0 ||
-//             std::fabs(aligned_paraboloid.b()) * mesh.dx() > 4.0)
-//           continue;
-
-//         // volume fraction matching
-//         const auto new_datum = pu_paraboloid.getDatum();
-//         const auto new_frame = pu_paraboloid.getReferenceFrame();
-//         const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-//         const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-//                                     mesh.z(k + 1));
-//         const auto cell = IRL::RectangularCuboid::fromBoundingPts(
-//             lower_cell_pt, upper_cell_pt);
-//         IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
-//             solver_distance(cell, liq_vf(i, j, k), 1.0e-14, pu_paraboloid);
-//         pu_paraboloid.setDatum(
-//             IRL::Pt(new_datum + solver_distance.getDistance() *
-//             new_frame[2]));
-//         pu_interface(i, j, k) = pu_paraboloid;
-//       }
-//     }
-//   }
-
-//   // pu clean up
-//   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-//         if (liq_vf(i, j, k) >= IRL::global_constants::VF_LOW &&
-//             liq_vf(i, j, k) <= IRL::global_constants::VF_HIGH) {
-//           double vf_supercell = 0.0;
-//           for (int kk = k - 1; kk <= k + 1; ++kk) {
-//             for (int jj = j - 1; jj <= j + 1; ++jj) {
-//               for (int ii = i - 1; ii <= i + 1; ++ii) {
-//                 vf_supercell +=
-//                     a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
-//               }
-//             }
-//           }
-//           if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
-//             pu_interface(i, j, k) = (*a_interface)(i, j, k);
-//           }
-//         }
-//       }
-//     }
-//   }
-
-//   for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//       for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//         if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
-//             liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
-//           continue;
-//         const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-//         const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-//                                     mesh.z(k + 1));
-//         const auto cell = IRL::RectangularCuboid::fromBoundingPts(
-//             lower_cell_pt, upper_cell_pt);
-//         // checking if volume fraction is matched or not by pu
-//         if (IRL::Paraboloid* paraboloid =
-//                 std::get_if<IRL::Paraboloid>(&(pu_interface)(i, j, k))) {
-//           const double computed_m0 =
-//               IRL::getVolumeMoments<IRL::Volume>(cell, *paraboloid);
-//           const double vf_diff =
-//               std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
-//           if (vf_diff > IRL::global_constants::VF_LOW) {
-//             std::cout << vf_diff << std::endl;
-//             continue;
-//           }
-//         } else if (IRL::PlanarSeparator* separator =
-//                        std::get_if<IRL::PlanarSeparator>(
-//                            &(pu_interface(i, j, k)))) {
-//           const double computed_m0 =
-//               IRL::getVolumeMoments<IRL::Volume>(cell, *separator);
-//           const double vf_diff =
-//               std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
-//           if (vf_diff > IRL::global_constants::VF_LOW) {
-//             std::cout << vf_diff << std::endl;
-//             continue;
-//           }
-//         }
-//         (*a_interface)(i, j, k) = pu_interface(i, j, k);
-//       }
-//     }
-//   }
-
-//   // // final interfaces
-//   // InterfaceScalarField interface_type_field("interface_type", &mesh);
-//   // for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//   //   for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//   //     for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//   //       if (is_underresolved(i, j, k)) {
-//   //         (*a_interface)(i, j, k) = temp_pu_interface(i, j, k);
-//   //         interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
-//   //       } else {
-//   //         (*a_interface)(i, j, k) = jibben_interface(i, j, k);
-//   //         interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
-//   //       }
-//   //     }
-//   //   }
-//   // }
-
-//   // // outputting plane detections
-//   // for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-//   //   for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-//   //     for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-//   //       double liq_vf = a_liq_moments(i, j, k).volume() /
-//   mesh.cell_volume();
-//   //       if (liq_vf < IRL::global_constants::VF_LOW ||
-//   //           liq_vf > IRL::global_constants::VF_HIGH)
-//   //         continue;
-
-//   //       if (IRL::PlanarSeparator* separator =
-//   //               std::get_if<IRL::PlanarSeparator>(&((*a_interface)(i, j,
-//   //               k)))) {
-//   //         std::cout << "plane detected" << std::endl;
-//   //       }
-//   //     }
-//   //   }
-//   // }
-
-//   // a_scalar_fields->push_back(interface_type_field);
-
-//   a_interface->updateBorder();
-//   correctInterfaceBorders(a_interface);
-// }
-
-void TestingClasses::getReconstruction(
+void Testing::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
     const Data<double>& a_U, const Data<double>& a_V, const Data<double>& a_W,
@@ -5172,36 +5487,49 @@ void JibbenSqPU::getReconstruction(
 
   const BasicMesh& mesh = a_liq_moments.getMesh();
 
-  // plic for jibben and PU
+  // storing plics for all reconstructions initially
   Data<IRL::SeparatorVariant> jibben_interface(&a_liq_moments.getMesh());
   Data<IRL::SeparatorVariant> pu_interface(&a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> pu_neighborhood_interface(
+      &a_liq_moments.getMesh());
+  Data<IRL::SeparatorVariant> final_interface(&a_liq_moments.getMesh());
+  Data<bool> is_underresolved(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
       for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+        final_interface(i, j, k) = (*a_interface)(i, j, k);
         jibben_interface(i, j, k) = (*a_interface)(i, j, k);
-        pu_interface(i, j, k) = (*a_interface)(i, j, k);
+        pu_neighborhood_interface(i, j, k) = (*a_interface)(
+            i, j, k);  // stores interfaces to be used for the pu neighborhood
+        pu_interface(i, j, k) =
+            (*a_interface)(i, j, k);  // stores reconstruction obtained from PU
+        is_underresolved(i, j, k) =
+            false;  // marking everything as resolved first
       }
     }
   }
 
-  // PU reconstruction
-  PU::getReconstruction(a_liq_moments, a_gas_moments, a_dt, a_U, a_V, a_W,
-                        &pu_interface, a_scalar_fields, true);
+  // neighborhoods for jibben and pu reconstruction
+  IRL::JibbenNeighborhood jibben_neighborhood;
+  IRL::PUNeighborhood pu_neighborhood;
+  const int nlayers = 1;
+  const int nstencil =
+      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
+  jibben_neighborhood.reserve(nstencil);
+  jibben_neighborhood.setDelta(2.5 * mesh.dx());
+  pu_neighborhood.reserve(nstencil);
 
   // plic polygons
   Data<IRL::Polygon> polygon(&mesh);
-  Data<double> vf(&mesh);
+  Data<double> liq_vf(&mesh);
   for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
         polygon(i, j, k) = IRL::Polygon();
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        vf(i, j, k) = liquid_volume_fraction;
-        if (liquid_volume_fraction < IRL::global_constants::VF_LOW ||
-            liquid_volume_fraction > IRL::global_constants::VF_HIGH) {
+        liq_vf(i, j, k) = a_liq_moments(i, j, k).volume() / mesh.cell_volume();
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
           continue;
-        }
         auto cell = IRL::RectangularCuboid::fromBoundingPts(
             IRL::Pt(mesh.x(i), mesh.y(j), mesh.z(k)),
             IRL::Pt(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1)));
@@ -5214,89 +5542,293 @@ void JibbenSqPU::getReconstruction(
   }
   updatePolygonBorder(&polygon);
 
-  // jibben fit
-  IRL::JibbenNeighborhood neighborhood;
-  const int nlayers = 1;
-  const int nstencil =
-      (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
-  const double delta = 2.5 * mesh.dx();
-  neighborhood.reserve(nstencil);
-  neighborhood.setDelta(delta);
-
-  InterfaceScalarField interface_type_field("interface_type", &mesh);
-
+  // jibben reconstruction
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double liquid_volume_fraction =
-            a_liq_moments(i, j, k).volume() / mesh.cell_volume();
-        if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-            liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          bool full_cell = false, empty_cell = false, is_resolved = false;
-          // Fill neighborhood with polygons
-          neighborhood.emptyNeighborhood();
-          int count = 0;
-          for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-            for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-              for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-                if (vf(ii, jj, kk) < IRL::global_constants::VF_LOW) {
-                  empty_cell = true;
-                } else if (vf(ii, jj, kk) > IRL::global_constants::VF_HIGH) {
-                  full_cell = true;
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        jibben_neighborhood.emptyNeighborhood();
+        int jibben_count = 0;
+        double vf_supercell = 0.0;
+        // building jibben neighborhood
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                jibben_neighborhood.addMember(polygon(ii, jj, kk));
+                if (i == ii && j == jj && k == kk) {
+                  jibben_neighborhood.setCenterOfStencil(jibben_count);
                 }
-                if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
-                  neighborhood.addMember(polygon(ii, jj, kk));
-                  if (i == ii && j == jj && k == kk) {
-                    neighborhood.setCenterOfStencil(count);
-                  }
-                  count++;
-                }
+                jibben_count++;
+                vf_supercell +=
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
               }
             }
           }
-          neighborhood.localize();
+        }
+        // neighborhood to local frame
+        jibben_neighborhood.localize();
 
-          if (full_cell && empty_cell) {
-            is_resolved = true;
+        // jibben class
+        IRL::Jibben_3D jibben(&jibben_neighborhood);
+
+        // angular variance
+        double angular_variance = jibben.getNormalEigenMetric();
+        const double angular_variance_threshold = 0.10;
+        if (angular_variance > angular_variance_threshold) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // squared volume error
+        double volume_error = jibben.getVolumeErrorSquared(mesh.dx());
+        const double volume_error_threshold = 0.05;
+        if (volume_error > volume_error_threshold) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // super cell check
+        if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // neighbor count check
+        if (jibben_count < 2) {
+          is_underresolved(i, j, k) = true;
+        }
+
+        // solving for jibben reconstruction
+        // IRL::Paraboloid jibben_paraboloid =
+        //     IRL::reconstructionWithJibben3D(jibben_neighborhood);
+        IRL::Paraboloid jibben_paraboloid = jibben.solve2(&jibben_neighborhood);
+        jibben_interface(i, j, k) = jibben_paraboloid;
+
+        // matching volume fraction
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
+                                                            upper_cell_pt);
+        IRL::setDistanceToMatchVolumeFraction(
+            cell, liq_vf(i, j, k), &(jibben_interface)(i, j, k), 1.0e-14);
+
+        // updating pu neighborhood with paraboloids
+        const auto& aligned_paraboloid =
+            jibben_paraboloid.getAlignedParaboloid();
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0 &&
+            !is_underresolved(i, j, k)) {
+          pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        }
+        // if (std::fabs(aligned_paraboloid.a()) * mesh.dx() <= 1.0 &&
+        //     std::fabs(aligned_paraboloid.b()) * mesh.dx() <= 1.0) {
+        //   pu_neighborhood_interface(i, j, k) = jibben_interface(i, j, k);
+        // }
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() > 4.0 ||
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() > 4.0 ||
+            is_underresolved(i, j, k)) {
+          jibben_interface(i, j, k) = (*a_interface)(i, j, k);
+        }
+      }
+    }
+  }
+
+  // pu reconstruction
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        pu_neighborhood.emptyNeighborhood();
+        int pu_count = 0;
+        // building pu neighborhood
+        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
+          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
+            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
+              if (polygon(ii, jj, kk).getNumberOfVertices() > 0) {
+                double area_weight = polygon(ii, jj, kk).calculateVolume() /
+                                     (mesh.dx() * mesh.dx());
+                double vfrac_weight = 1.0;
+                if (liq_vf(ii, jj, kk) < 0.1) {
+                  vfrac_weight =
+                      0.5 - 0.5 * std::cos(10.0 * M_PI * liq_vf(ii, jj, kk));
+                } else if (liq_vf(ii, jj, kk) > 0.9) {
+                  vfrac_weight =
+                      0.5 -
+                      0.5 * std::cos(10.0 * M_PI * (1.0 - liq_vf(ii, jj, kk)));
+                }
+                const double weight = area_weight * vfrac_weight;
+                const IRL::Pt centroid =
+                    polygon(ii, jj, kk).calculateCentroid();
+                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
+                                          centroid, weight);
+                if (i == ii && j == jj && k == kk) {
+                  pu_neighborhood.setCenterOfStencil(pu_count);
+                }
+                pu_count++;
+              }
+            }
           }
+        }
+        // neighbor count check
+        if (pu_count < 2) {
+          continue;
+        }
 
-          // jibben fit
-          IRL::Jibben_3D jibben_solver;
-          jibben_interface(i, j, k) =
-              jibben_solver.solve2(&neighborhood, delta);
+        // building pu paraboloid
+        const double delta = 2.5 * mesh.dx();
+        IRL::Paraboloid pu_paraboloid =
+            IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
 
-          // error metrics
-          // double volume_error = jibben_solver.getVolumeError(mesh.dx());
-          // double volume_error_sq =
-          //     jibben_solver.getVolumeErrorSquared(mesh.dx());
-          // double normal_error = jibben_solver.getNormalMetric();
-          const double normal_error = jibben_solver.getNormalEigenMetric();
-          // double normal_error = jibben_solver.getAngularVariance();
+        if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
+            !std::isfinite(pu_paraboloid.getDatum()[1]) ||
+            !std::isfinite(pu_paraboloid.getDatum()[2])) {
+          // std::cout << "reverting to PLIC" << std::endl;
+          continue;
+        }
 
-          // error thresholds
-          const double normal_eigen_threshold = 0.2;
-          const double normal_std_threshold = 0.3;
+        // revert to plic if curvature is too large
+        const auto& aligned_paraboloid = pu_paraboloid.getAlignedParaboloid();
+        if (std::fabs(aligned_paraboloid.a()) * mesh.dx() > 4.0 ||
+            std::fabs(aligned_paraboloid.b()) * mesh.dx() > 4.0)
+          continue;
 
-          if (normal_error > normal_eigen_threshold || !is_resolved) {
-            (*a_interface)(i, j, k) = pu_interface(i, j, k);
-            interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;
-          } else {
-            const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
-            const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
-                                        mesh.z(k + 1));
-            auto cell = IRL::RectangularCuboid::fromBoundingPts(lower_cell_pt,
-                                                                upper_cell_pt);
-            IRL::setDistanceToMatchVolumeFraction(cell, liquid_volume_fraction,
-                                                  &(jibben_interface)(i, j, k),
-                                                  1.0e-14);
-            (*a_interface)(i, j, k) = jibben_interface(i, j, k);
-            interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;
+        // volume fraction matching
+        const auto new_datum = pu_paraboloid.getDatum();
+        const auto new_frame = pu_paraboloid.getReferenceFrame();
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
+            solver_distance(cell, liq_vf(i, j, k), 1.0e-14, pu_paraboloid);
+        pu_paraboloid.setDatum(
+            IRL::Pt(new_datum + solver_distance.getDistance() * new_frame[2]));
+        pu_interface(i, j, k) = pu_paraboloid;
+      }
+    }
+  }
+
+  // pu clean up
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        if (liq_vf(i, j, k) >= IRL::global_constants::VF_LOW &&
+            liq_vf(i, j, k) <= IRL::global_constants::VF_HIGH) {
+          double vf_supercell = 0.0;
+          for (int kk = k - 1; kk <= k + 1; ++kk) {
+            for (int jj = j - 1; jj <= j + 1; ++jj) {
+              for (int ii = i - 1; ii <= i + 1; ++ii) {
+                vf_supercell +=
+                    a_liq_moments(ii, jj, kk).volume() / mesh.cell_volume();
+              }
+            }
+          }
+          if (liq_vf(i, j, k) < 1.0e-2 && vf_supercell < 1.0e-1) {
+            pu_interface(i, j, k) = (*a_interface)(i, j, k);
           }
         }
       }
     }
   }
 
+  // choosing between jibben and final interface
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        if (is_underresolved(i, j, k)) {
+          final_interface(i, j, k) = pu_interface(i, j, k);
+        } else {
+          final_interface(i, j, k) = jibben_interface(i, j, k);
+        }
+      }
+    }
+  }
+
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        // checking if volume fraction is matched or not by pu
+        if (IRL::Paraboloid* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(final_interface)(i, j, k))) {
+          const double computed_m0 =
+              IRL::getVolumeMoments<IRL::Volume>(cell, *paraboloid);
+          const double vf_diff =
+              std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
+          if (vf_diff > IRL::global_constants::VF_LOW) {
+            std::cout << vf_diff << std::endl;
+            continue;
+          }
+        } else if (IRL::PlanarSeparator* separator =
+                       std::get_if<IRL::PlanarSeparator>(
+                           &(final_interface(i, j, k)))) {
+          const double computed_m0 =
+              IRL::getVolumeMoments<IRL::Volume>(cell, *separator);
+          const double vf_diff =
+              std::abs((computed_m0 / mesh.cell_volume()) - liq_vf(i, j, k));
+          if (vf_diff > IRL::global_constants::VF_LOW) {
+            std::cout << vf_diff << std::endl;
+            continue;
+          }
+        }
+        (*a_interface)(i, j, k) = final_interface(i, j, k);
+      }
+    }
+  }
+
+  // outputting interface type
+  InterfaceScalarField interface_type_field("interface_type", &mesh);
+  // for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+  //   for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+  //     for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+  //       if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+  //           liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+  //         continue;
+  //       if (IRL::Paraboloid* paraboloid =
+  //               std::get_if<IRL::Paraboloid>(&(*a_interface)(i, j, k))) {
+  //         if (is_underresolved(i, j, k)) {
+  //           interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;  //
+  //           pu
+  //         } else {
+  //           interface_type_field.paraboloid_scalar_data(i, j, k) =
+  //               2.0;  // jibben
+  //         }
+  //       } else if (IRL::PlanarSeparator* separator =
+  //                      std::get_if<IRL::PlanarSeparator>(
+  //                          &(*a_interface)(i, j, k))) {
+  //         interface_type_field.polygon_scalar_data(i, j, k) = 1.0;  // lvira
+  //       }
+  //     }
+  //   }
+  // }
+  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;
+        if (is_underresolved(i, j, k)) {
+          interface_type_field.paraboloid_scalar_data(i, j, k) = 1.0;  // pu
+        } else {
+          interface_type_field.paraboloid_scalar_data(i, j, k) = 0.0;  // jibben
+        }
+      }
+    }
+  }
   a_scalar_fields->push_back(interface_type_field);
 
   a_interface->updateBorder();
@@ -5304,6 +5836,7 @@ void JibbenSqPU::getReconstruction(
 }
 
 // ====================== Hybrid Circle Fit and PU =======================
+// orientation planes with PU normals then circle fit
 void Hybrid2::getReconstruction(
     const Data<IRL::VolumeMoments>& a_liq_moments,
     const Data<IRL::VolumeMoments>& a_gas_moments, const double a_dt,
