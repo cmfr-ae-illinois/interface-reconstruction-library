@@ -16,6 +16,7 @@
 #include <Eigen/Dense>
 #include <chrono>
 #include <cstdio>
+#include <iomanip>
 #include <iostream>
 #include <string>
 
@@ -87,6 +88,10 @@ void printError(const BasicMesh& mesh,
                 const Data<IRL::VolumeMoments>& liq_moments,
                 const Data<IRL::VolumeMoments>& starting_liq_moments);
 
+void printSurfaceMomentsError(
+    const BasicMesh& mesh, const Data<IRL::SeparatorVariant>& interfaces,
+    const Data<IRL::SeparatorVariant>& starting_interfaces);
+
 void connectMesh(
     const BasicMesh& a_mesh,
     Data<IRL::LocalizedSeparatorVariantLink>* a_link_localized_interface);
@@ -156,11 +161,16 @@ int runSimulation(const std::string& a_case_name,
   starting_interface = interface;
 
   // outputting interfaces in respective directory
-  std::string output_dir = "/home/parinht2/Simulations/irl";
-  std::string vtk_output_dir = output_dir + "/" + "viz_out";
+  // std::string output_dir =
+  //     "/home/parinht2/Desktop/ppic "
+  //     "paper/ilass_results/advection_convergence/more_points";
+  // std::string vtk_output_dir = output_dir + "/" + "interfaces/" + a_case_name
+  // +
+  //                              "_" + a_reconstruction_method + "_" +
+  //                              std::to_string(a_nx);
 
-  VTKOutput vtk_io(vtk_output_dir, "viz", cc_mesh);
-  // VTKOutput vtk_io("viz_out", "viz", cc_mesh);
+  // VTKOutput vtk_io(vtk_output_dir, "viz", cc_mesh);
+  VTKOutput vtk_io("viz_out", "viz", cc_mesh);
   vtk_io.addData("VelocityX", velU);
   vtk_io.addData("VelocityY", velV);
   vtk_io.addData("VelocityZ", velW);
@@ -175,16 +185,28 @@ int runSimulation(const std::string& a_case_name,
   getReconstruction(a_reconstruction_method, liq_moments, gas_moments, 0.0,
                     velU, velV, velW, &interface, &scalar_fields);
 
+  // storing starting reconstructed interface
+  // Data<IRL::SeparatorVariant> starting_reconstructed_interface(&cc_mesh);
+  // for (int i = cc_mesh.imin(); i <= cc_mesh.imax(); ++i) {
+  //   for (int j = cc_mesh.jmin(); j <= cc_mesh.jmax(); ++j) {
+  //     for (int k = cc_mesh.kmin(); k <= cc_mesh.kmax(); ++k) {
+  //       starting_reconstructed_interface(i, j, k) = interface(i, j, k);
+  //     }
+  //   }
+  // }
+
   resetMoments(link_localized_interface, &liq_moments, &gas_moments);
 
   const bool output_interface_scalars = true;
 
-  if (output_interface_scalars) {
-    writeInterfaceWithScalarToFile(liq_moments, interface, &scalar_fields,
-                                   simulation_time, &vtk_io, true);
-  } else {
-    writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
-                         true);
+  if (rank == 0) {
+    if (output_interface_scalars) {
+      writeInterfaceWithScalarToFile(liq_moments, interface, &scalar_fields,
+                                     simulation_time, &vtk_io, true);
+    } else {
+      writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
+                           true);
+    }
   }
 
   if (rank == 0) {
@@ -207,7 +229,6 @@ int runSimulation(const std::string& a_case_name,
         std::fmin(timestep, a_end_time - simulation_time);
     SimulationType::setVelocity(simulation_time + 0.5 * time_step_to_use, &velU,
                                 &velV, &velW);
-
     auto start = std::chrono::system_clock::now();
     advectVOF(a_advection_method, a_reconstruction_method, time_step_to_use,
               simulation_time, velU, velV, velW, &link_localized_interface,
@@ -222,13 +243,15 @@ int runSimulation(const std::string& a_case_name,
         // storing final interface
         // Data<IRL::SeparatorVariant> ending_interface(&cc_mesh);
         // const auto ending_liq_moments = liq_moments;
+        // std::vector<InterfaceScalarField> temp_scalar_fields;
         // getReconstruction(a_reconstruction_method, liq_moments, gas_moments,
         //                   time_step_to_use, velU, velV, velW,
-        //                   &ending_interface);
+        //                   &ending_interface, &temp_scalar_fields);
         // // writing moments to file
         // std::string moments_output_dir =
         //     "/home/parinht2/Desktop/ppic "
-        //     "paper/advection_convergence/run_2/binary_files";
+        //     "paper/ilass_results/advection_convergence/more_points/"
+        //     "binary_files";
         // writeMomentsToBinary(starting_liq_moments, ending_liq_moments,
         //                      starting_interface, ending_interface,
         //                      moments_output_dir, a_case_name,
@@ -252,7 +275,12 @@ int runSimulation(const std::string& a_case_name,
                       time_step_to_use, velU, velV, velW, &interface,
                       &scalar_fields);
 
-    // outputting interfaces based on Jibben metrics
+    // if (simulation_time + time_step_to_use >= a_end_time) {
+    //   printSurfaceMomentsError(cc_mesh, interface,
+    //   starting_actual_interface); printSurfaceMomentsError(cc_mesh,
+    //   interface,
+    //                            starting_reconstructed_interface);
+    // }
 
     auto recon_end = std::chrono::system_clock::now();
     recon_time = recon_end - advect_end;
@@ -260,14 +288,16 @@ int runSimulation(const std::string& a_case_name,
     if (a_viz_frequency > 0 && iteration % a_viz_frequency == 0) {
       if (rank == 0) {
         vtk_io.writeVTKFile(simulation_time);
-      }
-      if (output_interface_scalars) {
-        writeInterfaceWithScalarToFile(
-            liq_moments, interface, &scalar_fields, simulation_time, &vtk_io,
-            simulation_time + time_step_to_use >= a_end_time);
-      } else {
-        writeInterfaceToFile(liq_moments, interface, simulation_time, &vtk_io,
-                             simulation_time + time_step_to_use >= a_end_time);
+
+        if (output_interface_scalars) {
+          writeInterfaceWithScalarToFile(
+              liq_moments, interface, &scalar_fields, simulation_time, &vtk_io,
+              simulation_time + time_step_to_use >= a_end_time);
+        } else {
+          writeInterfaceToFile(
+              liq_moments, interface, simulation_time, &vtk_io,
+              simulation_time + time_step_to_use >= a_end_time);
+        }
       }
     }
     auto write_end = std::chrono::system_clock::now();

@@ -279,68 +279,237 @@ void writeInterfaceWithScalarToFile(
                                         cylinders, a_scalar_fields);
 }
 
+// void printError(const BasicMesh& mesh,
+//                 const Data<IRL::VolumeMoments>& liq_moments,
+//                 const Data<IRL::VolumeMoments>& starting_liq_moments) {
+//   int rank, size;
+//   MPI_Comm_size(MPI_COMM_WORLD, &size);
+//   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+//   if (rank == 0) {
+//     double linf_error_m0 = 0.0, linf_error_m1 = 0.0;
+//     double l1_error_m0 = 0.0, l1_error_m1 = 0.0;
+//     double l2_error_m0 = 0.0, l2_error_m1 = 0.0;
+//     double scale_m0 = 1.0 / std::pow(mesh.dx(), 3.0);
+//     double scale_m1 = 1.0 / std::pow(mesh.dx(), 4.0);
+//     for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+//       for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+//         for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+//           const double liquid_volume_fraction =
+//               liq_moments(i, j, k).volume() / mesh.cell_volume();
+//           // if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
+//           //     liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
+//           auto mom_err = (liq_moments(i, j, k) - starting_liq_moments(i, j,
+//           k)); linf_error_m0 = std::max(linf_error_m0,
+//           std::abs(mom_err.volume())); linf_error_m1 =
+//               std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
+//           linf_error_m1 =
+//               std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
+//           linf_error_m1 =
+//               std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
+//           l1_error_m0 += std::abs(mom_err.volume());
+//           l1_error_m1 += std::abs(mom_err.centroid()[0]);
+//           l1_error_m1 += std::abs(mom_err.centroid()[1]);
+//           l1_error_m1 += std::abs(mom_err.centroid()[2]);
+//           l2_error_m0 += mom_err.volume() * mom_err.volume();
+//           l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
+//           l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
+//           l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
+//           // }
+//         }
+//       }
+//     }
+//     l1_error_m0 /=
+//         (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+//     l1_error_m1 /=
+//         (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+//     l2_error_m0 /=
+//         (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+//     l2_error_m1 /=
+//         (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
+//     linf_error_m0 *= scale_m0;
+//     linf_error_m1 *= scale_m1;
+//     l1_error_m0 *= scale_m0;
+//     l1_error_m1 *= scale_m1;
+//     l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
+//     l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
+//     std::cout << std::scientific << std::setprecision(2)
+//               << "Linf M0 = " << linf_error_m0 << std::endl;
+//     std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
+//     std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
+//     std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
+//     std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
+//     std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
+//   }
+// }
+
 void printError(const BasicMesh& mesh,
                 const Data<IRL::VolumeMoments>& liq_moments,
                 const Data<IRL::VolumeMoments>& starting_liq_moments) {
-  int rank, size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  double l1_error_m0 = 0.0;
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        auto mom_err = (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
+        l1_error_m0 += std::abs(mom_err.volume());
+      }
+    }
+  }
+  std::cout << std::scientific << std::setprecision(16)
+            << "L1   M0 = " << l1_error_m0 << std::endl;
+}
 
-  if (rank == 0) {
-    double linf_error_m0 = 0.0, linf_error_m1 = 0.0;
-    double l1_error_m0 = 0.0, l1_error_m1 = 0.0;
-    double l2_error_m0 = 0.0, l2_error_m1 = 0.0;
-    double scale_m0 = 1.0 / std::pow(mesh.dx(), 3.0);
-    double scale_m1 = 1.0 / std::pow(mesh.dx(), 4.0);
-    for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
-      for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
-        for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-          const double liquid_volume_fraction =
-              liq_moments(i, j, k).volume() / mesh.cell_volume();
-          // if (liquid_volume_fraction >= IRL::global_constants::VF_LOW &&
-          //     liquid_volume_fraction <= IRL::global_constants::VF_HIGH) {
-          auto mom_err = (liq_moments(i, j, k) - starting_liq_moments(i, j, k));
-          linf_error_m0 = std::max(linf_error_m0, std::abs(mom_err.volume()));
-          linf_error_m1 =
-              std::max(linf_error_m1, std::abs(mom_err.centroid()[0]));
-          linf_error_m1 =
-              std::max(linf_error_m1, std::abs(mom_err.centroid()[1]));
-          linf_error_m1 =
-              std::max(linf_error_m1, std::abs(mom_err.centroid()[2]));
-          l1_error_m0 += std::abs(mom_err.volume());
-          l1_error_m1 += std::abs(mom_err.centroid()[0]);
-          l1_error_m1 += std::abs(mom_err.centroid()[1]);
-          l1_error_m1 += std::abs(mom_err.centroid()[2]);
-          l2_error_m0 += mom_err.volume() * mom_err.volume();
-          l2_error_m1 += mom_err.centroid()[0] * mom_err.centroid()[0];
-          l2_error_m1 += mom_err.centroid()[1] * mom_err.centroid()[1];
-          l2_error_m1 += mom_err.centroid()[2] * mom_err.centroid()[2];
-          // }
+void printSurfaceMomentsError(
+    const BasicMesh& mesh, const Data<IRL::SeparatorVariant>& interfaces,
+    const Data<IRL::SeparatorVariant>& starting_interfaces) {
+  double l1_error_m0 = 0.0;
+  double l1_error_s0 = 0.0;
+  double l1_error_s1 = 0.0;
+
+  Data<double> liq_vf(&mesh);
+  Data<double> liq_vf_starting(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        double m0 =
+            IRL::getVolumeMoments<IRL::Volume>(cell, interfaces(i, j, k));
+        liq_vf(i, j, k) = m0 / mesh.cell_volume();
+        double starting_m0 = IRL::getVolumeMoments<IRL::Volume>(
+            cell, starting_interfaces(i, j, k));
+        liq_vf_starting(i, j, k) = starting_m0 / mesh.cell_volume();
+        l1_error_m0 += std::abs(m0 - starting_m0);
+      }
+    }
+  }
+
+  using VolumeMomentsAndSurface =
+      IRL::AddSurfaceOutput<IRL::VolumeMoments,
+                            IRL::ParaboloidParametrizedSurfaceOutput>;
+
+  // surface moments field (not starting)
+  Data<IRL::GeneralSurfaceMoments3D<1>> surface_moments(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        surface_moments(i, j, k)[0] = 0.0;
+        surface_moments(i, j, k)[1] = 0.0;
+        surface_moments(i, j, k)[2] = 0.0;
+        surface_moments(i, j, k)[3] = 0.0;
+        if (liq_vf(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;  // skip if not mixed
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        if (const auto* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(interfaces)(i, j, k))) {
+          auto surface =
+              IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, *paraboloid)
+                  .getSurface();
+          surface_moments(i, j, k) = surface.getSurfaceMoments<1>();
+        } else if (const auto* separator = std::get_if<IRL::PlanarSeparator>(
+                       &(interfaces(i, j, k)))) {
+          IRL::Polygon polygon =
+              IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                  cell, *separator, (*separator)[0]);
+          std::vector<double> polygon_moments =
+              calculatePolygonSurfaceMoments(polygon);
+          surface_moments(i, j, k)[0] = polygon_moments[0];
+          surface_moments(i, j, k)[1] = polygon_moments[1];
+          surface_moments(i, j, k)[2] = polygon_moments[2];
+          surface_moments(i, j, k)[3] = polygon_moments[3];
         }
       }
     }
-    l1_error_m0 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    l1_error_m1 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    l2_error_m0 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    l2_error_m1 /=
-        (static_cast<double>(mesh.getNx() * mesh.getNy() * mesh.getNz()));
-    linf_error_m0 *= scale_m0;
-    linf_error_m1 *= scale_m1;
-    l1_error_m0 *= scale_m0;
-    l1_error_m1 *= scale_m1;
-    l2_error_m0 = std::sqrt(l2_error_m0) * scale_m0;
-    l2_error_m1 = std::sqrt(l2_error_m1) * scale_m1;
-    std::cout << std::scientific << std::setprecision(2)
-              << "Linf M0 = " << linf_error_m0 << std::endl;
-    std::cout << "Linf M1 = " << linf_error_m1 << std::endl;
-    std::cout << "L1   M0 = " << l1_error_m0 << std::endl;
-    std::cout << "L1   M1 = " << l1_error_m1 << std::endl;
-    std::cout << "L2   M0 = " << l2_error_m0 << std::endl;
-    std::cout << "L2   M1 = " << l2_error_m1 << std::endl;
   }
+
+  // surface moments field (starting)
+  Data<IRL::GeneralSurfaceMoments3D<1>> surface_moments_starting(&mesh);
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        surface_moments_starting(i, j, k)[0] = 0.0;
+        surface_moments_starting(i, j, k)[1] = 0.0;
+        surface_moments_starting(i, j, k)[2] = 0.0;
+        surface_moments_starting(i, j, k)[3] = 0.0;
+        if (liq_vf_starting(i, j, k) < IRL::global_constants::VF_LOW ||
+            liq_vf_starting(i, j, k) > IRL::global_constants::VF_HIGH)
+          continue;  // skip if not mixed
+        const IRL::Pt lower_cell_pt(mesh.x(i), mesh.y(j), mesh.z(k));
+        const IRL::Pt upper_cell_pt(mesh.x(i + 1), mesh.y(j + 1),
+                                    mesh.z(k + 1));
+        const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+            lower_cell_pt, upper_cell_pt);
+        if (const auto* paraboloid =
+                std::get_if<IRL::Paraboloid>(&(starting_interfaces)(i, j, k))) {
+          auto surface =
+              IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, *paraboloid)
+                  .getSurface();
+          surface_moments_starting(i, j, k) = surface.getSurfaceMoments<1>();
+        } else if (const auto* separator = std::get_if<IRL::PlanarSeparator>(
+                       &(starting_interfaces(i, j, k)))) {
+          IRL::Polygon polygon =
+              IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                  cell, *separator, (*separator)[0]);
+          std::vector<double> polygon_moments =
+              calculatePolygonSurfaceMoments(polygon);
+          surface_moments_starting(i, j, k)[0] = polygon_moments[0];
+          surface_moments_starting(i, j, k)[1] = polygon_moments[1];
+          surface_moments_starting(i, j, k)[2] = polygon_moments[2];
+          surface_moments_starting(i, j, k)[3] = polygon_moments[3];
+        }
+      }
+    }
+  }
+
+  // recentering all surface moments and computing error norms
+  for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
+    for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
+      for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
+        IRL::Pt x_ref = IRL::Pt(mesh.xm(i), mesh.ym(j), mesh.zm(k));
+        surface_moments(i, j, k)[1] -= surface_moments(i, j, k)[0] * x_ref[0];
+        surface_moments(i, j, k)[2] -= surface_moments(i, j, k)[0] * x_ref[1];
+        surface_moments(i, j, k)[3] -= surface_moments(i, j, k)[0] * x_ref[2];
+        surface_moments_starting(i, j, k)[1] -=
+            surface_moments_starting(i, j, k)[0] * x_ref[0];
+        surface_moments_starting(i, j, k)[2] -=
+            surface_moments_starting(i, j, k)[0] * x_ref[1];
+        surface_moments_starting(i, j, k)[3] -=
+            surface_moments_starting(i, j, k)[0] * x_ref[2];
+
+        // error norms
+        l1_error_s0 += std::abs(surface_moments(i, j, k)[0] -
+                                surface_moments_starting(i, j, k)[0]);
+        // 2 norm of first surface moment
+        l1_error_s1 +=
+            std::sqrt(std::pow(surface_moments(i, j, k)[1] -
+                                   surface_moments_starting(i, j, k)[1],
+                               2) +
+                      std::pow(surface_moments(i, j, k)[2] -
+                                   surface_moments_starting(i, j, k)[2],
+                               2) +
+                      std::pow(surface_moments(i, j, k)[3] -
+                                   surface_moments_starting(i, j, k)[3],
+                               2));
+      }
+    }
+  }
+
+  // printing errors
+  std::cout << "------------------------------" << std::endl;
+  std::cout << std::scientific << std::setprecision(2)
+            << "L1 M0 new = " << l1_error_m0 << std::endl;
+  std::cout << "L1 S0 = " << l1_error_s0 << std::endl;
+  std::cout << "L1 S1 = " << l1_error_s1 << std::endl;
+  std::cout << "L1 S1 normalized = " << l1_error_s1 / mesh.dx() << std::endl;
+  std::cout << "------------------------------" << std::endl;
 }
 
 void connectMesh(
