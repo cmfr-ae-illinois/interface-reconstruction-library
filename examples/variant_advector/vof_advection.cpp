@@ -136,9 +136,9 @@ void FullLagrangianCorrected::advectVOF(
   for (int i = mesh.imin(); i <= mesh.imax(); ++i) {
     for (int j = mesh.jmin(); j <= mesh.jmax(); ++j) {
       for (int k = mesh.kmin(); k <= mesh.kmax(); ++k) {
-        const double CFLx = a_U(i, j, k) * a_dt / mesh.dx();
-        const double CFLy = a_V(i, j, k) * a_dt / mesh.dy();
-        const double CFLz = a_W(i, j, k) * a_dt / mesh.dz();
+        const double CFLx = std::abs(a_U(i, j, k)) * a_dt / mesh.dx();
+        const double CFLy = std::abs(a_V(i, j, k)) * a_dt / mesh.dy();
+        const double CFLz = std::abs(a_W(i, j, k)) * a_dt / mesh.dz();
         CFL = std::fmax(CFL, std::fmax(CFLx, std::fmax(CFLy, CFLz)));
       }
     }
