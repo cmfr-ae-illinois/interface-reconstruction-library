@@ -68,6 +68,15 @@ void output_interfaces(const std::string& shape, int Nx_fine, const int& factor,
                        const std::string& reconstruction_method,
                        const std::string& output_dir);
 
+double getCurvatureMetrics(const std::string& shape, int Nx_fine,
+                           const int& factor,
+                           const std::string& reconstruction_method,
+                           const std::string& output_dir);
+
+void runCurvatureConvergence(const std::string& shape, int Nx_fine,
+                             const std::string& reconstruction_method,
+                             const std::string& output_dir);
+
 std::pair<double, double> getCurvednessMetrics(
     const std::string& shape, int Nx_fine, const int& factor,
     const std::string& reconstruction_method, const std::string& output_dir);

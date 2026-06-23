@@ -67,6 +67,19 @@ struct Jibben {
                                 Data<double>* a_errors = nullptr);
 };
 
+struct Jibben2 {
+  static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
+                                const Data<IRL::VolumeMoments>& a_gas_moments,
+                                const double a_dt, const Data<double>& a_U,
+                                const Data<double>& a_V,
+                                const Data<double>& a_W,
+                                Data<IRL::SeparatorVariant>* a_interface,
+                                const bool a_plic_already_built = false,
+                                Data<IRL::Pt>* a_centroids = nullptr,
+                                Data<double>* a_areas = nullptr,
+                                Data<double>* a_errors = nullptr);
+};
+
 struct MixedPLICJibben {
   static void getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                                 const Data<IRL::VolumeMoments>& a_gas_moments,

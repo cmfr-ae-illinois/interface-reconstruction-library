@@ -1434,4 +1434,173 @@ MomentDiffNorms computePLICMetricsFromBin(
   return compute_moment_diff_norms(moments_coarse, moments_reconstruction);
 }
 
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+double getCurvatureMetrics(const std::string& shape, int Nx_fine,
+                           const int& factor,
+                           const std::string& reconstruction_method,
+                           const std::string& output_dir) {
+  double norm = 0.0;  // L2 norm
+
+  // -- coarsen --
+  BasicMesh mesh_fine(Nx_fine, Nx_fine, Nx_fine, 1);
+  SurfaceVariant surf = makeSurface(shape, mesh_fine);
+  const std::string bin_path = binary_filename(output_dir, shape, Nx_fine);
+
+  const int Nx_coarse = Nx_fine / factor;
+  BasicMesh mesh_coarse(Nx_coarse, Nx_coarse, Nx_coarse, 1);
+  mesh_coarse.setCellBoundaries(
+      IRL::Pt(mesh_fine.x(mesh_fine.imin()), mesh_fine.y(mesh_fine.jmin()),
+              mesh_fine.z(mesh_fine.kmin())),
+      IRL::Pt(mesh_fine.x(mesh_fine.imax() + 1),
+              mesh_fine.y(mesh_fine.jmax() + 1),
+              mesh_fine.z(mesh_fine.kmax() + 1)));
+
+  using VM = IRL::GeneralMoments3D<VM_ORDER>;
+  using SM = IRL::GeneralSurfaceMoments3D<SM_ORDER>;
+  Data<std::pair<VM, SM>> moments_coarse(&mesh_coarse);
+
+  coarsenMomentsFromBinary<VM_ORDER, SM_ORDER>(bin_path, factor,
+                                               &moments_coarse);
+
+  // -- reconstruction --
+  Data<double> velU(&mesh_coarse), velV(&mesh_coarse), velW(&mesh_coarse);
+  Data<IRL::VolumeMoments> liq_moments(&mesh_coarse), gas_moments(&mesh_coarse);
+  Data<IRL::SeparatorVariant> interface(&mesh_coarse);
+
+  for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+    for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+      for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+        IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+        IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+                   mesh_coarse.z(k + 1));
+        IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+        const double m0 = moments_coarse(i, j, k).first[0];
+
+        const IRL::Pt m1(moments_coarse(i, j, k).first[1],
+                         moments_coarse(i, j, k).first[2],
+                         moments_coarse(i, j, k).first[3]);
+
+        liq_moments(i, j, k) = IRL::VolumeMoments(m0, m1);
+        gas_moments(i, j, k) = cell.calculateMoments() - liq_moments(i, j, k);
+      }
+    }
+  }
+
+  getReconstruction(reconstruction_method, liq_moments, gas_moments, 0.0, velU,
+                    velV, velW, &interface);
+
+  // -- curvedness --
+  double num = 0.0;
+  double denom = 0.0;
+
+  for (int i = mesh_coarse.imin(); i <= mesh_coarse.imax(); i++) {
+    for (int j = mesh_coarse.jmin(); j <= mesh_coarse.jmax(); j++) {
+      for (int k = mesh_coarse.kmin(); k <= mesh_coarse.kmax(); k++) {
+        double vf = liq_moments(i, j, k).volume() / mesh_coarse.cell_volume();
+        if (vf < IRL::global_constants::VF_LOW ||
+            vf > IRL::global_constants::VF_HIGH)
+          continue;
+
+        const auto* parab = std::get_if<IRL::Paraboloid>(&interface(i, j, k));
+        if (!parab) continue;
+
+        IRL::Pt x0(mesh_coarse.x(i), mesh_coarse.y(j), mesh_coarse.z(k));
+        IRL::Pt x1(mesh_coarse.x(i + 1), mesh_coarse.y(j + 1),
+                   mesh_coarse.z(k + 1));
+        IRL::RectangularCuboid cell =
+            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+
+        using VMS =
+            IRL::AddSurfaceOutput<IRL::VolumeMoments,
+                                  IRL::ParaboloidParametrizedSurfaceOutput>;
+        auto surface = IRL::getVolumeMoments<VMS>(cell, *parab).getSurface();
+
+        auto surface_moments = surface.template getSurfaceMoments<1>();
+        Eigen::Vector3d surface_centroid(
+            surface_moments[1] / surface_moments[0],
+            surface_moments[2] / surface_moments[0],
+            surface_moments[3] / surface_moments[0]);
+
+        Eigen::Vector3d x_proj = std::visit(
+            [&](auto& s) { return s.projectPointOnSurface(surface_centroid); },
+            surf);
+
+        double surface_curvedness = std::visit(
+            [&](auto& s) {
+              return s.curvedness(x_proj[0], x_proj[1], x_proj[2]);
+            },
+            surf);
+
+        double surface_meancurvature = std::visit(
+            [&](auto& s) {
+              return s.meanCurvature(x_proj[0], x_proj[1], x_proj[2]);
+            },
+            surf);
+
+        // double parab_curvedness = surface.getCurvednessNonAligned(
+        //     IRL::Pt(x_proj[0], x_proj[1], x_proj[2]));
+
+        double parab_meanCurvature = surface.getMeanCurvatureNonAligned(
+            IRL::Pt(x_proj[0], x_proj[1], x_proj[2]));
+
+        num += (0.5 * parab_meanCurvature - surface_meancurvature) *
+               (0.5 * parab_meanCurvature - surface_meancurvature);
+        denom += surface_curvedness * surface_curvedness;
+      }
+    }
+  }
+
+  norm = std::sqrt(num) / std::sqrt(denom);
+
+  return norm;
+}
+
+template <std::size_t VM_ORDER, std::size_t SM_ORDER>
+void runCurvatureConvergence(const std::string& shape, int Nx_fine,
+                             const std::string& reconstruction_method,
+                             const std::string& output_dir) {
+  int rank = 0, size = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  std::string csv_path = output_dir + "/curvature_convergence_" + shape + "_" +
+                         reconstruction_method + "_Nx" +
+                         std::to_string(Nx_fine) + ".csv";
+
+  // factors for convergence
+  const std::vector<int> factors = {1, 2, 4, 8, 16};  // {1, 2, 4, 8, 16}
+
+  if (rank == 0) {
+    std::ofstream csv(csv_path);
+    if (!csv) {
+      std::fprintf(stderr, "ERROR: cannot open CSV for writing: %s\n",
+                   csv_path.c_str());
+    } else {
+      csv << "factor,L2\n";
+      csv << std::scientific << std::setprecision(10);
+    }
+    for (int f : factors) {
+      std::cout << "Running factor = " << f << std::endl;
+      int ok = (Nx_fine % f == 0) ? 1 : 0;
+      if (!ok) {
+        std::fprintf(stderr,
+                     "ERROR: Nx_fine (%d) not divisible by factor (%d)\n",
+                     Nx_fine, f);
+        if (!ok) MPI_Abort(MPI_COMM_WORLD, 4);
+      }
+      double norms = getCurvatureMetrics<VM_ORDER, SM_ORDER>(
+          shape, Nx_fine, f, reconstruction_method, output_dir);
+      if (csv) {
+        csv << f << "," << norms << "\n";
+      }
+    }
+    csv.close();
+    std::printf("✅ Curvedness convergence results written to %s\n",
+                csv_path.c_str());
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+
 #endif  // EXAMPLES_IMPLICIT_SURFACE_RECONSTRUCTION_RECONSTRUCTION_METRICS_TPP_

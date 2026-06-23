@@ -94,8 +94,11 @@ int main(int argc, char** argv) {
   } else if (mode == "convergence") {
     // only for paraboloids
     run_convergence<VM_ORDER, SM_ORDER>(shape, Nx, method, outdir);
+    // } else if (mode == "curvednessConvergence") {
+    //   runCurvednessConvergence<VM_ORDER, SM_ORDER>(shape, Nx, method,
+    //   outdir);
   } else if (mode == "curvednessConvergence") {
-    runCurvednessConvergence<VM_ORDER, SM_ORDER>(shape, Nx, method, outdir);
+    runCurvatureConvergence<VM_ORDER, SM_ORDER>(shape, Nx, method, outdir);
   } else if (mode == "outputInterface") {
     output_interfaces<VM_ORDER, SM_ORDER>(shape, Nx, factor, method, outdir);
   } else {
