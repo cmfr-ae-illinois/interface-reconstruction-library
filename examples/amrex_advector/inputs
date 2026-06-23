@@ -13,7 +13,7 @@ case.name = rotation3d
 # *****************************************************************
 # Which interface reconstruction method to use?
 # *****************************************************************
-reconstruction.name = jibben
+reconstruction.name = lvira
 
 # *****************************************************************
 # Which interface advection method to use?
@@ -47,10 +47,10 @@ amr.v              = 1       # verbosity in Amr
 # Resolution and refinement
 # *****************************************************************
 amr.n_cell          = 2 2 2
-amr.max_level       = 5       # maximum level number allowed -- 
+amr.max_level       = 6       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
-amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
+amr.ref_ratio       = 2 2 2 2 2 2 # refinement ratio between levels
 
 # *****************************************************************
 # Control of grid creation
