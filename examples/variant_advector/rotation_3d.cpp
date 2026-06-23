@@ -135,6 +135,12 @@ double Rotation3D::getTimeStep(const BasicMesh& a_mesh,
     }
   }
 
-  return a_max_cfl * std::min(a_mesh.dx() / Umax,
-                              std::min(a_mesh.dy() / Vmax, a_mesh.dz() / Wmax));
+  const double Uref = 4.2;
+
+  // return a_max_cfl * std::min(a_mesh.dx() / Umax,
+  //                             std::min(a_mesh.dy() / Vmax, a_mesh.dz() /
+  //                             Wmax));
+
+  return a_max_cfl * std::min(a_mesh.dx() / Uref,
+                              std::min(a_mesh.dy() / Uref, a_mesh.dz() / Uref));
 }
