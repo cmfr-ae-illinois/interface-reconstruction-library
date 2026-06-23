@@ -25,7 +25,7 @@ ScalarType GeneralImplicitSurface<ScalarType, MAX_REFINE_LEVEL>::meanCurvature(
   const ScalarType trH = Hf.trace();
   const ScalarType gtHg = g.transpose() * (Hf * g);
 
-  return (-gtHg + G * trH) / std::pow(G, 1.5);
+  return 0.5 * (-gtHg + G * trH) / std::pow(G, 1.5);
 }
 
 template <class ScalarType, size_t MAX_REFINE_LEVEL>
