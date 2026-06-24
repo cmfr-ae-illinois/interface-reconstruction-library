@@ -580,7 +580,7 @@ void AmrCoreAdv::ReadParameters() {
     ParmParse pp("adv");
 
     pp.query("cfl", cfl);
-    num_grow = std::max(2, 1 + static_cast<int>(std::ceil(cfl)));
+    num_grow = std::max(2, 2 + static_cast<int>(std::ceil(cfl)));
     amrex::Print() << "Target CFL = " << cfl << ", requiring " << num_grow
                    << " ghost layers\n";
     pp.query("do_reflux", do_reflux);
