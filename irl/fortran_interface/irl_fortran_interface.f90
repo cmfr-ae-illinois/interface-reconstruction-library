@@ -33,6 +33,7 @@ module irl_fortran_interface
   use f_PlanarLoc_class
   use f_PlanarSep_class
   use f_SeparatorVariant_class
+  use f_SeparatorUnion_class
   use f_LocLink_class
   use f_PlanarSepPath_class
   use f_PlanarSepPathGroup_class

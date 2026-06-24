@@ -26,6 +26,7 @@ module f_volumefractionmatching
   use f_Pyrmd_class
   use f_PlanarSep_class
   use f_SeparatorVariant_class
+  use f_SeparatorUnion_class
   use f_PlanarSepPathGroup_class
   implicit none
 
@@ -38,6 +39,7 @@ module f_volumefractionmatching
     ! Set distances in PlanarSep to recreate volume fraction on a Rectangular Cuboid
     ! using default tolerance value
     module procedure matchVolumeFraction_RectCub_Variant_Default
+    module procedure matchVolumeFraction_RectCub_Union_raw_Default
     ! Set distances in PlanarSep to recreate volume fraction on a Hexahedron
     module procedure matchVolumeFraction_Hex_PlanarSep
     ! Set distances in PlanarSep to recreate volume fraction on a Hexahedron
@@ -95,6 +97,19 @@ module f_volumefractionmatching
       real(C_DOUBLE) :: a_volume_fraction ! Volume fraction to recreate
       type(c_SeparatorVariant) :: a_Variant ! Pointer to PlanarSep object
     end subroutine F_matchVolumeFraction_RectCub_Variant_DefTol
+  end interface
+
+  interface
+    subroutine F_matchVolumeFraction_RectCub_Union_raw_DefTol(a_rectangular_cuboid, a_volume_fraction, &
+         a_variant) &
+    bind(C, name="c_matchVolumeFraction_RectCub_Union_raw_Default")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_RectCub) :: a_rectangular_cuboid ! Pointer to RectCub object
+      real(C_DOUBLE) :: a_volume_fraction ! Volume fraction to recreate
+      type(SeparatorUnion_type_raw) :: a_Variant ! Pointer to PlanarSep object
+    end subroutine F_matchVolumeFraction_RectCub_Union_raw_DefTol
   end interface
 
   interface
@@ -360,6 +375,17 @@ contains
           a_variant%c_object)
 
   end subroutine matchVolumeFraction_RectCub_Variant_Default
+
+  subroutine matchVolumeFraction_RectCub_Union_raw_Default(a_rectangular_cuboid, a_volume_fraction, &
+       a_union)
+    implicit none
+    type(RectCub_type) :: a_rectangular_cuboid ! Pointer to RectCub object
+    real(IRL_double) :: a_volume_fraction ! Volume fraction to recreate
+    type(SeparatorUnion_type_raw) :: a_union ! Pointer to PlanarSep object
+
+    call F_matchVolumeFraction_RectCub_Union_raw_DefTol(a_rectangular_cuboid%c_object, a_volume_fraction, a_union)
+
+  end subroutine matchVolumeFraction_RectCub_Union_raw_Default
 
   subroutine matchVolumeFraction_RectCub_PlanarSep(a_rectangular_cuboid, a_volume_fraction, &
        a_planar_separator, a_volume_fraction_tolerance)

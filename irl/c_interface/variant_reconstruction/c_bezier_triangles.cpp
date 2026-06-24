@@ -145,16 +145,70 @@ void c_MixedPolygonBezierSurface_getSurface_RectCub_Variant(
         volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());
   } else if (IRL::Cylinder* cylinder =
                  std::get_if<IRL::Cylinder>(a_separator->obj_ptr)) {
-  using VolumeAndCylinder =
+    using VolumeAndCylinder =
         IRL::AddSurfaceOutput<IRL::Volume,
                               IRL::CylinderParametrizedSurfaceOutput>;
     VolumeAndCylinder volume_and_surface =
-        IRL::getVolumeMoments<VolumeAndCylinder>(
-            *a_rectangular_cuboid->obj_ptr, *cylinder);
+        IRL::getVolumeMoments<VolumeAndCylinder>(*a_rectangular_cuboid->obj_ptr,
+                                                 *cylinder);
     a_surface->obj_ptr->addSurface(
-        volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());                
-  }else {
+        volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());
+  } else {
     throw std::runtime_error("Unknown SeparatorVariant type in getSurface");
+  }
+}
+
+void c_MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw(
+    const c_RectCub* a_rectangular_cuboid,
+    const IRL::SeparatorUnion& a_separator,
+    c_MixedPolygonBezierSurface* a_surface) {
+  assert(a_rectangular_cuboid != nullptr);
+  assert(a_rectangular_cuboid->obj_ptr != nullptr);
+  assert(a_surface != nullptr);
+  assert(a_surface->obj_ptr != nullptr);
+  if (a_separator.type() == IRL::SeparatorUnion::SeparatorType::OnePlane) {
+    const IRL::PlanarSeparator planar_sep =
+        IRL::PlanarSeparator::fromOnePlane(a_separator.getPlane());
+    const IRL::Polygon& polygon =
+        IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+            *a_rectangular_cuboid->obj_ptr, planar_sep, planar_sep[0]);
+    if (polygon.getNumberOfVertices() > 0) {
+      a_surface->obj_ptr->addPolygon(polygon);
+    }
+  } else if (a_separator.type() ==
+             IRL::SeparatorUnion::SeparatorType::TwoPlanes) {
+    for (int i = 0; i <= 1; i++) {
+      const IRL::PlanarSeparator planar_sep =
+          IRL::PlanarSeparator::fromOnePlane(a_separator.getPlane(i));
+      const IRL::Polygon& polygon =
+          IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+              *a_rectangular_cuboid->obj_ptr, planar_sep, planar_sep[0]);
+      if (polygon.getNumberOfVertices() > 0) {
+        a_surface->obj_ptr->addPolygon(polygon);
+      }
+    }
+  } else if (a_separator.type() ==
+             IRL::SeparatorUnion::SeparatorType::Paraboloid) {
+    using VolumeAndParaboloid =
+        IRL::AddSurfaceOutput<IRL::Volume,
+                              IRL::ParaboloidParametrizedSurfaceOutput>;
+    VolumeAndParaboloid volume_and_surface =
+        IRL::getVolumeMoments<VolumeAndParaboloid>(
+            *a_rectangular_cuboid->obj_ptr, a_separator.getParaboloid());
+    a_surface->obj_ptr->addSurface(
+        volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());
+  } else if (a_separator.type() ==
+             IRL::SeparatorUnion::SeparatorType::Cylinder) {
+    using VolumeAndCylinder =
+        IRL::AddSurfaceOutput<IRL::Volume,
+                              IRL::CylinderParametrizedSurfaceOutput>;
+    VolumeAndCylinder volume_and_surface =
+        IRL::getVolumeMoments<VolumeAndCylinder>(*a_rectangular_cuboid->obj_ptr,
+                                                 a_separator.getCylinder());
+    a_surface->obj_ptr->addSurface(
+        volume_and_surface.getSurface().getQuadraticBezierTriangleApprox());
+  } else {
+    throw std::runtime_error("Unknown SeparatorUnion type in getSurface");
   }
 }
 

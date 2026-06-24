@@ -17,7 +17,6 @@ void c_PUSTNeigh_RectCub_delete(c_PUSTNeigh_RectCub* a_self) {
 void c_PUSTNeigh_RectCub_setSize(c_PUSTNeigh_RectCub* a_self,
                                  const int* a_size) {
   assert(a_self != nullptr);
-  assert(a_self->!= nullptr);
   a_self->obj_ptr->resize(static_cast<IRL::UnsignedIndex_t>(*a_size));
 }
 

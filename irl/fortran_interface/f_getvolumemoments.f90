@@ -57,6 +57,7 @@ module f_getMoments
   use f_PlanarSep_class
   use f_Paraboloid_class
   use f_SeparatorVariant_class
+  use f_SeparatorUnion_class
   use f_PlanarSepPathGroup_class
   use f_PlanarLoc_class
   use f_LocLink_class
@@ -134,6 +135,10 @@ module f_getMoments
     module procedure getNormMoments_RectCub_Paraboloid_SepVM
     ! Cut RectCub by Paraboloid to get SeparatedMoments<VM>
     module procedure getNormMoments_RectCub_SeparatorVariant_SepVM
+    ! Cut RectCub by SeparatorUnion to get SeparatedMoments<VM>
+    module procedure getNormMoments_RectCub_SeparatorUnion_raw_SepVM
+    ! Cut Tet by SeparatorUnion to get SeparatedMoments<VM>
+    module procedure getNormMoments_Tet_SeparatorUnion_raw_SepVM
     ! Cut Tri by PlanarLoc to get Volume (Surface Area)
     module procedure getNormMoments_Tri_PlanarLoc_Vol
     ! Cut Poly by PlanarSep to get Volume (Surface Area)
@@ -980,6 +985,30 @@ end interface
       type(c_SeparatorVariant) :: a_variant ! Pointer to PlanarSep object
       type(c_SepVM) :: a_moments_to_return ! Where separated moments is returned to
     end subroutine F_getNormMoments_RectCub_SeparatorVariant_SepVM
+  end interface
+
+  interface
+    subroutine F_getNormMoments_RectCub_SeparatorUnion_raw_SepVM(a_rectangular_cuboid, a_sepunion, a_moments_to_return) &
+    bind(C, name="c_getNormMoments_RectCub_SeparatorUnion_raw_SepVM")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_RectCub) :: a_rectangular_cuboid ! Pointer to Dod object
+      type(SeparatorUnion_type_raw) :: a_sepunion ! Pointer to PlanarSep object
+      type(c_SepVM) :: a_moments_to_return ! Where separated moments is returned to
+    end subroutine F_getNormMoments_RectCub_SeparatorUnion_raw_SepVM
+  end interface
+
+  interface
+    subroutine F_getNormMoments_Tet_SeparatorUnion_raw_SepVM(a_tet, a_sepunion, a_moments_to_return) &
+    bind(C, name="c_getNormMoments_Tet_SeparatorUnion_raw_SepVM")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_Tet) :: a_tet ! Pointer to Dod object
+      type(SeparatorUnion_type_raw) :: a_sepunion ! Pointer to PlanarSep object
+      type(c_SepVM) :: a_moments_to_return ! Where separated moments is returned to
+    end subroutine F_getNormMoments_Tet_SeparatorUnion_raw_SepVM
   end interface
 
   interface
@@ -2529,6 +2558,30 @@ contains
           (a_rectangular_cuboid%c_object, a_variant%c_object, a_moments_to_return%c_object)
 
   end subroutine getNormMoments_RectCub_SeparatorVariant_SepVM
+
+  subroutine getNormMoments_RectCub_SeparatorUnion_raw_SepVM(a_rectangular_cuboid, a_sepunion, a_moments_to_return)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(RectCub_type), intent(in) :: a_rectangular_cuboid
+      type(SeparatorUnion_type_raw), intent(in) :: a_sepunion
+      type(SepVM_type), intent(inout) :: a_moments_to_return
+
+      call F_getNormMoments_RectCub_SeparatorUnion_raw_SepVM &
+          (a_rectangular_cuboid%c_object, a_sepunion, a_moments_to_return%c_object)
+
+  end subroutine getNormMoments_RectCub_SeparatorUnion_raw_SepVM
+
+  subroutine getNormMoments_Tet_SeparatorUnion_raw_SepVM(a_tet, a_sepunion, a_moments_to_return)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(Tet_type), intent(in) :: a_tet
+      type(SeparatorUnion_type_raw), intent(in) :: a_sepunion
+      type(SepVM_type), intent(inout) :: a_moments_to_return
+
+      call F_getNormMoments_Tet_SeparatorUnion_raw_SepVM &
+          (a_tet%c_object, a_sepunion, a_moments_to_return%c_object)
+
+  end subroutine getNormMoments_Tet_SeparatorUnion_raw_SepVM
 
   subroutine getNormMoments_Tri_LocLink_TagAccVM_VM(a_tri, a_localizer_link, a_moments_to_return)
     use, intrinsic :: iso_c_binding

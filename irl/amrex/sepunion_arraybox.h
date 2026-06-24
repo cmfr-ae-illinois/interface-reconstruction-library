@@ -7,6 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+// This class is heavily inspired from the FArrayBox class in AmReX. 
+
 #ifndef IRL_SEPUARRAYBOX_H_
 #define IRL_SEPUARRAYBOX_H_
 

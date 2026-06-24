@@ -13,11 +13,11 @@
 #include "irl/c_interface/data_structures/c_object_allocation_server_bezier_triangles.h"
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
 #include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
+#include "irl/cylinder_reconstruction/cylinder_parametrized_surface.h"
 #include "irl/data_structures/object_allocation_server.h"
 #include "irl/generic_cutting/cut_polygon.h"
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
-#include "irl/cylinder_reconstruction/cylinder_parametrized_surface.h"
 #include "irl/surface_mesher/triangulated_surface.h"
 
 extern "C" {
@@ -62,6 +62,12 @@ void c_MixedPolygonBezierSurface_getSurface_RectCub_Variant(
     const c_RectCub* a_rectangular_cuboid,
     const c_SeparatorVariant* a_separator,
     c_MixedPolygonBezierSurface* a_surface);
+
+void c_MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw(
+    const c_RectCub* a_rectangular_cuboid,
+    const IRL::SeparatorUnion& a_separator,
+    c_MixedPolygonBezierSurface* a_surface);
+
 }  // end extern C
 
 #endif  // IRL_C_INTERFACE_VARIANT_RECONSTRUCTION_C_BEZIER_TRIANGLES_H_

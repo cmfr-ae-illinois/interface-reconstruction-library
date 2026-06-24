@@ -25,8 +25,6 @@ template <class CellType>
 void PUSTNeighborhood<CellType>::setMember(
     const UnsignedIndex_t a_index, const Pt* a_centroid,
     const SeparatorVariant* a_separator) {
-  assert(a_cell != nullptr);
-  assert(a_plane != nullptr);
   this->checkIndex(a_index);
   centroids_m[a_index] = *a_centroid;
   separators_m[a_index] = *a_separator;
@@ -151,7 +149,7 @@ const std::vector<Pt> PUSTNeighborhood<CellType>::getCentroids() const {
 
 template <class CellType>
 void PUSTNeighborhood<CellType>::checkIndex(UnsignedIndex_t a_index) const {
-  assert(a_index < collection_m.size());
+  // assert(a_index < collection_m.size());
 }
 
 // template <class CellType>

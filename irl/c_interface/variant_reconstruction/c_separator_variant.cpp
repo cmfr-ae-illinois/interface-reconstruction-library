@@ -96,10 +96,10 @@ void c_SeparatorVariant_getPlane(c_SeparatorVariant* a_self, const int* a_index,
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
   assert(*a_index >= 0);
-  assert(static_cast<IRL::UnsignedIndex_t>(*a_index) <
-         a_self->obj_ptr->getNumberOfPlanes());
   if (IRL::PlanarSeparator* separator =
           std::get_if<IRL::PlanarSeparator>(a_self->obj_ptr)) {
+    assert(static_cast<IRL::UnsignedIndex_t>(*a_index) <
+           separator->getNumberOfPlanes());
     a_plane_listed[0] =
         (*separator)[static_cast<IRL::UnsignedIndex_t>(*a_index)].normal()[0];
     a_plane_listed[1] =

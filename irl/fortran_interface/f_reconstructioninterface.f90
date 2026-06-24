@@ -27,6 +27,7 @@ module f_ReconstructionInterface
   use f_Tet_class
   use f_PlanarSep_class
   use f_SeparatorVariant_class
+  use f_SeparatorUnion_class
   use f_JibbenNeigh_class
   use f_ELVIRANeigh_class
   use f_ListVM_VMAN_class
@@ -40,6 +41,7 @@ module f_ReconstructionInterface
 
   interface reconstructJibben3D
     module procedure reconstructJibben3D_Variant
+    module procedure reconstructJibben3D_Union_raw
   end interface reconstructJibben3D
 
   interface reconstructELVIRA3D
@@ -167,6 +169,17 @@ module f_ReconstructionInterface
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
     end subroutine F_reconstructJibben3D_Variant
+  end interface
+
+  interface
+    subroutine F_reconstructJibben3D_Union_raw(a_JibbenNeigh, a_separator) &
+    bind(C, name="c_reconstructJibben3D_Union_raw")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
+      type(SeparatorUnion_type_raw) :: a_separator
+    end subroutine F_reconstructJibben3D_Union_raw
   end interface
 
 
@@ -548,6 +561,16 @@ module f_ReconstructionInterface
       call F_reconstructJibben3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
 
   end subroutine reconstructJibben3D_Variant
+
+  subroutine reconstructJibben3D_Union_raw(a_jibben_neighborhood, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
+      type(SeparatorUnion_type_raw), intent(inout) :: a_separator
+
+      call F_reconstructJibben3D_Union_raw(a_jibben_neighborhood%c_object, a_separator)
+
+  end subroutine reconstructJibben3D_Union_raw
 
   subroutine reconstructELVIRA3D_Variant(a_elvira_neighborhood, a_variant)
     use, intrinsic :: iso_c_binding

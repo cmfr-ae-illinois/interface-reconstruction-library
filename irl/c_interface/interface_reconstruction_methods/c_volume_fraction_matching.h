@@ -57,6 +57,10 @@ void c_matchVolumeFraction_RectCub_Variant_Default(
     const c_RectCub* a_cell, const double* a_volume_fraction,
     c_SeparatorVariant* a_reconstruction);
 
+void c_matchVolumeFraction_RectCub_Union_raw_Default(
+    const c_RectCub* a_cell, const double* a_volume_fraction,
+    IRL::SeparatorUnion& a_reconstruction);
+
 /// \brief Same as
 /// c_setDistanceToMatchVolumeFraction_RectangularCuboid_PlanarSeparator_DefaultTolerance
 /// however with a given tolerance to satisfy when finding distance.

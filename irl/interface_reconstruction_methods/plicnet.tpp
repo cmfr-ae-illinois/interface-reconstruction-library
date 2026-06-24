@@ -14,7 +14,7 @@
 
 namespace IRL {
 
-PLICNet::PLICNet(void)
+inline PLICNet::PLICNet(void)
     : stencil_m0_m(0.0),
       stencil_m1_m(0.0, 0.0, 0.0),
       dir_m(0),
@@ -61,7 +61,7 @@ inline void PLICNet::setMember(const Pt& a_lower_cell_pt,
   }
 }
 
-PlanarSeparator PLICNet::getPlanarSeparator(void) {
+inline PlanarSeparator PLICNet::getPlanarSeparator(void) {
   if (central_cell_defined_m == false) {
     throw std::runtime_error(
         "PLICNet::getPlanarSeparator() called before central cell was "
