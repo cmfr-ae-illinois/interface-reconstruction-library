@@ -12,6 +12,35 @@
 
 namespace IRL {
 
+inline SeparatorVariant::SeparatorVariant(
+    const SeparatorUnion& a_separator_union) {
+  (*this) = a_separator_union;
+}
+
+inline SeparatorVariant& SeparatorVariant::operator=(
+    const SeparatorUnion& a_separator_union) {
+  switch (a_separator_union.type()) {
+    case SeparatorUnion::SeparatorType::OnePlane:
+      (*this) = PlanarSeparator::fromOnePlane(a_separator_union.getPlane());
+      break;
+
+    case SeparatorUnion::SeparatorType::Paraboloid:
+      (*this) = a_separator_union.getParaboloid();
+      break;
+
+    case SeparatorUnion::SeparatorType::Cylinder:
+      (*this) = a_separator_union.getCylinder();
+      break;
+
+    default:
+      throw std::runtime_error(
+          "Unsupported SeparatorUnion type in "
+          "SeparatorVariant conversion");
+  }
+
+  return *this;
+}
+
 inline void SeparatorVariant::setToPlanarSeparator(void) {
   if (not std::holds_alternative<PlanarSeparator>(*this)) {
     (*this) = PlanarSeparator();

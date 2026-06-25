@@ -18,6 +18,7 @@
 #include "irl/cylinder_reconstruction/cylinder.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/planar_reconstruction/planar_separator.h"
+#include "irl/variant_reconstruction/separator_union.h"
 
 namespace IRL {
 
@@ -27,6 +28,9 @@ class SeparatorVariant
   using base = std::variant<PlanarSeparator, Paraboloid, Cylinder>;
   using base::base;
   using base::operator=;
+
+  SeparatorVariant(const SeparatorUnion& a_separator_union);
+  SeparatorVariant& operator=(const SeparatorUnion& a_separator_union);
 
   void setToPlanarSeparator(void);
   void setToParaboloid(void);
