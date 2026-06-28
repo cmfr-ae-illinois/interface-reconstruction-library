@@ -120,6 +120,30 @@ inline IRL::Vec3<double> GetVelocity(const IRL::Pt& pt,
   return interpolated_velocity;
 }
 
+// inline IRL::Vec3<double> GetDeformationTestCaseVelocity(const IRL::Pt& pt,
+//                                                         const double time) {
+//   constexpr double pi = 3.141592653589793238462643383279502884;
+//   constexpr double T = 3.0;
+
+//   const double sinpix = std::sin(pi * pt[0]);
+//   const double sinpiy = std::sin(pi * pt[1]);
+//   const double sinpiz = std::sin(pi * pt[2]);
+
+//   const double sin2pix = std::sin(2.0 * pi * pt[0]);
+//   const double sin2piy = std::sin(2.0 * pi * pt[1]);
+//   const double sin2piz = std::sin(2.0 * pi * pt[2]);
+
+//   const double cospit = std::cos(pi * time / T);
+
+//   const double U = 2.0 * sinpix * sinpix * sin2piy * sin2piz * cospit;
+
+//   const double V = -sinpiy * sinpiy * sin2pix * sin2piz * cospit;
+
+//   const double W = -sinpiz * sinpiz * sin2pix * sin2piy * cospit;
+
+//   return IRL::Vec3<double>(U, V, W);
+// }
+
 inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
                              Array4<Real const> const& vx,
                              Array4<Real const> const& vy,
@@ -134,5 +158,21 @@ inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
   auto v4 = GetVelocity(pt + Pt::fromVec3(dt * v3), vx, vy, vz, bx, a_geom);
   return pt + Pt::fromVec3(dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
 }
+
+// inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
+//                              const double time) {
+//   const auto v1 = GetDeformationTestCaseVelocity(pt, time);
+
+//   const auto v2 = GetDeformationTestCaseVelocity(
+//       pt + IRL::Pt::fromVec3(0.5 * dt * v1), time + 0.5 * dt);
+
+//   const auto v3 = GetDeformationTestCaseVelocity(
+//       pt + IRL::Pt::fromVec3(0.5 * dt * v2), time + 0.5 * dt);
+
+//   const auto v4 = GetDeformationTestCaseVelocity(
+//       pt + IRL::Pt::fromVec3(dt * v3), time + dt);
+
+//   return pt + IRL::Pt::fromVec3(dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
+// }
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_ADVECTION_HELPERS_TPP_

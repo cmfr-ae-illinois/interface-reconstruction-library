@@ -1400,6 +1400,8 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
     const auto adv_start = amrex::second();
     TransportMoments(interface_with_ghost, facevel[lev], band_id[lev],
                      moments_new[lev], geom[lev], dt[lev]);
+    // TransportMoments(interface_with_ghost, facevel[lev], band_id[lev],
+    //                  moments_new[lev], geom[lev], dt[lev], t_new[lev]);
     amrex::ParallelDescriptor::Barrier();
     advection_time += amrex::second() - adv_start;
   }  // end lev

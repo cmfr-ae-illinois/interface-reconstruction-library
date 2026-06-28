@@ -26,6 +26,12 @@ inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
                              Array4<Real const> const& vz, const Box& bx,
                              const Geometry& a_geom);
 
+// inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
+//                              const double time);
+
+// inline IRL::Vec3<double> GetDeformationTestCaseVelocity(const IRL::Pt& pt,
+//                                                         const double time);
+
 #include "examples/amrex_advector/advection_helpers.tpp"
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_ADVECTION_HELPERS_H_

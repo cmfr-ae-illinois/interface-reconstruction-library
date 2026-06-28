@@ -150,6 +150,13 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
       const amrex::Geometry& a_geom, const double a_dt);
 
+  //   void TransportMoments(
+  //       const amrex::SepUnionMultiFab& a_interface_with_ghost,
+  //       const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& a_facevel,
+  //       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
+  //       const amrex::Geometry& a_geom, const double a_dt, const double
+  //       a_time);
+
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
 
   //   void WriteUniformMomentsBinary(const amrex::MultiFab& a_uniform_moments,
