@@ -15,9 +15,10 @@
 using namespace amrex;
 
 struct PLICNet {
-  static void GetReconstruction(SepUnionMultiFab& interface,
-                                SepUnionMultiFab& interface_with_ghost,
-                                const MultiFab& moments, const Geometry& geom) {
+  static void GetReconstruction(
+      SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
+      const MultiFab& moments, const Geometry& geom,
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
     const Real vol = dx[0] * dx[1] * dx[2];

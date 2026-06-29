@@ -13,11 +13,15 @@
 #include "irl/amrex/sepunion_multifab.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
 
+#include "examples/amrex_advector/reconstruction_cf.h"
 #include "examples/amrex_advector/reconstruction_elvira.h"
-#include "examples/amrex_advector/reconstruction_jibben.h"
+#include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
+#include "examples/amrex_advector/reconstruction_pu.h"
+#include "examples/amrex_advector/reconstruction_vf.h"
+#include "examples/amrex_advector/reconstruction_vf2.h"
 
 using namespace amrex;
 
@@ -29,28 +33,40 @@ void AmrCoreAdv::GetReconstruction(const int lev) {
                  moments_new[lev].nComp(), moments_new[lev].nGrow());
   moments_with_ghost.FillBoundary(geom[lev].periodicity());
   GetReconstruction(interface[lev], interface_with_ghost, moments_with_ghost,
-                    geom[lev]);
+                    geom[lev], &interface_scalar_fields[lev]);
 }
 
-void AmrCoreAdv::GetReconstruction(SepUnionMultiFab& a_interface,
-                                   SepUnionMultiFab& a_interface_with_ghost,
-                                   const MultiFab& a_moments,
-                                   const Geometry& a_geom) {
+void AmrCoreAdv::GetReconstruction(
+    SepUnionMultiFab& a_interface, SepUnionMultiFab& a_interface_with_ghost,
+    const MultiFab& a_moments, const Geometry& a_geom,
+    std::vector<InterfaceScalarField>* scalar_fields) {
   if (reconstruction_name == "elvira" || reconstruction_name == "default") {
     ELVIRA::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                              a_geom);
+                              a_geom, scalar_fields);
   } else if (reconstruction_name == "lvira") {
     LVIRA::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                             a_geom);
+                             a_geom, scalar_fields);
   } else if (reconstruction_name == "plicnet") {
     PLICNet::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                               a_geom);
+                               a_geom, scalar_fields);
   } else if (reconstruction_name == "mof" || reconstruction_name == "mof1") {
     MOF1::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                            a_geom);
-  } else if (reconstruction_name == "jibben") {
-    Jibben::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                              a_geom);
+                            a_geom, scalar_fields);
+  } else if (reconstruction_name == "vf") {
+    VF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                          a_geom, scalar_fields);
+  } else if (reconstruction_name == "vf2") {
+    VF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                           a_geom, scalar_fields);
+  } else if (reconstruction_name == "ivf") {
+    iVF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                           a_geom, scalar_fields);
+  } else if (reconstruction_name == "pu") {
+    PU::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                          a_geom, scalar_fields);
+  } else if (reconstruction_name == "cf") {
+    CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                          a_geom, scalar_fields);
   } else {
     std::ostringstream oss;
     oss << "Unknown reconstruction method: " << reconstruction_name << '\n';

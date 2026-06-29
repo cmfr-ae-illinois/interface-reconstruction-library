@@ -1,14 +1,14 @@
 // This file is part of the Interface Reconstruction Library (IRL),
 // a library for interface reconstruction and computational geometry operations.
 //
-// Copyright (C) 2026 Fabien Evrard <fa.evrard@gmail.com>
+// Copyright (C) 2026 Parin Trivedi <parin.trivedi@hotmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_JIBBEN_H_
-#define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_JIBBEN_H_
+#ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF2_H_
+#define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF2_H_
 
 #include "irl/amrex/sepunion_multifab.h"
 
@@ -17,14 +17,24 @@
 
 using namespace amrex;
 
-struct Jibben {
-  static void GetReconstruction(SepUnionMultiFab& interface,
-                                SepUnionMultiFab& interface_with_ghost,
-                                const MultiFab& moments, const Geometry& geom) {
+struct VF2 {
+  static void GetReconstruction(
+      SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
+      const MultiFab& moments, const Geometry& geom,
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
     // Produce initial guess with PLICNet
     // PLICNet::GetReconstruction(interface, interface_with_ghost, moments,
     // geom);
-    LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom);
+    LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                             nullptr);
+
+    // scalar fields
+    if (scalar_fields) {
+      scalar_fields->clear();
+
+      scalar_fields->emplace_back("normal_scatter", moments.boxArray(),
+                                  moments.DistributionMap(), 0);
+    }
 
     // Now compute Jibben's reconstruction
     const auto dx = geom.CellSizeArray();
@@ -39,6 +49,13 @@ struct Jibben {
           interface_with_ghost.const_array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
       const Box& bx = mfi.tilebox();
+
+      // for scalar output
+      Array4<Real> normal_scatter_parab;
+      if (scalar_fields) {
+        normal_scatter_parab =
+            (*scalar_fields)[0].paraboloid_scalar_data.array(mfi);
+      }
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
@@ -93,7 +110,13 @@ struct Jibben {
         neighborhood.localize();
         // Reconstruct interface with Jibben and store result in
         // interface_array
-        auto paraboloid = IRL::reconstructionWithJibben3D(neighborhood);
+        auto paraboloid = IRL::reconstructionWithJibbenSq3D(neighborhood);
+
+        // normal scatter metric
+        IRL::Jibben_3D jibben(&neighborhood);
+        if (scalar_fields) {
+          normal_scatter_parab(i, j, k) = jibben.getNormalEigenMetric();
+        }
 
         // Construct local cell
         const double x = problo[0] + i * dx[0];
@@ -128,4 +151,4 @@ struct Jibben {
   }
 };
 
-#endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_JIBBEN_H_
+#endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF2_H_
