@@ -12,6 +12,33 @@
 #include "irl/amrex/sepunion_multifab.h"
 #include "irl/generic_cutting/cut_polygon.h"
 
+struct InterfaceScalarField {
+  std::string name;
+
+  amrex::MultiFab polygon_scalar_data;
+  amrex::MultiFab paraboloid_scalar_data;
+
+  std::vector<double> flattened_polygon_scalar_data;
+  std::vector<double> flattened_paraboloid_scalar_data;
+
+  InterfaceScalarField() = default;
+
+  InterfaceScalarField(const std::string& a_name, const amrex::BoxArray& a_ba,
+                       const amrex::DistributionMapping& a_dm,
+                       const int a_ngrow = 0)
+      : name(a_name),
+        polygon_scalar_data(a_ba, a_dm, 1, a_ngrow),
+        paraboloid_scalar_data(a_ba, a_dm, 1, a_ngrow) {
+    polygon_scalar_data.setVal(0.0);
+    paraboloid_scalar_data.setVal(0.0);
+  }
+
+  void clearFlattenedData() {
+    flattened_polygon_scalar_data.clear();
+    flattened_paraboloid_scalar_data.clear();
+  }
+};
+
 class AmrCoreAdv : public amrex::AmrCore {
  public:
   ////////////////
@@ -139,10 +166,11 @@ class AmrCoreAdv : public amrex::AmrCore {
   void ReadCheckpointFile();
 
   void GetReconstruction(const int lev);
-  void GetReconstruction(amrex::SepUnionMultiFab& interface,
-                         amrex::SepUnionMultiFab& interface_with_ghost,
-                         const amrex::MultiFab& moments,
-                         const amrex::Geometry& a_geom);
+  void GetReconstruction(
+      amrex::SepUnionMultiFab& interface,
+      amrex::SepUnionMultiFab& interface_with_ghost,
+      const amrex::MultiFab& moments, const amrex::Geometry& a_geom,
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr);
 
   void TransportMoments(
       const amrex::SepUnionMultiFab& a_interface_with_ghost,
@@ -190,6 +218,9 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Vector<amrex::MultiFab> band_id;
   amrex::Vector<amrex::SepUnionMultiFab> interface;
 
+  // Scalar data attached to reconstructed interface surfaces.
+  amrex::Vector<std::vector<InterfaceScalarField>> interface_scalar_fields;
+
   // this is essentially a 2*DIM integer array storing the physical boundary
   // condition types at the lo/hi walls in each direction
   amrex::Vector<amrex::BCRec> bcs;  // 1-component
@@ -200,10 +231,10 @@ class AmrCoreAdv : public amrex::AmrCore {
   // with the lev/lev-1 interface (and has grid spacing associated with lev-1)
   // therefore flux_reg[0] and flux_reg[nlevs_max] are never actually
   // used in the reflux operation
-  amrex::Vector<std::unique_ptr<amrex::FluxRegister> > flux_reg;
+  amrex::Vector<std::unique_ptr<amrex::FluxRegister>> flux_reg;
 
   // Velocity on all faces at all levels
-  amrex::Vector<amrex::Array<amrex::MultiFab, AMREX_SPACEDIM> > facevel;
+  amrex::Vector<amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>> facevel;
 
   ////////////////
   // runtime parameters

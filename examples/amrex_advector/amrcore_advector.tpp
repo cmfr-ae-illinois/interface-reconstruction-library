@@ -49,6 +49,7 @@ AmrCoreAdv::AmrCoreAdv() {
   moments_old.resize(nlevs_max);
   band_id.resize(nlevs_max);
   interface.resize(nlevs_max);
+  interface_scalar_fields.resize(nlevs_max);
 
   facevel.resize(nlevs_max);
 
@@ -211,6 +212,7 @@ void AmrCoreAdv::InitData() {
   }
 
   if (plot_int > 0) {
+    GetReconstruction(finest_level);
     WritePlotFile();
   }
 }
@@ -227,6 +229,8 @@ void AmrCoreAdv::MakeNewLevelFromCoarse(int lev, Real time, const BoxArray& ba,
   moments_old[lev].define(ba, dm, ncomp, nghost);
   band_id[lev].define(ba, dm, 1, 1);
   interface[lev].define(ba, dm, 1, nghost);
+
+  interface_scalar_fields[lev].clear();
 
   t_new[lev] = time;
   t_old[lev] = time - 1.e200;
@@ -406,6 +410,8 @@ void AmrCoreAdv::RemakeLevel(int lev, Real time, const BoxArray& ba,
   std::swap(old_band_id, band_id[lev]);
   std::swap(new_interface, interface[lev]);
 
+  interface_scalar_fields[lev].clear();
+
   t_new[lev] = time;
   t_old[lev] = time - 1.e200;
 
@@ -428,6 +434,7 @@ void AmrCoreAdv::ClearLevel(int lev) {
   moments_old[lev].clear();
   band_id[lev].clear();
   interface[lev].clear();
+  interface_scalar_fields[lev].clear();
   flux_reg[lev].reset(nullptr);
 }
 
@@ -932,6 +939,12 @@ void AmrCoreAdv::WritePlotFile() {
     const auto problo = Geom(finest_level).ProbLoArray();
     const auto dx = Geom(finest_level).CellSizeArray();
 
+    auto* scalar_fields = &interface_scalar_fields[finest_level];
+
+    for (auto& f : *scalar_fields) {
+      f.clearFlattenedData();
+    }
+
     for (MFIter mfi(moments_lev, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<Real> moments_fab = moments_lev[mfi].array();
       Array4<IRL::SeparatorUnion> interface_fab = interface_lev[mfi].array();
@@ -956,6 +969,12 @@ void AmrCoreAdv::WritePlotFile() {
                   IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
                       cell, planar_sep, planar_sep[0]);
               surface.addPolygon(polygon);
+              if (scalar_fields && !scalar_fields->empty()) {
+                for (auto& f : *scalar_fields) {
+                  auto const arr = f.polygon_scalar_data.const_array(mfi);
+                  f.flattened_polygon_scalar_data.push_back(arr(i, j, k));
+                }
+              }
             } else if (interface_fab(i, j, k).type() ==
                        IRL::SeparatorUnion::SeparatorType::Paraboloid) {
               using VolumeAndSuface = IRL::AddSurfaceOutput<
@@ -963,8 +982,19 @@ void AmrCoreAdv::WritePlotFile() {
               const auto paraboloid = interface_fab(i, j, k).getParaboloid();
               auto volume_and_surface =
                   IRL::getVolumeMoments<VolumeAndSuface>(cell, paraboloid);
+              const int ntri_before = surface.nBezierTriangles();
               surface.addSurface(volume_and_surface.getSurface()
                                      .getQuadraticBezierTriangleApprox());
+              const int ntri_after = surface.nBezierTriangles();
+              const int ntri_added = ntri_after - ntri_before;
+              if (scalar_fields && !scalar_fields->empty()) {
+                for (auto& f : *scalar_fields) {
+                  auto const arr = f.paraboloid_scalar_data.const_array(mfi);
+                  for (int n = 0; n < ntri_added; ++n) {
+                    f.flattened_paraboloid_scalar_data.push_back(arr(i, j, k));
+                  }
+                }
+              }
             }
           }
         }
@@ -977,6 +1007,27 @@ void AmrCoreAdv::WritePlotFile() {
     const int number_of_points = points.size();
     const int number_of_polygons = polygons.first.size();
     const int number_of_triangles = bezier_triangles.size();
+
+    const int number_of_cells = number_of_triangles + number_of_polygons;
+
+    std::vector<std::vector<double>> scalar_data;
+
+    if (scalar_fields && !scalar_fields->empty()) {
+      scalar_data.resize(scalar_fields->size());
+      for (int s = 0; s < scalar_fields->size(); ++s) {
+        auto& field = (*scalar_fields)[s];
+        scalar_data[s].insert(scalar_data[s].end(),
+                              field.flattened_paraboloid_scalar_data.begin(),
+                              field.flattened_paraboloid_scalar_data.end());
+        scalar_data[s].insert(scalar_data[s].end(),
+                              field.flattened_polygon_scalar_data.begin(),
+                              field.flattened_polygon_scalar_data.end());
+        if (scalar_data[s].size() != number_of_cells) {
+          amrex::Abort(
+              "Interface scalar data size does not match VTK cell count");
+        }
+      }
+    }
 
     // Now write
     std::string interfacefoldername = plotfilename;
@@ -1061,6 +1112,28 @@ void AmrCoreAdv::WritePlotFile() {
         }
         fprintf(file, "\n</DataArray>\n");
         fprintf(file, "</Cells>\n");
+
+        if (scalar_fields && !scalar_fields->empty()) {
+          fprintf(file, "<CellData Scalars=\"%s\">\n",
+                  (*scalar_fields)[0].name.c_str());
+
+          for (int s = 0; s < scalar_fields->size(); ++s) {
+            const auto& field = (*scalar_fields)[s];
+
+            fprintf(file,
+                    "<DataArray type=\"Float64\" Name=\"%s\" "
+                    "NumberOfComponents=\"1\" format=\"ascii\">\n",
+                    field.name.c_str());
+
+            for (double val : scalar_data[s]) {
+              fprintf(file, "%15.8E ", val);
+            }
+
+            fprintf(file, "\n</DataArray>\n");
+          }
+
+          fprintf(file, "</CellData>\n");
+        }
         fprintf(file, "</Piece>\n");
         fclose(file);
       }
@@ -1391,7 +1464,7 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
     amrex::ParallelDescriptor::Barrier();
     const auto rec_start = amrex::second();
     GetReconstruction(interface[lev], interface_with_ghost, moments_with_ghost,
-                      geom[lev]);
+                      geom[lev], &interface_scalar_fields[lev]);
     amrex::ParallelDescriptor::Barrier();
     reconstruction_time += amrex::second() - rec_start;
 
