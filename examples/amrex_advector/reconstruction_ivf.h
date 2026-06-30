@@ -98,6 +98,14 @@ struct iVF {
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
                              nullptr);
 
+    // scalar field for interface type
+    if (scalar_fields) {
+      scalar_fields->clear();
+
+      scalar_fields->emplace_back("interface_type", moments.boxArray(),
+                                  moments.DistributionMap(), 0);
+    }
+
     // some parameters
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
@@ -346,7 +354,7 @@ struct iVF {
           neighborhood.localize();
 
           IRL::iJibben_3D ijibben(&neighborhood);
-          ijibben.getParaboloidCoefficients();
+          ijibben.getParaboloidCoefficients2();
 
           const std::pair<double, IRL::Normal> fit_result =
               ijibben.computeAveragedCurvatureAndNormal();
