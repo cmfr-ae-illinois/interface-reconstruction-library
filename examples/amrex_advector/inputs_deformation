@@ -3,17 +3,17 @@
 #     whichever comes first
 # *****************************************************************
 max_step  = 10000
-stop_time = 1.0
+stop_time = 3.0
 
 # *****************************************************************
 # Which case to run?
 # *****************************************************************
-case.name = rotation3d
+case.name = deformation3d
 
 # *****************************************************************
 # Which interface reconstruction method to use?
 # *****************************************************************
-reconstruction.name = lvira
+reconstruction.name = ivf
 
 # *****************************************************************
 # Which interface advection method to use?
@@ -28,11 +28,11 @@ advection.name = remap
 # *****************************************************************
 # Problem size and geometry
 # *****************************************************************
-# geometry.prob_lo     =  0.0  0.0  0.0 
-# geometry.prob_hi     =  1.0  1.0  1.0
+geometry.prob_lo     =  0.0  0.0  0.0 
+geometry.prob_hi     =  1.0  1.0  1.0
 
-geometry.prob_lo     =  -0.5  -0.5  -0.5 
-geometry.prob_hi     =  0.5  0.5  0.5
+# geometry.prob_lo     =  -0.5  -0.5  -0.5 
+# geometry.prob_hi     =  0.5  0.5  0.5
 
 # 1 = periodic
 # 0 = walls (homogeneous Neumann, dphi/dn=0)
@@ -47,10 +47,10 @@ amr.v              = 1       # verbosity in Amr
 # Resolution and refinement
 # *****************************************************************
 amr.n_cell          = 2 2 2
-amr.max_level       = 6       # maximum level number allowed -- 
+amr.max_level       = 5       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
-amr.ref_ratio       = 2 2 2 2 2 2 # refinement ratio between levels
+amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
 
 # *****************************************************************
 # Control of grid creation
@@ -69,7 +69,7 @@ amr.regrid_int      = 1       # how often to regrid
 # *****************************************************************
 # Time step control
 # *****************************************************************
-adv.cfl            = 0.25     # CFL constraint for explicit advection
+adv.cfl            = 1.0     # CFL constraint for explicit advection
 
 # *****************************************************************
 # Should we reflux at coarse-fine boundaries?
@@ -80,7 +80,7 @@ adv.do_reflux = 1
 # Plotfile name and frequency
 # *****************************************************************
 amr.plot_file  = plt    # root name of plot file
-amr.plot_int   =  10    # number of timesteps between plot files
+amr.plot_int   =  1    # number of timesteps between plot files
                         # if negative then no plot files will be written
 
 # *****************************************************************

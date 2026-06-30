@@ -13,7 +13,7 @@ case.name = rotation3d
 # *****************************************************************
 # Which interface reconstruction method to use?
 # *****************************************************************
-reconstruction.name = jibben
+reconstruction.name = vf
 
 # *****************************************************************
 # Which interface advection method to use?
@@ -46,11 +46,11 @@ amr.v              = 1       # verbosity in Amr
 # *****************************************************************
 # Resolution and refinement
 # *****************************************************************
-amr.n_cell          = 64 64 64
-amr.max_level       = 0       # maximum level number allowed -- 
+amr.n_cell          = 2 2 2
+amr.max_level       = 5       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
-#amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
+amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
 
 # *****************************************************************
 # Control of grid creation
@@ -64,7 +64,7 @@ amr.blocking_factor_z = 2
 
 amr.max_grid_size   = 8
 
-amr.regrid_int      = -1       # how often to regrid
+amr.regrid_int      = 1       # how often to regrid
 
 # *****************************************************************
 # Time step control
@@ -80,7 +80,7 @@ adv.do_reflux = 1
 # Plotfile name and frequency
 # *****************************************************************
 amr.plot_file  = plt    # root name of plot file
-amr.plot_int   =  10    # number of timesteps between plot files
+amr.plot_int   =  1    # number of timesteps between plot files
                         # if negative then no plot files will be written
 
 # *****************************************************************
