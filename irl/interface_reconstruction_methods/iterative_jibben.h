@@ -32,6 +32,10 @@ class iJibben_3D {
   /// system.
   void getParaboloidCoefficients(void);
 
+  /// \brief Get the paraboloid coefficients by solving the least-squares
+  /// system for squared volume error.
+  void getParaboloidCoefficients2(void);
+
   /// \brief computing mean curvature of the paraboloid
   double computeMeanCurvature(const double& xi, const double& eta) const;
 

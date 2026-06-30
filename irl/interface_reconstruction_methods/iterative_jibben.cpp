@@ -20,7 +20,7 @@ iJibben_3D::iJibben_3D(const JibbenNeighborhood* a_neighborhood_pointer) {
 }
 
 void iJibben_3D::getParaboloidCoefficients(void) {
-  // Allocate least-squares system (using Eigen)
+  // Allocate least-squares system
   const UnsignedIndex_t npolygons = neighborhood_m->size();
   Eigen::MatrixXd Amat = Eigen::MatrixXd::Zero(npolygons, 6);
   Eigen::VectorXd bvec = Eigen::VectorXd::Zero(npolygons);
@@ -73,6 +73,193 @@ void iJibben_3D::getParaboloidCoefficients(void) {
   // storing paraboloid coefficients
   for (UnsignedIndex_t i = 0; i < 6; i++) {
     coefficients_m[i] = svec(i);
+  }
+}
+
+void iJibben_3D::getParaboloidCoefficients2(void) {
+  Eigen::Matrix<double, 6, 6> Amat = Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Vector<double, 6> dvec = Eigen::Vector<double, 6>::Zero();
+
+  const UnsignedIndex_t npolygons = neighborhood_m->size();
+
+  // looping over polygons
+  for (UnsignedIndex_t n = 0; n < npolygons; n++) {
+    const auto& polygon = neighborhood_m->getPolygon(n);
+
+    const UnsignedIndex_t nvertices = polygon.getNumberOfVertices();
+    if (nvertices == 0) continue;
+
+    const Pt centroid = polygon.calculateCentroid();
+    const Normal& normal = polygon.getPlaneOfExistence().normal();
+
+    if (normal[2] < DBL_EPSILON) continue;
+
+    // parameters of the plane
+    Eigen::Vector<double, 3> b = Eigen::Vector<double, 3>::Zero();
+    b(0) = (centroid * normal) / normal[2];
+    b(1) = -normal[0] / normal[2];
+    b(2) = -normal[1] / normal[2];
+
+    // calculating monomial integrals by looping over vertices
+    Eigen::Vector<double, 15> integrals = Eigen::Vector<double, 15>::Zero();
+
+    for (UnsignedIndex_t v = 0; v < nvertices; v++) {
+      const UnsignedIndex_t vn = (v + 1) % nvertices;
+      const double xv = polygon[v][0], yv = polygon[v][1];
+      const double xvn = polygon[vn][0], yvn = polygon[vn][1];
+      const double dxv = xvn - xv, dyv = yvn - yv;
+
+      // ∫dA
+      integrals(0) += (xv * yvn - xvn * yv) / 2.0;
+
+      // ∫x dA
+      integrals(1) += (xv + xvn) * (xv * yvn - xvn * yv) / 6.0;
+
+      // ∫y dA
+      integrals(2) += (yv + yvn) * (xv * yvn - xvn * yv) / 6.0;
+
+      // ∫x^2 dA
+      integrals(3) += (xv + xvn) * (xv * xv + xvn * xvn) * (yvn - yv) / 12.0;
+
+      // ∫xy dA
+      integrals(4) +=
+          (yvn - yv) *
+          (3.0 * xv * xv * yv + xv * xv * yvn + 2.0 * xv * xvn * yv +
+           2.0 * xv * xvn * yvn + xvn * xvn * yv + 3.0 * xvn * xvn * yvn) /
+          24.0;
+
+      // ∫y^2 dA
+      integrals(5) += (xv - xvn) * (yv + yvn) * (yv * yv + yvn * yvn) / 12.0;
+
+      // ∫x^3 dA
+      integrals(6) +=
+          (dyv * ((dxv * dxv * dxv * dxv) / 5. + dxv * dxv * dxv * xv +
+                  2. * (dxv * dxv) * (xv * xv) + 2. * dxv * (xv * xv * xv) +
+                  xv * xv * xv * xv)) /
+          4.;
+
+      // ∫x^2 y dA
+      integrals(7) +=
+          (dyv * (5. * yv * (dxv + 2. * xv) *
+                      (dxv * dxv + 2. * dxv * xv + 2. * (xv * xv)) +
+                  dyv * (4. * (dxv * dxv * dxv) + 15. * (dxv * dxv) * xv +
+                         20. * dxv * (xv * xv) + 10. * (xv * xv * xv)))) /
+          60.;
+
+      // ∫x y^2 dA
+      integrals(8) += -0.016666666666666666 *
+                      (dxv * (10. * (yv * yv * yv) * (dxv + 2. * xv) +
+                              10. * dyv * (yv * yv) * (2. * dxv + 3. * xv) +
+                              5. * (dyv * dyv) * yv * (3. * dxv + 4. * xv) +
+                              dyv * dyv * dyv * (4. * dxv + 5. * xv)));
+
+      // ∫y^3 dA
+      integrals(9) +=
+          -0.25 * (dxv * ((dyv * dyv * dyv * dyv) / 5. + dyv * dyv * dyv * yv +
+                          2. * (dyv * dyv) * (yv * yv) +
+                          2. * dyv * (yv * yv * yv) + yv * yv * yv * yv));
+
+      // ∫x^4 dA
+      integrals(10) +=
+          (dyv *
+           ((dxv * dxv * dxv * dxv * dxv) / 6. + dxv * dxv * dxv * dxv * xv +
+            (5. * (dxv * dxv * dxv) * (xv * xv)) / 2. +
+            (10. * (dxv * dxv) * (xv * xv * xv)) / 3. +
+            (5. * dxv * (xv * xv * xv * xv)) / 2. + xv * xv * xv * xv * xv)) /
+          5.;
+
+      // ∫x^3 y dA
+      integrals(11) +=
+          (dyv * (dxv * dxv * dxv * dxv * (5. * dyv + 6. * yv) +
+                  6. * (dxv * dxv * dxv) * (4. * dyv + 5. * yv) * xv +
+                  15. * (dxv * dxv) * (3. * dyv + 4. * yv) * (xv * xv) +
+                  20. * dxv * (2. * dyv + 3. * yv) * (xv * xv * xv) +
+                  15. * (dyv + 2. * yv) * (xv * xv * xv * xv))) /
+          120.;
+
+      // ∫x^2 y^2 dA
+      integrals(12) +=
+          -0.005555555555555556 *
+          (dxv * (20. * (yv * yv * yv) *
+                      (dxv * dxv + 3. * dxv * xv + 3. * (xv * xv)) +
+                  15. * dyv * (yv * yv) *
+                      (3. * (dxv * dxv) + 8. * dxv * xv + 6. * (xv * xv)) +
+                  6. * (dyv * dyv) * yv *
+                      (6. * (dxv * dxv) + 15. * dxv * xv + 10. * (xv * xv)) +
+                  dyv * dyv * dyv *
+                      (10. * (dxv * dxv) + 24. * dxv * xv + 15. * (xv * xv))));
+
+      // ∫x y^3 dA
+      integrals(13) +=
+          -0.008333333333333333 *
+          (dxv * (15. * (yv * yv * yv * yv) * (dxv + 2. * xv) +
+                  20. * dyv * (yv * yv * yv) * (2. * dxv + 3. * xv) +
+                  15. * (dyv * dyv) * (yv * yv) * (3. * dxv + 4. * xv) +
+                  6. * (dyv * dyv * dyv) * yv * (4. * dxv + 5. * xv) +
+                  dyv * dyv * dyv * dyv * (5. * dxv + 6. * xv)));
+
+      // ∫y^4 dA
+      integrals(14) +=
+          -0.2 *
+          (dxv *
+           ((dyv * dyv * dyv * dyv * dyv) / 6. + dyv * dyv * dyv * dyv * yv +
+            (5. * (dyv * dyv * dyv) * (yv * yv)) / 2. +
+            (10. * (dyv * dyv) * (yv * yv * yv)) / 3. +
+            (5. * dyv * (yv * yv * yv * yv)) / 2. + yv * yv * yv * yv * yv));
+    }
+
+    // updating matrix and vector to compute paraboloid coefficient
+    Amat(0, 0) += integrals(0);
+    Amat(0, 1) += integrals(1);
+    Amat(0, 2) += integrals(2);
+    Amat(0, 3) += integrals(3);
+    Amat(0, 4) += integrals(4);
+    Amat(0, 5) += integrals(5);
+    Amat(1, 1) += integrals(3);
+    Amat(1, 2) += integrals(4);
+    Amat(1, 3) += integrals(6);
+    Amat(1, 4) += integrals(7);
+    Amat(1, 5) += integrals(8);
+    Amat(2, 2) += integrals(5);
+    Amat(2, 3) += integrals(7);
+    Amat(2, 4) += integrals(8);
+    Amat(2, 5) += integrals(9);
+    Amat(3, 3) += integrals(10);
+    Amat(3, 4) += integrals(11);
+    Amat(3, 5) += integrals(12);
+    Amat(4, 4) += integrals(12);
+    Amat(4, 5) += integrals(13);
+    Amat(5, 5) += integrals(14);
+
+    dvec(0) += b(0) * integrals(0) + b(1) * integrals(1) + b(2) * integrals(2);
+    dvec(1) += b(0) * integrals(1) + b(1) * integrals(3) + b(2) * integrals(4);
+    dvec(2) += b(0) * integrals(2) + b(1) * integrals(4) + b(2) * integrals(5);
+    dvec(3) += b(0) * integrals(3) + b(1) * integrals(6) + b(2) * integrals(7);
+    dvec(4) += b(0) * integrals(4) + b(1) * integrals(7) + b(2) * integrals(8);
+    dvec(5) += b(0) * integrals(5) + b(1) * integrals(8) + b(2) * integrals(9);
+  }
+
+  Amat(1, 0) = Amat(0, 1);
+  Amat(2, 0) = Amat(0, 2);
+  Amat(2, 1) = Amat(1, 2);
+  Amat(3, 0) = Amat(0, 3);
+  Amat(3, 1) = Amat(1, 3);
+  Amat(3, 2) = Amat(2, 3);
+  Amat(4, 0) = Amat(0, 4);
+  Amat(4, 1) = Amat(1, 4);
+  Amat(4, 2) = Amat(2, 4);
+  Amat(4, 3) = Amat(3, 4);
+  Amat(5, 0) = Amat(0, 5);
+  Amat(5, 1) = Amat(1, 5);
+  Amat(5, 2) = Amat(2, 5);
+  Amat(5, 3) = Amat(3, 5);
+  Amat(5, 4) = Amat(4, 5);
+  // solving for paraboloid coefficients
+  const Eigen::VectorXd cvec =
+      Amat.completeOrthogonalDecomposition().pseudoInverse() * dvec;
+  // storing paraboloid coefficients
+  for (UnsignedIndex_t i = 0; i < 6; i++) {
+    coefficients_m[i] = cvec(i);
   }
 }
 
