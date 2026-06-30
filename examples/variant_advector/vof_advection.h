@@ -52,12 +52,20 @@ inline IRL::Vec3<double> getVelocity(const IRL::Pt& a_location,
                                      const Data<double>& a_V,
                                      const Data<double>& a_W);
 
+// inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
+//                               const Data<double>& a_U, const Data<double>&
+//                               a_V, const Data<double>& a_W, const double
+//                               a_time);
+
 inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
                               const Data<double>& a_U, const Data<double>& a_V,
                               const Data<double>& a_W);
 
 void correctMomentLocations(Data<IRL::VolumeMoments>* a_liq_moments,
                             Data<IRL::VolumeMoments>* a_gas_moments);
+
+// inline IRL::Vec3<double> getDeformationTestCaseVelocity(
+//     const IRL::Pt& a_location, const double a_time);
 
 // ************************************************
 //     Inlined functions below this
@@ -87,6 +95,25 @@ inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
          IRL::Pt::fromVec3(a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
 }
 
+// projecting vertices using exact velocities from the deformation test case
+// inline IRL::Pt project_vertex(const IRL::Pt& a_initial_pt, const double a_dt,
+//                               const Data<double>& a_U, const Data<double>&
+//                               a_V, const Data<double>& a_W, const double
+//                               a_time) {
+//   auto v1 = getDeformationTestCaseVelocity(a_initial_pt, a_time);
+//   // return a_initial_pt + IRL::Pt::fromVec3(a_dt * v1);
+//   auto v2 = getDeformationTestCaseVelocity(
+//       a_initial_pt + IRL::Pt::fromVec3(0.5 * a_dt * v1), a_time + 0.5 *
+//       a_dt);
+//   auto v3 = getDeformationTestCaseVelocity(
+//       a_initial_pt + IRL::Pt::fromVec3(0.5 * a_dt * v2), a_time + 0.5 *
+//       a_dt);
+//   auto v4 = getDeformationTestCaseVelocity(
+//       a_initial_pt + IRL::Pt::fromVec3(a_dt * v3), a_time + a_dt);
+//   return a_initial_pt +
+//          IRL::Pt::fromVec3(a_dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
+// }
+
 // Lookup tables for construction of flux-corrected Poly24
 static const std::array<std::array<int, 4>, 6> flux_id_table = {{{4, 5, 6, 7},
                                                                  {0, 1, 2, 3},
@@ -95,5 +122,22 @@ static const std::array<std::array<int, 4>, 6> flux_id_table = {{{4, 5, 6, 7},
                                                                  {6, 5, 1, 2},
                                                                  {7, 4, 0, 3}}};
 static const std::array<int, 6> face_center_id_table = {{13, 8, 9, 11, 10, 12}};
+
+// // get deformation test case velocity
+// inline IRL::Vec3<double> getDeformationTestCaseVelocity(
+//     const IRL::Pt& a_location, const double a_time) {
+//   const double T = 3.0;
+//   const double sinpix = std::sin(M_PI * a_location[0]),
+//                sinpiy = std::sin(M_PI * a_location[1]),
+//                sinpiz = std::sin(M_PI * a_location[2]);
+//   const double sin2pix = std::sin(2.0 * M_PI * a_location[0]),
+//                sin2piy = std::sin(2.0 * M_PI * a_location[1]),
+//                sin2piz = std::sin(2.0 * M_PI * a_location[2]);
+//   const double cospit = std::cos(M_PI * (a_time) / T);
+//   double U = 2.0 * sinpix * sinpix * sin2piy * sin2piz * cospit;
+//   double V = -sinpiy * sinpiy * sin2pix * sin2piz * cospit;
+//   double W = -sinpiz * sinpiz * sin2pix * sin2piy * cospit;
+//   return IRL::Vec3<double>(U, V, W);
+// }
 
 #endif  // EXAMPLES_VARIANT_ADVECTOR_VOF_ADVECTION_H_
