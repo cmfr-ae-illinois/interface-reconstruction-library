@@ -46,7 +46,8 @@ struct CF {
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
     // plic
-    LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom);
+    LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                             nullptr);
 
     // some params
     const auto dx = geom.CellSizeArray();

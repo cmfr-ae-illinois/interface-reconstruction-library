@@ -23,7 +23,7 @@ struct LVIRA {
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
     // Produce initial guess with ELVIRA
     ELVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              scalar_fields);
+                              nullptr);
 
     // Now compute LVIRA reconstruction
     const auto dx = geom.CellSizeArray();

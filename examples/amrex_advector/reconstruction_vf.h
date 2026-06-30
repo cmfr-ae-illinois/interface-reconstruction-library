@@ -26,7 +26,7 @@ struct VF {
     // PLICNet::GetReconstruction(interface, interface_with_ghost, moments,
     // geom);
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             scalar_fields);
+                             nullptr);
 
     // Now compute Jibben's reconstruction
     const auto dx = geom.CellSizeArray();

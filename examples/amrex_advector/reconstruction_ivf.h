@@ -96,7 +96,7 @@ struct iVF {
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
     // initial plic reconstruction
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             scalar_fields);
+                             nullptr);
 
     // some parameters
     const auto dx = geom.CellSizeArray();
