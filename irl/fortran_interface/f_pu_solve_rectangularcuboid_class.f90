@@ -44,8 +44,14 @@ module f_PUSolve_RectCub_class
     interface getWeight
         module procedure PU_RectCub_class_getWeight,PU_RectCub_class_getWeightCylinder
     end interface
+    interface getCurvature
+        module procedure PU_RectCub_class_getCurvature
+    end interface
     interface printSolver
         module procedure PU_RectCub_class_printSolver
+    end interface
+    interface projectToPU
+        module procedure PU_RectCub_class_projectToPU
     end interface
     interface
 
@@ -198,12 +204,34 @@ module f_PUSolve_RectCub_class
             real(C_DOUBLE) :: weight
         end subroutine F_PU_RectCub_getWeightCylinder
 
+        subroutine F_PU_RectCub_getCurvature(this,x,y,z,delta,curv)&
+            bind(C, name="c_PU_RectCub_getCurvature")
+            import
+            implicit none 
+            type(c_PU_RectCub) :: this
+            real(C_DOUBLE) :: x
+            real(C_DOUBLE) :: y
+            real(C_DOUBLE) :: z
+            real(C_DOUBLE) :: delta
+            real(C_DOUBLE) :: curv
+        end subroutine F_PU_RectCub_getCurvature
+
         subroutine F_PU_RectCub_printSolver(this)&
             bind(C, name="c_PU_RectCub_printSolver")
             import
             implicit none 
             type(c_PU_RectCub) :: this
         end subroutine F_PU_RectCub_printSolver
+
+        subroutine F_PU_RectCub_projectToPU(this,P0,delta,Pout)&
+            bind(C,name ="c_PU_RectCub_projectToPU")
+            import 
+            implicit none
+            type(c_PU_RectCub) :: this 
+            real(C_DOUBLE) :: delta
+            real(C_DOUBLE), dimension(*), intent(in) :: P0 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: Pout ! dimension(1:3)
+        end subroutine F_PU_RectCub_projectToPU
     end interface
 
     contains
@@ -353,9 +381,31 @@ module f_PUSolve_RectCub_class
             call F_PU_RectCub_getWeightCylinder(this%c_object,x,y,z,radius,center,weight)
         end subroutine PU_RectCub_class_getWeightCylinder
 
+        subroutine PU_RectCub_class_getCurvature(this,x,y,z,delta,curv)
+            implicit none
+            type(PU_RectCub_type) :: this
+            real(C_DOUBLE) :: x
+            real(C_DOUBLE) :: y
+            real(C_DOUBLE) :: z
+            real(C_DOUBLE) :: delta
+            real(C_DOUBLE) :: curv
+            call F_PU_RectCub_getCurvature(this%c_object,x,y,z,delta,curv)
+        end subroutine PU_RectCub_class_getCurvature
+
         subroutine PU_RectCub_class_printSolver(this)
             implicit none
             type(PU_RectCub_type) :: this
             call F_PU_RectCub_printSolver(this%c_object)
         end subroutine PU_RectCub_class_printSolver
+
+        subroutine PU_RectCub_class_projectToPU(this, P0,delta,Pout)
+            implicit none
+            type(PU_RectCub_type) :: this
+            real(C_DOUBLE) :: delta
+            real(IRL_double), dimension(1:3), intent(in) :: P0
+            real(IRL_double), dimension(1:3), intent(in) :: Pout
+
+            call F_PU_RectCub_projectToPU(this%c_object, P0,delta,Pout)
+            return
+        end subroutine PU_RectCub_class_projectToPU
 end module f_PUSolve_RectCub_class

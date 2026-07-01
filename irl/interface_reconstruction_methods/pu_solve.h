@@ -137,11 +137,16 @@ class PU {
   double getWeight(Pt& in, double delta);
   double getWeightCylinder(double x, double y, double z, double radius,
                            Pt center);
+  // Curvature
+  double getCurvature(double x, double y, double z, double delta);
+  double getCurvature(Pt& in, double delta);
   // Print
   void printSolver();
   /// \brief Solve the system for the reconstruction
   Paraboloid solve(const PUNeighborhood<CellType>* a_neighborhood_pointer,
                    const Pt& a_centroid, const double a_delta = -1.0);
+  /// \brief Project onto the PU surface
+  IRL::Pt projectOntoPU(const Pt& a_pt, const double a_delta);
 };
 
 }  // End Namespace IRL

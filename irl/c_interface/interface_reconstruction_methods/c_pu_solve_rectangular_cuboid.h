@@ -41,6 +41,9 @@ void c_PU_RectCub_getTangent(c_PU_RectCub* a_self, double* x, double* y,
 void c_PU_RectCub_getWeight(c_PU_RectCub* a_self, double* x, double* y,
                             double* z, double* delta, double* value);
 
+void c_PU_RectCub_getCurvature(c_PU_RectCub* a_self, double* x, double* y,
+                               double* z, double* delta, double* value);
+
 // Cylinder Versions
 void c_PU_RectCub_solveEdgeCylinder(c_PU_RectCub* a_self, double* STCoeff,
                                     double* P0, double* P1, double* radius,
@@ -58,6 +61,8 @@ void c_PU_RectCub_getTangentCylinder(c_PU_RectCub* a_self, double* x, double* y,
 void c_PU_RectCub_getWeightCylinder(c_PU_RectCub* a_self, double* x, double* y,
                                     double* z, double* radius, double* center,
                                     double* value);
+void c_PU_RectCub_projectToPU(c_PU_RectCub* a_self, double* P0, double* delta,
+                              double* Pout);
 
 // Debug
 void c_PU_RectCub_printSolver(c_PU_RectCub* a_self);

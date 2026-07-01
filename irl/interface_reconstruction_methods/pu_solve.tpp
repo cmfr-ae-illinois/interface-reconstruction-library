@@ -629,13 +629,35 @@ inline const Pt PUImplicitSurface::projectOntoPU(const Pt& a_pt) {
   Pt projected_pt = a_pt;
   const int itmax = 5;
   for (int i = 0; i < itmax; i++) {
-    this->evaluate(a_pt, &holdsGrad);
+    this->evaluate(projected_pt, &holdsGrad);
     const auto F = std::get<0>(holdsGrad);
     const auto gradF = std::get<1>(holdsGrad);
     const double grad_norm_inv = 1.0 / safelyEpsilon(gradF.squaredNorm());
+
+    auto step = -F * gradF * grad_norm_inv;
+    double alpha = 1.0;
+    double weight_new;
+    double weight_old;
     for (int d = 0; d < 3; d++) {
-      projected_pt[d] -= F * gradF(d) * grad_norm_inv;
+      projected_pt[d] += alpha * step(d);
     }
+    // while (alpha > 1e-6) {  // Line search
+    //   Pt new_pt = projected_pt;
+
+    //   this->getTotalWeight(new_pt, &weight_new);
+    //   this->getTotalWeight(projected_pt, &weight_old);
+    //   if (weight_new <= 1e-6 || weight_old <= 1e-6) {
+    //     std::cout << "Alpha = " << alpha << ", Weight New = " << weight_new
+    //               << ", Weight Old = " << weight_old << "\n";
+    //   }
+
+    //   if (weight_new >= 0.1) {
+    //     projected_pt = new_pt;
+    //     break;
+    //   }
+
+    //   alpha *= 0.5;
+    // }
   }
   return projected_pt;
 }
@@ -1160,6 +1182,47 @@ Paraboloid PU<CellType>::solve(
 
   // Return paraboloid computed from derivatives
   return IRL::Paraboloid::fromDerivatives(pt_on_PU, gradF, hessF);
+}
+
+template <class CellType>
+IRL::Pt PU<CellType>::projectOntoPU(const Pt& a_pt, const double a_delta) {
+  double delta = a_delta;
+  if (delta < 0.0) {
+    const auto cell = stencil_m.getCenterCell();
+    delta = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
+  }
+
+  this->setNeighborhood(stencil_m);
+  auto PUSurface = this->neighborhoodToImplicitSurface(delta);
+
+  // Project provided point onto the PU surface
+  return PUSurface.projectOntoPU(a_pt);
+}
+
+// Getting Curvature
+template <class CellType>
+double PU<CellType>::getCurvature(Pt& a_pt, double a_delta) {
+  double delta = a_delta;
+  if (delta < 0.0) {
+    const auto cell = stencil_m.getCenterCell();
+    delta = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
+  }
+  this->setNeighborhood(stencil_m);
+  auto PUSurface = this->neighborhoodToImplicitSurface(delta);
+  return PUSurface.getCurvature(a_pt);
+}
+
+template <class CellType>
+double PU<CellType>::getCurvature(double x, double y, double z, double delta) {
+  double delta_ = delta;
+  if (delta_ < 0.0) {
+    const auto cell = stencil_m.getCenterCell();
+    delta_ = 2.5 * std::pow(cell.calculateVolume(), 1.0 / 3.0);
+  }
+  this->setNeighborhood(stencil_m);
+  auto PUSurface = this->neighborhoodToImplicitSurface(delta_);
+  Pt in = {x, y, z};
+  return PUSurface.getCurvature(in);
 }
 
 }  // End Namespace IRL

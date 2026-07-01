@@ -156,6 +156,30 @@ void c_PU_RectCub_getWeightCylinder(c_PU_RectCub* a_self, double* x, double* y,
   IRL::Pt C = {*(center), *(center + 1), *(center + 2)};
   *weight = a_self->obj_ptr->getWeightCylinder(*x, *y, *z, *radius, C);
 }
+
+void c_PU_RectCub_projectToPU(c_PU_RectCub* a_self, double* P0, double* delta,
+                              double* Pout) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
+  IRL::Pt Pouttemp = a_self->obj_ptr->projectOntoPU(P0temp, *delta);
+
+  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
+    *(Pout + n) = Pouttemp[n];
+  }
+}
+
+void c_PU_RectCub_getCurvature(c_PU_RectCub* a_self, double* x, double* y,
+                               double* z, double* delta, double* value) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Pt Ptemp = {*(x), *(y), *(z)};
+  double temp = a_self->obj_ptr->getCurvature(Ptemp, *delta);
+  *value = temp;
+}
+
 // Debug
 void c_PU_RectCub_printSolver(c_PU_RectCub* a_self) {
   assert(a_self != nullptr);
