@@ -270,6 +270,14 @@ void c_getNormMoments_RectCub_SeparatorVariant_SepVM(
     const c_RectCub* a_rectangular_cuboid, const c_SeparatorVariant* a_variant,
     c_SepVM* a_moments_to_return);
 
+void c_getNormMoments_RectCub_SeparatorUnion_raw_SepVM(
+    const c_RectCub* a_rectangular_cuboid,
+    const IRL::SeparatorUnion& a_sepunion, c_SepVM* a_moments_to_return);
+
+void c_getNormMoments_Tet_SeparatorUnion_raw_SepVM(
+    const c_Tet* a_tet, const IRL::SeparatorUnion& a_sepunion,
+    c_SepVM* a_moments_to_return);
+
 void c_getNormMoments_Tri_LocLink_TagAccVM_VM(
     const c_Tri* a_tri, const c_LocLink* a_localizer_link,
     c_TagAccVM_VM* a_moments_to_return);

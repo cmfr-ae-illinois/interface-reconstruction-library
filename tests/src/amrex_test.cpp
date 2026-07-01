@@ -156,10 +156,12 @@ TEST(AMReX, WriteRead) {
   // Write the MultiFab data to, e.g., chk00010/Level_0/
   std::string prefix =
       amrex::MultiFabFileFullPrefix(0, chk_file, "Level_", "interface");
-  sepu_fab_write.write(prefix);
+  // sepu_fab_write.write(prefix);
+  SepUnionMultiFab_Write(sepu_fab_write, prefix);
 
   // Read the MultiFab data
-  sepu_fab_read.read(prefix);
+  // sepu_fab_read.read(prefix);
+  SepUnionMultiFab_Read(sepu_fab_read, prefix);
 
   // Verify that date has been correctly read
   for (amrex::MFIter mfi(sepu_fab_write); mfi.isValid(); ++mfi) {

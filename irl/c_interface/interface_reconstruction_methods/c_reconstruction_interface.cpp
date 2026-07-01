@@ -61,6 +61,13 @@ void c_reconstructJibben3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
       reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr);
 }
 
+void c_reconstructJibben3D_Union_raw(const c_JibbenNeigh* a_jibben_neighborhood,
+                                     IRL::SeparatorUnion& a_separator) {
+  assert(a_jibben_neighborhood != nullptr);
+  assert(a_jibben_neighborhood->obj_ptr != nullptr);
+  a_separator = reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr);
+}
+
 void c_reconstructELVIRA2D(const c_ELVIRANeigh* a_elvira_neighborhood,
                            c_PlanarSep* a_separator) {
   assert(a_elvira_neighborhood != nullptr);

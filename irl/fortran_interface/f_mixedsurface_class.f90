@@ -11,6 +11,7 @@ module f_MixedPolygonBezierSurface_class
   use, intrinsic :: iso_c_binding
   use f_DefinedTypes
   use f_SeparatorVariant_class
+  use f_SeparatorUnion_class
   use f_RectCub_class
   use f_ObjServer_MixedPolygonBezierSurface_class
   implicit none
@@ -53,6 +54,7 @@ module f_MixedPolygonBezierSurface_class
   end interface  
   interface getSurface
     module procedure MixedPolygonBezierSurface_getSurface_RectCub_Variant
+    module procedure MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw
   end interface  
 
 
@@ -148,6 +150,16 @@ module f_MixedPolygonBezierSurface_class
       type(c_MixedPolygonBezierSurface) :: a_surface 
     end subroutine F_MixedPolygonBezierSurface_getSurface_RectCub_Variant
 
+    subroutine F_MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw(a_cuboid, a_sepunion, a_surface) &
+    bind(C, name="c_MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_RectCub) :: a_cuboid 
+      type(SeparatorUnion_type_raw) :: a_sepunion 
+      type(c_MixedPolygonBezierSurface) :: a_surface 
+    end subroutine F_MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw
+
   end interface
 
 
@@ -237,6 +249,15 @@ module f_MixedPolygonBezierSurface_class
         type(MixedPolygonBezierSurface_type), intent(inout) :: a_surface
         call F_MixedPolygonBezierSurface_getSurface_RectCub_Variant(a_cuboid%c_object, a_variant%c_object, a_surface%c_object)
     end subroutine MixedPolygonBezierSurface_getSurface_RectCub_Variant 
+
+    subroutine MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw(a_cuboid, a_sepunion, a_surface)
+      use, intrinsic :: iso_c_binding
+      implicit none
+        type(RectCub_type), intent(in) :: a_cuboid
+        type(SeparatorUnion_type_raw), intent(in) :: a_sepunion
+        type(MixedPolygonBezierSurface_type), intent(inout) :: a_surface
+        call F_MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw(a_cuboid%c_object, a_sepunion, a_surface%c_object)
+    end subroutine MixedPolygonBezierSurface_getSurface_RectCub_SepUnion_raw 
 
 
 end module f_MixedPolygonBezierSurface_class

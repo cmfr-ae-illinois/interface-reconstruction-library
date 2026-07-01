@@ -34,6 +34,15 @@ void c_matchVolumeFraction_RectCub_Variant_Default(
                                         a_reconstruction->obj_ptr);
 }
 
+void c_matchVolumeFraction_RectCub_Union_raw_Default(
+    const c_RectCub* a_cell, const double* a_volume_fraction,
+    IRL::SeparatorUnion& a_reconstruction) {
+  assert(a_cell != nullptr);
+  assert(a_cell->obj_ptr != nullptr);
+  IRL::setDistanceToMatchVolumeFraction(*a_cell->obj_ptr, *a_volume_fraction,
+                                        &a_reconstruction);
+}
+
 void c_matchVolumeFraction_RectCub_PlanarSep(
     const c_RectCub* a_cell, const double* a_volume_fraction,
     c_PlanarSep* a_reconstruction, const double* a_volume_fraction_tolerance) {

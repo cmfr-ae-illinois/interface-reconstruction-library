@@ -776,6 +776,30 @@ void c_getNormMoments_RectCub_SeparatorVariant_SepVM(
           IRL::C_CUTTING_METHOD);
 }
 
+void c_getNormMoments_RectCub_SeparatorUnion_raw_SepVM(
+    const c_RectCub* a_rectangular_cuboid,
+    const IRL::SeparatorUnion& a_sepunion, c_SepVM* a_moments_to_return) {
+  assert(a_rectangular_cuboid != nullptr);
+  assert(a_rectangular_cuboid->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_rectangular_cuboid->obj_ptr, a_sepunion, IRL::C_CUTTING_METHOD);
+}
+
+void c_getNormMoments_Tet_SeparatorUnion_raw_SepVM(
+    const c_Tet* a_tet, const IRL::SeparatorUnion& a_sepunion,
+    c_SepVM* a_moments_to_return) {
+  assert(a_tet != nullptr);
+  assert(a_tet->obj_ptr != nullptr);
+  assert(a_moments_to_return != nullptr);
+  assert(a_moments_to_return->obj_ptr != nullptr);
+  *a_moments_to_return->obj_ptr =
+      IRL::c_RuntimegetNormMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+          *a_tet->obj_ptr, a_sepunion, IRL::C_CUTTING_METHOD);
+}
+
 void c_getNormMoments_Tri_LocLink_TagAccVM_VM(
     const c_Tri* a_tri, const c_LocLink* a_localizer_link,
     c_TagAccVM_VM* a_moments_to_return) {
