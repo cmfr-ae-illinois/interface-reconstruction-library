@@ -53,11 +53,15 @@ namespace IRL {
             std::cout << "I'm a data generator!" << std::endl;
         }
 
+        void set_stencil_size (int stencil_size_new) {
+            stencil_size = stencil_size_new;
+        }
+
         void updateDataParameters(int no_datapoints_in, int include_Moments_in, bool include_Surface_Area_in, bool include_Eigenvalues_in,
                                 double paraboloid_coeff_stddev_in, double hyperbolic_cylinder_opening_angle_stddev_in,
-                                double sheet_coeff_stddev_in, double max_sheet_thickness_in, double sheet_thickness_stddev_in,
-                                double max_cylinder_radius_in, double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
-                                double max_sphere_radius_in, double sphere_radius_stddev_in, 
+                                double sheet_coeff_stddev_in, double sheet_thickness_stddev_in,
+                                double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
+                                double sphere_radius_stddev_in, 
                                 double ellipsoid_subgrid_stddev_in, double min_long_ellipsoid_axis_in, double max_long_ellipsoid_axis_in,
                                 bool exact_2nd_mom = false, bool visualize_in = false, double machineZero_in = 1e-12, 
                                 double lower_limit_subgrid_in = 1e-12, double upper_limit_subgrid_in = 1.732, double class0_max_characteristic_in = 2.5) {
@@ -462,7 +466,7 @@ namespace IRL {
             return x;
         }
 
-
+        
         void generateSheet(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
@@ -470,6 +474,522 @@ namespace IRL {
             //int stencil_size, double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, 
             double min_thickness,
             double max_thickness,
+            bool subgrid = true,
+            bool variable_thickness = true, 
+            Eigen::Matrix3d* secondMoment = nullptr) 
+        {
+            while (true) { // keep trying until center cell has surface crossing
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                // Defining cell coordinates
+                auto coords = makeCenteredCoords(stencil_size);
+                const double cell_volume = 1.0;
+
+                Eigen::Vector3d datum = generateRandomPoint(-1.0,1.0,eng);
+
+                // Random unbiased direction
+                Eigen::Vector3d direction = generateRandomDirection(eng);
+
+                // Random sheet thickness
+                double thickness = max_thickness;
+                if (sheet_thickness_stddev > 0.0) {
+                    thickness = sample_truncated_normal(0, sheet_thickness_stddev, min_thickness, max_thickness);
+                }else{
+                    std::uniform_real_distribution<double> random_thickness(min_thickness, max_thickness);
+                    thickness = random_thickness(eng);
+                }
+
+                // Build orthonormal frame aligned with direction
+                Eigen::Vector3d helper = generateRandomDirection(eng);
+                Eigen::Vector3d paraboloid_x = direction.cross(helper);
+                if (paraboloid_x.norm() < 1e-12) {
+                    paraboloid_x = direction.cross(Eigen::Vector3d(1,0,0));
+                }
+                paraboloid_x.normalize();
+                Eigen::Vector3d paraboloid_y = direction.cross(paraboloid_x);
+                paraboloid_y.normalize();
+                Eigen::Vector3d paraboloid_z = direction;
+
+                const auto frame = IRL::ReferenceFrame(
+                    IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
+                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
+                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+
+                double coeff1 = sample_truncated_normal(0.0, sheet_coeff_stddev, -1.0, 1.0);
+                double coeff2 = sample_truncated_normal(0.0, sheet_coeff_stddev, -1.0, 1.0);
+                double coeff1p1 = coeff1;
+                double coeff1p2 = coeff1;
+                double coeff2p1 = coeff2;
+                double coeff2p2 = coeff2;
+                // Random coefficients
+                if (variable_thickness) {
+                    // Allow variable thickness sheet to have an even smaller thickness outside of central cell
+                    if (sheet_thickness_stddev > 0.0) {
+                        thickness = sample_truncated_normal(0, sheet_thickness_stddev, machineZero, max_thickness);
+                    }else{
+                        std::uniform_real_distribution<double> random_thickness(machineZero, max_thickness);
+                        thickness = random_thickness(eng);
+                    }
+
+                    // If variable thickness, make sure coeffs are correlated so that sheet doesn't self-intersect
+                    // add uniformly distributed noise
+                    //std::uniform_real_distribution<double> noise_dist(0.0, thickness/4.0);
+
+                    coeff1p1 += sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+                    coeff1p2 -= sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+
+                    coeff2p1 += sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+                    coeff2p2 -= sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+                
+
+                    // Check if central cell is thicker or thinner than the well-resolved threshold
+                
+                    const int c = stencil_size / 2;
+
+                    const double x0 = coords[c];
+                    const double x1 = coords[c + 1];
+                    const double y0 = coords[c];
+                    const double y1 = coords[c + 1];
+                    const double z0 = coords[c];
+                    const double z1 = coords[c + 1];
+
+                    bool reject_sample = false;
+
+                    for (double X : {x0, x1}) {
+                        for (double Y : {y0, y1}) {
+                            for (double Z : {z0, z1}) {
+                                const Eigen::Vector3d corner(X, Y, Z);
+                                const Eigen::Vector3d rel = corner - datum;
+
+                                const double sheet_x = rel.dot(paraboloid_x);
+                                const double sheet_y = rel.dot(paraboloid_y);
+
+                                const double local_thickness =
+                                    thickness
+                                    + (coeff1p1 - coeff1p2) * sheet_x * sheet_x
+                                    + (coeff2p1 - coeff2p2) * sheet_y * sheet_y;
+
+                                if ((subgrid && local_thickness > max_thickness) ||
+                                    (!subgrid && local_thickness < min_thickness)) {
+                                    reject_sample = true;
+                                    break;
+                                }
+                            }
+                            if (reject_sample) break;
+                        }
+                        if (reject_sample) break;
+                    }
+
+                    if (reject_sample) {
+                        continue;
+                    }
+                }
+
+                 // Two paraboloid datums offset along the direction
+                Eigen::Vector3d datum_paraboloid1_eVec = datum - direction.normalized() * (thickness/2.0);
+                Eigen::Vector3d datum_paraboloid2_eVec = datum + direction.normalized() * (thickness/2.0);
+
+
+                IRL::Pt datum_paraboloid1(datum_paraboloid1_eVec.x(), datum_paraboloid1_eVec.y(), datum_paraboloid1_eVec.z());
+                IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
+
+                auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1p1, coeff2p1);
+                auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1p2, coeff2p2);
+
+                // Initialize field
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
+                IRL::GeneralMoments3D<2> totalMoments = IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For 2nd moment shift later
+
+                for (int i = 0; i < stencil_size; i++) {
+                    for (int j = 0; j < stencil_size; j++) {
+                        for (int k = 0; k < stencil_size; k++) {
+                            auto cell = RectangularCuboid::fromBoundingPts(
+                                Pt(coords[i], coords[j], coords[k]),
+                                Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                            if (secondMoment != nullptr) {
+                                auto gm1 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid1);
+                                auto gm2 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid2);
+                                auto gmSheet = gm2 - gm1;
+
+                                // 0th moment
+                                double vol = gmSheet.volume();
+
+                                vfrac[i][j][k] = vol / cell_volume;
+
+                                // 1st moments
+                                firstMoment[i][j][k] << gmSheet[1], gmSheet[2], gmSheet[3];
+
+                                if (vol < 0.0) {
+                                    vol = 0.0;
+                                    firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                                    //secondMoment[i][j][k] = Eigen::Matrix3d::Zero(); Causes issues
+                                }
+
+                                // accumulate for stencil-centered 2nd moment later
+                                totalMoments += gmSheet;
+
+                            } else {
+                                auto volume_and_surface1 = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid1);
+
+                                auto volume_and_surface2 = getVolumeMoments<
+                                    VolumeMomentsAndSurface>(cell, paraboloid2);
+
+                                double V1 = volume_and_surface1.getMoments().volume();
+                                double V2 = volume_and_surface2.getMoments().volume();
+                                double Vdiff = V2 - V1;
+
+                                Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
+                                                volume_and_surface1.getMoments().centroid().y(),
+                                                volume_and_surface1.getMoments().centroid().z());
+
+                                Eigen::Vector3d M2(volume_and_surface2.getMoments().centroid().x(),
+                                                volume_and_surface2.getMoments().centroid().y(),
+                                                volume_and_surface2.getMoments().centroid().z());
+
+
+                                if (Vdiff <= 0.0) {
+                                    vfrac[i][j][k] = 0.0;
+                                    firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                                } else {
+                                    vfrac[i][j][k] = Vdiff / cell_volume;
+                                    firstMoment[i][j][k] = M2 - M1;
+                                }
+                            }
+                            
+                            auto surface1 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+                            auto surface2 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+
+                            area[i][j][k] = surface1.getSurfaceArea() + surface2.getSurfaceArea();
+
+                            if (visualize) {
+                                surfaces.push_back(surface1);
+                                surfaces.push_back(surface2);
+                                centroid[i][j][k] = computeCentroidFromFirstMoment(
+                                    firstMoment[i][j][k], vfrac[i][j][k] * cell_volume);
+                            }
+                        }
+                    }
+                }
+
+                // Check central cell
+                if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
+                    // Accept this sample
+                    
+                    // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments);
+                    }
+
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                        printCentroids(centroid);
+                    }
+
+                    // Flatten the 3D vector vfrac into a 1D vector
+                    return;
+                }
+
+                // else: reject and regenerate
+            }
+        }
+        
+        void generateCutSheet(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            bool cutInsideCentralCell,
+            double min_thickness = 1e-12, 
+            double max_thickness = 0.5, 
+            bool subgrid = true,
+            bool variable_thickness = false,
+            Eigen::Matrix3d* secondMoment = nullptr) 
+        {
+            while (true) { // keep trying until center cell has surface crossing
+
+                // make centroid, only used for visualization
+                std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
+                    stencil_size,
+                    std::vector<std::vector<Eigen::Vector3d>>(
+                        stencil_size,
+                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                    )
+                );
+
+                // Defining cell coordinates
+                auto coords = makeCenteredCoords(stencil_size);
+                const double cell_volume = 1.0;
+
+                Eigen::Vector3d datum = generateRandomPoint(-1.0,1.0,eng);
+
+                // Random unbiased direction
+                Eigen::Vector3d direction = generateRandomDirection(eng);
+
+                // Random sheet thickness
+                double thickness = max_thickness;
+                if (sheet_thickness_stddev > 0.0) {
+                    thickness = sample_truncated_normal(0, sheet_thickness_stddev, min_thickness, max_thickness);
+                }else{
+                    std::uniform_real_distribution<double> random_thickness(min_thickness, max_thickness);
+                    thickness = random_thickness(eng);
+                }
+
+                // Build orthonormal frame aligned with direction
+                Eigen::Vector3d helper = generateRandomDirection(eng);
+                Eigen::Vector3d paraboloid_x = direction.cross(helper);
+                if (paraboloid_x.norm() < 1e-12) {
+                    paraboloid_x = direction.cross(Eigen::Vector3d(1,0,0));
+                }
+                paraboloid_x.normalize();
+                Eigen::Vector3d paraboloid_y = direction.cross(paraboloid_x);
+                paraboloid_y.normalize();
+                Eigen::Vector3d paraboloid_z = direction;
+
+                const auto frame = IRL::ReferenceFrame(
+                    IRL::Normal(paraboloid_x.x(), paraboloid_x.y(), paraboloid_x.z()), 
+                    IRL::Normal(paraboloid_y.x(), paraboloid_y.y(), paraboloid_y.z()), 
+                    IRL::Normal(paraboloid_z.x(), paraboloid_z.y(), paraboloid_z.z()));
+
+                double coeff1 = sample_truncated_normal(0.0, sheet_coeff_stddev, -1.0, 1.0);
+                double coeff2 = sample_truncated_normal(0.0, sheet_coeff_stddev, -1.0, 1.0);
+                double coeff1p1 = coeff1;
+                double coeff1p2 = coeff1;
+                double coeff2p1 = coeff2;
+                double coeff2p2 = coeff2;
+                // Random coefficients
+                if (variable_thickness) {
+                    // Allow variable thickness sheet to have an even smaller thickness outside of central cell
+                    if (sheet_thickness_stddev > 0.0) {
+                        thickness = sample_truncated_normal(0, sheet_thickness_stddev, machineZero, max_thickness);
+                    }else{
+                        std::uniform_real_distribution<double> random_thickness(machineZero, max_thickness);
+                        thickness = random_thickness(eng);
+                    }
+
+                    // If variable thickness, make sure coeffs are correlated so that sheet doesn't self-intersect
+                    // add uniformly distributed noise
+                    //std::uniform_real_distribution<double> noise_dist(0.0, thickness/4.0);
+
+                    coeff1p1 += sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+                    coeff1p2 -= sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+
+                    coeff2p1 += sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+                    coeff2p2 -= sample_truncated_normal(0.0, sheet_coeff_stddev/2, 0.0, 0.4);
+                
+
+                    // Check if central cell is thicker or thinner than the well-resolved threshold
+                
+                    const int c = stencil_size / 2;
+
+                    const double x0 = coords[c];
+                    const double x1 = coords[c + 1];
+                    const double y0 = coords[c];
+                    const double y1 = coords[c + 1];
+                    const double z0 = coords[c];
+                    const double z1 = coords[c + 1];
+
+                    bool reject_sample = false;
+
+                    for (double X : {x0, x1}) {
+                        for (double Y : {y0, y1}) {
+                            for (double Z : {z0, z1}) {
+                                const Eigen::Vector3d corner(X, Y, Z);
+                                const Eigen::Vector3d rel = corner - datum;
+
+                                const double sheet_x = rel.dot(paraboloid_x);
+                                const double sheet_y = rel.dot(paraboloid_y);
+
+                                const double local_thickness =
+                                    thickness
+                                    + (coeff1p1 - coeff1p2) * sheet_x * sheet_x
+                                    + (coeff2p1 - coeff2p2) * sheet_y * sheet_y;
+
+                                if ((subgrid && local_thickness > max_thickness) ||
+                                    (!subgrid && local_thickness < min_thickness)) {
+                                    reject_sample = true;
+                                    break;
+                                }
+                            }
+                            if (reject_sample) break;
+                        }
+                        if (reject_sample) break;
+                    }
+
+                    if (reject_sample) {
+                        continue;
+                    }
+                }
+
+                 // Two paraboloid datums offset along the direction
+                Eigen::Vector3d datum_paraboloid1_eVec = datum - direction.normalized() * (thickness/2.0);
+                Eigen::Vector3d datum_paraboloid2_eVec = datum + direction.normalized() * (thickness/2.0);
+
+
+                IRL::Pt datum_paraboloid1(datum_paraboloid1_eVec.x(), datum_paraboloid1_eVec.y(), datum_paraboloid1_eVec.z());
+                IRL::Pt datum_paraboloid2(datum_paraboloid2_eVec.x(), datum_paraboloid2_eVec.y(), datum_paraboloid2_eVec.z());
+
+                auto paraboloid1 = Paraboloid(datum_paraboloid1, frame, coeff1p1, coeff2p1);
+                auto paraboloid2 = Paraboloid(datum_paraboloid2, frame, coeff1p2, coeff2p2);
+
+                // Random point anywhere in stencil
+                const auto sample_pt = Pt::fromRawDoublePointer(generateRandomPoint(
+                    -0.5*static_cast<double>(stencil_size),
+                    0.5*static_cast<double>(stencil_size), eng).data());
+
+                // Project sample point onto paraboloid 2
+                auto tmp_paraboloid = paraboloid2;
+                tmp_paraboloid.regenerateAtLocation(sample_pt);
+                const auto new_datum = tmp_paraboloid.getDatum();
+
+                // Now choose a random theta
+                std::uniform_real_distribution<double> angle_dist(0.0, 2.0 * M_PI);
+                double theta = angle_dist(eng);
+
+                IRL::Normal new_normal =
+                    std::cos(theta) * tmp_paraboloid.getReferenceFrame()[0] +
+                    std::sin(theta) * tmp_paraboloid.getReferenceFrame()[1];
+
+                new_normal.normalize();
+
+                // Quick check if the central cell will be cut with this new plane, if not, reject and try again
+                const double half_width = 0.5;                   // inscribed sphere radius of unit cube
+                const double half_diag  = 0.86618;                // half diagonal of unit cube
+                double dist = std::abs(new_normal * new_datum); 
+                bool definitely_cut = (dist < half_width);
+                bool definitely_not_cut = (dist > half_diag);
+                if (definitely_cut && !cutInsideCentralCell) {
+                    continue; // violates condition, reject early
+                }
+                if (definitely_not_cut && cutInsideCentralCell) {
+                    continue; // violates condition, reject early
+                }
+
+
+                // Create localizer plane that will cut both paraboloids
+                const auto localizer = PlanarLocalizer::fromOnePlane(Plane(new_normal, new_normal * new_datum));
+                const auto paraboloid1_and_plane = LocalizedParaboloid<double>(&localizer, &paraboloid1);
+                const auto paraboloid2_and_plane = LocalizedParaboloid<double>(&localizer, &paraboloid2);
+
+                // Initialize field
+                using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, ParaboloidParametrizedSurfaceOutput>;
+                std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
+                IRL::GeneralMoments3D<2> totalMoments = IRL::GeneralMoments3D<2>::fromScalarConstant(0.0); // For 2nd moment shift later
+
+                for (int i = 0; i < stencil_size; i++) {
+                    for (int j = 0; j < stencil_size; j++) {
+                        for (int k = 0; k < stencil_size; k++) {
+                            auto cell = RectangularCuboid::fromBoundingPts(
+                                Pt(coords[i], coords[j], coords[k]),
+                                Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
+
+                            if (secondMoment != nullptr) {
+                                auto gm1 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid1_and_plane);
+                                auto gm2 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid2_and_plane);
+                                auto gmSheet = gm2 - gm1;
+
+                                // 0th moment
+                                double vol = gmSheet.volume();
+
+                                vfrac[i][j][k] = vol / cell_volume;
+
+                                // 1st moments
+                                firstMoment[i][j][k] << gmSheet[1], gmSheet[2], gmSheet[3];
+
+                                if (vol < 0.0) {
+                                    vol = 0.0;
+                                    firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                                    //secondMoment[i][j][k] = Eigen::Matrix3d::Zero(); Causes issues
+                                }
+
+                                // accumulate for stencil-centered 2nd moment later
+                                totalMoments += gmSheet;
+
+                            } else {
+                                auto volume_and_surface1 = getVolumeMoments<
+                                    VolumeMoments>(cell, paraboloid1_and_plane);
+
+                                auto volume_and_surface2 = getVolumeMoments<
+                                    VolumeMoments>(cell, paraboloid2_and_plane);
+
+                                double V1 = volume_and_surface1.volume();
+                                double V2 = volume_and_surface2.volume();
+                                double Vdiff = V2 - V1;
+
+
+
+                                Eigen::Vector3d M1(volume_and_surface1.centroid().x(),
+                                                volume_and_surface1.centroid().y(),
+                                                volume_and_surface1.centroid().z());
+
+                                Eigen::Vector3d M2(volume_and_surface2.centroid().x(),
+                                                volume_and_surface2.centroid().y(),
+                                                volume_and_surface2.centroid().z());
+
+
+                                if (Vdiff <= 0.0) {
+                                    vfrac[i][j][k] = 0.0;
+                                    firstMoment[i][j][k] = Eigen::Vector3d::Zero();
+                                } else {
+                                    vfrac[i][j][k] = Vdiff / cell_volume;
+                                    firstMoment[i][j][k] = M2 - M1;
+                                }
+                            }
+
+                            auto surface1 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid1).getSurface();
+                            auto surface2 = getVolumeMoments<
+                                VolumeMomentsAndSurface>(cell, paraboloid2).getSurface();
+
+                            area[i][j][k] = surface1.getSurfaceArea() + surface2.getSurfaceArea();
+
+                            if (visualize) {
+                                surfaces.push_back(surface1);
+                                surfaces.push_back(surface2);
+                            }
+                        }
+                    }
+                }
+
+                // Check central cell
+                if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
+                    // Accept this sample
+
+                    // Now calc stencil 2nd moments if requested
+                    if (secondMoment != nullptr) {
+                        *secondMoment = centeredSecondMomentFromTotal(totalMoments);
+                    }
+
+                    if (visualize) {
+                        WriteField(stencil_size, coords, vfrac, "vfrac");
+                        WriteSurface(surfaces, "surface");
+                    }
+                    return;
+                }
+
+                // else: reject and regenerate
+            }
+        }
+        /*
+        void generateSheet(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            //int stencil_size, double coeff_stddev = 0.1, double min_thickness = machineZero, double max_thickness = 0.5, double thickness_stddev = 0.0, 
+            double min_thickness,
+            double max_thickness,
+            bool subgrid = true,
             bool variable_thickness = true, 
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
@@ -489,22 +1009,17 @@ namespace IRL {
 
                 Eigen::Vector3d datum;
                 
-                if (variable_thickness) {
+                if (subgrid && variable_thickness) {
                     // Random datum anywhere in central cell to make sure it is small here
                     datum = generateRandomPoint(
-                        -0.5*static_cast<double>(stencil_size),
-                        0.5*static_cast<double>(stencil_size), eng);
+                        -0.5,
+                        0.5, eng);
                 } else {
                     // Random datum anywhere in stencil
                     datum = generateRandomPoint(
-                        -0.5*static_cast<double>(stencil_size),
-                        0.5*static_cast<double>(stencil_size), eng);
+                        -2.5,
+                        2.5, eng);
                 }
-                
-
-                 datum = generateRandomPoint(
-                        -0.5*static_cast<double>(stencil_size),
-                        0.5*static_cast<double>(stencil_size), eng);
 
                 // Random unbiased direction
                 Eigen::Vector3d direction = generateRandomDirection(eng);
@@ -575,14 +1090,7 @@ namespace IRL {
                                 Pt(coords[i], coords[j], coords[k]),
                                 Pt(coords[i + 1], coords[j + 1], coords[k + 1]));
 
-                            /*
-                            auto volume_and_surface1 = getVolumeMoments<
-                                AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
-                                cell, paraboloid1);
-                            auto volume_and_surface2 = getVolumeMoments<
-                                AddSurfaceOutput<VolumeMoments, ParametrizedSurfaceOutput>>(
-                                cell, paraboloid2);
-                            */
+                            
                             if (secondMoment != nullptr) {
                                 auto gm1 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid1);
                                 auto gm2 = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid2);
@@ -617,14 +1125,7 @@ namespace IRL {
                                 double Vdiff = V2 - V1;
 
                                 // When in central cell, check if V1 is very small, meaning the central cell does not have 2 interfaces
-                                /*
-                                if (i == stencil_size/2 && j == stencil_size/2 && k == stencil_size/2) {
-                                    if (V1 < machineZero) {
-                                        Vdiff = 0.0; // treat as empty cell, will be rejected and regenerated
-                                    }
-                                }
-                                */
-
+                                
                                 Eigen::Vector3d M1(volume_and_surface1.getMoments().centroid().x(),
                                                 volume_and_surface1.getMoments().centroid().y(),
                                                 volume_and_surface1.getMoments().centroid().z());
@@ -690,6 +1191,7 @@ namespace IRL {
             bool cutInsideCentralCell,
             double min_thickness = 1e-12, 
             double max_thickness = 0.5, 
+            bool subgrid = true,
             bool variable_thickness = false,
             Eigen::Matrix3d* secondMoment = nullptr) 
         {
@@ -699,10 +1201,22 @@ namespace IRL {
                 auto coords = makeCenteredCoords(stencil_size);
                 const double cell_volume = 1.0;
 
+                Eigen::Vector3d datum_eVec;
+                
+                if (subgrid && variable_thickness) {
+                    // Random datum anywhere in central cell to make sure it is small here
+                    datum_eVec = generateRandomPoint(
+                        -0.5,
+                        0.5, eng);
+                } else {
+                    // Random datum anywhere in stencil
+                    datum_eVec = generateRandomPoint(
+                        -2.5,
+                        2.5, eng);
+                }
+
                 // Random datum anywhere in stencil
-                const auto datum = Pt::fromRawDoublePointer(generateRandomPoint(
-                    -0.5*static_cast<double>(stencil_size),
-                    0.5*static_cast<double>(stencil_size), eng).data());
+                const auto datum = Pt::fromRawDoublePointer(datum_eVec.data());
 
                 // Random unbiased direction
                 auto direction = Normal::fromRawDoublePointer(generateRandomDirection(eng).data());
@@ -886,6 +1400,7 @@ namespace IRL {
             }
         }
         
+        */
 
         // Function to generate a random vector within given bounds
         Eigen::Vector3d generateRandomPoint(double min_bound, double max_bound, std::mt19937_64& eng) {
@@ -994,10 +1509,7 @@ namespace IRL {
                 std::vector<ParaboloidParametrizedSurfaceOutput> surfaces;
 
                 // Random datum anywhere in stencil
-                const auto datum = Pt::fromRawDoublePointer(generateRandomPoint(
-                    -0.5 * static_cast<double>(stencil_size),
-                    0.5 * static_cast<double>(stencil_size),
-                    eng).data());
+                const auto datum = Pt::fromRawDoublePointer(generateRandomPoint(-2.5,2.5,eng).data());
 
                 // Random unbiased direction
                 auto direction = Normal::fromRawDoublePointer(generateRandomDirection(eng).data());
@@ -4685,10 +5197,10 @@ namespace IRL {
 
             // Adjust bounds if well-resolved
             if (well_resolved) {
-                min_cylinder_radius = max_cylinder_radius;
-                min_sheet_thickness = max_sheet_thickness;
-                min_sphere_radius = max_sphere_radius;
-                min_small_ellipsoid_axis = max_small_ellipsoid_axis;
+                min_cylinder_radius = max_cylinder_radius + machineZero;
+                min_sheet_thickness = max_sheet_thickness + machineZero;
+                min_sphere_radius = max_sphere_radius + machineZero;
+                min_small_ellipsoid_axis = max_small_ellipsoid_axis + machineZero;
 
                 max_cylinder_radius = class0_max_characteristic/2.0;
                 max_sheet_thickness = class0_max_characteristic;
@@ -4700,7 +5212,8 @@ namespace IRL {
             double transition_sheet_max_subgrid_thickness = upper_limit_subgrid;
             double transition_sheet_well_resolved_thickness = class0_max_characteristic;
 
-            
+            // For sheets
+            bool subgrid = !well_resolved;
 
             // Decide which shapes to generate
             std::uniform_real_distribution<double> prob_dist(0.0, 1.0);
@@ -4728,12 +5241,12 @@ namespace IRL {
                     if (subshape_probability < 0.1) {
                         // 10% chance → cut sheet with variable thickness
                         variable_sheet_thickness = true;
-                        generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, variable_sheet_thickness, secondMomentPtr);
+                        generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                     } else {
                         if (subshape_probability < 0.2) {
                             // 10% chance → cut sheet without variable thickness
                             variable_sheet_thickness = false;
-                            generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, variable_sheet_thickness, secondMomentPtr);
+                            generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                         } else {
                             if (subshape_probability < 0.4) {
                                 // 20% chance → sheet transition
@@ -4746,11 +5259,11 @@ namespace IRL {
                                 if (subshape_probability < 0.7) {
                                     // 30% chance → sheet with variable thickness
                                     variable_sheet_thickness = true;
-                                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, variable_sheet_thickness, secondMomentPtr);
+                                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                                 } else {
                                     // 30% chance → normal sheet
                                     variable_sheet_thickness = false;
-                                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, variable_sheet_thickness, secondMomentPtr);
+                                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                                 }
                             }
                         }
@@ -4766,60 +5279,49 @@ namespace IRL {
                     if (subshape_probability < 0.5) {
                         // 50% chance → cut sheet with variable thickness
                         variable_sheet_thickness = true;
-                        generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, variable_sheet_thickness, secondMomentPtr);
+                        generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                     } else {
                         // 50% chance → cut sheet without variable thickness
                         variable_sheet_thickness = false;
-                        generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, variable_sheet_thickness, secondMomentPtr);
+                        generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                     }
                     break;
                 }
-                /*
                 case 6:
-                    generateParaboloid(vfrac, firstMoment, area, stencil_size,
-                                            paraboloid_coeff_stddev, visualize, secondMomentPtr);
+                    generateParaboloid(vfrac, firstMoment, area, secondMomentPtr);
                     break;
-                
-                    case 7:
-                    generateCutSheet(vfrac, firstMoment, area, stencil_size, true, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
-                    break;
-                case 8:
-                    generateCutSheet(vfrac, firstMoment, area, stencil_size, false, sheet_coeff_stddev, min_sheet_thickness, max_sheet_thickness, sheet_thickness_stddev, variable_sheet_thickness, visualize, secondMomentPtr);
-                    break;
-                case 9:
-                    generateSheet(vfrac, firstMoment, area, stencil_size, sheet_coeff_stddev, min_sheet_thickness,max_sheet_thickness, sheet_thickness_stddev, true, visualize, secondMomentPtr);
-                    break;
-                case 10:
-                    generateBentCylinder(vfrac, firstMoment, area, stencil_size, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
-                    break;
-                case 11:
-                    generateBentTruncatedCylinder(vfrac, firstMoment, area, stencil_size, false, min_cylinder_radius, max_cylinder_radius, cylinder_radius_stddev, radius_circ_min, radius_circ_max, visualize, secondMomentPtr);
-                    break;
-                case 12: {
-                    std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroidS;
-                    std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfacesS;
-                    const Eigen::Vector3d originS(0.25, 0.0, 0.0);
-                    double radiusS = 0.4;
-                    std::vector<double> coarse_coordsS(stencil_size + 1);
-                    generateSpecificSphere(vfrac, firstMoment, area, centroidS, surfacesS, stencil_size, originS, radiusS, coarse_coordsS, visualize, secondMomentPtr);
+                case 7: {
+                    bool variable_sheet_thickness = false;
+                    bool cut_inside_central_cell = true;
+                    generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                     break; }
+                case 8: {
+                    bool variable_sheet_thickness = true; 
+                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                    break;}
+                case 9:{
+                    bool variable_sheet_thickness = false;
+                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                    break;}
+                case 10:{
+                    generateBentCylinder(vfrac, firstMoment, area, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                    break;}
+                case 11:
+                    generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                    break;
+                // case 12: {
+                //     std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroidS;
+                //     std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfacesS;
+                //     const Eigen::Vector3d originS(0.25, 0.0, 0.0);
+                //     double radiusS = 0.4;
+                //     std::vector<double> coarse_coordsS(stencil_size + 1);
+                //     generateSpecificSphere(vfrac, firstMoment, area, centroidS, surfacesS, stencil_size, originS, radiusS, coarse_coordsS, visualize, secondMomentPtr);
+                //     break; }
                 
-                case 13:
-                    std::cout<<"Generate sheet transition"<<std::endl;
-                    generateSheetTransition(
-                        vfrac,
-                        firstMoment,
-                        area,
-                        stencil_size,
-                        false, //thick_central_cell = 
-                        0.1,
-                        machineZero,
-                        0.5,
-                        2.5,
-                        true, //Visualize
-                        nullptr);
-                        break;
-                    */
+                case 13: {
+                    bool thick_central_cell = false;
+                    generateSheetTransition(vfrac, firstMoment, area, thick_central_cell, transition_sheet_min_subgrid_thickness, transition_sheet_max_subgrid_thickness, transition_sheet_well_resolved_thickness, secondMomentPtr);
+                    break;}
                 case 14:
                     std::cout << "Generate Ellipsoid Droplet" << std::endl;
                     generateEllipsoidDroplet(vfrac, firstMoment, area, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
@@ -4835,9 +5337,11 @@ namespace IRL {
                 case 17:
                     std::cout << "Generate Ellipsoid Sheet" << std::endl;
                     generateEllipsoidSheet(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
+                    break;
                 case 18:
                     std::cout << "Generate Ellipsoid Sheet Edge" << std::endl;
                     generateEllipsoidSheetEdge(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, true, nullptr);
+                    break;
                 default:
                     // Paraboloid = case 0
                     generateParaboloid(vfrac, firstMoment, area, secondMomentPtr);

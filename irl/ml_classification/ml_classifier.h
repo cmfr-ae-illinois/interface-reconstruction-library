@@ -95,9 +95,9 @@ public:
 
     void updateDataParameters(int no_batches_in, int include_Moments_in, bool include_Surface_Area_in, bool include_Eigenvalues_in,
                                 double paraboloid_coeff_stddev_in, double hyperbolic_cylinder_opening_angle_stddev_in,
-                                double sheet_coeff_stddev_in, double max_sheet_thickness_in, double sheet_thickness_stddev_in,
-                                double max_cylinder_radius_in, double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
-                                double max_sphere_radius_in, double sphere_radius_stddev_in, 
+                                double sheet_coeff_stddev_in, double sheet_thickness_stddev_in,
+                                double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
+                                double sphere_radius_stddev_in, 
                                 double ellipsoid_subgrid_stddev_in, double min_long_ellipsoid_axis_in, double max_long_ellipsoid_axis_in,
                                 bool exact_2nd_mom = false, bool visualize_in = false, double machineZero_in = 1e-12, 
                                 double lower_limit_subgrid_in = 1e-12, double upper_limit_subgrid_in = 1.732, double class0_max_characteristic_in = 2.5) {
@@ -465,7 +465,8 @@ public:
         );
 
         trainer.train();
-        return final_test_accuracy;
+        //return final_test_accuracy;
+        return *std::min_element(val_loss.begin(), val_loss.end());
     }
 
     void outputTrainingResults() const {

@@ -174,7 +174,7 @@ inline void convert_to_local_centroids(std::vector<CellData>& stencil,
     }
 }
 
-
+/*
 // Write CellData stencil back into flat array (and optional global inertia)
 static void repackStencil(std::vector<float>& flat,
                           const std::vector<CellData>& stencil,
@@ -188,15 +188,6 @@ static void repackStencil(std::vector<float>& flat,
 {
     std::vector<CellData> packed_stencil = stencil;
     //convert_to_local_centroids(packed_stencil, N, include_moments);
-
-    // Normalize surface areas by the liquid cell volume ^2/3
-    /*
-    for (auto& c : packed_stencil) {
-        //c.area /= std::pow(c.vfrac, 2.0f / 3.0f) + 1e-12f; // add small epsilon to avoid division by zero
-        // get thickness parameter
-        c.area = c.vfrac / (c.area + 1e-12f);
-    }
-    */    
     
 
     const int nCells = stencil_size * stencil_size * stencil_size;
@@ -204,11 +195,6 @@ static void repackStencil(std::vector<float>& flat,
     const int tail   = globalTailStride(include_moments, include_Eigenvalues);
 
     flat.resize(stride * nCells); //This is the size not including stencil wide 2nd moments or eigenvalues, those get appended later
-    /* omit surface area if total surface area is wanted
-    if (include_Surface_Area && include_Total_Surface_Area) {
-        flat.resize((stride-1) * nCells + tail + 1); // +1 for total surface area at the end
-    }
-    */
 
     for (int idx = 0; idx < nCells; ++idx) {
         flat[stride * idx + 0] = packed_stencil[idx].vfrac;
@@ -223,30 +209,8 @@ static void repackStencil(std::vector<float>& flat,
             flat[stride * idx + 4] = packed_stencil[idx].area;
         }
     }
-    /* Old: Use previouly calculated 2nd moments and eigenvalues
-    int base = stride * nCells;
-    if (include_moments >= 2 && I) {
-        flat[base + 0] = I->Ixx;
-        flat[base + 1] = I->Iyy;
-        flat[base + 2] = I->Izz;
-        flat[base + 3] = I->Ixy;
-        flat[base + 4] = I->Ixz;
-        flat[base + 5] = I->Iyz;
-    }
 
-    if (include_Eigenvalues) {
-        if (include_moments >= 2 && I) {
-            base += 6;
-        }
-        if (eigenvalues) {
-            flat[base + 0] = eigenvalues->lambda1;
-            flat[base + 1] = eigenvalues->lambda2;
-            flat[base + 2] = eigenvalues->lambda3;
-        }
-    }
-    */
-
-    //New: Re-calculate 2nd moments and eigenvalues
+    // Re-calculate 2nd moments and eigenvalues
     if (include_moments >= 2) {
         // Append approximate 2nd moments to flattened_state
         Eigen::Matrix3d approxSecondMoment = IRL::compute2ndMoment(flat, stencil_size, 1, include_Surface_Area, 1e-12, 1.0);
@@ -260,18 +224,76 @@ static void repackStencil(std::vector<float>& flat,
     if (include_Eigenvalues) {
         IRL::appendInertiaEigenvalues(flat, stencil_size, include_moments, 1, include_Surface_Area, 1e-12);
     }
+}
+    */
 
-    /* Below was a quick test to see if total surface area is benefitial, did not seem to help, so no better embedding into the code has happened
-    if (include_Total_Surface_Area) {
-        float total_area = 0.0f;
-        for (const auto& c : packed_stencil) {
-            total_area += c.area;
+static void repackStencil(std::vector<float>& flat,
+                          const std::vector<CellData>& stencil,
+                          const SecondMoments* I,
+                          const Eigenvalues* eigenvalues,
+                          int stencil_size,
+                          int include_moments,
+                          bool include_Surface_Area = false,
+                          bool include_Eigenvalues = false)
+{
+    const int nCells = stencil_size * stencil_size * stencil_size;
+    const int stride = perCellStride(include_moments, include_Surface_Area);
+
+    const size_t base_size = static_cast<size_t>(stride) * nCells;
+    const size_t second_size = (include_moments >= 2) ? 6 : 0;
+    const size_t eigen_size = include_Eigenvalues ? 3 : 0;
+    const size_t final_size = base_size + second_size + eigen_size;
+
+    std::vector<float> out(final_size, 0.0f);
+
+    for (int idx = 0; idx < nCells; ++idx) {
+        out[stride * idx + 0] = stencil[idx].vfrac;
+
+        if (include_moments >= 1) {
+            out[stride * idx + 1] = stencil[idx].mx;
+            out[stride * idx + 2] = stencil[idx].my;
+            out[stride * idx + 3] = stencil[idx].mz;
         }
-        flat.back() = total_area;
+
+        if (include_Surface_Area) {
+            out[stride * idx + 4] = stencil[idx].area;
+        }
     }
 
-    std::cout << "Repacked stencil length = " << flat.size() << "\n";
-    */
+    size_t pos = base_size;
+
+    if (include_moments >= 2) {
+        Eigen::Matrix3d approxSecondMoment =
+            IRL::compute2ndMoment(out, stencil_size, 1, include_Surface_Area, 1e-12, 1.0);
+
+        out[pos++] = static_cast<float>(approxSecondMoment(0, 0));
+        out[pos++] = static_cast<float>(approxSecondMoment(1, 1));
+        out[pos++] = static_cast<float>(approxSecondMoment(2, 2));
+        out[pos++] = static_cast<float>(approxSecondMoment(0, 1));
+        out[pos++] = static_cast<float>(approxSecondMoment(0, 2));
+        out[pos++] = static_cast<float>(approxSecondMoment(1, 2));
+    }
+
+    if (include_Eigenvalues) {
+        std::vector<float> tmp = out;
+
+        // tmp may grow by 3 here, but only this temporary copy grows.
+        // The real output vector "out" keeps exact final_size capacity.
+        IRL::appendInertiaEigenvalues(
+            tmp,
+            stencil_size,
+            include_moments,
+            1,
+            include_Surface_Area,
+            1e-12
+        );
+
+        out[pos++] = tmp[tmp.size() - 3];
+        out[pos++] = tmp[tmp.size() - 2];
+        out[pos++] = tmp[tmp.size() - 1];
+    }
+
+    flat = std::move(out);
 }
 
 // Symmetry helpers

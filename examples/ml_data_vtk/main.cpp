@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <cmath>
 #include <vtkCellCenters.h>
+#include <limits>
 
 #include <limits>
 #include <stdexcept>
@@ -371,9 +372,134 @@ Stats computeStats(const std::vector<double>& values)
 
 int main(int argc, char* argv[]) {
 
+
+int stencil_size = 5;
+
+    //Data parameters
+    int no_batches;
+    int include_Moments = 1;
+    bool include_Surface_Area = false;
+    bool include_Eigenvalues = true;
+    double paraboloid_coeff_stddev = 0.1;
+    double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
+    double sheet_coeff_stddev = 0.1;
+    double sheet_thickness_stddev = 0.0;
+    double cylinder_radius_stddev = 0.0;
+    double radius_circle_min = 2.5;
+    double radius_circle_max = 10.0;
+    double sphere_radius_stddev = 0.0;
+    double ellipsoid_subgrid_stddev = 0.7;
+    double min_long_ellipsoid_axis = 3.0;
+    double max_long_ellipsoid_axis = 5.0;
+    bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
+    bool visualize = false; // if true, print centroids and / or write surfaces
+    double machineZero = 1e-12;
+    double lower_limit_subgrid = machineZero;
+    double upper_limit_subgrid = std::sqrt(3.0);
+    double class0_max_characteristic = 2.5;
+    float epsilon_connectivity = 1e-12f;
+
+    // Net Parameters
+    int input_size = stencil_size * stencil_size * stencil_size 
+    * (include_Moments >= 1 ? /*(include_Surface_Area ? 5 : 4) ---> remove the 4 again if uncommenting ->*/ 4 : 1)  // 4 if include_Moments >= 1 because we have vfrac + (mx,my,mz) per cell, otherwise just vfrac
+    + (include_Moments >= 2 ? 6 : 0)  // +6 if include_Moments >= 2 because we have (xx, yy, zz, xy, xz, yz) components of the 2nd moment tensor; otherwise none
+    + (include_Eigenvalues ? 3 : 0);
+    int hidden_size1 = 256;
+    int hidden_size2 = 64;
+    int hidden_size3 = 32;
+    int output_size = 6; //CHANGED 4 to 6
+
+    //Training parameters
+    double learning_rate = 0.001; //was 0.01 for SGD optimizer
+    int batch_size = 64;
+    int max_epochs = 50;
+    int reduce_lr_patience = 4;
+    int early_stop_patience = 8;
+
     IRL::Data_gen gen; 
+    
+    gen.updateDataParameters(
+            no_batches*batch_size,
+            include_Moments,
+            include_Surface_Area,
+            include_Eigenvalues,
+            paraboloid_coeff_stddev,
+            hyperbolic_cylinder_opening_angle_stddev,
+            sheet_coeff_stddev,
+            sheet_thickness_stddev,
+            cylinder_radius_stddev,
+            radius_circle_min,
+            radius_circle_max,
+            sphere_radius_stddev,
+            ellipsoid_subgrid_stddev,
+            min_long_ellipsoid_axis,
+            max_long_ellipsoid_axis,
+            exact_2nd_moment,
+            visualize,
+            machineZero,
+            lower_limit_subgrid,
+            upper_limit_subgrid,
+            class0_max_characteristic
+        );   
+
     gen.setVisualize();
-    std::vector<float> state = gen.generateState(false, 14);  
+
+    while (true) {
+        int input_class;
+
+        std::cout << "\nEnter class index to generate, or -1 to quit: ";
+        std::cin >> input_class;
+
+        if (!std::cin) {
+            std::cout << "Invalid input. Please enter an integer.\n";
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            continue;
+        }
+
+        if (input_class < 0) {
+            std::cout << "Exiting.\n";
+            break;
+        }
+
+        if (input_class > 5) {
+            std::cout << "Invalid class. Please enter a class from 0 to 5.\n";
+            continue;
+        }
+
+        std::vector<float> state = gen.generateState(false, input_class);
+
+        std::cout << "Generated state for class " << input_class
+                << " with size " << state.size() << ".\n";
+    }
+
+    // bool well_resolved = false;
+
+
+
+    // for (int i = 1; i < 6; i++) {
+    //     std::cout<<"Generating subtype "<< i << std::endl;
+    //     for (int j = 0; j < 10; j++) {
+    //         gen.generateState(
+    //                 well_resolved,
+    //                 i
+    //             );
+    //     }
+    // }
+    // well_resolved = true;
+
+    // for (int i = 0; i < 6; i++) {
+    //     std::cout<<"Generating subtype "<< i << std::endl;
+    //     for (int j = 0; j < 100; j++) {
+    //         gen.generateState(
+    //                 well_resolved,
+    //                 i
+    //             );
+    //     }
+    // }
+    //IRL::Data_gen gen; 
+    //gen.setVisualize();
+    //std::vector<float> state = gen.generateState(false, 14);  
     /*
     IRL::preprocess_stencil(state,
                             stencil_size,
