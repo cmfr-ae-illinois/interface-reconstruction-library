@@ -148,7 +148,9 @@ struct PU {
                   moments_array(ii, jj, kk) * vol_inv;
 
               if (liq_vf_neighbor < IRL::global_constants::VF_LOW ||
-                  liq_vf_neighbor > IRL::global_constants::VF_HIGH) {
+                  liq_vf_neighbor > IRL::global_constants::VF_HIGH ||
+                  interface_with_ghost_array(ii, jj, kk).type() !=
+                      IRL::SeparatorUnion::SeparatorType::OnePlane) {
                 continue;
               }
 
