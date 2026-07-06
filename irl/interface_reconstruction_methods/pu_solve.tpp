@@ -609,19 +609,19 @@ inline double PUImplicitSurface::getCurvature(Pt& x) {
   auto gradF = std::get<1>(holdsGradAndHessian);
   auto hessF = std::get<2>(holdsGradAndHessian);
 
-  double Fxx = hessF(0, 0);
-  double Fyy = hessF(1, 1);
-  double Fxy = hessF(0, 1);
-  double Fx = gradF(0);
-  double Fy = gradF(1);
+  double magGradF = gradF.norm();
 
-  double numer = Fxx * Fy * Fy - 2 * Fxy * Fx * Fy + Fx * Fx * Fyy;
-  double magGradF = std::sqrt(Fx * Fx + Fy * Fy);
-  double denom = magGradF * magGradF * magGradF;
+  // grad(F)^T Hess(F) grad(F)
+  double gradHessGrad = gradF.transpose() * hessF * gradF;
 
-  double kz = numer / denom;
+  // |grad(F)|^2 * Trace(Hess(F))
+  double traceHess = hessF.trace();
+  double gradSquaredTrace = magGradF * magGradF * traceHess;
 
-  return kz;
+  double numer = gradHessGrad - gradSquaredTrace;
+  double denom = 2.0 * magGradF * magGradF * magGradF;
+
+  return numer / denom;
 }
 
 inline const Pt PUImplicitSurface::projectOntoPU(const Pt& a_pt) {

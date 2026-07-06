@@ -80,7 +80,10 @@ class PUImplicitSurface {
   inline void evaluateCylinder(Pt& x, double radius, Pt& center,
                                double* retVal);
 
-  //
+  // Ellipsoid Values
+  inline void evaluateEllipsoid(
+      Pt& x, double axis1size, double axis2size, double axis3size,
+      std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
   // Find the Tangent and Curvature at the point
   inline Normal getTangentCylinder(Pt& x, double radius, Pt& center);
   // Print the Implicit Surface Properties
@@ -140,6 +143,14 @@ class PU {
   // Curvature
   double getCurvature(double x, double y, double z, double delta);
   double getCurvature(Pt& in, double delta);
+
+  // Exact Values for Ellipsoid Stress
+  Normal solveFaceEllipsoid(const double STin, const Pt& P0, const Pt& P1,
+                            const Pt& P2, const Pt& P3, const double polarAngle,
+                            const double azimuthalAngle, const double axis1size,
+                            const double axis2size, const double axis3size,
+                            const double Pressure, const Normal& Marangoni);
+
   // Print
   void printSolver();
   /// \brief Solve the system for the reconstruction
