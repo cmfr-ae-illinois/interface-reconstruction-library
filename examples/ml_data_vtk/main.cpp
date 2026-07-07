@@ -462,11 +462,6 @@ int stencil_size = 5;
             break;
         }
 
-        if (input_class > 5) {
-            std::cout << "Invalid class. Please enter a class from 0 to 5.\n";
-            continue;
-        }
-
         std::vector<float> state = gen.generateState(false, input_class);
 
         std::cout << "Generated state for class " << input_class

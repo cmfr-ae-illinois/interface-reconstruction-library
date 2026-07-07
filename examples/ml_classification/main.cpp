@@ -499,9 +499,9 @@ void stable_classification() {
 
     // Data parameters
     int no_batches;
-    int include_Moments = 1;
+    int include_Moments = 0;
     bool include_Surface_Area = false;
-    bool include_Eigenvalues = true;  // true because dataset path says FirstMomentEigenv
+    bool include_Eigenvalues = false;  // true because dataset path says FirstMomentEigenv
     double paraboloid_coeff_stddev = 0.1;
     double hyperbolic_cylinder_opening_angle_stddev = 20; // degrees
     double sheet_coeff_stddev = 0.1;
@@ -571,7 +571,7 @@ void stable_classification() {
 
     // Dataset
     std::string dataset_path =
-        "/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/data/data.bin";
+        "/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/data/data.bin";
 
     // Output directory for this whole experiment
     const auto now = std::chrono::system_clock::now();
@@ -995,12 +995,12 @@ int main (int argc, char* argv[]) {
         );                    
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     //ml.generateDataset();
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis/ZerothMoments/data/data.bin");
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/data/data.bin");
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition_new/s5_262k_new/ZerothMoments/data/data.bin");
 
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin", false);
     //ml.saveDataset("data");
-    /* //Below: Used to remove 1st moments from dataset/
+    /*//Below: Used to remove 1st moments from dataset/
     include_Moments = 0;
     ml.updateDataParameters(
             no_batches,
@@ -1037,10 +1037,10 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis/ZerothMoments/model/ml_model.pt");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis/FirstMomentsEigv/model/ml_model.pt");
-    //ml.exportRuntimeWeightsAndBiasesHeader();
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/stable_run_models/2026-07-01_133021/run_8/ml_model.pt"); //Thesis zeroth most agreeing
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/stable_run_models/2026-07-01_014127/run_4/ml_model.pt"); // Thesis first moments most agreeing
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMomentsEigv/stable_run_models/2026-06-30_203023/run_0/ml_model.pt"); // Thesis first moments eigenvalues most agreeing
+    ml.exportRuntimeWeightsAndBiasesHeader();
 
     //IRL::MLClassifierNoTorch ml_no_torch(stencil_size);
     //ml_no_torch.loadWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
@@ -1053,7 +1053,7 @@ int main (int argc, char* argv[]) {
     int downsample_factor = 2;
     //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
     
-    stable_classification();
+    //stable_classification();
 
     //IRL::Data_gen gen;
 

@@ -1822,6 +1822,7 @@ namespace IRL {
                 }
 
                 if (visualize) {
+                    std::cout << "Writing coarse stencil to files..." << std::endl;
                     WriteField(stencil_size, coords_coarse, vfrac, "vfrac");
                     WriteSurface(surfaces, "surface");
                     printCentroids(centroid);
