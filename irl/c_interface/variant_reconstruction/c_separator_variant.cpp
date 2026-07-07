@@ -115,7 +115,7 @@ void c_SeparatorVariant_setPrincipalCurvatures(c_SeparatorVariant* a_self,
                                                double* a_curvatures) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
-  assert(*a_curvatures != nullptr);
+  assert(a_curvatures != nullptr);
   a_self->obj_ptr->setPrincipalCurvatures(a_curvatures[0], a_curvatures[1]);
 }
 
@@ -123,7 +123,7 @@ void c_SeparatorVariant_getPrincipalCurvatures(c_SeparatorVariant* a_self,
                                                double* a_curvatures) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
-  assert(*a_curvatures != nullptr);
+  assert(a_curvatures != nullptr);
   const auto curv_pair = a_self->obj_ptr->getPrincipalCurvatures();
   a_curvatures[0] = curv_pair.first;
   a_curvatures[1] = curv_pair.second;
