@@ -18,7 +18,7 @@
 module f_SeparatorUnion_class
   use, intrinsic :: iso_c_binding
   use f_DefinedTypes
-  use f_ObjServer_SeparatorUnion_class
+  ! use f_ObjServer_SeparatorUnion_class
   implicit none
 
   type, public, bind(C) :: c_SeparatorUnion
