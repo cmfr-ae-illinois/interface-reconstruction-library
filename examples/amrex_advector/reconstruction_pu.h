@@ -89,14 +89,21 @@ struct PU {
     // ---------------------------------------------------------------------
     // all interface fields are initialized with plic
 
-    jibben_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-                               interface_with_ghost.nGrowVect());
+    // jibben_interface.LocalCopy(interface, 0, 0, interface.nComp(),
+    //                            interface_with_ghost.nGrowVect());
 
-    pu_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-                           interface_with_ghost.nGrowVect());
+    // pu_interface.LocalCopy(interface, 0, 0, interface.nComp(),
+    //                        interface_with_ghost.nGrowVect());
+
+    // pu_neighborhood_interface.LocalCopy(interface, 0, 0, interface.nComp(),
+    //                                     interface_with_ghost.nGrowVect());
+
+    jibben_interface.LocalCopy(interface, 0, 0, interface.nComp(), IntVect(0));
+
+    pu_interface.LocalCopy(interface, 0, 0, interface.nComp(), IntVect(0));
 
     pu_neighborhood_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-                                        interface_with_ghost.nGrowVect());
+                                        IntVect(0));
 
     // final_interface.LocalCopy(interface, 0, 0, interface.nComp(),
     //                           interface.nGrowVect());
@@ -128,7 +135,9 @@ struct PU {
         const double liq_vf = moments_array(i, j, k) * vol_inv;
 
         if (liq_vf < IRL::global_constants::VF_LOW ||
-            liq_vf > IRL::global_constants::VF_HIGH) {
+            liq_vf > IRL::global_constants::VF_HIGH ||
+            interface_with_ghost_array(i, j, k).type() !=
+                IRL::SeparatorUnion::SeparatorType::OnePlane) {
           return;
         }
 
