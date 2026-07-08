@@ -28,8 +28,8 @@ class alignas(16) SeparatorUnion {
   enum class SeparatorType : std::uint8_t {
     OnePlane = 1,
     TwoPlanes = 2,
-    Paraboloid = 3,
-    Cylinder = 4
+    Paraboloid = 4,
+    Cylinder = 8
   };
 
   // Default constructor

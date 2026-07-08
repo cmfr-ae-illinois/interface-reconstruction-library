@@ -53,7 +53,8 @@ inline SeparatorUnion& SeparatorUnion::operator=(const SeparatorUnion& other) {
       cylinder_m = other.getCylinder();
       break;
     default:
-      std::runtime_error("Unrecognized reconstruction type in SeparatorUnion");
+      throw std::runtime_error(
+          "Unrecognized reconstruction type in SeparatorUnion");
   }
   return *this;
 };
@@ -76,7 +77,8 @@ inline SeparatorUnion& SeparatorUnion::operator+=(const SeparatorUnion& other) {
       cylinder_m = other.getCylinder();
       break;
     default:
-      std::runtime_error("Unrecognized reconstruction type in SeparatorUnion");
+      throw std::runtime_error(
+          "Unrecognized reconstruction type in SeparatorUnion");
   }
   return *this;
 };
@@ -103,7 +105,8 @@ inline SeparatorUnion& SeparatorUnion::operator=(const PlanarSeparator& other) {
       planes_m[1] = other[0];
       break;
     default:
-      std::runtime_error("SeparatorUnion cannot contain more than 2 planes");
+      throw std::runtime_error(
+          "SeparatorUnion cannot contain more than 2 planes");
   }
   return *this;
 };
@@ -209,7 +212,7 @@ inline const bool SeparatorUnion::isFull(void) const {
     case SeparatorType::Cylinder:
       return this->getCylinder().isAlwaysAbove();
     default:
-      std::runtime_error("SeparatorUnion type not recognized");
+      throw std::runtime_error("SeparatorUnion type not recognized");
       return false;
   }
 }
@@ -225,7 +228,7 @@ inline const bool SeparatorUnion::isEmpty(void) const {
     case SeparatorType::Cylinder:
       return this->getCylinder().isAlwaysBelow();
     default:
-      std::runtime_error("SeparatorUnion type not recognized");
+      throw std::runtime_error("SeparatorUnion type not recognized");
       return false;
   }
 }
@@ -247,13 +250,13 @@ inline void SeparatorUnion::serialize(ByteBuffer* a_buffer) const {
       this->getCylinder().serialize(a_buffer);
       break;
     default:
-      std::runtime_error("SeparatorUnion type cannot be serialized");
+      throw std::runtime_error("SeparatorUnion type cannot be serialized");
   }
 };
 
 inline void SeparatorUnion::unpackSerialized(ByteBuffer* a_buffer) {
-  a_buffer->unpack(&this->type(), 1);
-  switch (this->type()) {
+  a_buffer->unpack(&type(), 1);
+  switch (type_m) {
     case SeparatorType::OnePlane:
       this->getPlane().unpackSerialized(a_buffer);
       break;
@@ -268,7 +271,7 @@ inline void SeparatorUnion::unpackSerialized(ByteBuffer* a_buffer) {
       this->getCylinder().unpackSerialized(a_buffer);
       break;
     default:
-      std::runtime_error("SeparatorUnion type cannot be unpacked");
+      throw std::runtime_error("SeparatorUnion type cannot be unpacked");
   }
 };
 
@@ -288,7 +291,7 @@ inline void SeparatorUnion::shift(const Pt a_shift) {
       cylinder_m.setDatum(cylinder_m.getDatum() + a_shift);
       break;
     default:
-      std::runtime_error("SeparatorUnion type cannot shift datum");
+      throw std::runtime_error("SeparatorUnion type cannot shift datum");
   }
 };
 
@@ -336,7 +339,7 @@ inline void SeparatorUnion::reflect(const SeparatorUnion& a_ref,
       break;
     }
     default: {
-      std::runtime_error("SeparatorUnion type cannot reflect");
+      throw std::runtime_error("SeparatorUnion type cannot reflect");
     }
   }
 };
