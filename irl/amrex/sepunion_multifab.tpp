@@ -65,8 +65,7 @@ void SepUnionMultiFab::FillBoundaryWithPeriodicShift(const Geometry& geom) {
 void SepUnionMultiFab::PeriodicShift(const Geometry& geom) {
   const Box& domain = geom.Domain();
   for (MFIter mfi((*this), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-    const Box& grown_box = mfi.growntilebox();  // valid + all ghosts
-    const Box& valid_box = mfi.validbox();
+    const Box& grown_box = mfi.growntilebox();           // valid + all ghosts
     const Box domain_intersection = grown_box & domain;  // cells inside domain
     const Array4<IRL::SeparatorUnion>& arr = (*this).array(mfi);
 
