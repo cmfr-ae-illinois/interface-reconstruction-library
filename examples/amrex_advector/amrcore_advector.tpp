@@ -64,10 +64,12 @@ AmrCoreAdv::AmrCoreAdv() {
     }
   }
 
-  bcs.resize(1);  // Setup 1-component
-  for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-    bcs[0].setLo(idim, BCType::int_dir);
-    bcs[0].setHi(idim, BCType::int_dir);
+  bcs.resize(4);  // Setup 4-component BC vector
+  for (int n = 0; n < 4; ++n) {
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+      bcs[n].setLo(idim, BCType::int_dir);
+      bcs[n].setHi(idim, BCType::int_dir);
+    }
   }
 
   // stores fluxes at coarse-fine interface for synchronization
@@ -120,6 +122,7 @@ void AmrCoreAdv::Evolve() {
 
     if (plot_int > 0 && (step + 1) % plot_int == 0) {
       last_plot_file_step = step + 1;
+      UpdateBand();
       WritePlotFile();
     }
 
@@ -169,6 +172,7 @@ void AmrCoreAdv::Evolve() {
   }
 
   if (plot_int > 0 && istep[0] > last_plot_file_step) {
+    UpdateBand();
     GetReconstruction(finest_level);
     WritePlotFile();
   }
@@ -983,8 +987,16 @@ void AmrCoreAdv::WritePlotFile() {
               auto volume_and_surface =
                   IRL::getVolumeMoments<VolumeAndSuface>(cell, paraboloid);
               const int ntri_before = surface.nBezierTriangles();
-              surface.addSurface(volume_and_surface.getSurface()
-                                     .getQuadraticBezierTriangleApprox());
+              const double area =
+                  volume_and_surface.getSurface().getSurfaceArea();
+              const double cell_dx = std::cbrt(dx[0] * dx[1] * dx[2]);
+              if (area > 1.0e-4 * cell_dx * cell_dx &&
+                  area <
+                      10.0 * cell_dx * cell_dx)  // avoid adding tiny surfaces
+              {
+                surface.addSurface(volume_and_surface.getSurface()
+                                       .getQuadraticBezierTriangleApprox());
+              }
               const int ntri_after = surface.nBezierTriangles();
               const int ntri_added = ntri_after - ntri_before;
               if (scalar_fields && !scalar_fields->empty()) {
