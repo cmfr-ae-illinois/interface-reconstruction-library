@@ -145,7 +145,7 @@ std::pair<double, Eigen::Vector3d> PU::getPUAndGrad(const Pt& a_pt) {
     }
   }
 
-  const double inv_weight_sum = 1.0 / weight_sum;
+  const double inv_weight_sum = 1.0 / IRL::safelyTiny(weight_sum);
   const double PU_F = F_sum * inv_weight_sum;
   const Eigen::Vector3d PU_gradF =
       (gradwxF_plus_wxgradF_sum - F_sum * grad_weight_sum * inv_weight_sum) *
@@ -279,7 +279,7 @@ std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> PU::getPUAndGradAndHessian(
     }
   }
 
-  const double inv_weight_sum = 1.0 / weight_sum;
+  const double inv_weight_sum = 1.0 / IRL::safelyTiny(weight_sum);
   const double PU_F = F_sum * inv_weight_sum;
   const Eigen::Vector3d PU_gradF =
       (grad_product_sum - F_sum * grad_weight_sum * inv_weight_sum) *
@@ -306,7 +306,7 @@ Pt PU::projectPointonPU(const Pt& a_pt, bool& success) {
       break;
     }
     const Eigen::Vector3d gradF = std::get<Eigen::Vector3d>(F_and_gradF);
-    const double grad_norm_inv = 1.0 / gradF.squaredNorm();
+    const double grad_norm_inv = 1.0 / IRL::safelyTiny(gradF.squaredNorm());
     for (int d = 0; d < 3; d++) {
       projected_pt[d] -= F * gradF(d) * grad_norm_inv;
     }
