@@ -11,6 +11,7 @@
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_H_
 
 #include "irl/amrex/sepunion_multifab.h"
+#include "irl/generic_cutting/cut_polygon.h"
 
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
@@ -36,8 +37,7 @@ struct PU {
       const GpuArray<Real, AMREX_SPACEDIM>& dx) {
     const auto cell = makeCell(i, j, k, problo, dx);
 
-    return IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(cell, plic,
-                                                                plic[0]);
+    return IRL::cutPlaneByHexahedron<IRL::Polygon>(cell, plic[0]);
   }
 
   static void GetReconstruction(
@@ -68,17 +68,17 @@ struct PU {
     // ---------------------------------------------------------------------
     // some fields
 
-    const BoxArray& ba = interface.boxArray();
-    const DistributionMapping& dm = interface.DistributionMap();
+    const BoxArray& ba = interface_with_ghost.boxArray();
+    const DistributionMapping& dm = interface_with_ghost.DistributionMap();
 
-    SepUnionMultiFab jibben_interface(ba, dm, interface.nComp(),
+    SepUnionMultiFab jibben_interface(ba, dm, interface_with_ghost.nComp(),
                                       interface_with_ghost.nGrowVect());
 
-    SepUnionMultiFab pu_interface(ba, dm, interface.nComp(),
+    SepUnionMultiFab pu_interface(ba, dm, interface_with_ghost.nComp(),
                                   interface_with_ghost.nGrowVect());
 
     SepUnionMultiFab pu_neighborhood_interface(
-        ba, dm, interface.nComp(), interface_with_ghost.nGrowVect());
+        ba, dm, interface_with_ghost.nComp(), interface_with_ghost.nGrowVect());
 
     // SepUnionMultiFab final_interface(ba, dm, interface.nComp(),
     //                                  interface.nGrowVect());
@@ -89,21 +89,17 @@ struct PU {
     // ---------------------------------------------------------------------
     // all interface fields are initialized with plic
 
-    // jibben_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-    //                            interface_with_ghost.nGrowVect());
+    jibben_interface.LocalCopy(interface_with_ghost, 0, 0,
+                               interface_with_ghost.nComp(),
+                               interface_with_ghost.nGrowVect());
 
-    // pu_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-    //                        interface_with_ghost.nGrowVect());
+    pu_interface.LocalCopy(interface_with_ghost, 0, 0,
+                           interface_with_ghost.nComp(),
+                           interface_with_ghost.nGrowVect());
 
-    // pu_neighborhood_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-    //                                     interface_with_ghost.nGrowVect());
-
-    jibben_interface.LocalCopy(interface, 0, 0, interface.nComp(), IntVect(0));
-
-    pu_interface.LocalCopy(interface, 0, 0, interface.nComp(), IntVect(0));
-
-    pu_neighborhood_interface.LocalCopy(interface, 0, 0, interface.nComp(),
-                                        IntVect(0));
+    pu_neighborhood_interface.LocalCopy(interface_with_ghost, 0, 0,
+                                        interface_with_ghost.nComp(),
+                                        interface_with_ghost.nGrowVect());
 
     // final_interface.LocalCopy(interface, 0, 0, interface.nComp(),
     //                           interface.nGrowVect());
@@ -116,7 +112,8 @@ struct PU {
     // ---------------------------------------------------------------------
     // Jibben reconstruction
 
-    for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(interface_with_ghost, TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
       Array4<IRL::SeparatorUnion> jibben_array = jibben_interface.array(mfi);
 
       Array4<IRL::SeparatorUnion> pu_neigh_array =
@@ -157,9 +154,7 @@ struct PU {
                   moments_array(ii, jj, kk) * vol_inv;
 
               if (liq_vf_neighbor < IRL::global_constants::VF_LOW ||
-                  liq_vf_neighbor > IRL::global_constants::VF_HIGH ||
-                  interface_with_ghost_array(ii, jj, kk).type() !=
-                      IRL::SeparatorUnion::SeparatorType::OnePlane) {
+                  liq_vf_neighbor > IRL::global_constants::VF_HIGH) {
                 continue;
               }
 
@@ -193,6 +188,9 @@ struct PU {
 
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
+        // Jibben reconstruction
+        IRL::Paraboloid jibben_paraboloid = jibben.solve2(&jibben_neighborhood);
+
         // Normal scatter check
         const double normal_scatter = jibben.getNormalEigenMetric();
 
@@ -211,9 +209,6 @@ struct PU {
         if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
           underresolved_array(i, j, k) = 1;
         }
-
-        // Jibben reconstruction
-        IRL::Paraboloid jibben_paraboloid = jibben.solve2(&jibben_neighborhood);
 
         jibben_array(i, j, k) = jibben_paraboloid;
 
@@ -241,7 +236,8 @@ struct PU {
     // ---------------------------------------------------------------------
     // PU reconstruction
 
-    for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(interface_with_ghost, TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
       Array4<IRL::SeparatorUnion> pu_array = pu_interface.array(mfi);
 
       Array4<IRL::SeparatorUnion const> pu_neigh_array =
