@@ -62,8 +62,12 @@ template <class PolyhedronType>
 double getReconstructionSurfaceArea(const PolyhedronType& a_polyhedron,
                                     const PlanarSeparator& a_reconstruction);
 
+template <class PolygonType, class HexahedronType>
+PolygonType cutPlaneByHexahedron(const HexahedronType& a_hexahedron,
+                                 const Plane& a_plane);
+
 }  // namespace IRL
 
 #include "irl/generic_cutting/cut_polygon.tpp"
 
-#endif // IRL_GENERIC_CUTTING_CUT_POLYGON_H_
+#endif  // IRL_GENERIC_CUTTING_CUT_POLYGON_H_
