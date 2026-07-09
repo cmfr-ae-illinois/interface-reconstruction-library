@@ -58,11 +58,13 @@ message(STATUS "CXX compilation flags are: ${CMAKE_CXX_FLAGS}")
 
 # Find external packages needed by IRL
 find_package(Eigen3) # Provide -D EIGEN_PATH=/path/to/Eigen
-find_package(Torch REQUIRED)
-include_directories(SYSTEM ${TORCH_INCLUDE_DIRS})
-set(CMAKE_PREFIX_PATH "/home/quirin/mlcfd/Repositories/libtorch/share/cmake/Torch")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
-
+find_package(Torch QUIET)
+if(NOT Torch_FOUND)
+  message(STATUS "Torch was not found; disabling support for Torch.")
+else()
+  include_directories(SYSTEM ${TORCH_INCLUDE_DIRS})
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+endif()
 
 if(${IRL_USE_CGAL})
   find_package(CGAL)  
