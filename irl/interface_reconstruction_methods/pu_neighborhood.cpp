@@ -11,7 +11,8 @@
 
 namespace IRL {
 
-PUNeighborhood::PUNeighborhood(void) {}
+PUNeighborhood::PUNeighborhood(void)
+    : center_cell_index_m(static_cast<UnsignedIndex_t>(-1)) {}
 
 void PUNeighborhood::addMember(const SeparatorVariant& a_separator,
                                const Pt& a_centroid, const double a_weight) {
@@ -32,6 +33,7 @@ void PUNeighborhood::emptyNeighborhood(void) {
   separators_m.resize(0);
   centroids_m.resize(0);
   weights_m.resize(0);
+  center_cell_index_m = static_cast<UnsignedIndex_t>(-1);
 }
 void PUNeighborhood::resize(const UnsignedIndex_t a_size) {
   separators_m.resize(a_size);
@@ -46,6 +48,7 @@ void PUNeighborhood::reserve(const UnsignedIndex_t a_size) {
 }
 
 void PUNeighborhood::setCenterOfStencil(const UnsignedIndex_t a_index) {
+  assert(a_index < separators_m.size());
   center_cell_index_m = a_index;
 }
 
@@ -68,6 +71,8 @@ const Pt& PUNeighborhood::getCentroid(const UnsignedIndex_t a_index) const {
 }
 
 const UnsignedIndex_t& PUNeighborhood::getCenterOfStencil(void) const {
+  assert(center_cell_index_m != static_cast<UnsignedIndex_t>(-1));
+  assert(center_cell_index_m < separators_m.size());
   return center_cell_index_m;
 }
 

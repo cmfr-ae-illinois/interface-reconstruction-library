@@ -10,6 +10,9 @@
 #ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_H_
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_H_
 
+#include <cmath>
+#include <limits>
+
 #include "irl/amrex/sepunion_multifab.h"
 #include "irl/generic_cutting/cut_polygon.h"
 
@@ -138,6 +141,19 @@ struct PU {
           return;
         }
 
+        const auto center_planar_separator = IRL::PlanarSeparator::fromOnePlane(
+            interface_with_ghost_array(i, j, k).getPlane());
+        const auto center_polygon =
+            polygonFromPLIC(i, j, k, center_planar_separator, problo, dx);
+        const double center_area = center_polygon.calculateVolume();
+
+        if (center_polygon.getNumberOfVertices() <= 2 ||
+            !std::isfinite(center_area) ||
+            center_area <= std::numeric_limits<double>::epsilon()) {
+          underresolved_array(i, j, k) = 1;
+          return;
+        }
+
         IRL::JibbenNeighborhood jibben_neighborhood;
         jibben_neighborhood.reserve(nstencil);
         jibben_neighborhood.setDelta(2.5 * dx_avg);
@@ -164,7 +180,11 @@ struct PU {
               const auto polygon =
                   polygonFromPLIC(ii, jj, kk, planar_separator, problo, dx);
 
-              if (polygon.getNumberOfVertices() > 0) {
+              const double polygon_area = polygon.calculateVolume();
+
+              if (polygon.getNumberOfVertices() > 2 &&
+                  std::isfinite(polygon_area) &&
+                  polygon_area > std::numeric_limits<double>::epsilon()) {
                 jibben_neighborhood.addMember(polygon);
 
                 if (i == ii && j == jj && k == kk) {
@@ -258,6 +278,18 @@ struct PU {
           return;
         }
 
+        const auto center_planar_separator = IRL::PlanarSeparator::fromOnePlane(
+            interface_with_ghost_array(i, j, k).getPlane());
+        const auto center_polygon =
+            polygonFromPLIC(i, j, k, center_planar_separator, problo, dx);
+        const double center_area = center_polygon.calculateVolume();
+
+        if (center_polygon.getNumberOfVertices() <= 2 ||
+            !std::isfinite(center_area) ||
+            center_area <= std::numeric_limits<double>::epsilon()) {
+          return;
+        }
+
         IRL::PUNeighborhood pu_neighborhood;
         pu_neighborhood.reserve(nstencil);
         pu_neighborhood.emptyNeighborhood();
@@ -282,12 +314,17 @@ struct PU {
               const auto polygon =
                   polygonFromPLIC(ii, jj, kk, planar_separator, problo, dx);
 
-              if (polygon.getNumberOfVertices() == 0) {
+              if (polygon.getNumberOfVertices() <= 2) {
                 continue;
               }
 
               const double area_weight =
                   polygon.calculateVolume() / (dx_avg * dx_avg);
+
+              if (!std::isfinite(area_weight) ||
+                  area_weight <= std::numeric_limits<double>::epsilon()) {
+                continue;
+              }
 
               double vfrac_weight = 1.0;
 

@@ -9,6 +9,9 @@
 
 #include "irl/interface_reconstruction_methods/pu.h"
 
+#include <cmath>
+#include <limits>
+
 namespace IRL {
 
 PU::PU(const PUNeighborhood* a_neighborhood_pointer, const double a_delta) {
@@ -302,10 +305,19 @@ Pt PU::projectPointonPU(const Pt& a_pt, bool& success) {
   for (int i = 0; i < itmax; i++) {
     const auto F_and_gradF = getPUAndGrad(projected_pt);
     const double F = std::get<double>(F_and_gradF);
-    if (F < delta_m * 1.e-6) {
+    if (!std::isfinite(F)) {
+      success = false;
+      return a_pt;
+    }
+    if (std::fabs(F) < delta_m * 1.e-6) {
       break;
     }
     const Eigen::Vector3d gradF = std::get<Eigen::Vector3d>(F_and_gradF);
+    if (!gradF.allFinite() ||
+        gradF.squaredNorm() <= std::numeric_limits<double>::epsilon()) {
+      success = false;
+      return a_pt;
+    }
     const double grad_norm_inv = 1.0 / IRL::safelyTiny(gradF.squaredNorm());
     for (int d = 0; d < 3; d++) {
       projected_pt[d] -= F * gradF(d) * grad_norm_inv;
@@ -328,6 +340,17 @@ Pt PU::projectPointonPU(const Pt& a_pt, bool& success) {
 }
 
 Paraboloid PU::solve(void) {
+  const auto make_invalid_paraboloid = [this]() {
+    Paraboloid paraboloid;
+    const double inf = std::numeric_limits<double>::infinity();
+    paraboloid.setDatum(IRL::Pt(inf, inf, inf));
+    auto coeffs = paraboloid.getAlignedParaboloid();
+    coeffs.a() = 20.0 / dx_m;
+    coeffs.b() = 20.0 / dx_m;
+    paraboloid.setAlignedParaboloid(coeffs);
+    return paraboloid;
+  };
+
   // centroid of center of stencil
   const Pt centroid =
       neighborhood_m->getCentroid(neighborhood_m->getCenterOfStencil());
@@ -336,28 +359,23 @@ Paraboloid PU::solve(void) {
 
   // project centroid on PU surface (success = false if it fails)
   const Pt projected_centroid = projectPointonPU(centroid, success);
+  if (!success || !std::isfinite(projected_centroid[0]) ||
+      !std::isfinite(projected_centroid[1]) ||
+      !std::isfinite(projected_centroid[2])) {
+    return make_invalid_paraboloid();
+  }
 
   // compute gradient and hessian at projected centroid
   const auto F_gradF_hessF = getPUAndGradAndHessian(projected_centroid);
   const Eigen::Vector3d gradF = std::get<Eigen::Vector3d>(F_gradF_hessF);
   const Eigen::Matrix3d hessF = std::get<Eigen::Matrix3d>(F_gradF_hessF);
-  auto new_normal = IRL::Normal(gradF(0), gradF(1), gradF(2));
-  new_normal.normalize();
+  if (!gradF.allFinite() || !hessF.allFinite() ||
+      gradF.norm() <= std::numeric_limits<double>::epsilon()) {
+    return make_invalid_paraboloid();
+  }
 
   auto paraboloid =
       Paraboloid::fromDerivatives(projected_centroid, gradF, hessF);
-
-  if (!success) {
-    // std::cout << "projection failed: setting datum to infinity" << std::endl;
-    // setting datum to infinity to mark as invalid paraboloid
-    const double inf = std::numeric_limits<double>::infinity();
-    paraboloid.setDatum(IRL::Pt(inf, inf, inf));
-    auto coeffs = paraboloid.getAlignedParaboloid();
-    IRL::AlignedParaboloid new_coeffs = coeffs;
-    new_coeffs.a() = 20.0 / dx_m;
-    new_coeffs.b() = 20.0 / dx_m;
-    paraboloid.setAlignedParaboloid(new_coeffs);
-  }
 
   return paraboloid;
 }
