@@ -10,6 +10,9 @@
 #ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_CF_H_
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_CF_H_
 
+#include <cmath>
+#include <limits>
+
 #include "irl/amrex/sepunion_multifab.h"
 
 #include "examples/amrex_advector/reconstruction_lvira.h"
@@ -91,8 +94,11 @@ struct CF {
 
         const auto center_polygon =
             polygonFromPLIC(i, j, k, center_plic, problo, dx);
+        const double center_area = center_polygon.calculateVolume();
 
-        if (center_polygon.getNumberOfVertices() <= 2) {
+        if (center_polygon.getNumberOfVertices() <= 2 ||
+            !std::isfinite(center_area) ||
+            center_area <= std::numeric_limits<double>::epsilon()) {
           return;
         }
 
@@ -122,8 +128,11 @@ struct CF {
 
               const auto neighbor_polygon =
                   polygonFromPLIC(ii, jj, kk, neighbor_plic, problo, dx);
+              const double neighbor_area = neighbor_polygon.calculateVolume();
 
-              if (neighbor_polygon.getNumberOfVertices() <= 2) {
+              if (neighbor_polygon.getNumberOfVertices() <= 2 ||
+                  !std::isfinite(neighbor_area) ||
+                  neighbor_area <= std::numeric_limits<double>::epsilon()) {
                 continue;
               }
 
@@ -144,7 +153,17 @@ struct CF {
 
         IRL::CircleFit_3D circle_fit;
 
-        interface_array(i, j, k) = circle_fit.solve(&neighborhood, dx_avg);
+        auto paraboloid = circle_fit.solve(&neighborhood, dx_avg);
+
+        if (!std::isfinite(paraboloid.getDatum()[0]) ||
+            !std::isfinite(paraboloid.getDatum()[1]) ||
+            !std::isfinite(paraboloid.getDatum()[2]) ||
+            !std::isfinite(paraboloid.getAlignedParaboloid().a()) ||
+            !std::isfinite(paraboloid.getAlignedParaboloid().b())) {
+          return;
+        }
+
+        interface_array(i, j, k) = paraboloid;
 
         const auto cell = makeCell(i, j, k, problo, dx);
 

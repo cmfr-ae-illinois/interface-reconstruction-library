@@ -98,8 +98,7 @@ double CircleFit_3D::getTotalWeight(const double& a_vfrac,
   const double normal_weight = getNormalWeight(a_nref, a_nloc);
   const double distance_weight = getDistanceWeight(a_pref, a_ploc);
 
-  // return vf_weight * normal_weight * distance_weight;
-  return 1.0;
+  return vf_weight * normal_weight * distance_weight;
 }
 
 IRL::Normal CircleFit_3D::calculatePolygonNormal(
@@ -254,11 +253,18 @@ void CircleFit_3D::getTaubinMatrices(
 
     const double dx = x1[0] - x0[0];
     const double dy = x1[1] - x0[1];
+    const double segment_length_squared = dx * dx + dy * dy;
+    const double w = a_weights[i];
+
+    if (!std::isfinite(x0[0]) || !std::isfinite(x0[1]) ||
+        !std::isfinite(x1[0]) || !std::isfinite(x1[1]) || !std::isfinite(w) ||
+        w <= 0.0 ||
+        segment_length_squared <= std::numeric_limits<double>::epsilon()) {
+      continue;
+    }
 
     const std::vector<double> terms =
         getTaubinMomentTerms(x0[0], x0[1], dx, dy);
-
-    const double w = a_weights[i];
 
     const double Mzz = terms[0];
     const double Mxz = terms[1];
@@ -312,22 +318,57 @@ double CircleFit_3D::getSignedTaubinCurvature(
     return std::numeric_limits<double>::quiet_NaN();
   }
 
+  int usable_segments = 0;
+  for (std::size_t i = 0; i < nsegments; ++i) {
+    const IRL::Pt& x0 = a_end_points[i].first;
+    const IRL::Pt& x1 = a_end_points[i].second;
+    const double dx = x1[0] - x0[0];
+    const double dy = x1[1] - x0[1];
+    const double segment_length_squared = dx * dx + dy * dy;
+    if (std::isfinite(x0[0]) && std::isfinite(x0[1]) && std::isfinite(x1[0]) &&
+        std::isfinite(x1[1]) && std::isfinite(a_weights[i]) &&
+        a_weights[i] > 0.0 &&
+        segment_length_squared > std::numeric_limits<double>::epsilon()) {
+      ++usable_segments;
+    }
+  }
+
+  if (usable_segments < 2) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
   Eigen::Matrix4d M = Eigen::Matrix4d::Zero();
   Eigen::Matrix4d C = Eigen::Matrix4d::Zero();
 
   getTaubinMatrices(a_end_points, a_weights, &M, &C);
 
+  if (!M.allFinite() || !C.allFinite() ||
+      M.norm() <= std::numeric_limits<double>::epsilon() ||
+      C.norm() <= std::numeric_limits<double>::epsilon()) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
   Eigen::GeneralizedEigenSolver<Eigen::Matrix4d> ges;
   ges.compute(M, C);
 
-  const auto& evals = ges.eigenvalues();
-  const auto& evecs = ges.eigenvectors();
+  if (ges.info() != Eigen::Success) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const auto alphas = ges.alphas();
+  const auto betas = ges.betas();
+  const auto evecs = ges.eigenvectors();
 
   int best_index = -1;
   double best_lambda = std::numeric_limits<double>::infinity();
 
   for (int i = 0; i < 4; ++i) {
-    const auto lam = evals(i);
+    if (!std::isfinite(betas(i)) ||
+        std::fabs(betas(i)) <= std::numeric_limits<double>::epsilon()) {
+      continue;
+    }
+
+    const auto lam = alphas(i) / betas(i);
 
     if (std::abs(lam.imag()) > 1.0e-9) {
       continue;
@@ -350,12 +391,20 @@ double CircleFit_3D::getSignedTaubinCurvature(
   }
 
   const Eigen::Vector4cd v_c = evecs.col(best_index);
+  if (!v_c.allFinite()) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
   const Eigen::Vector4d a = v_c.real();
 
   const double A = a(0);
   const double B = a(1);
   const double Cc = a(2);
   const double D = a(3);
+
+  if (!a.allFinite()) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
 
   if (std::abs(A) < 1.0e-14) {
     return 0.0;
@@ -439,6 +488,16 @@ Paraboloid CircleFit_3D::solve(void) {
   const IRL::Pt datum = center_polygon.calculateCentroid();
 
   const IRL::Normal polygon_normal = calculatePolygonNormal(center_polygon);
+  const double polygon_normal_magnitude = IRL::magnitude(polygon_normal);
+
+  if (!std::isfinite(polygon_normal_magnitude) ||
+      polygon_normal_magnitude <= 100.0 * DBL_EPSILON) {
+    IRL::Paraboloid invalid_paraboloid;
+    const double inf = std::numeric_limits<double>::infinity();
+    invalid_paraboloid.setDatum(IRL::Pt(inf, inf, inf));
+    return invalid_paraboloid;
+  }
+
   const IRL::ReferenceFrame polygon_frame =
       referenceFrameFromNormal(polygon_normal);
 
