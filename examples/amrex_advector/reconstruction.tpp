@@ -28,9 +28,11 @@ using namespace amrex;
 void AmrCoreAdv::GetReconstruction(const int lev) {
   SepUnionMultiFab interface_with_ghost(grids[lev], dmap[lev],
                                         interface[lev].nComp(), num_grow);
+  InitializeSepUnionMultiFab(interface_with_ghost);
   MultiFab moments_with_ghost(grids[lev], dmap[lev], ncomp_moments, num_grow);
+  moments_with_ghost.setVal(0.0);
   MultiFab::Copy(moments_with_ghost, moments_new[lev], 0, 0,
-                 moments_new[lev].nComp(), moments_new[lev].nGrow());
+                 moments_new[lev].nComp(), 0);
   moments_with_ghost.FillBoundary(geom[lev].periodicity());
   GetReconstruction(interface[lev], interface_with_ghost, moments_with_ghost,
                     geom[lev], &interface_scalar_fields[lev]);

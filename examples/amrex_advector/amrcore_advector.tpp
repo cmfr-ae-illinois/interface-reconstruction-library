@@ -14,6 +14,16 @@
 
 using namespace amrex;
 
+void InitializeSepUnionMultiFab(SepUnionMultiFab& mf) {
+  for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    Array4<IRL::SeparatorUnion> arr = mf.array(mfi);
+    const Box& bx = mfi.growntilebox();
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+      arr(i, j, k) = IRL::SeparatorUnion();
+    });
+  }
+}
+
 struct AmrCoreFill {
   AMREX_GPU_DEVICE
   void operator()(const amrex::IntVect& /*iv*/,
@@ -232,7 +242,11 @@ void AmrCoreAdv::MakeNewLevelFromCoarse(int lev, Real time, const BoxArray& ba,
   moments_new[lev].define(ba, dm, ncomp, nghost);
   moments_old[lev].define(ba, dm, ncomp, nghost);
   band_id[lev].define(ba, dm, 1, 1);
+  moments_new[lev].setVal(0.0);
+  moments_old[lev].setVal(0.0);
+  band_id[lev].setVal(0.0);
   interface[lev].define(ba, dm, 1, nghost);
+  InitializeSepUnionMultiFab(interface[lev]);
 
   interface_scalar_fields[lev].clear();
 
@@ -287,6 +301,7 @@ void AmrCoreAdv::RedistributeLevel(int lev) {
   {
     MultiFab new_moments_new(ba, new_dm, moments_new[lev].nComp(),
                              moments_new[lev].nGrow());
+    new_moments_new.setVal(0.0);
     new_moments_new.ParallelCopy(
         moments_new[lev], 0, 0, moments_new[lev].nComp(),
         moments_new[lev].nGrow(), moments_new[lev].nGrow());
@@ -297,6 +312,7 @@ void AmrCoreAdv::RedistributeLevel(int lev) {
   {
     MultiFab new_moments_old(ba, new_dm, moments_old[lev].nComp(),
                              moments_old[lev].nGrow());
+    new_moments_old.setVal(0.0);
     new_moments_old.ParallelCopy(
         moments_old[lev], 0, 0, moments_old[lev].nComp(),
         moments_old[lev].nGrow(), moments_old[lev].nGrow());
@@ -306,6 +322,7 @@ void AmrCoreAdv::RedistributeLevel(int lev) {
   // --- Rebuild band_id ---
   {
     MultiFab new_band_id(ba, new_dm, 1, band_id[lev].nGrow());
+    new_band_id.setVal(0.0);
     new_band_id.ParallelCopy(band_id[lev], 0, 0, 1, band_id[lev].nGrow(),
                              band_id[lev].nGrow());
     std::swap(band_id[lev], new_band_id);
@@ -314,6 +331,7 @@ void AmrCoreAdv::RedistributeLevel(int lev) {
   // --- Rebuild interface ---
   {
     SepUnionMultiFab new_interface(ba, new_dm, 1, interface[lev].nGrow());
+    InitializeSepUnionMultiFab(new_interface);
     new_interface.ParallelCopy(interface[lev], 0, 0, 1, interface[lev].nGrow(),
                                interface[lev].nGrow());
     std::swap(interface[lev], new_interface);
@@ -404,6 +422,10 @@ void AmrCoreAdv::RemakeLevel(int lev, Real time, const BoxArray& ba,
   MultiFab old_state(ba, dm, ncomp, nghost);
   MultiFab old_band_id(ba, dm, 1, 1);
   SepUnionMultiFab new_interface(ba, dm, 1, nghost);
+  new_state.setVal(0.0);
+  old_state.setVal(0.0);
+  old_band_id.setVal(0.0);
+  InitializeSepUnionMultiFab(new_interface);
 
   FillPatch(lev, time, new_state, 0, ncomp);
   new_interface.ParallelCopyWithPeriodicShift(interface[lev], 0, 0, 1, nghost,
@@ -453,8 +475,11 @@ void AmrCoreAdv::MakeNewLevelFromScratch(int lev, Real time, const BoxArray& ba,
   moments_new[lev].define(ba, dm, ncomp, nghost);
   moments_old[lev].define(ba, dm, ncomp, nghost);
   band_id[lev].define(ba, dm, 1, 1);
+  moments_new[lev].setVal(0.0);
+  moments_old[lev].setVal(0.0);
   band_id[lev].setVal(0.0);
   interface[lev].define(ba, dm, 1, nghost);
+  InitializeSepUnionMultiFab(interface[lev]);
 
   t_new[lev] = time;
   t_old[lev] = time - 1.e200;
@@ -1464,6 +1489,7 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
 
     // Build tmp moment multifab with ghost layers
     MultiFab moments_with_ghost(grids[lev], dmap[lev], ncomp_moments, num_grow);
+    moments_with_ghost.setVal(0.0);
     MultiFab::Copy(moments_with_ghost, moments_old[lev], 0, 0,
                    moments_old[lev].nComp(), moments_old[lev].nGrow());
     moments_with_ghost.FillBoundary(geom[lev].periodicity());
@@ -1471,6 +1497,7 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
     // Build tmp interface multifab with ghost layers
     SepUnionMultiFab interface_with_ghost(grids[lev], dmap[lev],
                                           interface[lev].nComp(), num_grow);
+    InitializeSepUnionMultiFab(interface_with_ghost);
 
     // Reconstruct interface and update ghosts
     amrex::ParallelDescriptor::Barrier();

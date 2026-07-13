@@ -69,13 +69,13 @@ class Jibben_3D {
   Paraboloid solve(void);
 
   /// \brief Storage of the stencil information
-  const JibbenNeighborhood* neighborhood_m;
+  const JibbenNeighborhood* neighborhood_m = nullptr;
   /// \brief Error resulting from the fit
-  double error_m;
+  double error_m = 0.0;
   /// \brief Weighting function radius
-  double delta_m;
+  double delta_m = -1.0;
   /// \brief Paraboloid coefficients
-  std::array<double, 6> coefficients_m;
+  std::array<double, 6> coefficients_m{};
 };
 
 }  // namespace IRL
