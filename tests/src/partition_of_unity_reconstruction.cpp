@@ -268,8 +268,9 @@ TEST(PartitionOfUnityImplicitSurface, Test) {
   IRL::Pt x0e(-1, 1, 0);
   IRL::Pt x1e(2, 0, 0);
   IRL::Pt expectedIntersection(0, 2.0 / 3.0, 0);
+  bool blocked = false;
   std::vector<IRL::Pt> intersections =
-      planarSurface.intersectEdge(x0e, x1e, 10, 0.2);
+      planarSurface.intersectEdge(x0e, x1e, 10, 0.2, blocked);
   EXPECT_EQ(intersections.size(), 1)
       << "Wrong Number of Planar Surface Intersections Found";
   for (int i = 0; i < 3; i++) {
@@ -369,7 +370,8 @@ TEST(PUReconstruction, Test1) {
   IRL::Pt x0(0, 3, 0);
   PU solver(neighborhood);
   PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
-  std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 1e-6);
+  bool blocked = false;
+  std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 1e-6, blocked);
   EXPECT_EQ(inters.size(), 1) << "Wrong Number of Intersections Found";
   // Order goes x=0,x=1,y=2,x=2,y=1,y=0
   // Intersection Points, by hand
@@ -462,9 +464,10 @@ TEST(PUReconstruction, Test1) {
   std::vector<IRL::Pt> x1Set = {IRL::Pt(0, 2, 0), IRL::Pt(1, 2, 0),
                                 IRL::Pt(1, 2, 0), IRL::Pt(2, 1, 0),
                                 IRL::Pt(2, 1, 0), IRL::Pt(2, 0, 0)};
+  blocked = false;
   for (int i = 0; i < x0Set.size(); i++) {  // Loop Over Edges and Solve
     // std::cout << "EDGE " << i << "===============\n ";
-    inters = semi.intersectEdge(x0Set[i], x1Set[i], 10, 1e-6);
+    inters = semi.intersectEdge(x0Set[i], x1Set[i], 10, 1e-6, blocked);
     // Check Intersection
     EXPECT_EQ(inters.size(), 1)
         << "Wrong Number of Intersections for Edge " << i;

@@ -52,7 +52,7 @@ class PUImplicitSurface {
   // Find intersection between the implicit curve and a provided line.
   inline std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
                                        const int& Npartitions,
-                                       const double& tresh);
+                                       const double& tresh, bool& blocked);
 
   inline std::vector<Pt> intersectEdgeCylinder(const Pt& x0, const Pt& x1,
                                                double radius, Pt& center,
@@ -82,8 +82,31 @@ class PUImplicitSurface {
 
   // Ellipsoid Values
   inline void evaluateEllipsoid(
-      Pt& x, double axis1size, double axis2size, double axis3size,
+      Pt& x, const Normal& column1, const Normal& column2,
+      const Normal& column3, const Pt& center,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
+
+  inline void evaluateEllipsoid(Pt& x, const Normal& column1,
+                                const Normal& column2, const Normal& column3,
+                                const Pt& center,
+                                std::pair<double, Eigen::Vector3d>* retVal);
+
+  inline void evaluateEllipsoid(Pt& x, const Normal& column1,
+                                const Normal& column2, const Normal& column3,
+                                const Pt& center, double* retVal);
+  inline Normal getNormalEllipsoid(Pt& x, const Normal& column1,
+                                   const Normal& column2, const Normal& column3,
+                                   const Pt& center);
+  inline double getPlaneCurvatureEllipsoid(Pt& x, const Normal& column1,
+                                           const Normal& column2,
+                                           const Normal& column3,
+                                           const Pt& center,
+                                           Normal& planeNormal);
+  inline double getPlaneCurvature(Pt& x, Normal& planeNormal);
+  inline double getMeanCurvatureEllipsoid(Pt& x, const Normal& column1,
+                                          const Normal& column2,
+                                          const Normal& column3,
+                                          const Pt& center);
   // Find the Tangent and Curvature at the point
   inline Normal getTangentCylinder(Pt& x, double radius, Pt& center);
   // Print the Implicit Surface Properties
@@ -94,6 +117,10 @@ class PUImplicitSurface {
 
   // Project point onto implicit surface
   inline const Pt projectOntoPU(const Pt& a_pt);
+
+  inline const Pt projectOntoEllipsoid(const Pt& a_pt, const Normal& column1,
+                                       const Normal& column2,
+                                       const Normal& column3, const Pt& center);
 };
 
 template <class CellType>
@@ -135,6 +162,7 @@ class PU {
   Normal getTangent(double x, double y, double z, double delta);
   Normal getTangentCylinder(double x, double y, double z, double radius,
                             Pt center);
+  Normal getNormal(double x, double y, double z, double delta);
   // Get Total weight
   double getWeight(double x, double y, double z, double delta);
   double getWeight(Pt& in, double delta);
@@ -143,14 +171,22 @@ class PU {
   // Curvature
   double getCurvature(double x, double y, double z, double delta);
   double getCurvature(Pt& in, double delta);
+  double getMeanCurvatureEllipsoid(double x, double y, double z,
+                                   const Normal& column1, const Normal& column2,
+                                   const Normal& column3, const Pt& center);
+  double getMeanCurvatureEllipsoid(Pt& in, const Normal& column1,
+                                   const Normal& column2, const Normal& column3,
+                                   const Pt& center);
 
   // Exact Values for Ellipsoid Stress
   Normal solveFaceEllipsoid(const double STin, const Pt& P0, const Pt& P1,
-                            const Pt& P2, const Pt& P3, const double polarAngle,
-                            const double azimuthalAngle, const double axis1size,
-                            const double axis2size, const double axis3size,
-                            const double Pressure, const Normal& Marangoni);
-
+                            const Pt& P2, const Pt& P3, const Normal& column1,
+                            const Normal& column2, const Normal& column3,
+                            const Pt& center, const double Pressure,
+                            const Normal& Marangoni);
+  Normal getNormalEllipsoid(double x, double y, double z, const Normal& column1,
+                            const Normal& column2, const Normal& column3,
+                            const Pt& center);
   // Print
   void printSolver();
   /// \brief Solve the system for the reconstruction
@@ -158,6 +194,10 @@ class PU {
                    const Pt& a_centroid, const double a_delta = -1.0);
   /// \brief Project onto the PU surface
   IRL::Pt projectOntoPU(const Pt& a_pt, const double a_delta);
+  /// \brief Project onto the PU surface
+  IRL::Pt projectOntoEllipsoid(const Pt& a_pt, const Normal& column1,
+                               const Normal& column2, const Normal& column3,
+                               const Pt& center);
 };
 
 }  // End Namespace IRL

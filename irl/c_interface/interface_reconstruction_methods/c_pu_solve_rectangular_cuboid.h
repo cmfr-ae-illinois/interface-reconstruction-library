@@ -63,7 +63,30 @@ void c_PU_RectCub_getWeightCylinder(c_PU_RectCub* a_self, double* x, double* y,
                                     double* value);
 void c_PU_RectCub_projectToPU(c_PU_RectCub* a_self, double* P0, double* delta,
                               double* Pout);
+void c_PU_RectCub_projectToEllipsoid(c_PU_RectCub* a_self, double* P0,
+                                     double* column1, double* column2,
+                                     double* column3, double* center,
+                                     double* Pout);
+void c_PU_RectCub_getMeanCurvatureEllipsoid(c_PU_RectCub* a_self, double* x,
+                                            double* y, double* z,
+                                            double* column1, double* column2,
+                                            double* column3, double* center,
+                                            double* value);
+// Get Normal for Both
+void c_PU_RectCub_getNormal(c_PU_RectCub* a_self, double* x, double* y,
+                            double* z, double* delta, double* normal);
+void c_PU_RectCub_getNormalEllipsoid(c_PU_RectCub* a_self, double* x, double* y,
+                                     double* z, double* column1,
+                                     double* column2, double* column3,
+                                     double* center, double* normal);
 
+// Updated Solve Face
+void c_PU_RectCub_solveFaceEllipsoid(c_PU_RectCub* a_self, double* STCoeff,
+                                     double* P0, double* P1, double* P2,
+                                     double* P3, double* column1,
+                                     double* column2, double* column3,
+                                     double* center, double* Pressure,
+                                     double* Marangoni, double* a_force);
 // Debug
 void c_PU_RectCub_printSolver(c_PU_RectCub* a_self);
 }

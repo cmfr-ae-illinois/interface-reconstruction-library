@@ -79,6 +79,26 @@ inline RationalCubicBezierArcBase<ScalarType>::RationalCubicBezierArcBase(
 
   weight_1_m = (1 + 2 * cos_alpha0) / 3;
   weight_2_m = (1 + 2 * cos_alpha1) / 3;
+
+  if (false) {  // Debug Info
+    std::cout << "==========================\n";
+    std::cout << "Start Point: " << start_point_m << "\n";
+    std::cout << "End Point: " << end_point_m << "\n";
+    std::cout << "Control Point 1: " << control_point_1_m << "\n";
+    std::cout << "Control Point 2: " << control_point_2_m << "\n";
+    std::cout << "weight 1: " << weight_1_m << "\n";
+    std::cout << "weight 2: " << weight_2_m << "\n";
+
+    std::cout << "start tangent: " << a_start_tangent << "\n";
+    std::cout << "end tangent: " << a_end_tangent << "\n";
+
+    std::cout << "chord: " << chord << "\n";
+    std::cout << "cos_alpha0: " << cos_alpha0 << "\n";
+    std::cout << "cos_alpha1: " << cos_alpha1 << "\n";
+    std::cout << "a_coeff0: " << a_coeff0 << "\n";
+    std::cout << "a_coeff1: " << a_coeff1 << "\n";
+    std::cout << "==========================\n";
+  }
 }
 
 // Evaluation Methods
