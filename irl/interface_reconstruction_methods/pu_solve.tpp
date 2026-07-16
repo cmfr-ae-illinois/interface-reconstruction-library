@@ -1204,9 +1204,9 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
       // std::cout << "Control Point 2: " << arc.control_point_2() << "\n";
       // std::cout << "weight 1: " << arc.weight(1) << "\n";
       // std::cout << "weight 1: " << arc.weight(2) << "\n";
-      int QuadRuleOrder = 100;
-      const auto& abscissea = AbscissaeGauss<double, 100>();
-      const auto& weights = WeightsGauss<double, 100>();
+      int QuadRuleOrder = 50;
+      const auto& abscissea = AbscissaeGauss<double, 50>();
+      const auto& weights = WeightsGauss<double, 50>();
       for (int j = 0; j < QuadRuleOrder; ++j) {
         const double t = 0.5 * (1.0 + abscissea[j]);
         const double w = weights[j];
@@ -1543,7 +1543,6 @@ Normal PU<CellType>::solveFaceEllipsoid(
         // Style
         ST = gamma0 * std::max(1 - 1.25 * std::abs(pt[0]), 0.1);
       }
-      ST = STCoeff;
       Normal f = IRL::crossProduct(tan, normal);
       f.normalize();
       f = f * ST;
