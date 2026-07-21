@@ -68,7 +68,8 @@ static inline double unitAreaFromPhysicalScalarArea(
 }
 
 void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
-    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Surface_Area = false, bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connectivity = 1e-12f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2) 
+    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Surface_Area = false, bool include_Eigenvalues = false, 
+    float noise_stddev = 0.0f, float epsilon_connectivity = 1e-12f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2, double pdistribution_step = 0.0) 
     {
     auto reader = vtkSmartPointer<vtkXMLRectilinearGridReader>::New();
     reader->SetFileName(filenameNGA.c_str());
@@ -680,6 +681,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                     case 5:
                         no_cut_sheets++;
                         interface_type->SetValue(centerCellId, 5);
+                        std::cout << "certainty for class 5: " << max_prob << "\n";
                         /*
                         // Debugging: print stencil and moments for first few class 5 predictions
                         static int printed_class5 = 0;
@@ -779,6 +781,73 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
 
     double end_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     std::cout << "Classification time (s): " << (end_time - start_time) / 1e9 << std::endl;
+
+    if (pdistribution_step > 0.0) {
+        int no_classes = 6;
+        int no_pdistribution_bins =
+            static_cast<int>(std::ceil(1.0 / pdistribution_step));
+
+        std::vector<std::vector<int>> pdistribution_counts(
+            no_classes,
+            std::vector<int>(no_pdistribution_bins, 0));
+
+        std::vector<int> pdistribution_class_totals(no_classes, 0);
+
+        for (int cell = 0; cell < interface_type->GetNumberOfTuples(); ++cell) {
+            int predicted_class = interface_type->GetValue(cell);
+
+            if (predicted_class < 0 || predicted_class >= no_classes) {
+                continue;
+            }
+
+            double p = static_cast<double>(certainty->GetValue(cell));
+
+            if (p <= 1.0e-6) {
+                continue;
+            }
+
+            p = std::clamp(p, 0.0, 1.0);
+
+            int bin = static_cast<int>(p / pdistribution_step);
+
+            if (bin >= no_pdistribution_bins) {
+                bin = no_pdistribution_bins - 1;
+            }
+
+            pdistribution_counts[predicted_class][bin]++;
+            pdistribution_class_totals[predicted_class]++;
+        }
+
+        const std::vector<std::string> class_names = {
+            "Well-resolved",
+            "Ligament",
+            "Drop",
+            "Sheet",
+            "Ligament tip",
+            "Sheet edge"
+        };
+
+        std::cout << "\n=== Probability Distribution by Predicted Class ===" << std::endl;
+        std::cout << "Step size: " << pdistribution_step << std::endl;
+
+        for (int c = 0; c < no_classes; ++c) {
+            std::cout << class_names[c] << ":" << std::endl;
+
+            int total = pdistribution_class_totals[c];
+
+            for (int b = 0; b < no_pdistribution_bins; ++b) {
+                double fraction = 0.0;
+
+                if (total > 0) {
+                    fraction =
+                        static_cast<double>(pdistribution_counts[c][b])
+                        / static_cast<double>(total);
+                }
+
+                std::cout << fraction << std::endl;
+            }
+        }
+    }
   
 
     std::cout << "\n=== Classification Summary ===" << std::endl;

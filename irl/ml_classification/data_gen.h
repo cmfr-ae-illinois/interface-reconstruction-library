@@ -8,6 +8,9 @@
 #include <array>
 #include <numeric>
 #include <stdexcept>
+#include <algorithm>
+#include <limits>
+#include <vector>
 
 #include "irl/generic_cutting/generic_cutting.h"
 #include "irl/ml_classification/vtk_out.h"
@@ -347,7 +350,7 @@ namespace IRL {
                 const double cell_volume = 1.0;
 
                 // Random paraboloid parameters
-                Eigen::Vector3d datumVec = generateRandomPoint(-2.5, 2.5, eng);
+                Eigen::Vector3d datumVec = generateRandomPoint(-0.5, 0.5, eng);
 
                 Eigen::Vector3d direction = generateRandomDirection(eng);
 
@@ -384,7 +387,7 @@ namespace IRL {
                 double coeff_r = 0.25 * thickness * thickness;
                 double coeff_b = -std::pow(std::tan(0.5 * opening_angle), 2);
 
-                const auto hyperbolic_cylinder = Cylinder(datum, frame, coeff_r, coeff_b);
+                const auto hyperbolic_cylinder = Cylinder(datum, frame, coeff_b, coeff_r);
                 // Initialize field
                 std::vector<CylinderParametrizedSurfaceOutput> surfaces;
                 using VolumeMomentsAndSurface = AddSurfaceOutput<VolumeMoments, CylinderParametrizedSurfaceOutput>;
@@ -434,7 +437,7 @@ namespace IRL {
                 }
 
                 // Check central cell
-                if (centerCellIsCut(vfrac, stencil_size, machineZero)) {
+                if (/*centerCellIsCut(vfrac, stencil_size, machineZero)*/true) {
                     // Accept this sample
                     
                     // Now calc stencil 2nd moments if requested
@@ -449,6 +452,7 @@ namespace IRL {
                     }
                     return; // done with this function, exit
                 }
+                std::cout << "Rejecting hyperbolic cylinder sample, center cell not cut." << std::endl;
 
                 // else: reject and try again (loop restarts)
             }
@@ -3333,7 +3337,810 @@ namespace IRL {
                 }
         }
 
+        //Below: ellipsoid helpers
+        struct AxisAlignedBoundingBox {
+            Eigen::Vector3d min;
+            Eigen::Vector3d max;
+        };
+
+        static inline IRL::Pt eigenToIRLPt(const Eigen::Vector3d& p)
+        {
+            return IRL::Pt(p.x(), p.y(), p.z());
+        }
+
+        static inline IRL::Normal eigenToIRLNormal(const Eigen::Vector3d& n)
+        {
+            return IRL::Normal(n.x(), n.y(), n.z());
+        }
+
+        static inline IRL::Plane planeFromNormalAndPoint(
+            const Eigen::Vector3d& normal,
+            const Eigen::Vector3d& point_on_plane)
+        {
+            Eigen::Vector3d n = normal;
+
+            const double norm = n.norm();
+            if (norm < 1.0e-14) {
+                throw std::runtime_error(
+                    "planeFromNormalAndPoint: plane normal has near-zero magnitude."
+                );
+            }
+
+            n /= norm;
+
+            // IRL Plane convention:
+            //
+            //     n dot x - d = 0
+            //
+            // so:
+            //
+            //     d = n dot point_on_plane
+            const double distance = n.dot(point_on_plane);
+
+            return IRL::Plane(eigenToIRLNormal(n), distance);
+        }
+
+        static inline IRL::PlanarLocalizer makeEllipsoidAlignedBoxLocalizer(
+            const Eigen::Vector3d& origin,
+            const Eigen::Matrix3d& R,
+            double u0,
+            double u1,
+            double v0,
+            double v1,
+            double w0,
+            double w1)
+        {
+            const Eigen::Vector3d e0 = R.col(0);
+            const Eigen::Vector3d e1 = R.col(1);
+            const Eigen::Vector3d e2 = R.col(2);
+
+            IRL::PlanarLocalizer localizer;
+            localizer.setNumberOfPlanes(6);
+
+            // Local coordinates:
+            //
+            //     x = origin + u e0 + v e1 + w e2
+            //
+            // The six planes are outward-facing. The inside of the localizer
+            // should lie on the negative side of all six planes.
+
+            const Eigen::Vector3d p_u0 = origin + u0 * e0;
+            const Eigen::Vector3d p_u1 = origin + u1 * e0;
+
+            const Eigen::Vector3d p_v0 = origin + v0 * e1;
+            const Eigen::Vector3d p_v1 = origin + v1 * e1;
+
+            const Eigen::Vector3d p_w0 = origin + w0 * e2;
+            const Eigen::Vector3d p_w1 = origin + w1 * e2;
+
+            // Face order:
+            //
+            //   0 = -u face
+            //   1 = +u face
+            //   2 = -v face
+            //   3 = +v face
+            //   4 = -w face
+            //   5 = +w face
+
+            localizer[0] = planeFromNormalAndPoint(-e0, p_u0);
+            localizer[1] = planeFromNormalAndPoint( e0, p_u1);
+
+            localizer[2] = planeFromNormalAndPoint(-e1, p_v0);
+            localizer[3] = planeFromNormalAndPoint( e1, p_v1);
+
+            localizer[4] = planeFromNormalAndPoint(-e2, p_w0);
+            localizer[5] = planeFromNormalAndPoint( e2, p_w1);
+
+            return localizer;
+        }
+
+        static inline AxisAlignedBoundingBox makeWorldAABBOfEllipsoidAlignedBox(
+            const Eigen::Vector3d& origin,
+            const Eigen::Matrix3d& R,
+            double u0,
+            double u1,
+            double v0,
+            double v1,
+            double w0,
+            double w1)
+        {
+            AxisAlignedBoundingBox box;
+
+            box.min = Eigen::Vector3d::Constant(
+                std::numeric_limits<double>::infinity()
+            );
+
+            box.max = Eigen::Vector3d::Constant(
+                -std::numeric_limits<double>::infinity()
+            );
+
+            const std::array<double, 2> us = {u0, u1};
+            const std::array<double, 2> vs = {v0, v1};
+            const std::array<double, 2> ws = {w0, w1};
+
+            for (double u : us) {
+                for (double v : vs) {
+                    for (double w : ws) {
+                        const Eigen::Vector3d p =
+                            origin + R * Eigen::Vector3d(u, v, w);
+
+                        box.min = box.min.cwiseMin(p);
+                        box.max = box.max.cwiseMax(p);
+                    }
+                }
+            }
+
+            return box;
+        }
+
+        static inline bool aabbOverlap(
+            const AxisAlignedBoundingBox& a,
+            const AxisAlignedBoundingBox& b,
+            double tolerance = 1.0e-14)
+        {
+            return
+                (a.min.x() <= b.max.x() + tolerance) &&
+                (a.max.x() + tolerance >= b.min.x()) &&
+                (a.min.y() <= b.max.y() + tolerance) &&
+                (a.max.y() + tolerance >= b.min.y()) &&
+                (a.min.z() <= b.max.z() + tolerance) &&
+                (a.max.z() + tolerance >= b.min.z());
+        }
+
+        static inline std::vector<double> makePaddedDiameterGridCoordinates(
+            double semi_axis,
+            int cells_across_diameter,
+            double padding)
+        {
+            if (semi_axis <= 0.0) {
+                throw std::runtime_error(
+                    "makePaddedDiameterGridCoordinates: semi_axis must be positive."
+                );
+            }
+
+            if (cells_across_diameter <= 0) {
+                throw std::runtime_error(
+                    "makePaddedDiameterGridCoordinates: cells_across_diameter must be positive."
+                );
+            }
+
+            if (padding < 0.0) {
+                throw std::runtime_error(
+                    "makePaddedDiameterGridCoordinates: padding must be non-negative."
+                );
+            }
+
+            std::vector<double> coords;
+
+            // Exactly `cells_across_diameter` cells over [-semi_axis, semi_axis],
+            // plus one padding cell of thickness `padding` on each side.
+            //
+            // For cells_across_diameter = 5:
+            //
+            //   [-a-0.1, -a, -a+2a/5, -a+4a/5,
+            //    -a+6a/5, -a+8a/5, a, a+0.1]
+            //
+            // This gives 5 cells across the ellipsoid diameter and two extra
+            // thin padding cells.
+
+            if (padding > 1.0e-14) {
+                coords.push_back(-semi_axis - padding);
+            }
+
+            coords.push_back(-semi_axis);
+
+            for (int i = 1; i < cells_across_diameter; ++i) {
+                const double s =
+                    -semi_axis +
+                    2.0 * semi_axis *
+                    static_cast<double>(i) /
+                    static_cast<double>(cells_across_diameter);
+
+                coords.push_back(s);
+            }
+
+            coords.push_back(semi_axis);
+
+            if (padding > 1.0e-14) {
+                coords.push_back(semi_axis + padding);
+            }
+
+            return coords;
+        }
+
+        static inline IRL::Paraboloid makeEllipsoidParaboloidAtPoint(
+            const Eigen::Vector3d& origin,
+            const Eigen::Matrix3d& R,
+            const Eigen::Matrix3d& A,
+            const Eigen::Vector3d& point_for_direction)
+        {
+            Eigen::Vector3d direction = point_for_direction - origin;
+
+            if (direction.norm() < 1.0e-14) {
+                direction = R.col(0);
+            }
+
+            direction.normalize();
+
+            // Ray/ellipsoid intersection:
+            //
+            //     datum = origin + t direction
+            //     t = 1 / sqrt(direction^T A direction)
+
+            const double ray_denominator =
+                std::sqrt(direction.dot(A * direction));
+
+            if (ray_denominator < 1.0e-14) {
+                throw std::runtime_error(
+                    "makeEllipsoidParaboloidAtPoint: invalid ray/ellipsoid intersection."
+                );
+            }
+
+            const Eigen::Vector3d datum_eigen =
+                origin + direction / ray_denominator;
+
+            const IRL::Pt datum_paraboloid =
+                eigenToIRLPt(datum_eigen);
+
+            const Eigen::Vector3d centered_datum =
+                datum_eigen - origin;
+
+            Eigen::Vector3d normal =
+                A * centered_datum;
+
+            const double normal_denominator = normal.norm();
+
+            if (normal_denominator < 1.0e-14) {
+                throw std::runtime_error(
+                    "makeEllipsoidParaboloidAtPoint: invalid ellipsoid normal."
+                );
+            }
+
+            normal /= normal_denominator;
+
+            const Eigen::Vector3d tangent0 =
+                normal.unitOrthogonal();
+
+            const Eigen::Vector3d tangent1 =
+                normal.cross(tangent0).normalized();
+
+            Eigen::Matrix2d curvature_matrix;
+
+            curvature_matrix(0, 0) =
+                tangent0.dot(A * tangent0) / normal_denominator;
+
+            curvature_matrix(0, 1) =
+                tangent0.dot(A * tangent1) / normal_denominator;
+
+            curvature_matrix(1, 0) =
+                curvature_matrix(0, 1);
+
+            curvature_matrix(1, 1) =
+                tangent1.dot(A * tangent1) / normal_denominator;
+
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix2d>
+                curvature_solver(curvature_matrix);
+
+            const Eigen::Vector2d eigvec0 =
+                curvature_solver.eigenvectors().col(0);
+
+            const Eigen::Vector2d eigvec1 =
+                curvature_solver.eigenvectors().col(1);
+
+            Eigen::Vector3d paraboloid_x_axis =
+                eigvec0.x() * tangent0 + eigvec0.y() * tangent1;
+
+            Eigen::Vector3d paraboloid_y_axis =
+                eigvec1.x() * tangent0 + eigvec1.y() * tangent1;
+
+            paraboloid_x_axis.normalize();
+            paraboloid_y_axis.normalize();
+
+            if (paraboloid_x_axis.cross(paraboloid_y_axis).dot(normal) < 0.0) {
+                paraboloid_y_axis *= -1.0;
+            }
+
+            const double coeff1 =
+                0.5 * std::max(0.0, curvature_solver.eigenvalues()(0));
+
+            const double coeff2 =
+                0.5 * std::max(0.0, curvature_solver.eigenvalues()(1));
+
+            const auto reference_frame = IRL::ReferenceFrame(
+                IRL::Normal(
+                    paraboloid_x_axis.x(),
+                    paraboloid_x_axis.y(),
+                    paraboloid_x_axis.z()
+                ),
+                IRL::Normal(
+                    paraboloid_y_axis.x(),
+                    paraboloid_y_axis.y(),
+                    paraboloid_y_axis.z()
+                ),
+                IRL::Normal(
+                    normal.x(),
+                    normal.y(),
+                    normal.z()
+                )
+            );
+
+            return IRL::Paraboloid(
+                datum_paraboloid,
+                reference_frame,
+                coeff1,
+                coeff2
+            );
+        }
+
+        //Note: this function does not return correct surfaces / areas
         void generateSpecificEllipsoid(
+            std::vector<std::vector<std::vector<double>>>& vfrac,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
+            std::vector<std::vector<std::vector<double>>>& area,
+            std::vector<std::vector<std::vector<Eigen::Vector3d>>>& centroid,
+            std::vector<IRL::ParaboloidParametrizedSurfaceOutput>& surfaces,
+            const Eigen::Vector3d& origin,
+            const Eigen::Vector3d& axis0_direction,
+            const Eigen::Vector3d& axis1_direction,
+            const Eigen::Vector3d& axis2_direction,
+            double axis0_length,
+            double axis1_length,
+            double axis2_length,
+            std::vector<double>& coarse_coords,
+            Eigen::Matrix3d* secondMoment = nullptr)
+        {
+            if (axis0_length <= machineZero ||
+                axis1_length <= machineZero ||
+                axis2_length <= machineZero) {
+                throw std::runtime_error(
+                    "generateSpecificEllipsoid: all axis lengths must be positive."
+                );
+            }
+
+            const double a = axis0_length;
+            const double b = axis1_length;
+            const double c = axis2_length;
+
+            // Build an orthonormal frame from the three input directions.
+            //
+            // axis0_direction corresponds to semi-axis a.
+            // axis1_direction corresponds to semi-axis b.
+            // axis2_direction is mainly used to choose handedness/sign.
+
+            Eigen::Vector3d e0 = axis0_direction.normalized();
+
+            Eigen::Vector3d e1 =
+                axis1_direction - axis1_direction.dot(e0) * e0;
+
+            if (e1.norm() < 1.0e-14) {
+                e1 = e0.unitOrthogonal();
+            } else {
+                e1.normalize();
+            }
+
+            Eigen::Vector3d e2 = e0.cross(e1).normalized();
+
+            if (axis2_direction.dot(e2) < 0.0) {
+                e2 *= -1.0;
+                e1 = e2.cross(e0).normalized();
+            }
+
+            Eigen::Matrix3d R;
+            R.col(0) = e0;
+            R.col(1) = e1;
+            R.col(2) = e2;
+
+            // Original stencil coordinates.
+            const double coarse_stencil_min =
+                -0.5 * static_cast<double>(stencil_size);
+
+            for (int coarse_index = 0;
+                coarse_index <= stencil_size;
+                ++coarse_index) {
+                coarse_coords[coarse_index] =
+                    coarse_stencil_min + static_cast<double>(coarse_index);
+            }
+
+            auto clamp_coarse_index = [&](int idx) {
+                return std::max(0, std::min(stencil_size - 1, idx));
+            };
+
+            // World-space implicit ellipsoid:
+            //     (x - origin)^T A (x - origin) = 1
+
+            const Eigen::Vector3d inv_axes_sq(
+                1.0 / (a * a),
+                1.0 / (b * b),
+                1.0 / (c * c)
+            );
+
+            const Eigen::Matrix3d A =
+                R * inv_axes_sq.asDiagonal() * R.transpose();
+
+            // Exact global x/y/z AABB of the rotated ellipsoid.
+
+            Eigen::Vector3d half_extent;
+
+            for (int d = 0; d < 3; ++d) {
+                half_extent[d] = std::sqrt(
+                    std::pow(R(d, 0) * a, 2) +
+                    std::pow(R(d, 1) * b, 2) +
+                    std::pow(R(d, 2) * c, 2)
+                );
+            }
+
+            const double ellipsoid_min_x = origin.x() - half_extent.x();
+            const double ellipsoid_max_x = origin.x() + half_extent.x();
+
+            const double ellipsoid_min_y = origin.y() - half_extent.y();
+            const double ellipsoid_max_y = origin.y() + half_extent.y();
+
+            const double ellipsoid_min_z = origin.z() - half_extent.z();
+            const double ellipsoid_max_z = origin.z() + half_extent.z();
+
+            // Zero outputs.
+
+            for (int i = 0; i < stencil_size; ++i) {
+                for (int j = 0; j < stencil_size; ++j) {
+                    for (int k = 0; k < stencil_size; ++k) {
+                        vfrac[i][j][k] = 0.0;
+                        firstMoment[i][j][k].setZero();
+                        area[i][j][k] = 0.0;
+
+                        if (visualize) {
+                            centroid[i][j][k].setZero();
+                        }
+                    }
+                }
+            }
+
+            IRL::GeneralMoments3D<2> total_general_moments =
+                IRL::GeneralMoments3D<2>::fromScalarConstant(0.0);
+
+            // Analytical shortcut if the whole ellipsoid AABB fits inside one
+            // original stencil cell.
+
+            int ci = clamp_coarse_index(
+                static_cast<int>(std::floor(origin.x() - coarse_stencil_min))
+            );
+
+            int cj = clamp_coarse_index(
+                static_cast<int>(std::floor(origin.y() - coarse_stencil_min))
+            );
+
+            int ck = clamp_coarse_index(
+                static_cast<int>(std::floor(origin.z() - coarse_stencil_min))
+            );
+
+            const double x0 = coarse_stencil_min + static_cast<double>(ci);
+            const double x1 = x0 + 1.0;
+
+            const double y0 = coarse_stencil_min + static_cast<double>(cj);
+            const double y1 = y0 + 1.0;
+
+            const double z0 = coarse_stencil_min + static_cast<double>(ck);
+            const double z1 = z0 + 1.0;
+
+            const bool ellipsoid_fully_inside_some_cell =
+                (ellipsoid_min_x >= x0) && (ellipsoid_max_x <= x1) &&
+                (ellipsoid_min_y >= y0) && (ellipsoid_max_y <= y1) &&
+                (ellipsoid_min_z >= z0) && (ellipsoid_max_z <= z1);
+
+            if (ellipsoid_fully_inside_some_cell) {
+                const double V = (4.0 / 3.0) * M_PI * a * b * c;
+
+                vfrac[ci][cj][ck] = V;
+                firstMoment[ci][cj][ck] = V * origin;
+
+                if (visualize) {
+                    centroid[ci][cj][ck] = origin;
+                }
+
+                // Knud Thomsen approximation for ellipsoid surface area.
+                // This shortcut still fills area, because it does not use the
+                // localized-link path.
+                const double p = 1.6075;
+
+                area[ci][cj][ck] =
+                    4.0 * M_PI *
+                    std::pow(
+                        (
+                            std::pow(a, p) * std::pow(b, p) +
+                            std::pow(a, p) * std::pow(c, p) +
+                            std::pow(b, p) * std::pow(c, p)
+                        ) / 3.0,
+                        1.0 / p
+                    );
+
+                if (secondMoment != nullptr) {
+                    const Eigen::Vector3d axes_sq(a * a, b * b, c * c);
+
+                    // Centered second moment tensor of a solid ellipsoid.
+                    *secondMoment =
+                        (V / 5.0) *
+                        R * axes_sq.asDiagonal() * R.transpose();
+                }
+
+                return;
+            }
+            // Ellipsoid-aligned refined grid
+            // This creates 5 cells across the actual ellipsoid diameter in each
+            // local ellipsoid direction, plus one extra padding cell of thickness
+            // 0.1 on each side.
+            // Therefore the grid extends only 0.1 past the ellipsoid in u/v/w.
+
+            const int refined_cells_across_diameter = 5;
+            const double padding = 0.1;
+
+            const std::vector<double> u_coords =
+                makePaddedDiameterGridCoordinates(
+                    a,
+                    refined_cells_across_diameter,
+                    padding
+                );
+
+            const std::vector<double> v_coords =
+                makePaddedDiameterGridCoordinates(
+                    b,
+                    refined_cells_across_diameter,
+                    padding
+                );
+
+            const std::vector<double> w_coords =
+                makePaddedDiameterGridCoordinates(
+                    c,
+                    refined_cells_across_diameter,
+                    padding
+                );
+
+            const int num_u = static_cast<int>(u_coords.size()) - 1;
+            const int num_v = static_cast<int>(v_coords.size()) - 1;
+            const int num_w = static_cast<int>(w_coords.size()) - 1;
+
+            const int number_of_refined_cells =
+                num_u * num_v * num_w;
+
+            std::vector<IRL::PlanarLocalizer> refined_localizers;
+            std::vector<IRL::SeparatorVariant> refined_interfaces;
+            std::vector<AxisAlignedBoundingBox> refined_aabbs;
+
+            refined_localizers.reserve(number_of_refined_cells);
+            refined_interfaces.reserve(number_of_refined_cells);
+            refined_aabbs.reserve(number_of_refined_cells);
+
+            for (int iu = 0; iu < num_u; ++iu) {
+                const double u0_local = u_coords[iu];
+                const double u1_local = u_coords[iu + 1];
+
+                for (int iv = 0; iv < num_v; ++iv) {
+                    const double v0_local = v_coords[iv];
+                    const double v1_local = v_coords[iv + 1];
+
+                    for (int iw = 0; iw < num_w; ++iw) {
+                        const double w0_local = w_coords[iw];
+                        const double w1_local = w_coords[iw + 1];
+
+                        refined_localizers.push_back(
+                            makeEllipsoidAlignedBoxLocalizer(
+                                origin,
+                                R,
+                                u0_local,
+                                u1_local,
+                                v0_local,
+                                v1_local,
+                                w0_local,
+                                w1_local
+                            )
+                        );
+
+                        const Eigen::Vector3d local_cell_center(
+                            0.5 * (u0_local + u1_local),
+                            0.5 * (v0_local + v1_local),
+                            0.5 * (w0_local + w1_local)
+                        );
+
+                        const Eigen::Vector3d world_cell_center =
+                            origin + R * local_cell_center;
+
+                        refined_interfaces.push_back(
+                            makeEllipsoidParaboloidAtPoint(
+                                origin,
+                                R,
+                                A,
+                                world_cell_center
+                            )
+                        );
+
+                        refined_aabbs.push_back(
+                            makeWorldAABBOfEllipsoidAlignedBox(
+                                origin,
+                                R,
+                                u0_local,
+                                u1_local,
+                                v0_local,
+                                v1_local,
+                                w0_local,
+                                w1_local
+                            )
+                        );
+                    }
+                }
+            }
+
+            const AxisAlignedBoundingBox aligned_grid_aabb =
+                makeWorldAABBOfEllipsoidAlignedBox(
+                    origin,
+                    R,
+                    u_coords.front(),
+                    u_coords.back(),
+                    v_coords.front(),
+                    v_coords.back(),
+                    w_coords.front(),
+                    w_coords.back()
+                );
+
+            const int coarse_i_start = clamp_coarse_index(
+                static_cast<int>(
+                    std::floor(aligned_grid_aabb.min.x() - coarse_stencil_min)
+                )
+            );
+
+            const int coarse_i_end = clamp_coarse_index(
+                static_cast<int>(
+                    std::floor(aligned_grid_aabb.max.x() - coarse_stencil_min)
+                )
+            );
+
+            const int coarse_j_start = clamp_coarse_index(
+                static_cast<int>(
+                    std::floor(aligned_grid_aabb.min.y() - coarse_stencil_min)
+                )
+            );
+
+            const int coarse_j_end = clamp_coarse_index(
+                static_cast<int>(
+                    std::floor(aligned_grid_aabb.max.y() - coarse_stencil_min)
+                )
+            );
+
+            const int coarse_k_start = clamp_coarse_index(
+                static_cast<int>(
+                    std::floor(aligned_grid_aabb.min.z() - coarse_stencil_min)
+                )
+            );
+
+            const int coarse_k_end = clamp_coarse_index(
+                static_cast<int>(
+                    std::floor(aligned_grid_aabb.max.z() - coarse_stencil_min)
+                )
+            );
+
+            for (int coarse_i = coarse_i_start;
+                coarse_i <= coarse_i_end;
+                ++coarse_i) {
+                const double coarse_x0 =
+                    coarse_stencil_min + static_cast<double>(coarse_i);
+
+                const double coarse_x1 = coarse_x0 + 1.0;
+
+                for (int coarse_j = coarse_j_start;
+                    coarse_j <= coarse_j_end;
+                    ++coarse_j) {
+                    const double coarse_y0 =
+                        coarse_stencil_min + static_cast<double>(coarse_j);
+
+                    const double coarse_y1 = coarse_y0 + 1.0;
+
+                    for (int coarse_k = coarse_k_start;
+                        coarse_k <= coarse_k_end;
+                        ++coarse_k) {
+                        const double coarse_z0 =
+                            coarse_stencil_min + static_cast<double>(coarse_k);
+
+                        const double coarse_z1 = coarse_z0 + 1.0;
+
+                        const auto coarse_cell =
+                            IRL::RectangularCuboid::fromBoundingPts(
+                                IRL::Pt(coarse_x0, coarse_y0, coarse_z0),
+                                IRL::Pt(coarse_x1, coarse_y1, coarse_z1)
+                            );
+
+                        AxisAlignedBoundingBox coarse_aabb;
+                        coarse_aabb.min =
+                            Eigen::Vector3d(coarse_x0, coarse_y0, coarse_z0);
+                        coarse_aabb.max =
+                            Eigen::Vector3d(coarse_x1, coarse_y1, coarse_z1);
+
+                        for (int refined_id = 0;
+                            refined_id < number_of_refined_cells;
+                            ++refined_id) {
+                            if (!aabbOverlap(
+                                    coarse_aabb,
+                                    refined_aabbs[refined_id])) {
+                                continue;
+                            }
+
+                            IRL::LocalizedSeparatorVariantLink localized_interface(
+                                &(refined_localizers[refined_id]),
+                                &(refined_interfaces[refined_id])
+                            );
+
+                            localized_interface.setId(refined_id);
+
+                            for (int face = 0; face < 6; ++face) {
+                                localized_interface.setEdgeConnectivity(
+                                    face,
+                                    nullptr
+                                );
+                            }
+
+                            const auto local_moments =
+                                IRL::getVolumeMoments<IRL::VolumeMoments>(
+                                    coarse_cell,
+                                    localized_interface
+                                );
+
+                            const double local_volume =
+                                local_moments.volume();
+
+                            if (local_volume <= machineZero) {
+                                continue;
+                            }
+
+                            const Eigen::Vector3d local_first_moment(
+                                local_moments.centroid().x(),
+                                local_moments.centroid().y(),
+                                local_moments.centroid().z()
+                            );
+
+                            vfrac[coarse_i][coarse_j][coarse_k] +=
+                                local_volume;
+
+                            firstMoment[coarse_i][coarse_j][coarse_k] +=
+                                local_first_moment;
+
+                            area[coarse_i][coarse_j][coarse_k] += 0.0;
+
+                            if (secondMoment != nullptr) {
+                                const auto local_general_moments =
+                                    IRL::getVolumeMoments<
+                                        IRL::GeneralMoments3D<2>
+                                    >(
+                                        coarse_cell,
+                                        localized_interface
+                                    );
+
+                                total_general_moments +=
+                                    local_general_moments;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (visualize) {
+                for (int i = 0; i < stencil_size; ++i) {
+                    for (int j = 0; j < stencil_size; ++j) {
+                        for (int k = 0; k < stencil_size; ++k) {
+                            if (vfrac[i][j][k] > machineZero) {
+                                centroid[i][j][k] =
+                                    firstMoment[i][j][k] /
+                                    vfrac[i][j][k];
+                            } else {
+                                centroid[i][j][k].setZero();
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (secondMoment != nullptr) {
+                *secondMoment =
+                    centeredSecondMomentFromTotal(total_general_moments);
+            }
+        }
+
+        void generateSpecificEllipsoidOLD(
             std::vector<std::vector<std::vector<double>>>& vfrac,
             std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment,
             std::vector<std::vector<std::vector<double>>>& area,
@@ -5223,68 +6030,111 @@ namespace IRL {
             switch (shape_type) {
                 case 1: {
                     if (subshape_probability < 0.2) {
-                        // 20% chance → truncated cylinder
-                        //generateTruncatedCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
-                        generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                        // 10% chance → truncated cylinder
+                        if (subshape_probability < 0.1) {
+                            generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                        }
+                        // 10% chance → ellipsoid
+                        else {
+                            generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
+                        }
                     } else {
-                        // 80% chance → normal cylinder
-                        //generateCylinder(vfrac, firstMoment, stencil_size, max_cylinder_radius, cylinder_radius_stddev, visualize, secondMomentPtr);
-                        generateBentCylinder(vfrac, firstMoment, area, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                        // 80% chance → continuous ligament
+                        if (subshape_probability < 0.5) {
+                            // 30% chance → ellipsoid ligament
+                            generateEllipsoidLigament(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
+                        } else {
+                            //50% chance → bent cylinder
+                            generateBentCylinder(vfrac, firstMoment, area, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                        }
                     }
                     break;
                 }
-                case 2:
-                    generateSphere(vfrac, firstMoment, area, min_sphere_radius, max_sphere_radius, secondMomentPtr);
+                case 2: {
+                    if (subshape_probability < 0.8) {
+                        // 80% chance → ellipsoid droplet
+                        generateEllipsoidDroplet(vfrac, firstMoment, area, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
+                    } else {
+                        // 20% chance → sphere
+                        generateSphere(vfrac, firstMoment, area, min_sphere_radius, max_sphere_radius, secondMomentPtr);
+                    }
                     break;
+                }
                 case 3: {
                     bool cut_inside_central_cell = false;
                     bool variable_sheet_thickness = false;
-                    if (subshape_probability < 0.1) {
-                        // 10% chance → cut sheet with variable thickness
-                        variable_sheet_thickness = true;
-                        generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
-                    } else {
-                        if (subshape_probability < 0.2) {
-                            // 10% chance → cut sheet without variable thickness
-                            variable_sheet_thickness = false;
-                            generateCutSheet(vfrac, firstMoment, area, cut_inside_central_cell, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+
+                    if (subshape_probability < 0.3) {
+                        // 30% chance → sheet edge
+                        if (subshape_probability < 0.1) {
+                            // 10% chance → cut sheet with variable thickness
+                            variable_sheet_thickness = true;
+                            generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ false, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                         } else {
-                            if (subshape_probability < 0.4) {
-                                // 20% chance → sheet transition
-                                bool thick_central_cell = false;
-                                if (well_resolved) {
-                                    thick_central_cell = true; // for well-resolved, make central cell thick to 
-                                }
-                                generateSheetTransition(vfrac, firstMoment, area, thick_central_cell, transition_sheet_min_subgrid_thickness, transition_sheet_max_subgrid_thickness, transition_sheet_well_resolved_thickness, secondMomentPtr);
+                            if (subshape_probability < 0.2) {
+                                // 10% chance → sheet edge without variable thickness
+                            variable_sheet_thickness = false;
+                            generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ false, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                             } else {
-                                if (subshape_probability < 0.7) {
-                                    // 30% chance → sheet with variable thickness
-                                    variable_sheet_thickness = true;
-                                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                                // 10% chance → ellipsoid sheet edge
+                                generateEllipsoidSheetEdge(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, cut_inside_central_cell, secondMomentPtr);
+                            }
+                        }
+                    } else {
+                        //70% chance → sheet
+                        if (subshape_probability < 0.5) {
+                            // 20% chance → sheet transition
+                            bool thick_central_cell = false;
+                            if (well_resolved) {
+                                thick_central_cell = true; // for well-resolved, make central cell thick to 
+                            }
+                            generateSheetTransition(vfrac, firstMoment, area, thick_central_cell, transition_sheet_min_subgrid_thickness, transition_sheet_max_subgrid_thickness, transition_sheet_well_resolved_thickness, secondMomentPtr);
+                        } else {
+                            if (subshape_probability < 0.7) {
+                                // 20% chance → sheet with variable thickness
+                                variable_sheet_thickness = true;
+                                generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                            } else {
+                                if (subshape_probability < 0.9) {
+                                // 20% chance → normal sheet
+                                variable_sheet_thickness = false;
+                                generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
                                 } else {
-                                    // 30% chance → normal sheet
-                                    variable_sheet_thickness = false;
-                                    generateSheet(vfrac, firstMoment, area, min_sheet_thickness,max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                                    // 10% chance → ellipsoid sheet
+                                    generateEllipsoidSheet(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
                                 }
                             }
                         }
-                        
                     }
                     break;
                 }
-                case 4:
-                    generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
-                    break;
-                case 5: {
-                    bool variable_sheet_thickness = false;
+                case 4: {
                     if (subshape_probability < 0.5) {
-                        // 50% chance → cut sheet with variable thickness
-                        variable_sheet_thickness = true;
-                        generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                        // 50% chance → ellipsoid ligament tip
+                        generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
                     } else {
-                        // 50% chance → cut sheet without variable thickness
-                        variable_sheet_thickness = false;
-                        generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                        // 50% chance → bent truncated cylinder
+                        generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
+                    }
+                    break;
+                }
+                case 5: {
+                    if (subshape_probability < 0.5) {
+                        // 50% chance → ellipsoid sheet edge
+                        bool cut_inside_central_cell = true;
+                        generateEllipsoidSheetEdge(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, cut_inside_central_cell, secondMomentPtr);
+                    } else {
+                        // 50% chance → cut sheet
+                        bool variable_sheet_thickness = false;
+                        if (subshape_probability < 0.75) {
+                            // 25% chance → cut sheet with variable thickness
+                            variable_sheet_thickness = true;
+                            generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                        } else {
+                            // 25% chance → cut sheet without variable thickness
+                            variable_sheet_thickness = false;
+                            generateCutSheet(vfrac, firstMoment, area, /*cutinsidecentralcell*/ true, min_sheet_thickness, max_sheet_thickness, subgrid, variable_sheet_thickness, secondMomentPtr);
+                        }
                     }
                     break;
                 }
@@ -5310,14 +6160,9 @@ namespace IRL {
                 case 11:
                     generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
                     break;
-                // case 12: {
-                //     std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroidS;
-                //     std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfacesS;
-                //     const Eigen::Vector3d originS(0.25, 0.0, 0.0);
-                //     double radiusS = 0.4;
-                //     std::vector<double> coarse_coordsS(stencil_size + 1);
-                //     generateSpecificSphere(vfrac, firstMoment, area, centroidS, surfacesS, stencil_size, originS, radiusS, coarse_coordsS, visualize, secondMomentPtr);
-                //     break; }
+                case 12: {
+                    generateHyperbolicCylinder(vfrac, firstMoment, area, min_sheet_thickness, max_sheet_thickness, 45, secondMomentPtr);
+                    break; }
                 
                 case 13: {
                     bool thick_central_cell = false;

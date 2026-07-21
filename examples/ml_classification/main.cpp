@@ -995,11 +995,12 @@ int main (int argc, char* argv[]) {
         );                    
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     //ml.generateDataset();
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/data/data.bin");
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/data/data.bin");
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition_new/s5_262k_new/ZerothMoments/data/data.bin");
-
     //ml.appendDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin", false);
+    //ml.retain_only_0th_moments();
     //ml.saveDataset("data");
+
     /*//Below: Used to remove 1st moments from dataset/
     include_Moments = 0;
     ml.updateDataParameters(
@@ -1037,22 +1038,23 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/stable_run_models/2026-07-01_133021/run_8/ml_model.pt"); //Thesis zeroth most agreeing
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/stable_run_models/2026-07-15_164648/run_2/ml_model.pt"); //Thesis zeroth most agreeing
     ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/stable_run_models/2026-07-01_014127/run_4/ml_model.pt"); // Thesis first moments most agreeing
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMomentsEigv/stable_run_models/2026-06-30_203023/run_0/ml_model.pt"); // Thesis first moments eigenvalues most agreeing
-    ml.exportRuntimeWeightsAndBiasesHeader();
+    //ml.exportRuntimeWeightsAndBiasesHeader();
 
     //IRL::MLClassifierNoTorch ml_no_torch(stencil_size);
     //ml_no_torch.loadWeights("/home/quirin/mlcfd/Datasets/SixClasses/ZerothMoment/model/runtime_weights.bin");
 
     // vtk reader
-    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jetvtr/data.000031.vtr";
-    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jetvtr/plic.000031.vtu";
-    //std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr";
-    //std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000001.vtu";
-    int downsample_factor = 2;
-    //IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor);
-    
+    //std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jetvtr/data.000031.vtr";
+    //std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jetvtr/plic.000031.vtu";
+    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr";
+    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000001.vtu";
+    int downsample_factor = 1;
+    double pdistribution_step = 0.0;
+    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor, pdistribution_step);
+
     //stable_classification();
 
     //IRL::Data_gen gen;

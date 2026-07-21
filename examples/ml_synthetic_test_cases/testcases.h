@@ -151,9 +151,9 @@ void shell_testcase(IRL::Classifier& classifier)
     // 0 -> vfrac only
     // 1 -> vfrac + first moments
     // 2 -> vfrac + first moments + global 2nd moments
-    constexpr int include_moments = 0;
-    constexpr bool include_Surface_Area = false;
-    constexpr bool include_Eigenvalues = false;
+    constexpr int include_moments = ml.getIncludeMoments();
+    constexpr bool include_Surface_Area = ml.getIncludeSurfaceArea();
+    constexpr bool include_Eigenvalues = ml.getIncludeEigenvalues();
 
     constexpr int no_symmetries = 48;
     constexpr float noise_stddev = 0.0f;

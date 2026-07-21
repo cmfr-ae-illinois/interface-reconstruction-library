@@ -8,6 +8,7 @@ add_custom_target(examples_vtk_output)
 add_custom_target(examples_ml_classification)
 add_custom_target(examples_ml_data_vtk)
 add_custom_target(examples_ml_minimal_classifier_notorch)
+add_custom_target(examples_ml_synthetic_test_cases)
 add_custom_target(examples_vtk_reader)
 add_custom_target(examples_variant_advector)
 

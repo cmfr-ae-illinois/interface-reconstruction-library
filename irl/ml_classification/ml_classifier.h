@@ -85,6 +85,10 @@ public:
           output_size(out),
           net(input, h1, h2, h3, out) {}
 
+    int getIncludeMoments() const { return include_Moments; }
+    bool getIncludeSurfaceArea() const { return include_Surface_Area; }
+    bool getIncludeEigenvalues() const { return include_Eigenvalues; }
+
     void updateTrainingParameters(double lr, int bs, int ep, int reduce_lr_pat = 4, int early_stop_pat = 8) {
         learning_rate = lr;
         batch_size = bs;
@@ -770,6 +774,63 @@ public:
 
         std::cout << "Exported compile-time runtime weights to "
                 << filename << std::endl;
+    }
+
+    void retain_only_0th_moments() {
+        if (statesV.empty()) {
+            std::cerr
+                << "⚠ No data loaded. Cannot retain only 0th moments."
+                << std::endl;
+            return;
+        }
+
+        std::cout
+            << "🔧 Reducing " << statesV.size()
+            << " states to volume fractions only..."
+            << std::endl;
+
+        std::cout
+            << "Length of flattened state before: "
+            << statesV.front().size()
+            << std::endl;
+
+        // These values describe the layout before the states are reduced.
+        const int old_include_moments = include_Moments;
+        const bool old_include_surface_area = include_Surface_Area;
+        const bool old_include_eigenvalues = include_Eigenvalues;
+
+        for (auto& flattened_state : statesV) {
+            IRL::retain_only_0th_moments(
+                flattened_state,
+                stencil_size,
+                old_include_moments,
+                old_include_surface_area,
+                old_include_eigenvalues
+            );
+        }
+
+        // The states now contain only one volume fraction per stencil cell.
+        include_Moments = 0;
+        include_Surface_Area = false;
+        include_Eigenvalues = false;
+
+        input_size =
+            stencil_size * stencil_size * stencil_size;
+
+        std::cout
+            << "Length of flattened state after: "
+            << statesV.front().size()
+            << std::endl;
+
+        std::cout
+            << "include_Moments: " << include_Moments
+            << ", include_Surface_Area: " << include_Surface_Area
+            << ", include_Eigenvalues: " << include_Eigenvalues
+            << std::endl;
+
+        std::cout
+            << "✅ States now contain only 0th moments."
+            << std::endl;
     }
 };
 

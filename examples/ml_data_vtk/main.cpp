@@ -369,6 +369,432 @@ Stats computeStats(const std::vector<double>& values)
     return s;
 }
 
+// Below for testing ellipsoid generation
+
+std::vector<std::vector<std::vector<double>>>
+makeScalarField(int stencil_size, double value = 0.0)
+{
+    return std::vector<std::vector<std::vector<double>>>(
+        stencil_size,
+        std::vector<std::vector<double>>(
+            stencil_size,
+            std::vector<double>(stencil_size, value)
+        )
+    );
+}
+
+std::vector<std::vector<std::vector<Eigen::Vector3d>>>
+makeVectorField(int stencil_size)
+{
+    return std::vector<std::vector<std::vector<Eigen::Vector3d>>>(
+        stencil_size,
+        std::vector<std::vector<Eigen::Vector3d>>(
+            stencil_size,
+            std::vector<Eigen::Vector3d>(
+                stencil_size,
+                Eigen::Vector3d::Zero()
+            )
+        )
+    );
+}
+
+Eigen::Matrix3d randomRotationMatrix(std::mt19937_64& eng)
+{
+    std::uniform_real_distribution<double> random_unit(0.0, 1.0);
+
+    const double u1 = random_unit(eng);
+    const double u2 = random_unit(eng);
+    const double u3 = random_unit(eng);
+
+    const double qx =
+        std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
+
+    const double qy =
+        std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
+
+    const double qz =
+        std::sqrt(u1) * std::sin(2.0 * M_PI * u3);
+
+    const double qw =
+        std::sqrt(u1) * std::cos(2.0 * M_PI * u3);
+
+    Eigen::Quaterniond q(qw, qx, qy, qz);
+    q.normalize();
+
+    return q.toRotationMatrix();
+}
+
+double sumVolumeFractions(
+    const std::vector<std::vector<std::vector<double>>>& vfrac)
+{
+    double volume = 0.0;
+
+    for (const auto& plane : vfrac) {
+        for (const auto& row : plane) {
+            for (double value : row) {
+                volume += value;
+            }
+        }
+    }
+
+    return volume;
+}
+
+Eigen::Vector3d sumFirstMoments(
+    const std::vector<std::vector<std::vector<Eigen::Vector3d>>>& firstMoment)
+{
+    Eigen::Vector3d moment = Eigen::Vector3d::Zero();
+
+    for (const auto& plane : firstMoment) {
+        for (const auto& row : plane) {
+            for (const auto& value : row) {
+                moment += value;
+            }
+        }
+    }
+
+    return moment;
+}
+
+void ellipsoid_test()
+{
+    const int stencil_size = 5;
+    const double machine_zero = 1.0e-12;
+
+    std::cout << "\n========================================\n";
+    std::cout << "ellipsoid_test\n";
+    std::cout << "========================================\n";
+
+    IRL::Data_gen data_gen;
+    data_gen.set_stencil_size(stencil_size);
+    data_gen.setVisualize(false);
+
+    // Fixed seed for reproducibility.
+    data_gen.eng.seed(12345);
+
+    const int number_of_tests = 10;
+    const double min_axis = 0.5;
+    const double max_axis = 2.0;
+
+    std::uniform_real_distribution<double> random_axis(
+        min_axis,
+        max_axis
+    );
+
+    // Keep the ellipsoid fully inside the 5^3 stencil.
+    // Since max_axis = 2 and stencil bounds are [-2.5, 2.5]^3,
+    // origin in [-0.5, 0.5]^3 guarantees full containment.
+    std::uniform_real_distribution<double> random_origin_coord(
+        -0.5,
+        0.5
+    );
+
+    double max_relative_volume_error = 0.0;
+    double max_centroid_error = 0.0;
+    double max_first_moment_error = 0.0;
+
+    for (int test_id = 0; test_id < number_of_tests; ++test_id) {
+        auto vfrac = makeScalarField(stencil_size);
+        auto firstMoment = makeVectorField(stencil_size);
+        auto area = makeScalarField(stencil_size);
+        auto centroid = makeVectorField(stencil_size);
+
+        std::vector<IRL::ParaboloidParametrizedSurfaceOutput> surfaces;
+        std::vector<double> coarse_coords(stencil_size + 1, 0.0);
+
+        const double a = random_axis(data_gen.eng);
+        const double b = random_axis(data_gen.eng);
+        const double c = random_axis(data_gen.eng);
+
+        const Eigen::Matrix3d R =
+            randomRotationMatrix(data_gen.eng);
+
+        const Eigen::Vector3d origin(
+            random_origin_coord(data_gen.eng),
+            random_origin_coord(data_gen.eng),
+            random_origin_coord(data_gen.eng)
+        );
+
+        data_gen.generateSpecificEllipsoid(
+            vfrac,
+            firstMoment,
+            area,
+            centroid,
+            surfaces,
+            origin,
+            R.col(0),
+            R.col(1),
+            R.col(2),
+            a,
+            b,
+            c,
+            coarse_coords
+        );
+
+        const double numerical_volume =
+            sumVolumeFractions(vfrac);
+
+        const Eigen::Vector3d numerical_first_moment =
+            sumFirstMoments(firstMoment);
+
+        const double analytical_volume =
+            (4.0 / 3.0) * M_PI * a * b * c;
+
+        const Eigen::Vector3d analytical_first_moment =
+            analytical_volume * origin;
+
+        Eigen::Vector3d recovered_centroid =
+            Eigen::Vector3d::Zero();
+
+        if (numerical_volume > machine_zero) {
+            recovered_centroid =
+                numerical_first_moment / numerical_volume;
+        }
+
+        const double absolute_volume_error =
+            std::abs(numerical_volume - analytical_volume);
+
+        const double relative_volume_error =
+            absolute_volume_error /
+            std::max(std::abs(analytical_volume), machine_zero);
+
+        const double centroid_error =
+            (recovered_centroid - origin).norm();
+
+        const double first_moment_error =
+            (numerical_first_moment - analytical_first_moment).norm();
+
+        max_relative_volume_error =
+            std::max(max_relative_volume_error, relative_volume_error);
+
+        max_centroid_error =
+            std::max(max_centroid_error, centroid_error);
+
+        max_first_moment_error =
+            std::max(max_first_moment_error, first_moment_error);
+
+        std::cout << std::setprecision(8);
+        std::cout << "\nEllipsoid " << test_id << "\n";
+        std::cout << "  axes:               "
+                  << a << ", " << b << ", " << c << "\n";
+        std::cout << "  origin:             "
+                  << origin.transpose() << "\n";
+        std::cout << "  volume numerical:   "
+                  << numerical_volume << "\n";
+        std::cout << "  volume analytical:  "
+                  << analytical_volume << "\n";
+        std::cout << "  abs volume error:   "
+                  << absolute_volume_error << "\n";
+        std::cout << "  rel volume error:   "
+                  << relative_volume_error << "\n";
+        std::cout << "  recovered centroid: "
+                  << recovered_centroid.transpose() << "\n";
+        std::cout << "  centroid error:     "
+                  << centroid_error << "\n";
+        std::cout << "  first moment error: "
+                  << first_moment_error << "\n";
+    }
+
+    std::cout << "\nSummary ellipsoid_test\n";
+    std::cout << "  max relative volume error: "
+              << max_relative_volume_error << "\n";
+    std::cout << "  max centroid error:        "
+              << max_centroid_error << "\n";
+    std::cout << "  max first moment error:    "
+              << max_first_moment_error << "\n";
+}
+
+void ellipsoid_sphere_test()
+{
+    const int stencil_size = 5;
+    const double machine_zero = 1.0e-12;
+
+    std::cout << "\n========================================\n";
+    std::cout << "ellipsoid_sphere_test\n";
+    std::cout << "========================================\n";
+
+    IRL::Data_gen data_gen;
+    data_gen.set_stencil_size(stencil_size);
+    data_gen.setVisualize(false);
+
+    // Use a radius large enough to avoid the single-cell analytical shortcut.
+    const double radius = 0.9;
+    const Eigen::Vector3d origin(0.15, -0.10, 0.20);
+
+    const Eigen::Vector3d axis0_direction(1.0, 0.0, 0.0);
+    const Eigen::Vector3d axis1_direction(0.0, 1.0, 0.0);
+    const Eigen::Vector3d axis2_direction(0.0, 0.0, 1.0);
+
+    auto sphere_vfrac = makeScalarField(stencil_size);
+    auto sphere_firstMoment = makeVectorField(stencil_size);
+    auto sphere_area = makeScalarField(stencil_size);
+    auto sphere_centroid = makeVectorField(stencil_size);
+    std::vector<IRL::ParaboloidParametrizedSurfaceOutput> sphere_surfaces;
+    std::vector<double> sphere_coarse_coords(stencil_size + 1, 0.0);
+
+    auto ellipsoid_vfrac = makeScalarField(stencil_size);
+    auto ellipsoid_firstMoment = makeVectorField(stencil_size);
+    auto ellipsoid_area = makeScalarField(stencil_size);
+    auto ellipsoid_centroid = makeVectorField(stencil_size);
+    std::vector<IRL::ParaboloidParametrizedSurfaceOutput> ellipsoid_surfaces;
+    std::vector<double> ellipsoid_coarse_coords(stencil_size + 1, 0.0);
+
+    data_gen.generateSpecificSphere(
+        sphere_vfrac,
+        sphere_firstMoment,
+        sphere_area,
+        sphere_centroid,
+        sphere_surfaces,
+        origin,
+        radius,
+        sphere_coarse_coords
+    );
+
+    data_gen.generateSpecificEllipsoid(
+        ellipsoid_vfrac,
+        ellipsoid_firstMoment,
+        ellipsoid_area,
+        ellipsoid_centroid,
+        ellipsoid_surfaces,
+        origin,
+        axis0_direction,
+        axis1_direction,
+        axis2_direction,
+        radius,
+        radius,
+        radius,
+        ellipsoid_coarse_coords
+    );
+
+    double sum_abs_vfrac_error = 0.0;
+    double sum_sq_vfrac_error = 0.0;
+    double max_abs_vfrac_error = 0.0;
+
+    double sum_first_moment_error_norm = 0.0;
+    double sum_sq_first_moment_error_norm = 0.0;
+    double max_first_moment_error_norm = 0.0;
+
+    int cell_count = 0;
+
+    for (int i = 0; i < stencil_size; ++i) {
+        for (int j = 0; j < stencil_size; ++j) {
+            for (int k = 0; k < stencil_size; ++k) {
+                const double dv =
+                    ellipsoid_vfrac[i][j][k] -
+                    sphere_vfrac[i][j][k];
+
+                const double abs_dv = std::abs(dv);
+
+                const Eigen::Vector3d dm =
+                    ellipsoid_firstMoment[i][j][k] -
+                    sphere_firstMoment[i][j][k];
+
+                const double dm_norm = dm.norm();
+
+                sum_abs_vfrac_error += abs_dv;
+                sum_sq_vfrac_error += dv * dv;
+                max_abs_vfrac_error =
+                    std::max(max_abs_vfrac_error, abs_dv);
+
+                sum_first_moment_error_norm += dm_norm;
+                sum_sq_first_moment_error_norm += dm_norm * dm_norm;
+                max_first_moment_error_norm =
+                    std::max(max_first_moment_error_norm, dm_norm);
+
+                ++cell_count;
+            }
+        }
+    }
+
+    const double rms_vfrac_error =
+        std::sqrt(
+            sum_sq_vfrac_error /
+            static_cast<double>(cell_count)
+        );
+
+    const double mean_abs_vfrac_error =
+        sum_abs_vfrac_error /
+        static_cast<double>(cell_count);
+
+    const double rms_first_moment_error =
+        std::sqrt(
+            sum_sq_first_moment_error_norm /
+            static_cast<double>(cell_count)
+        );
+
+    const double mean_first_moment_error =
+        sum_first_moment_error_norm /
+        static_cast<double>(cell_count);
+
+    const double sphere_total_volume =
+        sumVolumeFractions(sphere_vfrac);
+
+    const double ellipsoid_total_volume =
+        sumVolumeFractions(ellipsoid_vfrac);
+
+    const Eigen::Vector3d sphere_total_first_moment =
+        sumFirstMoments(sphere_firstMoment);
+
+    const Eigen::Vector3d ellipsoid_total_first_moment =
+        sumFirstMoments(ellipsoid_firstMoment);
+
+    Eigen::Vector3d sphere_recovered_centroid =
+        Eigen::Vector3d::Zero();
+
+    Eigen::Vector3d ellipsoid_recovered_centroid =
+        Eigen::Vector3d::Zero();
+
+    if (sphere_total_volume > machine_zero) {
+        sphere_recovered_centroid =
+            sphere_total_first_moment / sphere_total_volume;
+    }
+
+    if (ellipsoid_total_volume > machine_zero) {
+        ellipsoid_recovered_centroid =
+            ellipsoid_total_first_moment / ellipsoid_total_volume;
+    }
+
+    std::cout << std::setprecision(10);
+
+    std::cout << "origin: " << origin.transpose() << "\n";
+    std::cout << "radius / equal semi-axes: " << radius << "\n";
+
+    std::cout << "\nPiecewise vfrac comparison\n";
+    std::cout << "  mean abs error: "
+              << mean_abs_vfrac_error << "\n";
+    std::cout << "  rms error:      "
+              << rms_vfrac_error << "\n";
+    std::cout << "  max abs error:  "
+              << max_abs_vfrac_error << "\n";
+
+    std::cout << "\nPiecewise firstMoment comparison\n";
+    std::cout << "  mean norm error: "
+              << mean_first_moment_error << "\n";
+    std::cout << "  rms norm error:  "
+              << rms_first_moment_error << "\n";
+    std::cout << "  max norm error:  "
+              << max_first_moment_error_norm << "\n";
+
+    std::cout << "\nGlobal comparison\n";
+    std::cout << "  sphere volume:               "
+              << sphere_total_volume << "\n";
+    std::cout << "  ellipsoid volume:            "
+              << ellipsoid_total_volume << "\n";
+    std::cout << "  total volume difference:     "
+              << ellipsoid_total_volume - sphere_total_volume << "\n";
+    std::cout << "  sphere recovered centroid:   "
+              << sphere_recovered_centroid.transpose() << "\n";
+    std::cout << "  ellipsoid recovered centroid:"
+              << ellipsoid_recovered_centroid.transpose() << "\n";
+    std::cout << "  centroid difference norm:    "
+              << (
+                    ellipsoid_recovered_centroid -
+                    sphere_recovered_centroid
+                 ).norm() << "\n";
+}
+
+
+
 
 int main(int argc, char* argv[]) {
 
@@ -416,6 +842,7 @@ int stencil_size = 5;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
+    // Below for visualizing generated data and testing the data generator interactively:
     IRL::Data_gen gen; 
     
     gen.updateDataParameters(
@@ -467,6 +894,15 @@ int stencil_size = 5;
         std::cout << "Generated state for class " << input_class
                 << " with size " << state.size() << ".\n";
     }
+
+    /* Below for testing ellipsoid generation
+    try {
+        ellipsoid_test();
+        ellipsoid_sphere_test();
+    } catch (const std::exception& error) {
+        std::cerr << "Error: " << error.what() << std::endl;
+        return 1;
+    }*/
 
     // bool well_resolved = false;
 

@@ -516,6 +516,63 @@ inline float sampleGaussian(float sigma) {
     return dist(globalNoiseRng());
 }
 
+inline void retain_only_0th_moments(
+    std::vector<float>& flattened_state,
+    int stencil_size,
+    int include_moments,
+    bool include_surface_area,
+    bool include_eigenvalues)
+{
+    const int n_cells =
+        stencil_size * stencil_size * stencil_size;
+
+    // Layout of each cell in the original flattened state:
+    //
+    // include_moments == 0:
+    //   [vfrac]
+    //
+    // include_moments >= 1:
+    //   [vfrac, mx, my, mz]
+    //
+    // include_surface_area == true:
+    //   one additional surface-area value per cell
+    //
+    // Any global second moments and eigenvalues are stored after
+    // all per-cell values and are intentionally discarded here.
+    const int old_stride =
+        perCellStride(include_moments, include_surface_area);
+
+    const std::size_t required_per_cell_size =
+        static_cast<std::size_t>(n_cells) *
+        static_cast<std::size_t>(old_stride);
+
+    if (flattened_state.size() < required_per_cell_size) {
+        throw std::runtime_error(
+            "retain_only_0th_moments: flattened state is smaller "
+            "than expected from the supplied stencil configuration."
+        );
+    }
+
+    std::vector<float> volume_fractions(
+        static_cast<std::size_t>(n_cells)
+    );
+
+    for (int cell = 0; cell < n_cells; ++cell) {
+        const std::size_t old_index =
+            static_cast<std::size_t>(cell) *
+            static_cast<std::size_t>(old_stride);
+
+        volume_fractions[static_cast<std::size_t>(cell)] =
+            flattened_state[old_index];
+    }
+
+    flattened_state = std::move(volume_fractions);
+
+    // This argument documents the original layout. Eigenvalues are in
+    // the global tail, which is discarded automatically above.
+    (void)include_eigenvalues;
+}
+
 inline void preprocess_stencil(std::vector<float>& flat_stencil,
                            int stencil_size, int no_symmetries, int include_moments = 1, bool include_Surface_Area = false, 
                            bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
