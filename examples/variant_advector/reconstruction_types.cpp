@@ -996,7 +996,7 @@ void Jibben2::getReconstruction(
           // error metrics
           // double err = jibben_solver.getVolumeErrorSquared(mesh.dx());
           // double normal_err = jibben_solver.getNormalMetric();
-          // double normal_eigen_err = jibben_solver.getNormalEigenMetric();
+          // double normal_eigen_err = jibben_solver.getNormalScatterMetric();
           // double normal_std_err = jibben_solver.getAngularVariance();
           // double squared_vol_err =
           //     jibben_solver.getVolumeErrorSquared(mesh.dx());
@@ -1240,7 +1240,7 @@ void JibbenM::getReconstruction(
               jibben_solver.solve2(&neighborhood);
 
           // checking normal scatter
-          double normal_scatter = jibben_solver.getNormalEigenMetric();
+          double normal_scatter = jibben_solver.getNormalScatterMetric();
           if (normal_scatter > 0.10) {
             underresolved(i, j, k) = true;
           }
@@ -1909,7 +1909,7 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        double angular_variance = jibben.getNormalEigenMetric();
+        double angular_variance = jibben.getNormalScatterMetric();
         const double angular_variance_threshold = 0.10;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;
@@ -4967,7 +4967,7 @@ void JibbenPU::getReconstruction(
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        double angular_variance = jibben.getNormalEigenMetric();
+        double angular_variance = jibben.getNormalScatterMetric();
         const double angular_variance_threshold = 0.10;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;
@@ -5319,7 +5319,7 @@ void Testing::getReconstruction(
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        double angular_variance = jibben.getNormalEigenMetric();
+        double angular_variance = jibben.getNormalScatterMetric();
         const double angular_variance_threshold = 0.10;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;
@@ -5672,7 +5672,7 @@ void JibbenSqPU::getReconstruction(
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        double angular_variance = jibben.getNormalEigenMetric();
+        double angular_variance = jibben.getNormalScatterMetric();
         const double angular_variance_threshold = 0.10;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;

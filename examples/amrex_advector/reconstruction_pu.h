@@ -212,7 +212,7 @@ struct PU {
         IRL::Paraboloid jibben_paraboloid = jibben.solve2(&jibben_neighborhood);
 
         // Normal scatter check
-        const double normal_scatter = jibben.getNormalEigenMetric();
+        const double normal_scatter = jibben.getNormalScatterMetric();
 
         if (normal_scatter > normal_scatter_threshold) {
           underresolved_array(i, j, k) = 1;

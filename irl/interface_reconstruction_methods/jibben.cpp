@@ -805,7 +805,7 @@ const double Jibben_3D::getNormalMetric(void) const {
   return I;
 }
 
-const double Jibben_3D::getNormalEigenMetric(void) const {
+const double Jibben_3D::getNormalScatterMetric(void) const {
   const UnsignedIndex_t n_polygons = neighborhood_m->size();
 
   Eigen::Matrix3d C = Eigen::Matrix3d::Zero();

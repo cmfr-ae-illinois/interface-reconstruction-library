@@ -115,7 +115,7 @@ struct VF2 {
         // normal scatter metric
         IRL::Jibben_3D jibben(&neighborhood);
         if (scalar_fields) {
-          normal_scatter_parab(i, j, k) = jibben.getNormalEigenMetric();
+          normal_scatter_parab(i, j, k) = jibben.getNormalScatterMetric();
         }
 
         // Construct local cell

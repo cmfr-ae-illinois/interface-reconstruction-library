@@ -48,7 +48,7 @@ class Jibben_3D {
 
   const double getNormalMetric(void) const;
 
-  const double getNormalEigenMetric(void) const;
+  const double getNormalScatterMetric(void) const;
 
   const double getAngularVariance(void) const;
 

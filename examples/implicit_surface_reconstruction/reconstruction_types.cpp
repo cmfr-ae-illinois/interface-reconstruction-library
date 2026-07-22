@@ -1125,7 +1125,7 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
         IRL::Jibben_3D jibben(&jibben_neighborhood);
 
         // angular variance
-        double angular_variance = jibben.getNormalEigenMetric();
+        double angular_variance = jibben.getNormalScatterMetric();
         const double angular_variance_threshold = 0.10;
         if (angular_variance > angular_variance_threshold) {
           is_underresolved(i, j, k) = true;
