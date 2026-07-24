@@ -1231,11 +1231,11 @@ Normal PU<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
             (Marangoni[0] != 0.0 ||
              Marangoni[1] != 0.0)) {  // Force droplet breakup
           double gamma0 = 1.0;        // Base surface tension coefficient
-          double R = 1.0;             // Characteristic length scale
+          double R = 0.5;             // Characteristic length scale
 
           // Linear decrease in surface tension with x-coordinate - Al-Saud
           // Style
-          ST = gamma0 * std::max(1 - 1.25 * std::abs(pt[0]), 0.1);
+          ST = gamma0 * std::max(1 - 1.25 * std::abs(pt[0]) / R, 0.1);
         }
         Normal f = IRL::crossProduct(tan, normal);
         f.normalize();
