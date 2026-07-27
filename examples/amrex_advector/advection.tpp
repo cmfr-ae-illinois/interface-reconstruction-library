@@ -19,31 +19,17 @@ using namespace amrex;
 void AmrCoreAdv::TransportMoments(
     const SepUnionMultiFab& a_interface_with_ghost,
     const Array<MultiFab, AMREX_SPACEDIM>& a_facevel, const MultiFab& a_band_id,
-    MultiFab& a_moments, const Geometry& a_geom, const double a_dt) {
+    MultiFab& a_moments, const Geometry& a_geom, const double a_dt,
+    const double a_time) {
   if (advection_name == "remap" || advection_name == "default") {
     LagrangianRemap::TransportMoments(a_interface_with_ghost, a_facevel,
-                                      a_band_id, a_moments, a_geom, a_dt);
+                                      a_band_id, a_moments, a_geom, a_dt,
+                                      a_time, velocity_field_type);
   } else {
     std::ostringstream oss;
     oss << "Unknown advection method: " << advection_name << '\n';
     throw std::runtime_error(oss.str());
   }
 }
-
-// void AmrCoreAdv::TransportMoments(
-//     const SepUnionMultiFab& a_interface_with_ghost,
-//     const Array<MultiFab, AMREX_SPACEDIM>& a_facevel, const MultiFab&
-//     a_band_id, MultiFab& a_moments, const Geometry& a_geom, const double
-//     a_dt, const double a_time) {
-//   if (advection_name == "remap" || advection_name == "default") {
-//     LagrangianRemap::TransportMoments(a_interface_with_ghost, a_facevel,
-//                                       a_band_id, a_moments, a_geom, a_dt,
-//                                       a_time);
-//   } else {
-//     std::ostringstream oss;
-//     oss << "Unknown advection method: " << advection_name << '\n';
-//     throw std::runtime_error(oss.str());
-//   }
-// }
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_ADVECTION_H_

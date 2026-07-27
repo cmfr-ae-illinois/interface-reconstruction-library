@@ -12,6 +12,8 @@
 #include "irl/amrex/sepunion_multifab.h"
 #include "irl/generic_cutting/cut_polygon.h"
 
+#include "examples/amrex_advector/advection_helpers.h"
+
 struct InterfaceScalarField {
   std::string name;
 
@@ -176,14 +178,7 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::SepUnionMultiFab& a_interface_with_ghost,
       const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& a_facevel,
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
-      const amrex::Geometry& a_geom, const double a_dt);
-
-  //   void TransportMoments(
-  //       const amrex::SepUnionMultiFab& a_interface_with_ghost,
-  //       const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& a_facevel,
-  //       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
-  //       const amrex::Geometry& a_geom, const double a_dt, const double
-  //       a_time);
+      const amrex::Geometry& a_geom, const double a_dt, const double a_time);
 
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
 
@@ -248,6 +243,8 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // case name
   std::string case_name = "default";
+
+  VelocityFieldType velocity_field_type = VelocityFieldType::Interpolated;
 
   // reconstruction name
   std::string reconstruction_name = "default";

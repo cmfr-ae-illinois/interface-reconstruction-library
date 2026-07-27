@@ -92,6 +92,16 @@ AmrCoreAdv::AmrCoreAdv() {
   ParmParse ppcase("case");
   ppcase.get("name", case_name);
 
+  if (case_name == "rotation3d") {
+    velocity_field_type = VelocityFieldType::Rotation;
+  } else if (case_name == "translation3d") {
+    velocity_field_type = VelocityFieldType::Translation;
+  } else if (case_name == "deformation3d") {
+    velocity_field_type = VelocityFieldType::Deformation;
+  } else {
+    velocity_field_type = VelocityFieldType::Interpolated;
+  }
+
   ParmParse pprec("reconstruction");
   pprec.get("name", reconstruction_name);
 
@@ -1511,9 +1521,7 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
     amrex::ParallelDescriptor::Barrier();
     const auto adv_start = amrex::second();
     TransportMoments(interface_with_ghost, facevel[lev], band_id[lev],
-                     moments_new[lev], geom[lev], dt[lev]);
-    // TransportMoments(interface_with_ghost, facevel[lev], band_id[lev],
-    //                  moments_new[lev], geom[lev], dt[lev], t_new[lev]);
+                     moments_new[lev], geom[lev], dt[lev], t_new[lev]);
     amrex::ParallelDescriptor::Barrier();
     advection_time += amrex::second() - adv_start;
   }  // end lev

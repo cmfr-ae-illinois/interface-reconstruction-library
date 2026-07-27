@@ -12,25 +12,42 @@
 
 #include "irl/amrex/sepunion_multifab.h"
 
+#include "examples/amrex_advector/case_deformation_3d.h"
+#include "examples/amrex_advector/case_rotation_3d.h"
+#include "examples/amrex_advector/case_translation_3d.h"
+
 using namespace amrex;
 
-inline IRL::Vec3<double> GetVelocity(const IRL::Pt& pt,
-                                     Array4<Real const> const& vx,
-                                     Array4<Real const> const& vy,
-                                     Array4<Real const> const& vz,
-                                     const Box& bx, const Geometry& a_geom);
+enum class VelocityFieldType {
+  Interpolated,
+  Rotation,
+  Translation,
+  Deformation
+};
+
+// general velocity accessor (vx, vy, vz is only used if analytical velocity is
+// not used)
+IRL::Vec3<double> GetVelocity(const IRL::Pt& pt, const double time,
+                              const VelocityFieldType velocity_field_type,
+                              Array4<Real const> const& vx,
+                              Array4<Real const> const& vy,
+                              Array4<Real const> const& vz, const Box& bx,
+                              const Geometry& a_geom);
+
+inline IRL::Vec3<double> GetInterpolatedVelocity(const IRL::Pt& pt,
+                                                 Array4<Real const> const& vx,
+                                                 Array4<Real const> const& vy,
+                                                 Array4<Real const> const& vz,
+                                                 const Box& bx,
+                                                 const Geometry& a_geom);
 
 inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
+                             const double time,
+                             const VelocityFieldType velocity_field_type,
                              Array4<Real const> const& vx,
                              Array4<Real const> const& vy,
                              Array4<Real const> const& vz, const Box& bx,
                              const Geometry& a_geom);
-
-// inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
-//                              const double time);
-
-// inline IRL::Vec3<double> GetDeformationTestCaseVelocity(const IRL::Pt& pt,
-//                                                         const double time);
 
 #include "examples/amrex_advector/advection_helpers.tpp"
 
