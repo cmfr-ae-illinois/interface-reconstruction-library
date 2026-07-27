@@ -105,6 +105,15 @@ struct Deformation3D {
     Real cospit = std::cos(M_PI * time / 3.0);
     return -sinpiz * sinpiz * sin2pix * sin2piy * cospit;
   }
+
+  static AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE IRL::Vec3<double>
+  get_velocity(const Real x, const Real y, const Real z, const Real time) {
+    const Real u = get_face_velocity_x(x, y, z, time);
+    const Real v = get_face_velocity_y(x, y, z, time);
+    const Real w = get_face_velocity_z(x, y, z, time);
+
+    return IRL::Vec3<double>(u, v, w);
+  }
 };
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_DEFORMATION_3D_H_
