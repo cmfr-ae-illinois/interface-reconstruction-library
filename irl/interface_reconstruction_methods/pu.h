@@ -47,7 +47,7 @@ class PU {
   // get Mean Curvature
   double getMeanCurvature(const Pt& x);
   // Project point onto implicit surface
-  const Pt projectOntoPU(const Pt& a_pt, bool& success);
+  const Pt projectOntoPU(const Pt& a_pt, const double dx, bool& success);
   // Signed Distance of Separator
   static double implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
                                   const SeparatorVariant* a_sepPtr);

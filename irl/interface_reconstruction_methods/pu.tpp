@@ -294,7 +294,8 @@ double PU<CellType>::getMeanCurvature(const Pt& x) {
 }
 
 template <class CellType>
-const Pt PU<CellType>::projectOntoPU(const Pt& a_pt, bool& success) {
+const Pt PU<CellType>::projectOntoPU(const Pt& a_pt, const double dx,
+                                     bool& success) {
   success = true;
   std::pair<double, Eigen::Vector3d> holdsGrad;
   Pt projected_pt = a_pt;
@@ -322,7 +323,7 @@ const Pt PU<CellType>::projectOntoPU(const Pt& a_pt, bool& success) {
 
     auto step = -F * gradF * grad_norm_inv;
     for (int d = 0; d < 3; d++) {
-      projected_pt[d] += alpha * step(d);
+      projected_pt[d] += step(d);
     }
     // return the point itself if max iterations reached
     if (i == (itmax - 1)) {
@@ -338,13 +339,18 @@ const Pt PU<CellType>::projectOntoPU(const Pt& a_pt, bool& success) {
     success = false;
     return a_pt;
   }
+  // Make sure Point is good quality
+  if (IRL::magnitude(projected_pt - a_pt) > 0.5 * dx) {
+    success = false;
+    return a_pt;
+  }
   return projected_pt;
 }
 
 // Implicit Separators
-double PUImplicitSurface::implicitSeparator(const Pt& a_pt,
-                                            const Pt& a_centroid,
-                                            const SeparatorVariant* a_sepPtr) {
+template <class CellType>
+double PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
+                                       const SeparatorVariant* a_sepPtr) {
   const Pt x = a_pt - a_centroid;
   double F;
   if (const auto sepPtr = std::get_if<PlanarSeparator>(a_sepPtr)) {
@@ -388,8 +394,10 @@ double PUImplicitSurface::implicitSeparator(const Pt& a_pt,
   }
   return F;
 }
+
 // Signed Distance and Gradient of Separator
-std::pair<double, Eigen::Vector3d> PUImplicitSurface::implicitSeparator(
+template <class CellType>
+std::pair<double, Eigen::Vector3d> PU<CellType>::implicitSeparator(
     const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr) {
   const Pt x = a_pt - a_centroid;
   double F;
@@ -445,9 +453,10 @@ std::pair<double, Eigen::Vector3d> PUImplicitSurface::implicitSeparator(
   return std::make_pair(F, gradF);
 }
 // Signed Distance, Gradient, and Hessian of Separator
+template <class CellType>
 std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>
-PUImplicitSurface::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                     const SeparatorVariant* a_sepPtr) {
+PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
+                                const SeparatorVariant* a_sepPtr) {
   const Pt x = a_pt - a_centroid;
   double F;
   Eigen::Vector3d gradF;
