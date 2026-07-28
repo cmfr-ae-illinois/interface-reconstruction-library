@@ -237,6 +237,8 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // if >= 0 we restart from a checkpoint
   std::string restart_chkfile = "";
+  std::string checkpoint_path = "";
+  std::string interface_output_path = "";
 
   // case name
   std::string case_name = "default";

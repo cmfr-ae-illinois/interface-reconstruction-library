@@ -15,6 +15,22 @@
 
 using namespace amrex;
 
+bool IsAbsolutePath(const std::string& path) {
+  return !path.empty() && path.front() == '/';
+}
+
+std::string JoinPath(const std::string& directory,
+                     const std::string& filename) {
+  if (directory.empty() || directory == "." || filename.empty() ||
+      IsAbsolutePath(filename)) {
+    return filename;
+  }
+  if (directory.back() == '/') {
+    return directory + filename;
+  }
+  return directory + "/" + filename;
+}
+
 void InitializeSepUnionMultiFab(SepUnionMultiFab& mf) {
   for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
     Array4<IRL::SeparatorUnion> arr = mf.array(mfi);
@@ -671,8 +687,10 @@ void AmrCoreAdv::ReadParameters() {
     pp.query("regrid_int", regrid_int);
     pp.query("plot_file", plot_file);
     pp.query("plot_int", plot_int);
+    pp.query("interface_output_path", interface_output_path);
     pp.query("chk_file", chk_file);
     pp.query("chk_int", chk_int);
+    pp.query("checkpoint_path", checkpoint_path);
     pp.query("restart", restart_chkfile);
   }
 
@@ -924,7 +942,7 @@ Real AmrCoreAdv::EstTimeStep(int lev, Real time) {
 
 // get plotfile name
 std::string AmrCoreAdv::PlotFileName(int lev) const {
-  return amrex::Concatenate(plot_file, lev, 5);
+  return JoinPath(interface_output_path, amrex::Concatenate(plot_file, lev, 5));
 }
 
 // put together an array of multifabs for writing
@@ -982,7 +1000,8 @@ void AmrCoreAdv::WritePlotFile() {
     // Print PVD file
     if (rank == 0) {
       // Write file header
-      const std::string pvdfile = std::string("interface.pvd");
+      const std::string pvdfile =
+          JoinPath(interface_output_path, std::string("interface.pvd"));
       if (istep[0] == 0) {
         std::ofstream outFile(pvdfile);
         outFile << "<?xml version=\"1.0\"?>\n";
@@ -1263,7 +1282,8 @@ void AmrCoreAdv::WriteCheckpointFile() const {
   // each level of refinement
 
   // checkpoint file name, e.g., chk00010
-  const std::string& checkpointname = amrex::Concatenate(chk_file, istep[0]);
+  const std::string checkpointname =
+      JoinPath(checkpoint_path, amrex::Concatenate(chk_file, istep[0]));
 
   amrex::Print() << "Writing checkpoint " << checkpointname << "\n";
 
@@ -1341,10 +1361,12 @@ void GotoNextLine(std::istream& is) {
 }  // namespace
 
 void AmrCoreAdv::ReadCheckpointFile() {
-  amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
+  const std::string checkpointname = JoinPath(checkpoint_path, restart_chkfile);
+
+  amrex::Print() << "Restart from checkpoint " << checkpointname << "\n";
 
   // Header
-  std::string File(restart_chkfile + "/Header");
+  std::string File(checkpointname + "/Header");
 
   VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
 
@@ -1428,7 +1450,7 @@ void AmrCoreAdv::ReadCheckpointFile() {
   // read in the MultiFab data
   for (int lev = 0; lev <= finest_level; ++lev) {
     VisMF::Read(moments_new[lev],
-                amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_",
                                               "moments"));
   }
 }

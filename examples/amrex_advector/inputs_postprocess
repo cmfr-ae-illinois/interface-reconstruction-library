@@ -2,8 +2,8 @@
 # Checkpoint postprocessing
 # *****************************************************************
 
-postprocess.initial_checkpoint = /home/parinht2/Repositories/interface-reconstruction-library/build/chk_rotation3d_vf2_cfl0.25_5_00000
-postprocess.final_checkpoint   = /home/parinht2/Repositories/interface-reconstruction-library/build/chk_rotation3d_vf2_cfl0.25_5_01076
+postprocess.initial_checkpoint = chk00000
+postprocess.final_checkpoint   = chk00384
 
 case.name = deformation3d
 reconstruction.name = pu
@@ -30,5 +30,7 @@ adv.cfl       = 1.0
 adv.do_reflux = 1
 amr.plot_file = plt
 amr.plot_int  = -1
+amr.interface_output_path = .
 amr.chk_file  = chk
 amr.chk_int   = -1
+amr.checkpoint_path = /home/parinht2/Simulations/irl/amrex/checkpoint_files/
