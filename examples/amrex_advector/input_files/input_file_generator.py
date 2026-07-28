@@ -24,6 +24,8 @@ output_dir = Path(
     "interface-reconstruction-library/"
     "examples/amrex_advector/input_files"
 )
+checkpoint_path = "."
+interface_output_path = "."
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
@@ -192,6 +194,7 @@ adv.do_reflux = {do_reflux}
 amr.plot_file  = {plot_filename}    # root name of plot file
 amr.plot_int   = {plot_int}    # number of timesteps between plot files
                         # if negative then no plot files will be written
+amr.interface_output_path = {interface_output_path}
 
 # *****************************************************************
 # Checkpoint name and frequency
@@ -199,6 +202,7 @@ amr.plot_int   = {plot_int}    # number of timesteps between plot files
 amr.chk_file = {chk_filename}      # root name of checkpoint file
 amr.chk_int  = {chk_int}       # number of timesteps between checkpoint files
                         # if negative then no checkpoint files will be written
+amr.checkpoint_path = {checkpoint_path}
 """
 
     # Write file
@@ -213,6 +217,8 @@ amr.chk_int  = {chk_int}       # number of timesteps between checkpoint files
     print(f"  prob_lo          = {format_list(prob_lo)}")
     print(f"  prob_hi          = {format_list(prob_hi)}")
     print(f"  checkpoint root  = {chk_filename}")
+    print(f"  checkpoint path  = {checkpoint_path}")
+    print(f"  interface path   = {interface_output_path}")
     print()
 
 def main():
