@@ -7,6 +7,7 @@
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>
+#include <array>
 #include <fstream>
 #include <sstream>
 
@@ -116,11 +117,46 @@ void AmrCoreAdv::Evolve() {
   Real cur_time = t_new[0];
   int last_plot_file_step = 0;
 
+  // times at which an interface output is required
+  const std::array<Real, 3> required_intermediate_output_times = {
+      0.25 * stop_time, 0.5 * stop_time, 0.75 * stop_time};
+  std::size_t next_intermediate_output = 0;
+  while (next_intermediate_output < required_intermediate_output_times.size() &&
+         required_intermediate_output_times[next_intermediate_output] <=
+             cur_time) {
+    ++next_intermediate_output;
+  }
+
   for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step) {
     amrex::Print() << "\nCoarse STEP " << step + 1 << " starts ..."
                    << std::endl;
 
     ComputeDt();
+
+    const Real next_time = cur_time + dt[0];
+    bool write_intermediate_before_step = false;
+    bool write_intermediate_after_step = false;
+    while (next_intermediate_output <
+               required_intermediate_output_times.size() &&
+           required_intermediate_output_times[next_intermediate_output] <=
+               next_time) {
+      const Real output_time =
+          required_intermediate_output_times[next_intermediate_output];
+      if (output_time >= cur_time) {
+        if (output_time - cur_time <= next_time - output_time) {
+          write_intermediate_before_step = true;
+        } else {
+          write_intermediate_after_step = true;
+        }
+      }
+      ++next_intermediate_output;
+    }
+
+    if (write_intermediate_before_step && istep[0] > last_plot_file_step) {
+      last_plot_file_step = istep[0];
+      UpdateBand();
+      WritePlotFile();
+    }
 
     int lev = 0;
     int iteration = 1;
@@ -140,7 +176,15 @@ void AmrCoreAdv::Evolve() {
       t_new[lev] = cur_time;
     }
 
-    if (plot_int > 0 && (step + 1) % plot_int == 0) {
+    bool wrote_plot_this_step = false;
+    if (write_intermediate_after_step) {
+      last_plot_file_step = step + 1;
+      UpdateBand();
+      WritePlotFile();
+      wrote_plot_this_step = true;
+    }
+
+    if (!wrote_plot_this_step && plot_int > 0 && (step + 1) % plot_int == 0) {
       last_plot_file_step = step + 1;
       UpdateBand();
       WritePlotFile();
@@ -152,6 +196,10 @@ void AmrCoreAdv::Evolve() {
 
     if (cur_time >= stop_time - 1.e-6 * dt[0]) break;
   }
+
+  // writing interfaces and checkpoint file at final time
+  WritePlotFile();
+  WriteCheckpointFile();
 
   {
     amrex::MultiFab uniform_final;
@@ -230,6 +278,9 @@ void AmrCoreAdv::InitData() {
       WriteCheckpointFile();
     }
 
+    // writing checkpoint file for initial time step
+    WriteCheckpointFile();
+
   } else {
     // restart from a checkpoint
     ReadCheckpointFile();
@@ -239,6 +290,9 @@ void AmrCoreAdv::InitData() {
     GetReconstruction(finest_level);
     WritePlotFile();
   }
+  // writing interface for initial time step
+  GetReconstruction(finest_level);
+  WritePlotFile();
 }
 
 // Make a new level using provided BoxArray and DistributionMapping and
@@ -1730,8 +1784,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
                 problo[2] + (static_cast<Real>(k) + Real(0.5)) * fine_dx[2];
 
             if (lev == finest) {
-              //
-
               // Finest AMR level:
               // Copy stored moments directly. These cells may be mixed,
               // liquid,
@@ -1770,20 +1822,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
                 fine_arr(i, j, k, 2) = Real(0.0);
                 fine_arr(i, j, k, 3) = Real(0.0);
               }
-              // else {
-              //   // Unexpected case:
-              //   // A mixed cell exists below the finest level.
-              //   //
-              //   // This should not happen if AMR refinement is doing what
-              // you
-              //   // want. But do not leave it unwritten. Use a simple
-              //   uniform-vf
-              //   // fallback.
-              //   fine_arr(i, j, k, 0) = vf * fine_vol;
-              //   fine_arr(i, j, k, 1) = vf * fine_vol * x;
-              //   fine_arr(i, j, k, 2) = vf * fine_vol * y;
-              //   fine_arr(i, j, k, 3) = vf * fine_vol * z;
-              // }
             }
           });
     }
@@ -1793,168 +1831,62 @@ void AmrCoreAdv::BuildUniformFinestMoments(
   }
 }
 
-// void AmrCoreAdv::WriteUniformMomentsBinary(
-//     const amrex::MultiFab& a_uniform_moments,
-//     const std::string& a_filename) const {
-//   using namespace amrex;
+void AmrCoreAdv::PostProcessCheckpointPair(
+    const std::string& initial_checkpoint,
+    const std::string& final_checkpoint) {
+  using namespace amrex;
 
-//   const int finest = finest_level;
-//   const int ncomp = a_uniform_moments.nComp();
+  auto read_uniform_and_reconstruct =
+      [this](const std::string& checkpoint, MultiFab& uniform_moments,
+             std::vector<InterfaceScalarField>& scalar_fields) {
+        restart_chkfile = checkpoint;
+        ReadCheckpointFile();
 
-//   const Box& domain = Geom(finest).Domain();
-//   const IntVect lo = domain.smallEnd();
-//   const IntVect hi = domain.bigEnd();
+        BuildUniformFinestMoments(uniform_moments);
 
-//   const int nx = domain.length(0);
-//   const int ny = domain.length(1);
-//   const int nz = domain.length(2);
+        const BoxArray& uniform_ba = uniform_moments.boxArray();
+        const DistributionMapping& uniform_dm =
+            uniform_moments.DistributionMap();
 
-//   // Gather the distributed uniform MultiFab onto the IO processor
-//   // as one full-domain box, so the binary file has a simple ordering.
-//   BoxArray single_ba(domain);
+        SepUnionMultiFab uniform_interface(uniform_ba, uniform_dm, 1, 0);
+        InitializeSepUnionMultiFab(uniform_interface);
 
-//   Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());
-//   DistributionMapping single_dm(pmap);
+        SepUnionMultiFab uniform_interface_with_ghost(uniform_ba, uniform_dm, 1,
+                                                      num_grow);
+        InitializeSepUnionMultiFab(uniform_interface_with_ghost);
 
-//   MultiFab uniform_single(single_ba, single_dm, ncomp, 0);
-//   uniform_single.setVal(0.0);
+        MultiFab uniform_moments_with_ghost(uniform_ba, uniform_dm,
+                                            ncomp_moments, num_grow);
+        uniform_moments_with_ghost.setVal(0.0);
+        MultiFab::Copy(uniform_moments_with_ghost, uniform_moments, 0, 0,
+                       uniform_moments.nComp(), 0);
+        uniform_moments_with_ghost.FillBoundary(
+            Geom(finest_level).periodicity());
 
-//   uniform_single.ParallelCopy(a_uniform_moments, 0, 0, ncomp, 0, 0,
-//                               Geom(finest).periodicity());
+        scalar_fields.clear();
+        GetReconstruction(uniform_interface, uniform_interface_with_ghost,
+                          uniform_moments_with_ghost, Geom(finest_level),
+                          &scalar_fields);
 
-//   if (ParallelDescriptor::IOProcessor()) {
-//     std::ofstream ofs(a_filename, std::ios::out | std::ios::binary);
+        amrex::Print() << "Postprocessed checkpoint " << checkpoint
+                       << " on uniform finest domain "
+                       << uniform_moments.boxArray().minimalBox() << "\n";
+        amrex::Print() << "  Reconstruction scalar fields: "
+                       << scalar_fields.size() << "\n";
+      };
 
-//     if (!ofs.good()) {
-//       amrex::Abort("Could not open binary output file: " + a_filename);
-//     }
+  MultiFab initial_uniform_moments;
+  MultiFab final_uniform_moments;
+  std::vector<InterfaceScalarField> initial_scalar_fields;
+  std::vector<InterfaceScalarField> final_scalar_fields;
 
-//     //
-//     -----------------------------------------------------------------------
-//     // Header
-//     //
-//     -----------------------------------------------------------------------
+  read_uniform_and_reconstruct(initial_checkpoint, initial_uniform_moments,
+                               initial_scalar_fields);
+  read_uniform_and_reconstruct(final_checkpoint, final_uniform_moments,
+                               final_scalar_fields);
 
-//     // Magic number and version.
-//     // These help MATLAB check that it is reading the right file type.
-//     const std::int32_t magic = 20260504;
-//     const std::int32_t version = 1;
-
-//     ofs.write(reinterpret_cast<const char*>(&magic), sizeof(std::int32_t));
-//     ofs.write(reinterpret_cast<const char*>(&version), sizeof(std::int32_t));
-
-//     // Write case.name
-//     {
-//       const std::int32_t len = static_cast<std::int32_t>(case_name.size());
-
-//       ofs.write(reinterpret_cast<const char*>(&len), sizeof(std::int32_t));
-//       ofs.write(case_name.data(), len);
-//     }
-
-//     // Write reconstruction.name
-//     {
-//       const std::int32_t len =
-//           static_cast<std::int32_t>(reconstruction_name.size());
-
-//       ofs.write(reinterpret_cast<const char*>(&len), sizeof(std::int32_t));
-//       ofs.write(reconstruction_name.data(), len);
-//     }
-
-//     // Integer mesh/header data.
-//     // 13 int32 values:
-//     // lo_x lo_y lo_z
-//     // hi_x hi_y hi_z
-//     // nx ny nz
-//     // ncomp
-//     // finest_level
-//     // max_level
-//     // reserved
-//     std::int32_t header[13];
-
-//     header[0] = static_cast<std::int32_t>(lo[0]);
-//     header[1] = static_cast<std::int32_t>(lo[1]);
-//     header[2] = static_cast<std::int32_t>(lo[2]);
-
-//     header[3] = static_cast<std::int32_t>(hi[0]);
-//     header[4] = static_cast<std::int32_t>(hi[1]);
-//     header[5] = static_cast<std::int32_t>(hi[2]);
-
-//     header[6] = static_cast<std::int32_t>(nx);
-//     header[7] = static_cast<std::int32_t>(ny);
-//     header[8] = static_cast<std::int32_t>(nz);
-
-//     header[9] = static_cast<std::int32_t>(ncomp);
-
-//     header[10] = static_cast<std::int32_t>(finest_level);
-//     header[11] = static_cast<std::int32_t>(max_level);
-//     header[12] = static_cast<std::int32_t>(0);  // reserved
-
-//     ofs.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-//     // Optional printout
-//     amrex::Print() << "Writing uniform moments binary file: " << a_filename
-//                    << "\n";
-//     amrex::Print() << "  case.name = " << case_name << "\n";
-//     amrex::Print() << "  reconstruction.name = " << reconstruction_name <<
-//     "\n"; amrex::Print() << "  uniform finest mesh = " << nx << " x " << ny
-//     << " x "
-//                    << nz << "\n";
-//     amrex::Print() << "  ncomp = " << ncomp << "\n";
-
-//     //
-//     -----------------------------------------------------------------------
-//     // Data layout:
-//     //
-//     // for k = lo_z : hi_z
-//     //   for j = lo_y : hi_y
-//     //     for i = lo_x : hi_x
-//     //       for n = 0 : ncomp-1
-//     //         write moment(i,j,k,n)
-//     //
-//     // Components:
-//     //   n = 0 : m0
-//     //   n = 1 : m1x
-//     //   n = 2 : m1y
-//     //   n = 3 : m1z
-//     //
-//     -----------------------------------------------------------------------
-
-//     for (MFIter mfi(uniform_single); mfi.isValid(); ++mfi) {
-//       auto const arr = uniform_single.const_array(mfi);
-
-//       for (int k = lo[2]; k <= hi[2]; ++k) {
-//         for (int j = lo[1]; j <= hi[1]; ++j) {
-//           for (int i = lo[0]; i <= hi[0]; ++i) {
-//             for (int n = 0; n < ncomp; ++n) {
-//               const double value = static_cast<double>(arr(i, j, k, n));
-//               ofs.write(reinterpret_cast<const char*>(&value),
-//               sizeof(double));
-//             }
-//           }
-//         }
-//       }
-//     }
-
-//     ofs.close();
-//   }
-// }
-
-// std::string AmrCoreAdv::UniformMomentsBinaryFileName(
-//     const std::string& a_label) const {
-//   const int finest = finest_level;
-
-//   const amrex::Box& domain = Geom(finest).Domain();
-
-//   const int nx = domain.length(0);
-//   const int ny = domain.length(1);
-//   const int nz = domain.length(2);
-
-//   std::ostringstream oss;
-//   oss << "uniform_moments_" << a_label << "_" << case_name << "_"
-//       << reconstruction_name << "_" << nx << ".bin";
-
-//   return oss.str();
-// }
+  ComputeUniformMomentL1Errors(initial_uniform_moments, final_uniform_moments);
+}
 
 // amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
 //   Real local_sum = 0.0;

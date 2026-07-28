@@ -110,6 +110,9 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Real RecTime();
   amrex::Real AdvTime();
 
+  void PostProcessCheckpointPair(const std::string& initial_checkpoint,
+                                 const std::string& final_checkpoint);
+
  private:
   ////////////////
   // private member functions
@@ -181,12 +184,6 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::Geometry& a_geom, const double a_dt, const double a_time);
 
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
-
-  //   void WriteUniformMomentsBinary(const amrex::MultiFab& a_uniform_moments,
-  //                                  const std::string& a_filename) const;
-
-  //   std::string UniformMomentsBinaryFileName(const std::string& a_label)
-  //   const;
 
   amrex::Real ComputeCompositeM0() const;
 
