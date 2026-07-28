@@ -74,6 +74,13 @@ const SeparatorVariant& PUNeighborhood<CellType>::getSeparator(
 }
 
 template <class CellType>
+const double PUNeighborhood<CellType>::getWeight(
+    const UnsignedIndex_t a_index) const {
+  this->checkIndex(a_index);
+  return weights_m[a_index];
+}
+
+template <class CellType>
 const Pt& PUNeighborhood<CellType>::getCentroid(
     const UnsignedIndex_t a_index) const {
   this->checkIndex(a_index);

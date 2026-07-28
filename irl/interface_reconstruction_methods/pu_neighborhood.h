@@ -42,6 +42,8 @@ class PUNeighborhood {
 
   const Pt& getCentroid(const UnsignedIndex_t a_index) const;
 
+  const double getWeight(const UnsignedIndex_t a_index) const;
+
   const std::vector<SeparatorVariant> getSeparators() const;
 
   const std::vector<Pt> getCentroids() const;
