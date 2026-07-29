@@ -60,5 +60,5 @@ class PU {
 }
 
 }  // namespace IRL
-
+#include "irl/interface_reconstruction_methods/pu.tpp"
 #endif
