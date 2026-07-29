@@ -23,11 +23,13 @@ template <class CellType>
 class PU {
  private:
   PUNeighborhod<CellType> neighborhood_m;
-  const double kernel_size_m;
+  double kernel_size_m;
 
  public:
   // Constructors
   PU(const double a_kernel_size) : kernel_size_m(a_kernel_size) {}
+  PU(const PUNeighborhood<CellType> a_neighborhood, const double a_kernel_size)
+      : neighborhood_m(a_neighborhood), kernel_size_m(a_kernel_size) {}
 
   // Get Value
   double getPU(const Pt& x);
