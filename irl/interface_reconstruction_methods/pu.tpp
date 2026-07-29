@@ -528,6 +528,13 @@ PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
   }
   return std::make_tuple(F, gradF, hessF);
 }
+
+// Set Neighborhood
+template <class CellType>
+void PU<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
+  neighborhood_m = stencil_;
+}
+
 }  // End Namespace IRL
 
 #endif
