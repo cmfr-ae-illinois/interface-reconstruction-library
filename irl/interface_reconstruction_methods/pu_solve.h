@@ -124,7 +124,7 @@ class PUImplicitSurface {
 };
 
 template <class CellType>
-class PUST {
+class PUST_OLD {
  private:
   PUNeighborhood<CellType> stencil_m;
   // PUImplicitSurface surface_m;
@@ -133,9 +133,9 @@ class PUST {
  public:
   using RationalBezierArc = RationalBezierArcBase<double>;
   // Constructor
-  PUST(PUNeighborhood<CellType> stencil_);
+  PUST_OLD(PUNeighborhood<CellType> stencil_);
   // Default Constructor;
-  PUST(void);
+  PUST_OLD(void);
   // Neighborhood Setter
   void setNeighborhood(PUNeighborhood<CellType> stencil_);
   // Threshold Setter

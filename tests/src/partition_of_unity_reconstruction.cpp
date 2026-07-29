@@ -368,7 +368,7 @@ TEST(PUReconstruction, Test1) {
   // Calculate Intersections
   IRL::Pt x1(0, 2, 0);
   IRL::Pt x0(0, 3, 0);
-  PUST solver(neighborhood);
+  PUST_OLD solver(neighborhood);
   PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
   bool blocked = false;
   std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 1e-6, blocked);

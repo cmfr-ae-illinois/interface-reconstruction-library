@@ -875,16 +875,17 @@ inline const Pt PUImplicitSurface::projectOntoEllipsoid(const Pt& a_pt,
 
 // ============== Solver Methods
 template <class CellType>
-PUST<CellType>::PUST(void) {}
+PUST_OLD<CellType>::PUST_OLD(void) {}
 
 template <class CellType>
-PUST<CellType>::PUST(PUNeighborhood<CellType> stencil_) {
+PUST_OLD<CellType>::PUST_OLD(PUNeighborhood<CellType> stencil_) {
   this->stencil_m = stencil_;
   // this->surface_m = this->neighborhoodToImplicitSurface(5.0);
 }
 
 template <class CellType>
-PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
+PUImplicitSurface PUST_OLD<CellType>::neighborhoodToImplicitSurface(
+    double delta) {
   // const auto centroids = stencil_m.getCentroids();
   // const auto separators = stencil_m.getSeparators();
   // const auto weights = stencil_m.getWeights();
@@ -893,9 +894,10 @@ PUImplicitSurface PUST<CellType>::neighborhoodToImplicitSurface(double delta) {
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
-                                 const double delta, const double Pressure,
-                                 const Normal& Marangoni) {
+Normal PUST_OLD<CellType>::solveEdge(const double STin, const Pt& P0,
+                                     const Pt& P1, const double delta,
+                                     const double Pressure,
+                                     const Normal& Marangoni) {
   // The Marangoni normal object holds the Xgradient, then the Y gradient, then
   // the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make Implicit
   // Surface std::cout << "In Solve Edge\n";
@@ -1017,10 +1019,10 @@ Normal PUST<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
-                                 const Pt& P2, const Pt& P3, const double delta,
-                                 const double Pressure,
-                                 const Normal& Marangoni) {
+Normal PUST_OLD<CellType>::solveFace(const double STin, const Pt& P0,
+                                     const Pt& P1, const Pt& P2, const Pt& P3,
+                                     const double delta, const double Pressure,
+                                     const Normal& Marangoni) {
   // std::cout << "=========================== Solve Face \n" << std::endl;
   const double EPSILON = machine_epsilon<double>();
   // The Marangoni normal object holds the Xgradient, then the Y gradient, then
@@ -1277,9 +1279,9 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
-                                         double radius, Pt& center,
-                                         double delta) {
+Normal PUST_OLD<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
+                                             double radius, Pt& center,
+                                             double delta) {
   // Make Implicit Surface
   // std::cout << "In Solve Edge\n";
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
@@ -1315,7 +1317,7 @@ Normal PUST<CellType>::solveEdgeCylinder(double STCoeff, Pt& P0, Pt& P1,
 
 // Solve Edge for Ellipse  ===================================
 template <class CellType>
-Normal PUST<CellType>::solveFaceEllipsoid(
+Normal PUST_OLD<CellType>::solveFaceEllipsoid(
     const double STin, const Pt& P0, const Pt& P1, const Pt& P2, const Pt& P3,
     const Normal& column1, const Normal& column2, const Normal& column3,
     const Pt& center, const double Pressure, const Normal& Marangoni) {
@@ -1591,7 +1593,8 @@ Normal PUST<CellType>::solveFaceEllipsoid(
 
 // Other
 template <class CellType>
-double PUST<CellType>::getValue(double x, double y, double z, double delta) {
+double PUST_OLD<CellType>::getValue(double x, double y, double z,
+                                    double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
   double retVal = 0;
@@ -1601,7 +1604,8 @@ double PUST<CellType>::getValue(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-Normal PUST<CellType>::getTangent(double x, double y, double z, double delta) {
+Normal PUST_OLD<CellType>::getTangent(double x, double y, double z,
+                                      double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
   Normal retVal = s.getTangent(in);
@@ -1610,7 +1614,8 @@ Normal PUST<CellType>::getTangent(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-double PUST<CellType>::getWeight(double x, double y, double z, double delta) {
+double PUST_OLD<CellType>::getWeight(double x, double y, double z,
+                                     double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   Pt in = {x, y, z};
   double retVal;
@@ -1620,7 +1625,7 @@ double PUST<CellType>::getWeight(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-double PUST<CellType>::getWeight(Pt& in, double delta) {
+double PUST_OLD<CellType>::getWeight(Pt& in, double delta) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(delta);
   double retVal;
   s.getTotalWeight(in, &retVal);
@@ -1629,8 +1634,8 @@ double PUST<CellType>::getWeight(Pt& in, double delta) {
 }
 
 template <class CellType>
-double PUST<CellType>::getValueCylinder(double x, double y, double z,
-                                        double radius, Pt center) {
+double PUST_OLD<CellType>::getValueCylinder(double x, double y, double z,
+                                            double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   double retVal = 0;
@@ -1640,8 +1645,9 @@ double PUST<CellType>::getValueCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-inline Normal PUST<CellType>::getTangentCylinder(double x, double y, double z,
-                                                 double radius, Pt center) {
+inline Normal PUST_OLD<CellType>::getTangentCylinder(double x, double y,
+                                                     double z, double radius,
+                                                     Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   Normal retVal = s.getTangentCylinder(in, radius, center);
@@ -1650,8 +1656,8 @@ inline Normal PUST<CellType>::getTangentCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-double PUST<CellType>::getWeightCylinder(double x, double y, double z,
-                                         double radius, Pt center) {
+double PUST_OLD<CellType>::getWeightCylinder(double x, double y, double z,
+                                             double radius, Pt center) {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(radius);
   Pt in = {x, y, z};
   double retVal = 1.0;
@@ -1660,7 +1666,7 @@ double PUST<CellType>::getWeightCylinder(double x, double y, double z,
 }
 
 template <class CellType>
-void PUST<CellType>::printSolver() {
+void PUST_OLD<CellType>::printSolver() {
   PUImplicitSurface s = this->neighborhoodToImplicitSurface(1);
   // First Print Solver
   s.printSurface();
@@ -1668,17 +1674,17 @@ void PUST<CellType>::printSolver() {
 }
 
 template <class CellType>
-void PUST<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
+void PUST_OLD<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
   stencil_m = stencil_;
 }
 
 template <class CellType>
-void PUST<CellType>::setThreshold(double thresh_) {
+void PUST_OLD<CellType>::setThreshold(double thresh_) {
   intersection_threshold_m = thresh_;
 }
 
 template <class CellType>
-Paraboloid PUST<CellType>::solve(
+Paraboloid PUST_OLD<CellType>::solve(
     const PUNeighborhood<CellType>* a_neighborhood_pointer,
     const Pt& a_centroid, const double a_delta) {
   double delta = a_delta;
@@ -1704,7 +1710,8 @@ Paraboloid PUST<CellType>::solve(
 }
 
 template <class CellType>
-IRL::Pt PUST<CellType>::projectOntoPU(const Pt& a_pt, const double a_delta) {
+IRL::Pt PUST_OLD<CellType>::projectOntoPU(const Pt& a_pt,
+                                          const double a_delta) {
   double delta = a_delta;
   if (delta < 0.0) {
     const auto cell = stencil_m.getCenterCell();
@@ -1719,11 +1726,11 @@ IRL::Pt PUST<CellType>::projectOntoPU(const Pt& a_pt, const double a_delta) {
 }
 
 template <class CellType>
-IRL::Pt PUST<CellType>::projectOntoEllipsoid(const Pt& a_pt,
-                                             const Normal& column1,
-                                             const Normal& column2,
-                                             const Normal& column3,
-                                             const Pt& center) {
+IRL::Pt PUST_OLD<CellType>::projectOntoEllipsoid(const Pt& a_pt,
+                                                 const Normal& column1,
+                                                 const Normal& column2,
+                                                 const Normal& column3,
+                                                 const Pt& center) {
   // Implementation for projecting onto ellipsoid
   this->setNeighborhood(stencil_m);
   auto PUSurface = this->neighborhoodToImplicitSurface(
@@ -1736,7 +1743,7 @@ IRL::Pt PUST<CellType>::projectOntoEllipsoid(const Pt& a_pt,
 
 // Getting Curvature
 template <class CellType>
-double PUST<CellType>::getCurvature(Pt& a_pt, double a_delta) {
+double PUST_OLD<CellType>::getCurvature(Pt& a_pt, double a_delta) {
   double delta = a_delta;
   if (delta < 0.0) {
     const auto cell = stencil_m.getCenterCell();
@@ -1748,8 +1755,8 @@ double PUST<CellType>::getCurvature(Pt& a_pt, double a_delta) {
 }
 
 template <class CellType>
-double PUST<CellType>::getCurvature(double x, double y, double z,
-                                    double delta) {
+double PUST_OLD<CellType>::getCurvature(double x, double y, double z,
+                                        double delta) {
   double delta_ = delta;
   if (delta_ < 0.0) {
     const auto cell = stencil_m.getCenterCell();
@@ -1762,11 +1769,9 @@ double PUST<CellType>::getCurvature(double x, double y, double z,
 }
 
 template <class CellType>
-double PUST<CellType>::getMeanCurvatureEllipsoid(double x, double y, double z,
-                                                 const Normal& column1,
-                                                 const Normal& column2,
-                                                 const Normal& column3,
-                                                 const Pt& center) {
+double PUST_OLD<CellType>::getMeanCurvatureEllipsoid(
+    double x, double y, double z, const Normal& column1, const Normal& column2,
+    const Normal& column3, const Pt& center) {
   double delta_ = 1.0;
 
   this->setNeighborhood(stencil_m);
@@ -1777,11 +1782,11 @@ double PUST<CellType>::getMeanCurvatureEllipsoid(double x, double y, double z,
 }
 
 template <class CellType>
-double PUST<CellType>::getMeanCurvatureEllipsoid(Pt& a_pt,
-                                                 const Normal& column1,
-                                                 const Normal& column2,
-                                                 const Normal& column3,
-                                                 const Pt& center) {
+double PUST_OLD<CellType>::getMeanCurvatureEllipsoid(Pt& a_pt,
+                                                     const Normal& column1,
+                                                     const Normal& column2,
+                                                     const Normal& column3,
+                                                     const Pt& center) {
   double delta = 1.0;
   this->setNeighborhood(stencil_m);
   auto PUSurface = this->neighborhoodToImplicitSurface(delta);
@@ -1790,7 +1795,8 @@ double PUST<CellType>::getMeanCurvatureEllipsoid(Pt& a_pt,
 }
 // Getting Normal
 template <class CellType>
-Normal PUST<CellType>::getNormal(double x, double y, double z, double delta) {
+Normal PUST_OLD<CellType>::getNormal(double x, double y, double z,
+                                     double delta) {
   double delta_ = delta;
   if (delta_ < 0.0) {
     const auto cell = stencil_m.getCenterCell();
@@ -1803,11 +1809,11 @@ Normal PUST<CellType>::getNormal(double x, double y, double z, double delta) {
 }
 
 template <class CellType>
-Normal PUST<CellType>::getNormalEllipsoid(double x, double y, double z,
-                                          const Normal& column1,
-                                          const Normal& column2,
-                                          const Normal& column3,
-                                          const Pt& center) {
+Normal PUST_OLD<CellType>::getNormalEllipsoid(double x, double y, double z,
+                                              const Normal& column1,
+                                              const Normal& column2,
+                                              const Normal& column3,
+                                              const Pt& center) {
   double delta_ = 1.0;
 
   this->setNeighborhood(stencil_m);
