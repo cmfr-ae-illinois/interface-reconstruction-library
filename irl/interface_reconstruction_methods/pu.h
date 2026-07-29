@@ -28,8 +28,8 @@ class PU {
  public:
   // Constructors
   PU(void) : kernel_size_m(2.0) {}
-  PU(const double a_kernel_size) : kernel_size_m(a_kernel_size) {}
-  PU(const PUNeighborhood<CellType> a_neighborhood, const double a_kernel_size)
+  explicit PU(const double a_kernel_size) : kernel_size_m(a_kernel_size) {}
+  PU(const PUNeighborhood<CellType>& a_neighborhood, const double a_kernel_size)
       : neighborhood_m(a_neighborhood), kernel_size_m(a_kernel_size) {}
 
   // Get Value
@@ -43,16 +43,16 @@ class PU {
   double getTotalWeight(const Pt& x);
   // Find intersection between implicit curve and a provided line.
   std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
-                                const int& Npartitions, const double& tresh,
+                                const int Npartitions, const double tresh,
                                 bool& blocked);
   // Set Neighborhood
-  void setNeighborhood(PUNeighborhood<CellType> a_neighborhood);
+  void setNeighborhood(const PUNeighborhood<CellType>& a_neighborhood);
   // get Normal
   Normal getNormal(const Pt& x);
   // get Mean Curvature
   double getMeanCurvature(const Pt& x);
   // Project point onto implicit surface
-  const Pt projectOntoPU(const Pt& a_pt, const double dx, bool& success);
+  Pt projectOntoPU(const Pt& a_pt, const double dx, bool& success);
   // Signed Distance of Separator
   static double implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
                                   const SeparatorVariant* a_sepPtr);

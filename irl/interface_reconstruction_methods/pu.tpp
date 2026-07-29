@@ -169,9 +169,8 @@ double PU<CellType>::getTotalWeight(
 
 template <class CellType>
 std::vector<Pt> PU<CellType>::intersectEdge(const Pt& x0, const Pt& x1,
-                                            const int& Npartitions,
-                                            const double& tresh,
-                                            bool& blocked) {
+                                            const int Npartitions,
+                                            const double tresh, bool& blocked) {
   // Split the domain into segments
   blocked = false;
   std::vector<Pt> sampleLocations = {};
@@ -294,8 +293,7 @@ double PU<CellType>::getMeanCurvature(const Pt& x) {
 }
 
 template <class CellType>
-const Pt PU<CellType>::projectOntoPU(const Pt& a_pt, const double dx,
-                                     bool& success) {
+Pt PU<CellType>::projectOntoPU(const Pt& a_pt, const double dx, bool& success) {
   success = true;
   std::pair<double, Eigen::Vector3d> holdsGrad;
   Pt projected_pt = a_pt;
@@ -531,8 +529,9 @@ PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
 
 // Set Neighborhood
 template <class CellType>
-void PU<CellType>::setNeighborhood(PUNeighborhood<CellType> stencil_) {
-  neighborhood_m = stencil_;
+void PU<CellType>::setNeighborhood(
+    const PUNeighborhood<CellType>& a_neighborhood) {
+  neighborhood_m = a_neighborhood;
 }
 
 }  // End Namespace IRL
