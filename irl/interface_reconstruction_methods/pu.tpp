@@ -36,9 +36,8 @@ double PU<CellType>::getPU(const Pt& x) {
     weight_sum += weight;
 
     // How get val,grad,hess of separator
-    double F = 0.0;
-    PU<CellType>::implicitSeparator(x, neighborhood_m.getCentroid(i),
-                                    &neighborhood_m.getSeparator(i), &F);
+    double F = PU<CellType>::implicitSeparatorValue(
+        x, neighborhood_m.getCentroid(i), &neighborhood_m.getSeparator(i));
     // Now calculate F_sum, grad_product_sum, and hess_product_sum
     F_sum += weight * F;
   }
@@ -70,9 +69,8 @@ std::pair<double, Eigen::Vector3d> PU<CellType>::getPUAndGrad(const Pt& x) {
 
     // How get val,grad,hess of separator
     std::pair<double, Eigen::Vector3d> separatorRet;
-    PU<CellType>::implicitSeparator(x, neighborhood_m.getCentroid(i),
-                                    &neighborhood_m.getSeparator(i),
-                                    &separatorRet);
+    separatorRet = PU<CellType>::implicitSeparatorValueandGrad(
+        x, neighborhood_m.getCentroid(i), &neighborhood_m.getSeparator(i));
 
     // Get Values
     double F = std::get<0>(separatorRet);
@@ -120,9 +118,8 @@ PU<CellType>::getPUGradAndHess(const Pt& x) {
 
     // How get val,grad,hess of separator
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> separatorRet;
-    PU<CellType>::implicitSeparator(x, neighborhood_m.getCentroid(i),
-                                    &neighborhood_m.getSeparator(i),
-                                    &separatorRet);
+    separatorRet = PU<CellType>::implicitSeparatorValueGradHess(
+        x, neighborhood_m.getCentroid(i), &neighborhood_m.getSeparator(i));
 
     // Get Values
     double F = std::get<0>(separatorRet);
@@ -170,7 +167,8 @@ double PU<CellType>::getTotalWeight(
 template <class CellType>
 std::vector<Pt> PU<CellType>::intersectEdge(const Pt& x0, const Pt& x1,
                                             const int Npartitions,
-                                            const double tresh, bool& blocked) {
+                                            const double thresh,
+                                            bool& blocked) {
   // Split the domain into segments
   blocked = false;
   std::vector<Pt> sampleLocations = {};
@@ -184,7 +182,7 @@ std::vector<Pt> PU<CellType>::intersectEdge(const Pt& x0, const Pt& x1,
         (static_cast<double>(i) / static_cast<double>(Npartitions)) * x1;
     sampleLocations.push_back(temp);
 
-    double val = this->getPU(temp, &val);
+    double val = this->getPU(temp);
     values.push_back(val);
 
     double sgn = (0.0 < val) - (val < 0.0);
@@ -259,7 +257,7 @@ std::vector<Pt> PU<CellType>::intersectEdge(const Pt& x0, const Pt& x1,
 
 template <class CellType>
 Normal PU<CellType>::getNormal(const Pt& x) {
-  std::pair<double, Eigen::Vector3d> holdsGrad = this->getPuAndGrad(x);
+  std::pair<double, Eigen::Vector3d> holdsGrad = this->getPUAndGrad(x);
   auto gradF = std::get<1>(holdsGrad);
   double Fx = gradF(0);
   double Fy = gradF(1);
@@ -347,8 +345,9 @@ Pt PU<CellType>::projectOntoPU(const Pt& a_pt, const double dx, bool& success) {
 
 // Implicit Separators
 template <class CellType>
-double PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                       const SeparatorVariant* a_sepPtr) {
+double PU<CellType>::implicitSeparatorValue(const Pt& a_pt,
+                                            const Pt& a_centroid,
+                                            const SeparatorVariant* a_sepPtr) {
   const Pt x = a_pt - a_centroid;
   double F;
   if (const auto sepPtr = std::get_if<PlanarSeparator>(a_sepPtr)) {
@@ -395,7 +394,7 @@ double PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
 
 // Signed Distance and Gradient of Separator
 template <class CellType>
-std::pair<double, Eigen::Vector3d> PU<CellType>::implicitSeparator(
+std::pair<double, Eigen::Vector3d> PU<CellType>::implicitSeparatorValueandGrad(
     const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr) {
   const Pt x = a_pt - a_centroid;
   double F;
@@ -453,8 +452,9 @@ std::pair<double, Eigen::Vector3d> PU<CellType>::implicitSeparator(
 // Signed Distance, Gradient, and Hessian of Separator
 template <class CellType>
 std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>
-PU<CellType>::implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                const SeparatorVariant* a_sepPtr) {
+PU<CellType>::implicitSeparatorValueGradHess(const Pt& a_pt,
+                                             const Pt& a_centroid,
+                                             const SeparatorVariant* a_sepPtr) {
   const Pt x = a_pt - a_centroid;
   double F;
   Eigen::Vector3d gradF;
@@ -532,6 +532,23 @@ template <class CellType>
 void PU<CellType>::setNeighborhood(
     const PUNeighborhood<CellType>& a_neighborhood) {
   neighborhood_m = a_neighborhood;
+}
+
+template <class CellType>
+void PU<CellType>::setKernelSize(const double a_kernel_size) {
+  kernel_size_m = a_kernel_size;
+}
+
+// Print Surface
+template <class CellType>
+void PU<CellType>::printSurface() {
+  std::cout << "> Kernel Size = " << kernel_size_m << "\n";
+  std::cout << "> Neighborhood Size = " << neighborhood_m.size() << "\n";
+  // Loop over separators and centroids and print
+  for (int i = 0; i < neighborhood_m.size(); i++) {
+    std::cout << neighborhood_m.getSeparator(i) << " at "
+              << neighborhood_m.getCentroid(i) << "\n";
+  }
 }
 
 }  // End Namespace IRL

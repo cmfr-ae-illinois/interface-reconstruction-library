@@ -84,4 +84,5 @@ target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_objecta
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_mixedsurface_class.f90)
 
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_pu_solve_rectangularcuboid_class.f90)
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_pust_rectangularcuboid_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_puneighborhood_rectangularcuboid_class.f90)

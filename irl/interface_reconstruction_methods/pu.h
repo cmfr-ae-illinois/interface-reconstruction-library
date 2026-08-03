@@ -22,7 +22,7 @@ namespace IRL {
 template <class CellType>
 class PU {
  private:
-  PUNeighborhod<CellType> neighborhood_m;
+  PUNeighborhood<CellType> neighborhood_m;
   double kernel_size_m;
 
  public:
@@ -47,6 +47,8 @@ class PU {
                                 bool& blocked);
   // Set Neighborhood
   void setNeighborhood(const PUNeighborhood<CellType>& a_neighborhood);
+  // Set Kernel Size
+  void setKernelSize(const double a_kernel_size);
   // get Normal
   Normal getNormal(const Pt& x);
   // get Mean Curvature
@@ -54,15 +56,18 @@ class PU {
   // Project point onto implicit surface
   Pt projectOntoPU(const Pt& a_pt, const double dx, bool& success);
   // Signed Distance of Separator
-  static double implicitSeparator(const Pt& a_pt, const Pt& a_centroid,
-                                  const SeparatorVariant* a_sepPtr);
+  static double implicitSeparatorValue(const Pt& a_pt, const Pt& a_centroid,
+                                       const SeparatorVariant* a_sepPtr);
   // Signed Distance and Gradient of Separator
-  static std::pair<double, Eigen::Vector3d> implicitSeparator(
+  static std::pair<double, Eigen::Vector3d> implicitSeparatorValueandGrad(
       const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr);
   // Signed Distance, Gradient, and Hessian of Separator
-  static std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> implicitSeparator(
-      const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr);
-}
+  static std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>
+  implicitSeparatorValueGradHess(const Pt& a_pt, const Pt& a_centroid,
+                                 const SeparatorVariant* a_sepPtr);
+  // Debug
+  void printSurface();
+};
 
 }  // namespace IRL
 #include "irl/interface_reconstruction_methods/pu.tpp"
