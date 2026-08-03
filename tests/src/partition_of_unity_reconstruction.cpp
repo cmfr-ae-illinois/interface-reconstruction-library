@@ -23,8 +23,9 @@
 #include "irl/moments/general_moments.h"
 
 #include "irl/helpers/wendland.h"
+#include "irl/interface_reconstruction_methods/pu.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
-#include "irl/interface_reconstruction_methods/pu_solve.h"
+#include "irl/interface_reconstruction_methods/pust.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 namespace {
@@ -208,7 +209,11 @@ TEST(PartitionOfUnityImplicitSurface, Test) {
   weights.push_back(1.0);
   weights.push_back(1.0);
 
-  IRL::PUImplicitSurface planarSurface(centroids, variantSeps, weights, delta);
+  IRL::PUNeighborhood<RectangularCuboid> neighborhood;
+  neighborhood.addMember(&centroids[0], &variantSeps[0], 1.0);
+  neighborhood.addMember(&centroids[1], &variantSeps[1], 1.0);
+  neighborhood.addMember(&centroids[2], &variantSeps[2], 1.0);
+  IRL::PU<RectangularCuboid> planarSurface(neighborhood, delta);
 
   // Test Evaluate method, which in turn tests the implicitSeparator methods
   double res1;
@@ -218,16 +223,16 @@ TEST(PartitionOfUnityImplicitSurface, Test) {
   IRL::Pt x1(0, 0, 0);
   IRL::Pt x2(1, 1, 0);
   // Value
-  planarSurface.evaluate(x1, &res1);
+  res1 = planarSurface.getPU(x1);
   EXPECT_NEAR(res1, 0.0, std::numeric_limits<double>::epsilon())
       << "Function Value on Planar Separator is Nonzero";
-  planarSurface.evaluate(x2, &res1);
+  res1 = planarSurface.getPU(x2);
   EXPECT_NEAR(res1, 1.0, std::numeric_limits<double>::epsilon())
       << "Function Value off Planar Separator is Wrong";
 
   // Gradient
   Eigen::Vector3d expectedGrad(1.0, 0.0, 0.0);
-  planarSurface.evaluate(x1, &res2);
+  res2 = planarSurface.getPUAndGrad(x1);
   Eigen::Vector3d grad = std::get<1>(res2);
   for (int i = 0; i < 3; ++i) {
     EXPECT_NEAR(grad(i), expectedGrad(i),
@@ -235,7 +240,7 @@ TEST(PartitionOfUnityImplicitSurface, Test) {
         << "Function Value on Planar Separator is Wrong";
   }
 
-  planarSurface.evaluate(x2, &res2);
+  res2 = planarSurface.getPUAndGrad(x2);
   grad = std::get<1>(res2);
   for (int i = 0; i < 3; ++i) {
     EXPECT_NEAR(grad(i), expectedGrad(i),
@@ -245,21 +250,21 @@ TEST(PartitionOfUnityImplicitSurface, Test) {
 
   // Hessian
   Eigen::Matrix3d expectedHessian = Eigen::Matrix3d::Zero();
-  planarSurface.evaluate(x1, &res3);
+  res3 = planarSurface.getPUGradAndHess(x1);
   Eigen::Matrix3d hess = std::get<2>(res3);
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
-      EXPECT_NEAR(hess(i), expectedHessian(i),
+      EXPECT_NEAR(hess(i, j), expectedHessian(i, j),
                   std::numeric_limits<double>::epsilon())
           << "Function Hessian on Planar Separator is Wrong";
     }
   }
 
-  planarSurface.evaluate(x2, &res3);
+  res3 = planarSurface.getPUGradAndHess(x2);
   hess = std::get<2>(res3);
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
-      EXPECT_NEAR(hess(i), expectedHessian(i),
+      EXPECT_NEAR(hess(i, j), expectedHessian(i, j),
                   std::numeric_limits<double>::epsilon())
           << "Function Hessian on Planar Separator is Wrong";
     }
@@ -368,10 +373,9 @@ TEST(PUReconstruction, Test1) {
   // Calculate Intersections
   IRL::Pt x1(0, 2, 0);
   IRL::Pt x0(0, 3, 0);
-  PUST_OLD solver(neighborhood);
-  PUImplicitSurface semi = solver.neighborhoodToImplicitSurface(5.0);
+  IRL::PUST<RectangularCuboid> solver(neighborhood, 5.0);
   bool blocked = false;
-  std::vector<IRL::Pt> inters = semi.intersectEdge(x0, x1, 10, 1e-6, blocked);
+  std::vector<IRL::Pt> inters = solver.intersectEdge(x0, x1, 10, 1e-6, blocked);
   EXPECT_EQ(inters.size(), 1) << "Wrong Number of Intersections Found";
   // Order goes x=0,x=1,y=2,x=2,y=1,y=0
   // Intersection Points, by hand
@@ -467,7 +471,7 @@ TEST(PUReconstruction, Test1) {
   blocked = false;
   for (int i = 0; i < x0Set.size(); i++) {  // Loop Over Edges and Solve
     // std::cout << "EDGE " << i << "===============\n ";
-    inters = semi.intersectEdge(x0Set[i], x1Set[i], 10, 1e-6, blocked);
+    inters = solver.intersectEdge(x0Set[i], x1Set[i], 10, 1e-6, blocked);
     // Check Intersection
     EXPECT_EQ(inters.size(), 1)
         << "Wrong Number of Intersections for Edge " << i;
@@ -477,7 +481,7 @@ TEST(PUReconstruction, Test1) {
     }
     // Check Gradient
     std::pair<double, Eigen::Vector3d> retVal;
-    semi.evaluate(intersSet[i], &retVal);
+    retVal = solver.getPUAndGrad(intersSet[i]);
     Eigen::Vector3d tempGrad = std::get<1>(retVal);
     for (int j = 0; j < 3; j++) {
       EXPECT_NEAR(tempGrad(j), gradSet[i][j], 1e-9)
@@ -501,7 +505,7 @@ TEST(PUReconstruction, Test1) {
 
     // Check Hessian Included Function
     std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> retValHess;
-    semi.evaluate(intersSet[i], &retValHess);
+    retValHess = solver.getPUGradAndHess(intersSet[i]);
     Eigen::Matrix3d tempHess = std::get<2>(retValHess);
     // Hessian
     for (int j = 0; j < 3; j++) {

@@ -101,4 +101,5 @@ module irl_fortran_interface
   use f_MixedPolygonBezierSurface_class
   use f_PUNeigh_RectCub_class
   use f_PUSolve_RectCub_class
+  use f_PUST_RectCub_class
 end module irl_fortran_interface

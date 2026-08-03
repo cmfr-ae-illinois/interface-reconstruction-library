@@ -17,7 +17,8 @@ program main
   use irl_fortran_interface
   use f_PUNeigh_RectCub_class
   use f_SeparatorVariant_class
-  use f_PUSolve_RectCub_class
+  ! use f_PUSolve_RectCub_class
+  use f_PUST_RectCub_class
   implicit none
   integer, parameter :: DP = kind(1.0d0)
   
@@ -30,7 +31,8 @@ program main
   ! First make a Neighborhood
   type(PUNeigh_RectCub_type) :: neighborhood
   ! Now the solver object
-  type(PU_RectCub_type) :: solver
+  type(PUST_RectCub_type) :: solver
+  ! type(PU_RectCub_type) :: solver
 
   ! Define Planar Separators
   ! Centroids
@@ -87,32 +89,33 @@ program main
   ! Now, add Separators to Neighborhood
   write(*,'(A)') 'Making Neighborhood'
   call new(neighborhood)
-  call addMember(neighborhood,cen1,1.0_DP,plane1)
+  call addMember(neighborhood,cen1,1.0_DP,plane1,1.0_DP)
 
   call new(plane1)
   call setNumberOfPlanes(plane1,1)
   call setPlane(plane1, 0, nor2,d2)
-  call addMember(neighborhood,cen2,1.0_DP,plane1)
+  call addMember(neighborhood,cen2,1.0_DP,plane1,1.0_DP)
 
   call new(plane1)
   call setNumberOfPlanes(plane1,1)
   call setPlane(plane1, 0, nor3,d3)
-  call addMember(neighborhood,cen3,1.0_DP,plane1)
+  call addMember(neighborhood,cen3,1.0_DP,plane1,1.0_DP)
 
   call new(plane1)
   call setNumberOfPlanes(plane1,1)
   call setPlane(plane1, 0, nor4,d4)
-  call addMember(neighborhood,cen4,1.0_DP,plane1)
+  call addMember(neighborhood,cen4,1.0_DP,plane1,1.0_DP)
 
   call new(plane1)
   call setNumberOfPlanes(plane1,1)
   call setPlane(plane1, 0, nor5,d5)
-  call addMember(neighborhood,cen5,1.0_DP,plane1)
+  call addMember(neighborhood,cen5,1.0_DP,plane1,1.0_DP)
 
   ! Now that everything is in the neighborhood, make the solver object and put the neighborhood in.
   write(*,'(A)') 'Making Solver'
   call new(solver)
   call setNeighborhood(solver,neighborhood)
+  call setKernelSize(solver,delta)
   stc = 1.0_DP
 
   write(*,'(A)')

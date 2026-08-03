@@ -71,21 +71,21 @@ module f_PUSolve_RectCub_class
     interface
 
         subroutine F_PU_RectCub_new(this) &
-            bind(C, name = "c_PU_RectCub_new")
+            bind(C, name = "c_PUST_OLD_RectCub_new")
             import
             implicit none
             type(c_PU_RectCub) :: this
         end subroutine F_PU_RectCub_new
 
         subroutine F_PU_RectCub_delete(this) & 
-            bind(C, name = "c_PU_RectCub_delete")
+            bind(C, name = "c_PUST_OLD_RectCub_delete")
             import
             implicit none
             type(c_PU_RectCub) :: this
         end subroutine F_PU_RectCub_delete
 
         subroutine F_PU_RectCub_setNeighborhood(this,neighborhood)&
-            bind(C, name = "c_PU_RectCub_setNeighborhood")
+            bind(C, name = "c_PUST_OLD_RectCub_setNeighborhood")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -93,7 +93,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_setNeighborhood
 
         subroutine F_PU_RectCub_setThreshold(this,threshold)&
-            bind(C,name = "c_PU_RectCub_setThreshold")
+            bind(C,name = "c_PUST_OLD_RectCub_setThreshold")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -101,7 +101,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_setThreshold
 
         subroutine F_PU_RectCub_solveEdge(this,surface_tension_coefficient, start_point, end_point,delta,&
-             Pressure, Marangoni, a_force) bind(C, name = "c_PU_RectCub_solveEdge")
+             Pressure, Marangoni, a_force) bind(C, name = "c_PUST_OLD_RectCub_solveEdge")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -115,7 +115,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_solveEdge
 
         subroutine F_PU_RectCub_solveEdgeCylinder(this,surface_tension_coefficient, start_point,&
-            end_point,radius,center,delta, a_force) bind(C, name = "c_PU_RectCub_solveEdgeCylinder")
+            end_point,radius,center,delta, a_force) bind(C, name = "c_PUST_OLD_RectCub_solveEdgeCylinder")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -129,7 +129,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_solveEdgeCylinder
 
         subroutine F_PU_RectCub_solveFace(this,surface_tension_coefficient, P0, P1,P2,P3,delta,&
-             Pressure, Marangoni, a_force) bind(C, name = "c_PU_RectCub_solveFace")
+             Pressure, Marangoni, a_force) bind(C, name = "c_PUST_OLD_RectCub_solveFace")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -146,7 +146,7 @@ module f_PUSolve_RectCub_class
 
         subroutine F_PU_RectCub_solveFaceEllipsoid(this,surface_tension_coefficient, P0, P1,P2,P3,&
              column1,column2,column3,center,Pressure, Marangoni, a_force)&
-              bind(C, name = "c_PU_RectCub_solveFaceEllipsoid")
+              bind(C, name = "c_PUST_OLD_RectCub_solveFaceEllipsoid")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -165,7 +165,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_solveFaceEllipsoid
 
         subroutine F_PU_RectCub_getValue(this,x,y,z,delta,value)&
-            bind(C, name="c_PU_RectCub_getValue")
+            bind(C, name="c_PUST_OLD_RectCub_getValue")
             import
             implicit none 
             type(c_PU_RectCub) :: this
@@ -177,7 +177,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getValue
 
         subroutine F_PU_RectCub_getValueCylinder(this,x,y,z,radius,center,value)&
-            bind(C, name="c_PU_RectCub_getValueCylinder")
+            bind(C, name="c_PUST_OLD_RectCub_getValueCylinder")
             import
             implicit none 
             type(c_PU_RectCub) :: this
@@ -190,7 +190,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getValueCylinder
         
         subroutine F_PU_RectCub_getTangent(this,x,y,z,delta,tangent)&
-            bind(C, name="c_PU_RectCub_getTangent")
+            bind(C, name="c_PUST_OLD_RectCub_getTangent")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -202,7 +202,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getTangent
 
         subroutine F_PU_RectCub_getTangentCylinder(this,x,y,z,radius,center,tangent)&
-            bind(C, name="c_PU_RectCub_getTangent")
+            bind(C, name="c_PUST_OLD_RectCub_getTangent")
             import
             implicit none
             type(c_PU_RectCub) :: this
@@ -215,7 +215,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getTangentCylinder
 
         subroutine F_PU_RectCub_getWeight(this,x,y,z,delta,weight)&
-            bind(C, name="c_PU_RectCub_getWeight")
+            bind(C, name="c_PUST_OLD_RectCub_getWeight")
             import
             implicit none 
             type(c_PU_RectCub) :: this
@@ -227,7 +227,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getWeight
 
         subroutine F_PU_RectCub_getWeightCylinder(this,x,y,z,radius,center,weight)&
-            bind(C, name="c_PU_RectCub_getWeight")
+            bind(C, name="c_PUST_OLD_RectCub_getWeight")
             import
             implicit none 
             type(c_PU_RectCub) :: this
@@ -240,7 +240,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getWeightCylinder
 
         subroutine F_PU_RectCub_getCurvature(this,x,y,z,delta,curv)&
-            bind(C, name="c_PU_RectCub_getCurvature")
+            bind(C, name="c_PUST_OLD_RectCub_getCurvature")
             import
             implicit none 
             type(c_PU_RectCub) :: this
@@ -252,14 +252,14 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getCurvature
 
         subroutine F_PU_RectCub_printSolver(this)&
-            bind(C, name="c_PU_RectCub_printSolver")
+            bind(C, name="c_PUST_OLD_RectCub_printSolver")
             import
             implicit none 
             type(c_PU_RectCub) :: this
         end subroutine F_PU_RectCub_printSolver
 
         subroutine F_PU_RectCub_projectToPU(this,P0,delta,Pout)&
-            bind(C,name ="c_PU_RectCub_projectToPU")
+            bind(C,name ="c_PUST_OLD_RectCub_projectToPU")
             import 
             implicit none
             type(c_PU_RectCub) :: this 
@@ -269,7 +269,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_projectToPU
 
         subroutine F_PU_RectCub_projectToEllipsoid(this,P0,column1,column2,column3,center,Pout)&
-            bind(C,name ="c_PU_RectCub_projectToEllipsoid")
+            bind(C,name ="c_PUST_OLD_RectCub_projectToEllipsoid")
             import 
             implicit none
             type(c_PU_RectCub) :: this 
@@ -282,7 +282,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_projectToEllipsoid
 
         subroutine F_PU_RectCub_getMeanCurvatureEllipsoid(this,x,y,z,column1,column2,column3,center,curv)&
-            bind(C,name ="c_PU_RectCub_getMeanCurvatureEllipsoid")
+            bind(C,name ="c_PUST_OLD_RectCub_getMeanCurvatureEllipsoid")
             import 
             implicit none
             type(c_PU_RectCub) :: this 
@@ -297,7 +297,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getMeanCurvatureEllipsoid
 
         subroutine F_PU_RectCub_getNormalEllipsoid(this,x,y,z,column1,column2,column3,center,normal)&
-            bind(C,name ="c_PU_RectCub_getNormalEllipsoid")
+            bind(C,name ="c_PUST_OLD_RectCub_getNormalEllipsoid")
             import 
             implicit none
             type(c_PU_RectCub) :: this 
@@ -312,7 +312,7 @@ module f_PUSolve_RectCub_class
         end subroutine F_PU_RectCub_getNormalEllipsoid
 
         subroutine F_PU_RectCub_getNormal(this,x,y,z,delta,normal)&
-            bind(C,name ="c_PU_RectCub_getNormal")
+            bind(C,name ="c_PUST_OLD_RectCub_getNormal")
             import 
             implicit none
             type(c_PU_RectCub) :: this 
