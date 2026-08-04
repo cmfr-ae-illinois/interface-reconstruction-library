@@ -90,14 +90,13 @@ void c_PUST_RectCub_getWeight(c_PUST_RectCub* a_self, double* x, double* y,
   *weight = a_self->obj_ptr->getTotalWeight(P);
 }
 
-void c_PUST_RectCub_projectToPU(c_PUST_RectCub* a_self, double* P0, double* dx,
-                                bool* success, double* Pout) {
+void c_PUST_RectCub_projectToPU(c_PUST_RectCub* a_self, double* P0,
+                                double* Pout) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
 
   IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
-
-  IRL::Pt Pouttemp = a_self->obj_ptr->projectOntoPU(P0temp, *dx, *success);
+  IRL::Pt Pouttemp = a_self->obj_ptr->projectOntoPU(P0temp);
 
   for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
     *(Pout + n) = Pouttemp[n];
@@ -134,5 +133,93 @@ void c_PUST_RectCub_printSolver(c_PUST_RectCub* a_self) {
   assert(a_self->obj_ptr != nullptr);
 
   a_self->obj_ptr->printSolver();
+}
+
+// Ellipsoid
+void c_PUST_RectCub_solveFaceEllipsoid(c_PUST_RectCub* a_self, double* STCoeff,
+                                       double* P0, double* P1, double* P2,
+                                       double* P3, double* column1,
+                                       double* column2, double* column3,
+                                       double* center, double* Pressure,
+                                       double* Marangoni, double* a_force) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
+  IRL::Pt P1temp = IRL::Pt::fromRawDoublePointer(P1);
+  IRL::Pt P2temp = IRL::Pt::fromRawDoublePointer(P2);
+  IRL::Pt P3temp = IRL::Pt::fromRawDoublePointer(P3);
+  IRL::Normal column1Temp = IRL::Normal::fromRawDoublePointer(column1);
+  IRL::Normal column2Temp = IRL::Normal::fromRawDoublePointer(column2);
+  IRL::Normal column3Temp = IRL::Normal::fromRawDoublePointer(column3);
+  IRL::Pt centerTemp = IRL::Pt::fromRawDoublePointer(center);
+  IRL::Normal MarangoniTemp = IRL::Normal::fromRawDoublePointer(Marangoni);
+
+  IRL::Normal force = a_self->obj_ptr->solveFaceEllipsoid(
+      *STCoeff, P0temp, P1temp, P2temp, P3temp, column1Temp, column2Temp,
+      column3Temp, centerTemp, *Pressure, MarangoniTemp);
+
+  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
+    *(a_force + n) = force[n];
+  }
+}
+
+void c_PUST_RectCub_getNormalEllipsoid(c_PUST_RectCub* a_self, double* x,
+                                       double* y, double* z, double* column1,
+                                       double* column2, double* column3,
+                                       double* center, double* normal) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Normal col1 = IRL::Normal::fromRawDoublePointer(column1);
+  IRL::Normal col2 = IRL::Normal::fromRawDoublePointer(column2);
+  IRL::Normal col3 = IRL::Normal::fromRawDoublePointer(column3);
+  IRL::Pt centertemp = IRL::Pt::fromRawDoublePointer(center);
+
+  IRL::Normal N = a_self->obj_ptr->getNormalEllipsoid(*x, *y, *z, col1, col2,
+                                                      col3, centertemp);
+
+  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
+    *(normal + n) = N[n];
+  }
+}
+
+void c_PUST_RectCub_getMeanCurvatureEllipsoid(c_PUST_RectCub* a_self, double* x,
+                                              double* y, double* z,
+                                              double* column1, double* column2,
+                                              double* column3, double* center,
+                                              double* value) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Pt Ptemp = {*(x), *(y), *(z)};
+  IRL::Normal col1 = IRL::Normal::fromRawDoublePointer(column1);
+  IRL::Normal col2 = IRL::Normal::fromRawDoublePointer(column2);
+  IRL::Normal col3 = IRL::Normal::fromRawDoublePointer(column3);
+  IRL::Pt centertemp = IRL::Pt::fromRawDoublePointer(center);
+  double temp = a_self->obj_ptr->getMeanCurvatureEllipsoid(Ptemp, col1, col2,
+                                                           col3, centertemp);
+  *value = temp;
+}
+
+void c_PUST_RectCub_projectToEllipsoid(c_PUST_RectCub* a_self, double* P0,
+                                       double* column1, double* column2,
+                                       double* column3, double* center,
+                                       double* Pout) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+
+  IRL::Pt P0temp = IRL::Pt::fromRawDoublePointer(P0);
+  IRL::Normal col1 = IRL::Normal::fromRawDoublePointer(column1);
+  IRL::Normal col2 = IRL::Normal::fromRawDoublePointer(column2);
+  IRL::Normal col3 = IRL::Normal::fromRawDoublePointer(column3);
+  IRL::Pt centertemp = IRL::Pt::fromRawDoublePointer(center);
+
+  IRL::Pt Pouttemp = a_self->obj_ptr->projectOntoEllipsoid(P0temp, col1, col2,
+                                                           col3, centertemp);
+
+  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
+    *(Pout + n) = Pouttemp[n];
+  }
 }
 }

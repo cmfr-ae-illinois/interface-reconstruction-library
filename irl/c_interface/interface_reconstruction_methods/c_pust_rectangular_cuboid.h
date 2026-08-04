@@ -44,15 +44,35 @@ void c_PUST_RectCub_getMeanCurvature(c_PUST_RectCub* a_self, double* x,
                                      double* y, double* z, double* delta,
                                      double* value);
 
-void c_PUST_RectCub_projectToPU(c_PUST_RectCub* a_self, double* P0, double* dx,
-                                bool* success, double* Pout);
+void c_PUST_RectCub_projectToPU(c_PUST_RectCub* a_self, double* P0,
+                                double* Pout);
 
-// Get Normal for Both
 void c_PUST_RectCub_getNormal(c_PUST_RectCub* a_self, double* x, double* y,
                               double* z, double* delta, double* normal);
 
 // Debug
 void c_PUST_RectCub_printSolver(c_PUST_RectCub* a_self);
+
+// Ellipsoid
+void c_PUST_RectCub_projectToEllipsoid(c_PUST_RectCub* a_self, double* P0,
+                                       double* column1, double* column2,
+                                       double* column3, double* center,
+                                       double* Pout);
+void c_PUST_RectCub_getMeanCurvatureEllipsoid(c_PUST_RectCub* a_self, double* x,
+                                              double* y, double* z,
+                                              double* column1, double* column2,
+                                              double* column3, double* center,
+                                              double* value);
+void c_PUST_RectCub_getNormalEllipsoid(c_PUST_RectCub* a_self, double* x,
+                                       double* y, double* z, double* column1,
+                                       double* column2, double* column3,
+                                       double* center, double* normal);
+void c_PUST_RectCub_solveFaceEllipsoid(c_PUST_RectCub* a_self, double* STCoeff,
+                                       double* P0, double* P1, double* P2,
+                                       double* P3, double* column1,
+                                       double* column2, double* column3,
+                                       double* center, double* Pressure,
+                                       double* Marangoni, double* a_force);
 }
 
 #endif

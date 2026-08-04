@@ -50,6 +50,18 @@ module f_PUST_RectCub_class
     interface getNormalPU
         module procedure PUST_RectCub_class_getNormal
     end interface 
+    interface projectToEllipsoid
+        module procedure PUST_RectCub_class_projectToEllipsoid
+    end interface
+    interface getMeanCurvatureEllipsoid 
+        module procedure PUST_RectCub_class_getMeanCurvatureEllipsoid
+    end interface
+    interface getNormalEllipsoid
+        module procedure PUST_RectCub_class_getNormalEllipsoid
+    end interface
+    interface solveFaceEllipsoid
+        module procedure PUST_RectCub_class_solveFaceEllipsoid
+    end interface 
     interface
 
         subroutine F_PUST_RectCub_new(this) &
@@ -155,12 +167,11 @@ module f_PUST_RectCub_class
             type(c_PUST_RectCub) :: this
         end subroutine F_PUST_RectCub_printSolver
 
-        subroutine F_PUST_RectCub_projectToPU(this,P0,delta,Pout)&
+        subroutine F_PUST_RectCub_projectToPU(this,P0,Pout)&
             bind(C,name ="c_PUST_RectCub_projectToPU")
             import 
             implicit none
             type(c_PUST_RectCub) :: this 
-            real(C_DOUBLE) :: delta
             real(C_DOUBLE), dimension(*), intent(in) :: P0 ! dimension(1:3)
             real(C_DOUBLE), dimension(*), intent(out) :: Pout ! dimension(1:3)
         end subroutine F_PUST_RectCub_projectToPU
@@ -176,6 +187,69 @@ module f_PUST_RectCub_class
             real(C_DOUBLE) :: delta
             real(C_DOUBLE), dimension(*), intent(out) :: normal ! dimension(1:3)
         end subroutine F_PUST_RectCub_getNormal
+
+        subroutine F_PUST_RectCub_solveFaceEllipsoid(this,surface_tension_coefficient, P0, P1,P2,P3,&
+             column1,column2,column3,center,Pressure, Marangoni, a_force)&
+              bind(C, name = "c_PUST_RectCub_solveFaceEllipsoid")
+            import
+            implicit none
+            type(c_PUST_RectCub) :: this
+            real(C_DOUBLE) :: surface_tension_coefficient
+            real(C_DOUBLE), dimension(*), intent(in) :: column1 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column2 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column3 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: center ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P0 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P1 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P2 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P3 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: Marangoni ! dimension(1:3)
+            real(C_DOUBLE) :: Pressure
+            real(C_DOUBLE), dimension(*), intent(out) :: a_force
+        end subroutine F_PUST_RectCub_solveFaceEllipsoid
+        
+        subroutine F_PUST_RectCub_projectToEllipsoid(this,P0,column1,column2,column3,center,Pout)&
+            bind(C,name ="c_PUST_RectCub_projectToEllipsoid")
+            import 
+            implicit none
+            type(c_PUST_RectCub) :: this 
+            real(C_DOUBLE), dimension(*), intent(in) :: P0 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column1 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column2 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column3 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: center ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(out) :: Pout ! dimension(1:3)
+        end subroutine F_PUST_RectCub_projectToEllipsoid
+
+        subroutine F_PUST_RectCub_getMeanCurvatureEllipsoid(this,x,y,z,column1,column2,column3,center,curv)&
+            bind(C,name ="c_PUST_RectCub_getMeanCurvatureEllipsoid")
+            import 
+            implicit none
+            type(c_PUST_RectCub) :: this 
+            real(C_DOUBLE) :: x
+            real(C_DOUBLE) :: y
+            real(C_DOUBLE) :: z
+            real(C_DOUBLE), dimension(*), intent(in) :: column1 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column2 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column3 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: center ! dimension(1:3)
+            real(C_DOUBLE) :: curv
+        end subroutine F_PUST_RectCub_getMeanCurvatureEllipsoid
+
+        subroutine F_PUST_RectCub_getNormalEllipsoid(this,x,y,z,column1,column2,column3,center,normal)&
+            bind(C,name ="c_PUST_RectCub_getNormalEllipsoid")
+            import 
+            implicit none
+            type(c_PUST_RectCub) :: this 
+            real(C_DOUBLE) :: x
+            real(C_DOUBLE) :: y
+            real(C_DOUBLE) :: z
+            real(C_DOUBLE), dimension(*), intent(in) :: column1 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column2 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: column3 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: center ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(out) :: normal ! dimension(1:3)
+        end subroutine F_PUST_RectCub_getNormalEllipsoid
     end interface
 
     contains
@@ -279,14 +353,13 @@ module f_PUST_RectCub_class
             call F_PUST_RectCub_printSolver(this%c_object)
         end subroutine PUST_RectCub_class_printSolver
 
-        subroutine PUST_RectCub_class_projectToPU(this, P0,delta,Pout)
+        subroutine PUST_RectCub_class_projectToPU(this, P0,Pout)
             implicit none
             type(PUST_RectCub_Type) :: this
-            real(C_DOUBLE) :: delta
             real(IRL_double), dimension(1:3), intent(in) :: P0
             real(IRL_double), dimension(1:3), intent(out) :: Pout
 
-            call F_PUST_RectCub_projectToPU(this%c_object, P0,delta,Pout)
+            call F_PUST_RectCub_projectToPU(this%c_object, P0,Pout)
             return
         end subroutine PUST_RectCub_class_projectToPU
 
@@ -300,4 +373,68 @@ module f_PUST_RectCub_class
             real(IRL_double), dimension(*), intent(inout) :: normal ! dimension(1:3)
             call F_PUST_RectCub_getNormal(this%c_object,x,y,z,delta,normal)
         end subroutine PUST_RectCub_class_getNormal
+
+        subroutine PUST_RectCub_class_solveFaceEllipsoid(this,surface_tension_coefficient, P0, P1, &
+            P2,P3,column1,column2,column3,center,Pressure,Marangoni, a_force)
+            implicit none
+            type(PUST_RectCub_type) :: this
+            real(C_DOUBLE) :: surface_tension_coefficient
+            real(IRL_double), dimension(1:3), intent(in) :: column1
+            real(IRL_double), dimension(1:3), intent(in) :: column2
+            real(IRL_double), dimension(1:3), intent(in) :: column3
+            real(IRL_double), dimension(1:3), intent(in) :: center
+            real(IRL_double), dimension(1:3), intent(in) :: P0
+            real(IRL_double), dimension(1:3), intent(in) :: P1
+            real(IRL_double), dimension(1:3), intent(in) :: P2
+            real(IRL_double), dimension(1:3), intent(in) :: P3
+            real(C_DOUBLE), dimension(*), intent(in) :: Marangoni ! dimension(1:3)
+            real(C_DOUBLE) :: Pressure
+            real(IRL_double), dimension(1:3), intent(inout) :: a_force
+            call F_PUST_RectCub_solveFaceEllipsoid(this%c_object, surface_tension_coefficient,P0,P1,&
+            P2,P3,column1,column2,column3,center,Pressure,Marangoni, a_force)
+            return
+        end subroutine PUST_RectCub_class_solveFaceEllipsoid
+
+        subroutine PUST_RectCub_class_projectToEllipsoid(this, P0,column1,column2,column3,center,Pout)
+            implicit none
+            type(PUST_RectCub_type) :: this
+            real(C_DOUBLE) :: delta
+            real(IRL_double), dimension(1:3), intent(in) :: P0
+            real(IRL_double), dimension(1:3), intent(in) :: column1
+            real(IRL_double), dimension(1:3), intent(in) :: column2
+            real(IRL_double), dimension(1:3), intent(in) :: column3
+            real(IRL_double), dimension(1:3), intent(in) :: center
+            real(IRL_double), dimension(1:3), intent(out) :: Pout
+
+            call F_PUST_RectCub_projectToEllipsoid(this%c_object, P0,column1,column2,column3,center,Pout)
+            return
+        end subroutine PUST_RectCub_class_projectToEllipsoid
+
+        subroutine PUST_RectCub_class_getMeanCurvatureEllipsoid(this,x,y,z,column1,column2,column3,center,curv)
+            implicit none
+            type(PUST_RectCub_type) :: this
+            real(C_DOUBLE) :: x
+            real(C_DOUBLE) :: y
+            real(C_DOUBLE) :: z
+            real(IRL_double), dimension(1:3), intent(in) :: column1
+            real(IRL_double), dimension(1:3), intent(in) :: column2
+            real(IRL_double), dimension(1:3), intent(in) :: column3
+            real(IRL_double), dimension(1:3), intent(in) :: center
+            real(C_DOUBLE) :: curv
+            call F_PUST_RectCub_getMeanCurvatureEllipsoid(this%c_object,x,y,z,column1,column2,column3,center,curv)
+        end subroutine PUST_RectCub_class_getMeanCurvatureEllipsoid
+
+        subroutine PUST_RectCub_class_getNormalEllipsoid(this,x,y,z,column1,column2,column3,center,normal)
+            implicit none
+            type(PUST_RectCub_type) :: this 
+            real(C_DOUBLE) :: x
+            real(C_DOUBLE) :: y
+            real(C_DOUBLE) :: z
+            real(IRL_double), dimension(*), intent(in) :: column1 ! dimension(1:3)
+            real(IRL_double), dimension(*), intent(in) :: column2 ! dimension(1:3)
+            real(IRL_double), dimension(*), intent(in) :: column3 ! dimension(1:3)
+            real(IRL_double), dimension(*), intent(in) :: center ! dimension(1:3)
+            real(IRL_double), dimension(*), intent(inout) :: normal ! dimension(1:3)
+            call F_PUST_RectCub_getNormalEllipsoid(this%c_object,x,y,z,column1,column2,column3,center,normal)
+        end subroutine PUST_RectCub_class_getNormalEllipsoid
 end module f_PUST_RectCub_class
