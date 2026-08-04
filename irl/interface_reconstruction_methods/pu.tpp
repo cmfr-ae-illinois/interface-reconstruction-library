@@ -166,8 +166,8 @@ double PU<CellType>::getTotalWeight(
 
 template <class CellType>
 std::vector<Pt> PU<CellType>::intersectEdge(const Pt& x0, const Pt& x1,
-                                            const int Npartitions,
-                                            const double thresh,
+                                            const int& Npartitions,
+                                            const double& thresh,
                                             bool& blocked) {
   // Split the domain into segments
   blocked = false;
@@ -297,6 +297,7 @@ Pt PU<CellType>::projectOntoPU(const Pt& a_pt, const double dx, bool& success) {
   Pt projected_pt = a_pt;
   const int itmax = 50;
   for (int i = 0; i < itmax; i++) {
+    std::cout << "Iteration: " << i << "\n";
     holdsGrad = this->getPUAndGrad(projected_pt);
     const auto F = std::get<0>(holdsGrad);
     // Check Finite Value

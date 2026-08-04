@@ -24,6 +24,7 @@ template <class CellType>
 class PUST : public PU<CellType> {
  public:
   using RationalBezierArc = RationalBezierArcBase<double>;
+  using PU<CellType>::projectOntoPU;
   // Constructor
   explicit PUST(const PUNeighborhood<CellType>& stencil_);
 
@@ -41,6 +42,9 @@ class PUST : public PU<CellType> {
   // Debug
   void printSolver(void);
 
+  // Specialized Project to PU
+  const Pt projectOntoPU(const Pt& a_pt);
+
   // Ellipsoid Exact Values
   IRL::Pt projectOntoEllipsoid(const Pt& a_pt, const Normal& column1,
                                const Normal& column2, const Normal& column3,
@@ -48,6 +52,9 @@ class PUST : public PU<CellType> {
   Normal getNormalEllipsoid(double x, double y, double z, const Normal& column1,
                             const Normal& column2, const Normal& column3,
                             const Pt& center);
+
+  Normal getNormalEllipsoid(Pt& x, const Normal& column1, const Normal& column2,
+                            const Normal& column3, const Pt& center);
   double getMeanCurvatureEllipsoid(Pt& x, const Normal& column1,
                                    const Normal& column2, const Normal& column3,
                                    const Pt& center);
@@ -60,7 +67,6 @@ class PUST : public PU<CellType> {
                                     const Normal& column2,
                                     const Normal& column3, const Pt& center,
                                     Normal& planeNormal);
-
   void evaluateEllipsoid(
       Pt& x, const Normal& column1, const Normal& column2,
       const Normal& column3, const Pt& center,
@@ -69,7 +75,6 @@ class PUST : public PU<CellType> {
   void evaluateEllipsoid(Pt& x, const Normal& column1, const Normal& column2,
                          const Normal& column3, const Pt& center,
                          std::pair<double, Eigen::Vector3d>* retVal);
-
   void evaluateEllipsoid(Pt& x, const Normal& column1, const Normal& column2,
                          const Normal& column3, const Pt& center,
                          double* retVal);

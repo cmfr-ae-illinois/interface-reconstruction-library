@@ -43,7 +43,7 @@ class PU {
   double getTotalWeight(const Pt& x);
   // Find intersection between implicit curve and a provided line.
   std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
-                                const int Npartitions, const double tresh,
+                                const int& Npartitions, const double& tresh,
                                 bool& blocked);
   // Set Neighborhood
   void setNeighborhood(const PUNeighborhood<CellType>& a_neighborhood);
