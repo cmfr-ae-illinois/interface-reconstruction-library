@@ -15,6 +15,7 @@
 
 #include "examples/amrex_advector/reconstruction_cf.h"
 #include "examples/amrex_advector/reconstruction_elvira.h"
+#include "examples/amrex_advector/reconstruction_hybrid.h"
 #include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
@@ -69,6 +70,9 @@ void AmrCoreAdv::GetReconstruction(
   } else if (reconstruction_name == "cf") {
     CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                           a_geom, scalar_fields);
+  } else if (reconstruction_name == "hybrid") {
+    HYBRID::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                              a_geom, scalar_fields);
   } else {
     std::ostringstream oss;
     oss << "Unknown reconstruction method: " << reconstruction_name << '\n';
