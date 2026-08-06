@@ -1,70 +1,97 @@
-// This file is part of the Interface Reconstruction Library (IRL),
-// a library for interface reconstruction and computational geometry operations.
-//
-// Copyright (C) 2026 Parin Trivedi <parin.trivedi@hotmail.com>
-//
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#ifndef IRL_PARTITION_OF_UNITY_H_
+#define IRL_PARTITION_OF_UNITY_H_
 
-#ifndef IRL_INTERFACE_RECONSTRUCTION_METHODS_PU_H_
-#define IRL_INTERFACE_RECONSTRUCTION_METHODS_PU_H_
+#include <cmath>
+#include <iostream>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
-#include <Eigen/Dense>
-#include <cassert>
-
-#include "irl/generic_cutting/cut_polygon.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
-#include "irl/paraboloid_reconstruction/paraboloid.h"
-#include "irl/parameters/defined_types.h"
+
+#include "irl/moments/cell_collection.h"
+#include "irl/moments/cell_grouped_moments.h"
+
+#include "irl/geometry/general/normal.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
-
+// This file contains all the functions for creating and using a partition of
+// unity based on wendland functions.
+template <class CellType>
 class PU {
- public:
-  /// \brief Default constructor.
-  PU(void) = default;
-
-  /// \brief Constructor with neighborhood and delta.
-  PU(const PUNeighborhood* a_neighborhood_pointer, const double a_delta);
-
-  /// \brief Solve for the paraboloid using the provided neighborhood and delta.
-  Paraboloid solve(const PUNeighborhood* a_neighborhood_pointer,
-                   const double a_delta, const double a_dx);
-
-  /// \brief PU surface and gradient and Hessian
-  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> getPUAndGradAndHessian(
-      const Pt& a_pt);
-
-  /// \brief default destructor
-  ~PU(void) = default;
-
  private:
-  /// \brief solve the system for reconstruction
-  Paraboloid solve(void);
+  PUNeighborhood<CellType> neighborhood_m;
+  double kernel_size_m;
 
-  /// \brief PU surface and gradient
-  std::pair<double, Eigen::Vector3d> getPUAndGrad(const Pt& a_pt);
+ protected:
+  const PUNeighborhood<CellType>& getNeighborhood() const {
+    return neighborhood_m;
+  }
+  PUNeighborhood<CellType>& getNeighborhood() { return neighborhood_m; }
+  double getKernelSize() const { return kernel_size_m; }
 
-  // /// \brief PU surface and gradient and Hessian
-  // std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>
-  // getPUAndGradAndHessian(
-  //     const Pt& a_pt);
+ public:
+  // Constructors
+  PU(void) : kernel_size_m(2.0) {}
 
-  /// \brief Projecting point on PU surface
-  Pt projectPointonPU(const Pt& a_pt, bool& success);
+  explicit PU(const double a_kernel_size) : kernel_size_m(a_kernel_size) {}
 
-  /// \brief getting normal weights for each interface wrt target interface
-  std::vector<double> getNormalWeights(void);
+  PU(const PUNeighborhood<CellType>& a_neighborhood, const double a_kernel_size)
+      : neighborhood_m(a_neighborhood), kernel_size_m(a_kernel_size) {}
 
-  /// \brief storing stencil information
-  const PUNeighborhood* neighborhood_m;
-  /// \brief kernal radius for PU
-  double delta_m;
-  /// \brief grid spacing
-  double dx_m;
+  // Get Value
+  double getPU(const Pt& x);
+
+  // Get Value and Gradient
+  std::pair<double, Eigen::Vector3d> getPUAndGrad(const Pt& x);
+
+  // Get Value, Gradient, and Hessian
+  std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> getPUGradAndHess(
+      const Pt& x);
+
+  // Get Total Weight
+  double getTotalWeight(const Pt& x);
+
+  // Find intersection between implicit curve and a provided line.
+  std::vector<Pt> intersectEdge(const Pt& x0, const Pt& x1,
+                                const int& Npartitions, const double& tresh,
+                                bool& blocked);
+
+  // Set Neighborhood
+  void setNeighborhood(const PUNeighborhood<CellType>& a_neighborhood);
+
+  // Set Kernel Size
+  void setKernelSize(const double a_kernel_size);
+
+  // get Normal
+  Normal getNormal(const Pt& x);
+
+  // get Mean Curvature
+  double getMeanCurvature(const Pt& x);
+
+  // Project point onto implicit surface
+  Pt projectOntoPU(const Pt& a_pt, const double dx, bool& success);
+
+  // Signed Distance of Separator
+  static double implicitSeparatorValue(const Pt& a_pt, const Pt& a_centroid,
+                                       const SeparatorVariant* a_sepPtr);
+
+  // Signed Distance and Gradient of Separator
+  static std::pair<double, Eigen::Vector3d> implicitSeparatorValueandGrad(
+      const Pt& a_pt, const Pt& a_centroid, const SeparatorVariant* a_sepPtr);
+
+  // Signed Distance, Gradient, and Hessian of Separator
+  static std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>
+  implicitSeparatorValueGradHess(const Pt& a_pt, const Pt& a_centroid,
+                                 const SeparatorVariant* a_sepPtr);
+
+  // Debug
+  void printSurface();
 };
 
 }  // namespace IRL
+#include "irl/interface_reconstruction_methods/pu.tpp"
 
-#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_PU_H_
+#endif

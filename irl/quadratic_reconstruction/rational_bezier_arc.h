@@ -71,6 +71,12 @@ class RationalBezierArcBase {
                         const NormalBase<ScalarType>& a_plane_normal,
                         const AlignedCylinderBase<ScalarType>& a_cylinder);
 
+  RationalBezierArcBase(const PtBase<ScalarType>& a_start_pt,
+                        const NormalBase<ScalarType>& a_start_tangent,
+                        const PtBase<ScalarType>& a_end_pt,
+                        const NormalBase<ScalarType>& a_end_tangent,
+                        const NormalBase<ScalarType>& a_plane_normal,
+                        const ScalarType& a_endpoint_curvature);
   /// \brief Return const weight.
   const ScalarType& weight(void) const;
   /// \brief Return const reference to stored start point.
