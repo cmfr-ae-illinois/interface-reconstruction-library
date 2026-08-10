@@ -25,6 +25,7 @@
 #include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
+#include "irl/interface_reconstruction_methods/pu_paraboloid.h"
 #include "irl/interface_reconstruction_methods/pust.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
@@ -528,6 +529,70 @@ TEST(PUReconstruction, Test1) {
         << "Net Force Index " << j << " Wrong";
   }
   SUCCEED();
+}
+
+TEST(PUHessian, Test) {
+  struct PUCellData {
+    Pt center;
+    RectangularCuboid cell;
+    SeparatorVariant separator;
+  };
+  const double dx = 1.0;
+  const double kernel_size = 2.5 * dx;
+  const double inv_sqrt_2 = 1.0 / std::sqrt(2.0);
+
+  const std::array<Pt, 3> cell_centers = {Pt(-dx, 0.0, 0.0), Pt(0.0, 0.0, 0.0),
+                                          Pt(dx, 0.0, 0.0)};
+  const std::array<Normal, 3> plane_normals = {
+      Normal(-inv_sqrt_2, 0.0, inv_sqrt_2), Normal(0.0, 0.0, 1.0),
+      Normal(inv_sqrt_2, 0.0, inv_sqrt_2)};
+
+  std::array<PUCellData, 3> pu_cells;
+  for (UnsignedIndex_t n = 0; n < pu_cells.size(); ++n) {
+    const Pt& center = cell_centers[n];
+    pu_cells[n].center = center;
+    pu_cells[n].cell = RectangularCuboid::fromBoundingPts(
+        Pt(center[0] - 0.5 * dx, center[1] - 0.5 * dx, center[2] - 0.5 * dx),
+        Pt(center[0] + 0.5 * dx, center[1] + 0.5 * dx, center[2] + 0.5 * dx));
+
+    const Normal& normal = plane_normals[n];
+    const double distance =
+        normal[0] * center[0] + normal[1] * center[1] + normal[2] * center[2];
+    pu_cells[n].separator =
+        PlanarSeparator::fromOnePlane(Plane(normal, distance));
+  }
+
+  PUNeighborhood<RectangularCuboid> pu_neighborhood;
+  for (UnsignedIndex_t n = 0; n < pu_cells.size(); ++n) {
+    pu_neighborhood.addMember(&pu_cells[n].center, &pu_cells[n].separator, 1.0);
+  }
+
+  constexpr UnsignedIndex_t center_cell_index = 1;
+  pu_neighborhood.setCenterOfStencil(center_cell_index);
+  pu_neighborhood.setCenterCell(&pu_cells[center_cell_index].cell);
+
+  const Pt central_cell_center =
+      cell_centers[center_cell_index] + IRL::Pt(0.0, 0.0, 0.0);
+
+  PUParaboloid<RectangularCuboid> pu(pu_neighborhood, kernel_size, dx);
+  const auto [pu_value, pu_gradient, pu_hessian] =
+      pu.getPUGradAndHess(central_cell_center);
+  std::cout << std::fixed << std::setprecision(15);
+  std::cout << "PU value at cell center: " << pu_value << std::endl;
+  std::cout << "PU gradient at cell center: " << pu_gradient.transpose()
+            << std::endl;
+  std::cout << "PU Hessian at cell center:\n" << pu_hessian << std::endl;
+
+  Eigen::Matrix3d expected_hessian;
+  expected_hessian << 0.2748446942469944, 0.0, 0.0, 0.0, -0.1953607696719091,
+      0.0, 0.0, 0.0, -0.1953607696719091;
+  const double tol = 1.0e-10;
+
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_NEAR(pu_hessian(i, j), expected_hessian(i, j), tol);
+    }
+  }
 }
 
 }  // namespace
