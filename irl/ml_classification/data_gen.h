@@ -3746,6 +3746,7 @@ namespace IRL {
             };
 
             // World-space implicit ellipsoid:
+            //
             //     (x - origin)^T A (x - origin) = 1
 
             const Eigen::Vector3d inv_axes_sq(
@@ -3863,35 +3864,132 @@ namespace IRL {
 
                 return;
             }
-            // Ellipsoid-aligned refined grid
-            // This creates 5 cells across the actual ellipsoid diameter in each
-            // local ellipsoid direction, plus one extra padding cell of thickness
-            // 0.1 on each side.
-            // Therefore the grid extends only 0.1 past the ellipsoid in u/v/w.
 
-            const int refined_cells_across_diameter = 5;
-            const double padding = 0.1;
+            // ------------------------------------------------------------------
+            // Ellipsoid-aligned refined grid
+            // ------------------------------------------------------------------
+            //
+            // New behavior:
+            //
+            //   1. Choose a target physical refined-cell size from the smallest
+            //      ellipsoid diameter.
+            //
+            //   2. Use more cells along longer ellipsoid axes so that the refined
+            //      cell sizes are roughly uniform in physical space.
+            //
+            //   3. Limit the total number of refined cells to avoid excessive cost.
+            //
+            //   4. Interpret safety_distance as a margin between the ellipsoid
+            //      surface bounding interval and the grid boundary.
+            //
+            //      The grid spans:
+            //
+            //          [-a - safety_distance, a + safety_distance]
+            //
+            //      directly divided into num_u cells. There is no separate padding
+            //      cell anymore.
+
+            const int cells_across_smallest_diameter = 5;
+            const int minimum_cells_per_direction = 3;
+            const int maximum_cells_per_direction = 32;
+            const int maximum_total_refined_cells = 2500;
+            const double safety_distance = 0.1;
+
+            const double min_axis = std::min({a, b, c});
+
+            double target_refined_cell_size =
+                2.0 * min_axis /
+                static_cast<double>(cells_across_smallest_diameter);
+
+            auto chooseCellsAcrossPaddedInterval =
+                [&](double semi_axis, double target_h) -> int
+            {
+                const double padded_span =
+                    2.0 * (semi_axis + safety_distance);
+
+                int n = static_cast<int>(
+                    std::ceil(padded_span / target_h)
+                );
+
+                n = std::max(n, minimum_cells_per_direction);
+                n = std::min(n, maximum_cells_per_direction);
+
+                return n;
+            };
+
+            int refined_cells_u =
+                chooseCellsAcrossPaddedInterval(a, target_refined_cell_size);
+
+            int refined_cells_v =
+                chooseCellsAcrossPaddedInterval(b, target_refined_cell_size);
+
+            int refined_cells_w =
+                chooseCellsAcrossPaddedInterval(c, target_refined_cell_size);
+
+            auto refinedCellProduct = [&]() -> int {
+                return refined_cells_u * refined_cells_v * refined_cells_w;
+            };
+
+            // Coarsen the target cell size if the first estimate is too expensive.
+            //
+            // The cube-root factor keeps the coarsening approximately isotropic in
+            // the refined-cell-size sense.
+
+            int refinement_adjustment_iterations = 0;
+
+            while (refinedCellProduct() > maximum_total_refined_cells &&
+                refinement_adjustment_iterations < 20) {
+                const double current_total =
+                    static_cast<double>(refinedCellProduct());
+
+                const double scale =
+                    1.01 *
+                    std::cbrt(
+                        current_total /
+                        static_cast<double>(maximum_total_refined_cells)
+                    );
+
+                target_refined_cell_size *= scale;
+
+                refined_cells_u =
+                    chooseCellsAcrossPaddedInterval(a, target_refined_cell_size);
+
+                refined_cells_v =
+                    chooseCellsAcrossPaddedInterval(b, target_refined_cell_size);
+
+                refined_cells_w =
+                    chooseCellsAcrossPaddedInterval(c, target_refined_cell_size);
+
+                ++refinement_adjustment_iterations;
+            }
+
+            auto makeSafetyMarginGridCoordinates =
+                [&](double semi_axis, int number_of_cells) -> std::vector<double>
+            {
+                const double lower = -semi_axis - safety_distance;
+                const double upper =  semi_axis + safety_distance;
+
+                std::vector<double> coords(number_of_cells + 1, 0.0);
+
+                for (int index = 0; index <= number_of_cells; ++index) {
+                    coords[index] =
+                        lower +
+                        (upper - lower) *
+                        static_cast<double>(index) /
+                        static_cast<double>(number_of_cells);
+                }
+
+                return coords;
+            };
 
             const std::vector<double> u_coords =
-                makePaddedDiameterGridCoordinates(
-                    a,
-                    refined_cells_across_diameter,
-                    padding
-                );
+                makeSafetyMarginGridCoordinates(a, refined_cells_u);
 
             const std::vector<double> v_coords =
-                makePaddedDiameterGridCoordinates(
-                    b,
-                    refined_cells_across_diameter,
-                    padding
-                );
+                makeSafetyMarginGridCoordinates(b, refined_cells_v);
 
             const std::vector<double> w_coords =
-                makePaddedDiameterGridCoordinates(
-                    c,
-                    refined_cells_across_diameter,
-                    padding
-                );
+                makeSafetyMarginGridCoordinates(c, refined_cells_w);
 
             const int num_u = static_cast<int>(u_coords.size()) - 1;
             const int num_v = static_cast<int>(v_coords.size()) - 1;
@@ -3899,6 +3997,18 @@ namespace IRL {
 
             const int number_of_refined_cells =
                 num_u * num_v * num_w;
+
+            if (visualize) {
+                std::cout << "Ellipsoid aligned refinement: "
+                        << num_u << " x "
+                        << num_v << " x "
+                        << num_w << " = "
+                        << number_of_refined_cells
+                        << " cells\n";
+
+                std::cout << "Target refined cell size: "
+                        << target_refined_cell_size << "\n";
+            }
 
             std::vector<IRL::PlanarLocalizer> refined_localizers;
             std::vector<IRL::SeparatorVariant> refined_interfaces;
@@ -4099,6 +4209,8 @@ namespace IRL {
                             firstMoment[coarse_i][coarse_j][coarse_k] +=
                                 local_first_moment;
 
+                            // Surface area is intentionally not computed in this
+                            // localized-link path.
                             area[coarse_i][coarse_j][coarse_k] += 0.0;
 
                             if (secondMoment != nullptr) {
@@ -4627,7 +4739,7 @@ namespace IRL {
             double max_axis = 0.8,
             Eigen::Matrix3d* secondMoment = nullptr)
         {
-            if (min_axis <= machineZero || max_axis <= min_axis) {
+            if (min_axis < machineZero || max_axis <= min_axis) {
                 throw std::runtime_error("generateEllipsoidDroplet: invalid axis bounds.");
             }
 
@@ -4668,8 +4780,8 @@ namespace IRL {
                 if (ellipsoid_subgrid_stddev > 0.0) {
                     // Sample axis lengths from truncated normal distributions
                     a = sample_truncated_normal(max_axis, ellipsoid_subgrid_stddev, min_axis, max_axis);
-                    b = sample_truncated_normal(max_axis, ellipsoid_subgrid_stddev, min_axis, max_axis);
-                    c = sample_truncated_normal(max_axis, ellipsoid_subgrid_stddev, min_axis, max_axis);
+                    b = sample_truncated_normal(a, ellipsoid_subgrid_stddev*0.5, min_axis, max_axis);
+                    c = sample_truncated_normal(a, ellipsoid_subgrid_stddev*0.5, min_axis, max_axis);
                 } else {
                     std::uniform_real_distribution<double> random_axis(min_axis, max_axis);
                     a = random_axis(eng);
@@ -4752,9 +4864,9 @@ namespace IRL {
             double max_short_axis = 0.8,
             Eigen::Matrix3d* secondMoment = nullptr)
         {
-            if (min_long_axis <= machineZero ||
+            if (min_long_axis < machineZero ||
                 max_long_axis <= min_long_axis ||
-                min_short_axis <= machineZero ||
+                min_short_axis < machineZero ||
                 max_short_axis <= min_short_axis) {
                 throw std::runtime_error("generateEllipsoidLigament: invalid axis bounds.");
             }
@@ -4864,13 +4976,17 @@ namespace IRL {
             double max_long_axis = 2.5,
             double min_short_axis = 1e-12,
             double max_short_axis = 0.8,
-            Eigen::Matrix3d* secondMoment = nullptr)
+            bool truncated_inside_central_cell = true,
+            Eigen::Matrix3d* secondMoment = nullptr
+            )
         {
-            if (min_long_axis <= machineZero ||
+            if (min_long_axis < machineZero ||
                 max_long_axis <= min_long_axis ||
                 min_short_axis < machineZero ||
                 max_short_axis <= min_short_axis) {
-                throw std::runtime_error("generateEllipsoidLigamentTip: invalid axis bounds.");
+                throw std::runtime_error(
+                    "generateEllipsoidLigamentTip: invalid axis bounds."
+                );
             }
 
             auto random_rotation_matrix = [&]() {
@@ -4880,10 +4996,14 @@ namespace IRL {
                 const double u2 = random_unit(eng);
                 const double u3 = random_unit(eng);
 
-                const double qx = std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
-                const double qy = std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
-                const double qz = std::sqrt(u1)       * std::sin(2.0 * M_PI * u3);
-                const double qw = std::sqrt(u1)       * std::cos(2.0 * M_PI * u3);
+                const double qx =
+                    std::sqrt(1.0 - u1) * std::sin(2.0 * M_PI * u2);
+                const double qy =
+                    std::sqrt(1.0 - u1) * std::cos(2.0 * M_PI * u2);
+                const double qz =
+                    std::sqrt(u1) * std::sin(2.0 * M_PI * u3);
+                const double qw =
+                    std::sqrt(u1) * std::cos(2.0 * M_PI * u3);
 
                 Eigen::Quaterniond q(qw, qx, qy, qz);
                 q.normalize();
@@ -4891,12 +5011,42 @@ namespace IRL {
                 return q.toRotationMatrix();
             };
 
+            // Returns the positive distance from point in direction until
+            // the ray exits the axis-aligned box [box_min, box_max]^3.
+            auto distance_to_box_exit = [](
+                const Eigen::Vector3d& point,
+                const Eigen::Vector3d& direction,
+                double box_min,
+                double box_max)
+            {
+                double distance = std::numeric_limits<double>::infinity();
+
+                for (int d = 0; d < 3; ++d) {
+                    if (direction[d] > 1.0e-14) {
+                        distance = std::min(
+                            distance,
+                            (box_max - point[d]) / direction[d]
+                        );
+                    } else if (direction[d] < -1.0e-14) {
+                        distance = std::min(
+                            distance,
+                            (box_min - point[d]) / direction[d]
+                        );
+                    }
+                }
+
+                return distance;
+            };
+
             while (true) {
                 std::vector<std::vector<std::vector<Eigen::Vector3d>>> centroid(
                     stencil_size,
                     std::vector<std::vector<Eigen::Vector3d>>(
                         stencil_size,
-                        std::vector<Eigen::Vector3d>(stencil_size, Eigen::Vector3d::Zero())
+                        std::vector<Eigen::Vector3d>(
+                            stencil_size,
+                            Eigen::Vector3d::Zero()
+                        )
                     )
                 );
 
@@ -4908,7 +5058,8 @@ namespace IRL {
                     max_long_axis
                 );
 
-                double a = random_long_axis(eng);
+                const double a = random_long_axis(eng);
+
                 double b = max_short_axis;
                 double c = max_short_axis;
 
@@ -4939,13 +5090,94 @@ namespace IRL {
                 const Eigen::Matrix3d R = random_rotation_matrix();
 
                 const Eigen::Vector3d long_axis_direction = R.col(0);
+                const Eigen::Vector3d b_direction = R.col(1);
+                const Eigen::Vector3d c_direction = R.col(2);
 
-                // ligament tip point
-                const Eigen::Vector3d ligament_tip =
-                    generateRandomPoint(-0.5, 0.5, eng);
-                // origin is shifted from ligament tip by a along the long axis direction, so that the ligament tip is at the surface of the ellipsoid
-                const Eigen::Vector3d origin =
-                    ligament_tip + a * long_axis_direction;
+                Eigen::Vector3d origin;
+
+                if (truncated_inside_central_cell) {
+
+                    const Eigen::Vector3d ligament_tip =
+                        generateRandomPoint(-0.5, 0.5, eng);
+
+                    origin =
+                        ligament_tip + a * long_axis_direction;
+                } else {
+                    // Place the ellipsoid tip outside the central cell while
+                    // keeping the ligament axis passing through a randomly
+                    // selected point inside the central cell.
+                    //
+                    // The ellipsoid center is moved out of the central cell in
+                    // the negative long-axis direction. The corresponding
+                    // negative-long-axis tip is therefore even farther outside:
+                    //
+                    //     ligament_tip =
+                    //         origin - a * long_axis_direction.
+                    //
+                    // Limiting shift to less than a guarantees that the selected
+                    // central-axis point remains inside the ellipsoid.
+
+                    const Eigen::Vector3d central_axis_point =
+                        generateRandomPoint(-0.5, 0.5, eng);
+
+                    const Eigen::Vector3d negative_long_axis_direction =
+                        -long_axis_direction;
+
+                    const double distance_to_leave_central_cell =
+                        distance_to_box_exit(
+                            central_axis_point,
+                            negative_long_axis_direction,
+                            -0.5,
+                            0.5
+                        );
+
+                    const double stencil_min =
+                        -0.5 * static_cast<double>(stencil_size);
+
+                    const double stencil_max =
+                        0.5 * static_cast<double>(stencil_size);
+
+                    const double distance_to_stencil_edge =
+                        distance_to_box_exit(
+                            central_axis_point,
+                            negative_long_axis_direction,
+                            stencil_min,
+                            stencil_max
+                        );
+
+                    // Ensure that the ellipsoid center is strictly outside the
+                    // central cell rather than exactly on its boundary.
+                    const double min_shift =
+                        distance_to_leave_central_cell + 1.0e-10;
+
+                    // The center must remain less than one semi-major axis away
+                    // from central_axis_point. This guarantees that the selected
+                    // point lies strictly inside the ellipsoid along its long
+                    // axis.
+                    const double max_shift =
+                        std::min(
+                            distance_to_stencil_edge,
+                            0.999 * a
+                        );
+
+                    // For some orientations and small values of a, it may not
+                    // be possible to move the center outside the central cell
+                    // while keeping central_axis_point inside the ellipsoid.
+                    if (max_shift <= min_shift) {
+                        continue;
+                    }
+
+                    std::uniform_real_distribution<double> random_shift(
+                        min_shift,
+                        max_shift
+                    );
+
+                    const double shift = random_shift(eng);
+
+                    origin =
+                        central_axis_point
+                        + shift * negative_long_axis_direction;
+                }
 
                 generateSpecificEllipsoid(
                     vfrac,
@@ -4954,9 +5186,9 @@ namespace IRL {
                     centroid,
                     surfaces,
                     origin,
-                    R.col(0),
-                    R.col(1),
-                    R.col(2),
+                    long_axis_direction,
+                    b_direction,
+                    c_direction,
                     a,
                     b,
                     c,
@@ -4967,10 +5199,22 @@ namespace IRL {
                 const int mid = stencil_size / 2;
                 const double center_vfrac = vfrac[mid][mid][mid];
 
-                if (center_vfrac > machineZero && center_vfrac < 1.0 - machineZero) {
+                // Retain only configurations whose interface actually cuts the central cell
+
+                if (center_vfrac > machineZero &&
+                    center_vfrac < 1.0 - machineZero) {
                     if (visualize) {
-                        WriteField(stencil_size, coarse_coords, vfrac, "vfrac");
-                        WriteSurface(surfaces, "surface");
+                        WriteField(
+                            stencil_size,
+                            coarse_coords,
+                            vfrac,
+                            "vfrac"
+                        );
+
+                        WriteSurface(
+                            surfaces,
+                            "surface"
+                        );
                     }
 
                     return;
@@ -4988,9 +5232,9 @@ namespace IRL {
             double max_short_axis = 0.8,
             Eigen::Matrix3d* secondMoment = nullptr)
         {
-            if (min_long_axis <= machineZero ||
+            if (min_long_axis < machineZero ||
                 max_long_axis <= min_long_axis ||
-                min_short_axis <= machineZero ||
+                min_short_axis < machineZero ||
                 max_short_axis <= min_short_axis) {
                 throw std::runtime_error("generateEllipsoidLigament: invalid axis bounds.");
             }
@@ -5026,7 +5270,7 @@ namespace IRL {
                 std::vector<double> coarse_coords(stencil_size + 1);
 
                 double a = max_long_axis;
-                double b = max_short_axis;
+                double b = max_long_axis;
                 double c = max_short_axis;
 
                 if (ellipsoid_subgrid_stddev > 0.0) {
@@ -5102,7 +5346,7 @@ namespace IRL {
             bool cut_inside_central_cell = true,
             Eigen::Matrix3d* secondMoment = nullptr)
         {
-            if (min_large_axis <= machineZero ||
+            if (min_large_axis < machineZero ||
                 max_large_axis <= min_large_axis ||
                 min_short_axis < machineZero ||
                 max_short_axis <= min_short_axis) {
@@ -5996,7 +6240,7 @@ namespace IRL {
             double min_cylinder_radius = machineZero;
             double min_sheet_thickness = machineZero;
             double min_sphere_radius = machineZero;
-            double min_small_ellipsoid_axis = 0.42;
+            double min_small_ellipsoid_axis = 0.05;
             
             double max_cylinder_radius = upper_limit_subgrid/2.0;
             double max_sheet_thickness = upper_limit_subgrid;
@@ -6036,7 +6280,7 @@ namespace IRL {
                         }
                         // 10% chance → ellipsoid
                         else {
-                            generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
+                            generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, /*truncateinsidecentralcell*/false, secondMomentPtr);
                         }
                     } else {
                         // 80% chance → continuous ligament
@@ -6051,13 +6295,7 @@ namespace IRL {
                     break;
                 }
                 case 2: {
-                    if (subshape_probability < 0.8) {
-                        // 80% chance → ellipsoid droplet
-                        generateEllipsoidDroplet(vfrac, firstMoment, area, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
-                    } else {
-                        // 20% chance → sphere
-                        generateSphere(vfrac, firstMoment, area, min_sphere_radius, max_sphere_radius, secondMomentPtr);
-                    }
+                    generateEllipsoidDroplet(vfrac, firstMoment, area, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
                     break;
                 }
                 case 3: {
@@ -6111,7 +6349,7 @@ namespace IRL {
                 case 4: {
                     if (subshape_probability < 0.5) {
                         // 50% chance → ellipsoid ligament tip
-                        generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, secondMomentPtr);
+                        generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, /*truncateinsidecentralcell*/false, secondMomentPtr);
                     } else {
                         // 50% chance → bent truncated cylinder
                         generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
@@ -6178,7 +6416,7 @@ namespace IRL {
                     break;
                 case 16:
                     std::cout << "Generate Ellipsoid Ligament Tip" << std::endl;
-                    generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, nullptr);
+                    generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, /*truncateinsidecentralcell*/true, nullptr);
                     break;
                 case 17:
                     std::cout << "Generate Ellipsoid Sheet" << std::endl;

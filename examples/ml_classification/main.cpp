@@ -1,5 +1,4 @@
 #include <vtkCellCenters.h>
-#include "testcases.h"
 #include "irl/ml_classification/ml_classifier.h"
 #include "irl/ml_classification/vtk_in.h"
 #include "irl/ml_classification/inertia_classifier.h"
@@ -494,16 +493,24 @@ void stable_classification() {
 }
 */
 
-void stable_classification() {
+void stable_classification()
+{
     int stencil_size = 5;
 
+    // ---------------------------------------------------------------------
     // Data parameters
-    int no_batches;
-    int include_Moments = 0;
+    // ---------------------------------------------------------------------
+
+    // Your old function left no_batches uninitialized.
+    // Set this to the value your updateDataParameters() expects.
+    int no_batches = 4096*4*2;
+
+    int include_Moments = 1;
     bool include_Surface_Area = false;
-    bool include_Eigenvalues = false;  // true because dataset path says FirstMomentEigenv
+    bool include_Eigenvalues = false;
+
     double paraboloid_coeff_stddev = 0.1;
-    double hyperbolic_cylinder_opening_angle_stddev = 20; // degrees
+    double hyperbolic_cylinder_opening_angle_stddev = 20.0;
     double sheet_coeff_stddev = 0.1;
     double sheet_thickness_stddev = 0.0;
     double cylinder_radius_stddev = 0.0;
@@ -515,16 +522,23 @@ void stable_classification() {
     double max_long_ellipsoid_axis = 5.0;
     bool exact_2nd_moment = false;
     bool visualize = false;
-    double machineZero = 1e-12;
+
+    double machineZero = 1.0e-12;
     double lower_limit_subgrid = machineZero;
     double upper_limit_subgrid = std::sqrt(3.0);
     double class0_max_characteristic = 2.5;
-    float epsilon_connectivity = 1e-12f;
 
-    // Net Parameters
+    float epsilon_connectivity = 1.0e-12f;
+
+    // ---------------------------------------------------------------------
+    // Network parameters
+    // ---------------------------------------------------------------------
+
     int input_size =
         stencil_size * stencil_size * stencil_size
-        * (include_Moments >= 1 ? (include_Surface_Area ? 5 : 4) : 1)
+            * (include_Moments >= 1
+                   ? (include_Surface_Area ? 5 : 4)
+                   : 1)
         + (include_Moments >= 2 ? 6 : 0)
         + (include_Eigenvalues ? 3 : 0);
 
@@ -533,97 +547,151 @@ void stable_classification() {
     int hidden_size3 = 32;
     int output_size = 6;
 
+    // ---------------------------------------------------------------------
     // Training parameters
+    // ---------------------------------------------------------------------
+
     double learning_rate = 0.001;
     int batch_size = 64;
     int max_epochs = 50;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
+    // ---------------------------------------------------------------------
     // Classification parameters
+    // ---------------------------------------------------------------------
+
     int canonicalize_symmetries = 48;
     const int no_runs = 10;
     float noise_stddev = 0.0f;
-    //int downsample_factor = 2;
 
+    // Probability distributions are not needed during model selection.
+    double pdistribution_step = 0.0;
+
+    // ---------------------------------------------------------------------
     // Simulations used for stable model selection
-    struct SimulationFiles {
+    // ---------------------------------------------------------------------
+
+    struct SimulationFolders {
         std::string name;
-        std::string filenameNGA;
-        std::string filenamePlic;
+        std::string dataDirectory;
+        std::string plicDirectory;
         int downsample_factor;
     };
 
-    std::vector<SimulationFiles> simulations = {
+    std::vector<SimulationFolders> simulations = {
         {
             "Jet",
-            "/home/quirin/mlcfd/Repositories/jetvtr/data.000031.vtr",
-            "/home/quirin/mlcfd/Repositories/jetvtr/plic.000031.vtu",
-            2   // downsample factor for sim_1
+            "/home/quirin/mlcfd/Repositories/round-jet/data",
+            "/home/quirin/mlcfd/Repositories/round-jet/plic",
+            2
         },
         {
             "Bag",
-            "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr",
-            "/home/quirin/mlcfd/Repositories/jetvtr/plic.000031.vtu",
-            1   // downsample factor for sim_2
+            "/home/quirin/mlcfd/Repositories/bag-breakup/data",
+            "/home/quirin/mlcfd/Repositories/bag-breakup/plic",
+            1
         }
     };
 
+    // Change the four directory paths above to your actual directories.
+    //
+    // Each data directory is expected to contain:
+    //   data.000001.vtr
+    //   data.000002.vtr
+    //   ...
+    //
+    // Each PLIC directory is expected to contain:
+    //   plic.000001.vtu
+    //   plic.000002.vtu
+    //   ...
+
+    // ---------------------------------------------------------------------
     // Dataset
+    // ---------------------------------------------------------------------
+
     std::string dataset_path =
-        "/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/data/data.bin";
+        "/home/quirin/mlcfd/Datasets/SixClasses/new/s5_2M/data/data.bin";
 
-    // Output directory for this whole experiment
+    // ---------------------------------------------------------------------
+    // Create experiment output directory
+    // ---------------------------------------------------------------------
+
     const auto now = std::chrono::system_clock::now();
-    const std::time_t t = std::chrono::system_clock::to_time_t(now);
+    const std::time_t currentTime =
+        std::chrono::system_clock::to_time_t(now);
 
-    std::tm tm{};
+    std::tm localTime{};
+
 #if defined(_WIN32)
-    localtime_s(&tm, &t);
+    localtime_s(&localTime, &currentTime);
 #else
-    localtime_r(&t, &tm);
+    localtime_r(&currentTime, &localTime);
 #endif
 
-    char buf[64];
+    char timestamp[64];
+
     std::snprintf(
-        buf,
-        sizeof(buf),
+        timestamp,
+        sizeof(timestamp),
         "%04d-%02d-%02d_%02d%02d%02d",
-        tm.tm_year + 1900,
-        tm.tm_mon + 1,
-        tm.tm_mday,
-        tm.tm_hour,
-        tm.tm_min,
-        tm.tm_sec
+        localTime.tm_year + 1900,
+        localTime.tm_mon + 1,
+        localTime.tm_mday,
+        localTime.tm_hour,
+        localTime.tm_min,
+        localTime.tm_sec
     );
 
-    fs::path experiment_dir = fs::path("stable_run_models") / buf;
+    fs::path experiment_dir =
+        fs::path("stable_run_models") / timestamp;
+
     fs::create_directories(experiment_dir);
 
-    // Store only predictions in RAM, not models or datasets.
-    // Each entry corresponds to one trained model.
-    // The vector contains the concatenated predictions from both simulations.
+    // ---------------------------------------------------------------------
+    // Stored results
+    // ---------------------------------------------------------------------
+
+    // predictions[r] contains every classified cell from every timestep
+    // of every simulation, in deterministic order.
     std::vector<std::vector<int>> predictions;
     predictions.reserve(no_runs);
 
-    // Store model directories so we can load the selected model later
+    // Directory containing each trained model.
     std::vector<fs::path> run_dirs;
     run_dirs.reserve(no_runs);
 
-    // Reference number of classified cells for each simulation.
-    // This ensures that every model classified the same cells in the same simulation.
-    std::vector<std::size_t> reference_cell_counts;
+    // Total classified-cell count for each simulation in the first run.
+    std::vector<std::size_t> reference_simulation_cell_counts;
 
-    // Train + classify multiple times
-    for (int r = 0; r < no_runs; ++r) {
-        std::cout << "\n=== Run " << r << " / " << no_runs << " ===\n";
+    // Per-timestep classified-cell counts for every simulation.
+    //
+    // First index: simulation
+    // Second index: timestep
+    std::vector<std::vector<std::size_t>>
+        reference_timestep_cell_counts;
 
-        // Each run in its own folder
-        fs::path run_dir = experiment_dir / ("run_" + std::to_string(r));
+    // ---------------------------------------------------------------------
+    // Train and evaluate all model runs
+    // ---------------------------------------------------------------------
+
+    for (int run = 0; run < no_runs; ++run) {
+        std::cout
+            << "\n==================================================\n"
+            << "Stable classification run "
+            << (run + 1)
+            << " / "
+            << no_runs
+            << "\n"
+            << "==================================================\n";
+
+        fs::path run_dir =
+            experiment_dir / ("run_" + std::to_string(run));
+
         fs::create_directories(run_dir);
         run_dirs.push_back(run_dir);
 
-        // Create a fresh classifier each run
+        // Create a fresh classifier for this run.
         IRL::MLClassifier ml(
             stencil_size,
             input_size,
@@ -659,8 +727,10 @@ void stable_classification() {
 
         ml.loadDataset(dataset_path);
 
-        // ml.canonicalize_data(canonicalize_symmetries);
-        ml.preprocess_data(canonicalize_symmetries, noise_stddev);
+        ml.preprocess_data(
+            canonicalize_symmetries,
+            noise_stddev
+        );
 
         ml.updateTrainingParameters(
             learning_rate,
@@ -670,25 +740,47 @@ void stable_classification() {
             early_stop_patience
         );
 
-        // In the future, could use seed setter
-        // ml.setSeed(1234 + r);
+        // A deterministic run-specific seed could be set here:
+        //
+        // ml.setSeed(1234 + run);
 
         ml.trainModel();
 
-        // Classify both simulations and concatenate the class vectors.
-        // This combined vector is what is used for model agreement.
+        // Contains every prediction from every simulation and timestep.
         std::vector<int> savedClassesCombined;
-        std::vector<std::size_t> current_cell_counts;
 
-        for (const auto& sim : simulations) {
+        // Total classified cells for each simulation in this run.
+        std::vector<std::size_t> current_simulation_cell_counts;
+        current_simulation_cell_counts.reserve(simulations.size());
+
+        // Per-timestep counts for each simulation in this run.
+        std::vector<std::vector<std::size_t>>
+            current_timestep_cell_counts;
+
+        current_timestep_cell_counts.reserve(simulations.size());
+
+        // -------------------------------------------------------------
+        // Classify every timestep of every simulation
+        // -------------------------------------------------------------
+
+        for (const auto& simulation : simulations) {
+            std::cout
+                << "\nClassifying complete simulation: "
+                << simulation.name
+                << "\n";
+
             std::vector<int> savedClassesThisSimulation;
 
-            std::cout << "\nClassifying " << sim.name << "...\n";
+            std::vector<std::size_t>
+                timestepCellCountsThisSimulation;
 
+            // No classified VTK files are written during the ten model-
+            // selection runs. Only predictions are collected.
             IRL::classify_simulation(
                 ml,
-                sim.filenameNGA,
-                sim.filenamePlic,
+                simulation.dataDirectory,
+                simulation.plicDirectory,
+                "", // unused because write_output is false
                 canonicalize_symmetries,
                 include_Moments,
                 include_Surface_Area,
@@ -696,16 +788,50 @@ void stable_classification() {
                 noise_stddev,
                 epsilon_connectivity,
                 &savedClassesThisSimulation,
-                sim.downsample_factor
+                simulation.downsample_factor,
+                pdistribution_step,
+                false, // write_output
+                &timestepCellCountsThisSimulation
             );
 
-            current_cell_counts.push_back(savedClassesThisSimulation.size());
+            const std::size_t simulationCellCount =
+                savedClassesThisSimulation.size();
 
-            std::cout << sim.name
-                      << " classified interface cells: "
-                      << savedClassesThisSimulation.size()
-                      << "\n";
+            current_simulation_cell_counts.push_back(
+                simulationCellCount
+            );
 
+            current_timestep_cell_counts.push_back(
+                timestepCellCountsThisSimulation
+            );
+
+            std::cout
+                << simulation.name
+                << " timesteps classified: "
+                << timestepCellCountsThisSimulation.size()
+                << "\n";
+
+            std::cout
+                << simulation.name
+                << " total classified interface cells: "
+                << simulationCellCount
+                << "\n";
+
+            for (std::size_t timestepIndex = 0;
+                 timestepIndex <
+                     timestepCellCountsThisSimulation.size();
+                 ++timestepIndex) {
+
+                std::cout
+                    << "  timestep "
+                    << IRL::makeTimestepTag(
+                           static_cast<int>(timestepIndex + 1))
+                    << ": "
+                    << timestepCellCountsThisSimulation[timestepIndex]
+                    << " classified cells\n";
+            }
+
+            // Append this complete simulation to the combined vector.
             savedClassesCombined.insert(
                 savedClassesCombined.end(),
                 savedClassesThisSimulation.begin(),
@@ -713,181 +839,339 @@ void stable_classification() {
             );
         }
 
-        // Store reference classified-cell counts from the first run
-        if (r == 0) {
-            reference_cell_counts = current_cell_counts;
+        // -------------------------------------------------------------
+        // Verify that all model runs classified identical cells
+        // -------------------------------------------------------------
+
+        if (run == 0) {
+            reference_simulation_cell_counts =
+                current_simulation_cell_counts;
+
+            reference_timestep_cell_counts =
+                current_timestep_cell_counts;
         } else {
-            if (current_cell_counts.size() != reference_cell_counts.size()) {
+            if (current_simulation_cell_counts.size() !=
+                reference_simulation_cell_counts.size()) {
+
                 throw std::runtime_error(
-                    "Number of classified simulations differs between runs!"
+                    "The number of classified simulations differs "
+                    "between model runs."
                 );
             }
 
-            for (std::size_t s = 0; s < current_cell_counts.size(); ++s) {
-                if (current_cell_counts[s] != reference_cell_counts[s]) {
+            for (std::size_t simulationIndex = 0;
+                 simulationIndex < simulations.size();
+                 ++simulationIndex) {
+
+                if (current_simulation_cell_counts[simulationIndex] !=
+                    reference_simulation_cell_counts[simulationIndex]) {
+
                     throw std::runtime_error(
-                        "Classified cell count differs between runs for simulation " +
-                        simulations[s].name
+                        "Total classified-cell count differs between "
+                        "runs for simulation "
+                        + simulations[simulationIndex].name
                     );
+                }
+
+                const auto& currentTimestepCounts =
+                    current_timestep_cell_counts[simulationIndex];
+
+                const auto& referenceTimestepCounts =
+                    reference_timestep_cell_counts[simulationIndex];
+
+                if (currentTimestepCounts.size() !=
+                    referenceTimestepCounts.size()) {
+
+                    throw std::runtime_error(
+                        "Number of classified timesteps differs between "
+                        "runs for simulation "
+                        + simulations[simulationIndex].name
+                    );
+                }
+
+                for (std::size_t timestepIndex = 0;
+                     timestepIndex < referenceTimestepCounts.size();
+                     ++timestepIndex) {
+
+                    if (currentTimestepCounts[timestepIndex] !=
+                        referenceTimestepCounts[timestepIndex]) {
+
+                        throw std::runtime_error(
+                            "Classified-cell count differs between runs "
+                            "for simulation "
+                            + simulations[simulationIndex].name
+                            + ", timestep "
+                            + IRL::makeTimestepTag(
+                                static_cast<int>(
+                                    timestepIndex + 1))
+                        );
+                    }
                 }
             }
         }
 
-        if (r > 0 && savedClassesCombined.size() != predictions[0].size()) {
+        if (run > 0 &&
+            savedClassesCombined.size() != predictions[0].size()) {
+
             throw std::runtime_error(
-                "Combined saved class vector size differs between runs!"
+                "Combined prediction-vector size differs between runs."
             );
         }
 
-        predictions.push_back(std::move(savedClassesCombined));
+        predictions.push_back(
+            std::move(savedClassesCombined)
+        );
 
-        std::cout << "Combined classified interface cells: "
-                  << predictions.back().size()
-                  << "\n";
+        std::cout
+            << "\nCombined classified interface cells for run "
+            << run
+            << ": "
+            << predictions.back().size()
+            << "\n";
 
-        // Save trained model into its folder
-        ml.saveModel(run_dir.string() + "/", false);
+        // Save this trained model.
+        ml.saveModel(
+            run_dir.string() + "/",
+            false
+        );
 
-        // ml goes out of scope here, so dataset RAM is freed
+        // ml goes out of scope here, releasing the loaded dataset.
     }
 
-    // Print mean instability across ensemble
-    const double mean_instability = compute_mean_instability(predictions);
+    // ---------------------------------------------------------------------
+    // Measure ensemble instability
+    // ---------------------------------------------------------------------
 
-    std::cout << "\nMean per-cell instability = "
-              << mean_instability
-              << "\n";
+    const double mean_instability =
+        compute_mean_instability(predictions);
 
-    // Pick the most agreeing model based on both simulations combined
+    std::cout
+        << "\nMean per-cell instability: "
+        << mean_instability
+        << "\n";
+
+    // ---------------------------------------------------------------------
+    // Select the most agreeing model
+    // ---------------------------------------------------------------------
+
     double most_agreeing_mean_agreement = 0.0;
 
     const int most_agreeing_run =
-        pick_most_agreeing_model(predictions, &most_agreeing_mean_agreement);
+        pick_most_agreeing_model(
+            predictions,
+            &most_agreeing_mean_agreement
+        );
 
     if (most_agreeing_run < 0) {
         throw std::runtime_error(
-            "No runs were executed; cannot select most agreeing model."
+            "No model runs were available for model selection."
         );
     }
 
-    fs::path most_agreeing_model_dir = run_dirs[most_agreeing_run];
-    fs::path most_agreeing_model_path = most_agreeing_model_dir / "ml_model.pt";
+    const fs::path most_agreeing_model_dir =
+        run_dirs.at(
+            static_cast<std::size_t>(most_agreeing_run));
 
-    // Save model selection file
-    fs::path selection_file = experiment_dir / "model_selection.txt";
+    const fs::path most_agreeing_model_path =
+        most_agreeing_model_dir / "ml_model.pt";
+
+    // ---------------------------------------------------------------------
+    // Write model-selection summary
+    // ---------------------------------------------------------------------
+
+    const fs::path selection_file =
+        experiment_dir / "model_selection.txt";
 
     {
-        std::ofstream out(selection_file);
+        std::ofstream output(selection_file);
 
-        if (!out) {
+        if (!output) {
             throw std::runtime_error(
-                "Failed to open " + selection_file.string()
+                "Failed to open model selection file: "
+                + selection_file.string()
             );
         }
 
-        out << "dataset_path " << dataset_path << "\n";
-        out << "no_runs " << no_runs << "\n";
-        
-        out << "canonicalize_symmetries " << canonicalize_symmetries << "\n";
-        out << "include_Moments " << include_Moments << "\n";
-        out << "include_Surface_Area " << include_Surface_Area << "\n";
-        out << "include_Eigenvalues " << include_Eigenvalues << "\n";
+        output
+            << "dataset_path "
+            << dataset_path
+            << "\n";
 
-        out << "simulations_used_for_selection "
+        output
+            << "no_runs "
+            << no_runs
+            << "\n";
+
+        output
+            << "canonicalize_symmetries "
+            << canonicalize_symmetries
+            << "\n";
+
+        output
+            << "include_Moments "
+            << include_Moments
+            << "\n";
+
+        output
+            << "include_Surface_Area "
+            << include_Surface_Area
+            << "\n";
+
+        output
+            << "include_Eigenvalues "
+            << include_Eigenvalues
+            << "\n";
+
+        output
+            << "simulations_used_for_selection "
             << simulations.size()
             << "\n";
 
-        for (std::size_t s = 0; s < simulations.size(); ++s) {
-            out << "simulation_" << s << "_name "
-                << simulations[s].name
+        for (std::size_t simulationIndex = 0;
+             simulationIndex < simulations.size();
+             ++simulationIndex) {
+
+            const auto& simulation =
+                simulations[simulationIndex];
+
+            output
+                << "simulation_"
+                << simulationIndex
+                << "_name "
+                << simulation.name
                 << "\n";
 
-            out << "simulation_" << s << "_nga "
-                << simulations[s].filenameNGA
+            output
+                << "simulation_"
+                << simulationIndex
+                << "_data_directory "
+                << simulation.dataDirectory
                 << "\n";
 
-            out << "simulation_" << s << "_downsample_factor "
-                << simulations[s].downsample_factor
+            output
+                << "simulation_"
+                << simulationIndex
+                << "_plic_directory "
+                << simulation.plicDirectory
                 << "\n";
 
-            out << "simulation_" << s << "_plic "
-                << simulations[s].filenamePlic
+            output
+                << "simulation_"
+                << simulationIndex
+                << "_downsample_factor "
+                << simulation.downsample_factor
                 << "\n";
 
-            out << "simulation_" << s << "_classified_cells "
-                << reference_cell_counts[s]
+            output
+                << "simulation_"
+                << simulationIndex
+                << "_number_of_timesteps "
+                << reference_timestep_cell_counts[
+                       simulationIndex].size()
                 << "\n";
+
+            output
+                << "simulation_"
+                << simulationIndex
+                << "_total_classified_cells "
+                << reference_simulation_cell_counts[
+                       simulationIndex]
+                << "\n";
+
+            for (std::size_t timestepIndex = 0;
+                 timestepIndex <
+                     reference_timestep_cell_counts[
+                         simulationIndex].size();
+                 ++timestepIndex) {
+
+                output
+                    << "simulation_"
+                    << simulationIndex
+                    << "_timestep_"
+                    << IRL::makeTimestepTag(
+                           static_cast<int>(
+                               timestepIndex + 1))
+                    << "_classified_cells "
+                    << reference_timestep_cell_counts[
+                           simulationIndex][timestepIndex]
+                    << "\n";
+            }
         }
 
-        out << "most_agreeing_model_run "
+        output
+            << "most_agreeing_model_run "
             << most_agreeing_run
             << "\n";
 
-        out << "most_agreeing_model_path "
+        output
+            << "most_agreeing_model_path "
             << most_agreeing_model_path.string()
             << "\n";
 
-        out << "most_agreeing_mean_agreement "
+        output
+            << "most_agreeing_mean_agreement "
             << most_agreeing_mean_agreement
             << "\n";
 
-        out << "mean_per_cell_instability "
+        output
+            << "mean_per_cell_instability "
             << mean_instability
             << "\n";
     }
 
-    std::cout << "\n=== Model selection ===\n";
-    std::cout << "Selection file: "
-              << selection_file.string()
-              << "\n";
+    // ---------------------------------------------------------------------
+    // Print model-selection result
+    // ---------------------------------------------------------------------
 
-    std::cout << "dataset_path: "
-              << dataset_path
-              << "\n";
+    std::cout
+        << "\n==================================================\n"
+        << "Model selection result\n"
+        << "==================================================\n";
 
-    std::cout << "no_runs: "
-              << no_runs
-              << "\n";
+    std::cout
+        << "Selection file: "
+        << selection_file.string()
+        << "\n";
 
-    std::cout << "simulations_used_for_selection: "
-              << simulations.size()
-              << "\n";
+    std::cout
+        << "Most agreeing run: "
+        << most_agreeing_run
+        << "\n";
 
-    for (std::size_t s = 0; s < simulations.size(); ++s) {
-        std::cout << "simulation_" << s << "_name: "
-                  << simulations[s].name
-                  << "\n";
+    std::cout
+        << "Most agreeing model: "
+        << most_agreeing_model_path.string()
+        << "\n";
 
-        std::cout << "simulation_" << s << "_nga: "
-                  << simulations[s].filenameNGA
-                  << "\n";
+    std::cout
+        << "Most agreeing mean agreement: "
+        << most_agreeing_mean_agreement
+        << "\n";
 
-        std::cout << "simulation_" << s << "_plic: "
-                  << simulations[s].filenamePlic
-                  << "\n";
+    std::cout
+        << "Mean per-cell instability: "
+        << mean_instability
+        << "\n";
 
-        std::cout << "simulation_" << s << "_classified_cells: "
-                  << reference_cell_counts[s]
-                  << "\n";
+    for (std::size_t simulationIndex = 0;
+         simulationIndex < simulations.size();
+         ++simulationIndex) {
+
+        std::cout
+            << simulations[simulationIndex].name
+            << ": "
+            << reference_timestep_cell_counts[
+                   simulationIndex].size()
+            << " timesteps, "
+            << reference_simulation_cell_counts[
+                   simulationIndex]
+            << " classified cells\n";
     }
 
-    std::cout << "most_agreeing_model_run: "
-              << most_agreeing_run
-              << "\n";
+    // ---------------------------------------------------------------------
+    // Reload selected model and classify complete simulations with output
+    // ---------------------------------------------------------------------
 
-    std::cout << "most_agreeing_model_path: "
-              << most_agreeing_model_path.string()
-              << "\n";
-
-    std::cout << "most_agreeing_mean_agreement: "
-              << most_agreeing_mean_agreement
-              << "\n";
-
-    std::cout << "mean_per_cell_instability: "
-              << mean_instability
-              << "\n";
-
-    // Reload selected model and classify both simulations again
     {
         IRL::MLClassifier most_agreeing(
             stencil_size,
@@ -898,17 +1182,33 @@ void stable_classification() {
             output_size
         );
 
-        most_agreeing.loadModel(most_agreeing_model_path.string(), false);
+        most_agreeing.loadModel(
+            most_agreeing_model_path.string(),
+            false
+        );
 
-        for (const auto& sim : simulations) {
-            std::cout << "\nReclassifying "
-                      << sim.name
-                      << " with most agreeing model...\n";
+        const fs::path selectedOutputsRoot =
+            experiment_dir / "selected_model_outputs";
+
+        for (const auto& simulation : simulations) {
+            const fs::path simulationOutputDirectory =
+                selectedOutputsRoot / simulation.name;
+
+            std::cout
+                << "\nReclassifying complete simulation "
+                << simulation.name
+                << " with the selected model.\n";
+
+            std::cout
+                << "Output directory: "
+                << simulationOutputDirectory.string()
+                << "\n";
 
             IRL::classify_simulation(
                 most_agreeing,
-                sim.filenameNGA,
-                sim.filenamePlic,
+                simulation.dataDirectory,
+                simulation.plicDirectory,
+                simulationOutputDirectory.string(),
                 canonicalize_symmetries,
                 include_Moments,
                 include_Surface_Area,
@@ -916,7 +1216,10 @@ void stable_classification() {
                 noise_stddev,
                 epsilon_connectivity,
                 nullptr,
-                sim.downsample_factor
+                simulation.downsample_factor,
+                pdistribution_step,
+                true,    // write_output
+                nullptr  // no timestep counts needed
             );
         }
     }
@@ -927,7 +1230,7 @@ int main (int argc, char* argv[]) {
     int stencil_size = 5;
 
     //Data parameters
-    int no_batches = 4096 * 4 * 2;
+    int no_batches = 4096 * 4;
     int include_Moments = 1;
     bool include_Surface_Area = false;
     bool include_Eigenvalues = false;
@@ -996,37 +1299,10 @@ int main (int argc, char* argv[]) {
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     //ml.generateDataset();
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/data/data.bin");
-    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/data/data.bin");
-    //ml.appendDataset("/home/quirin/mlcfd/Datasets/SixClasses/Transition/s5_262k/data/data.bin", false);
+    //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMomentsPP/data/data.bin");
+    //ml.appendDataset("/home/quirin/mlcfd/Datasets/SixClasses/new/s5_1M/data/data.bin", false);
     //ml.retain_only_0th_moments();
     //ml.saveDataset("data");
-
-    /*//Below: Used to remove 1st moments from dataset/
-    include_Moments = 0;
-    ml.updateDataParameters(
-            no_batches,
-            include_Moments,
-            include_Surface_Area,
-            include_Eigenvalues,
-            paraboloid_coeff_stddev,
-            hyperbolic_cylinder_opening_angle_stddev,
-            sheet_coeff_stddev,
-            sheet_thickness_stddev,
-            cylinder_radius_stddev,
-            radius_circle_min,
-            radius_circle_max,
-            sphere_radius_stddev,
-            ellipsoid_subgrid_stddev,
-            min_long_ellipsoid_axis,
-            max_long_ellipsoid_axis,
-            exact_2nd_moment,
-            visualize,
-            machineZero,
-            lower_limit_subgrid,
-            upper_limit_subgrid,
-            class0_max_characteristic
-        );            
-        */
 
     int canonicalize_symmetries = 48;
     float noise_stddev = 0.0f;
@@ -1038,8 +1314,9 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/new/s5_2M/stable_run_models/2026-08-03_225102/run_1/ml_model.pt");
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/stable_run_models/2026-07-15_164648/run_2/ml_model.pt"); //Thesis zeroth most agreeing
-    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/stable_run_models/2026-07-01_014127/run_4/ml_model.pt"); // Thesis first moments most agreeing
+    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/stable_run_models/2026-07-01_014127/run_4/ml_model.pt"); // Thesis first moments most agreeing
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMomentsEigv/stable_run_models/2026-06-30_203023/run_0/ml_model.pt"); // Thesis first moments eigenvalues most agreeing
     //ml.exportRuntimeWeightsAndBiasesHeader();
 
@@ -1049,11 +1326,36 @@ int main (int argc, char* argv[]) {
     // vtk reader
     //std::string filenameNGA = "/home/quirin/mlcfd/Repositories/jetvtr/data.000031.vtr";
     //std::string filenamePlic = "/home/quirin/mlcfd/Repositories/jetvtr/plic.000031.vtu";
-    std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr";
-    std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000001.vtu";
+    // std::string filenameNGA = "/home/quirin/mlcfd/Repositories/bagvtr/data.000001.vtr";
+    // std::string filenamePlic = "/home/quirin/mlcfd/Repositories/bagvtr/plic.000001.vtu";
+    // int downsample_factor = 1;
+    // double pdistribution_step = 0.0;
+    // IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor, pdistribution_step);
+    
+    std::string dataDirectory = "/home/quirin/mlcfd/Repositories/bag-breakup/data";
+    std::string plicDirectory = "/home/quirin/mlcfd/Repositories/bag-breakup/plic";
+    //std::string dataDirectory = "/home/quirin/mlcfd/Repositories/round-jet/data";
+    //std::string plicDirectory = "/home/quirin/mlcfd/Repositories/round-jet/plic";
+    std::string outputDirectory = ".";
+
     int downsample_factor = 1;
     double pdistribution_step = 0.0;
-    IRL::classify_simulation(ml, filenameNGA, filenamePlic, canonicalize_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev, epsilon_connectivity, nullptr, downsample_factor, pdistribution_step);
+    
+    IRL::classify_simulation(
+        ml,
+        dataDirectory,
+        plicDirectory,
+        outputDirectory,
+        canonicalize_symmetries,
+        include_Moments,
+        include_Surface_Area,
+        include_Eigenvalues,
+        noise_stddev,
+        epsilon_connectivity,
+        nullptr,
+        downsample_factor,
+        pdistribution_step);
+    
 
     //stable_classification();
 
@@ -1062,6 +1364,5 @@ int main (int argc, char* argv[]) {
     //gen.generateState(2,5,1,false,0.1,0.1,0.5,0.0,0.5,0.0,0.5,0.0,true);
 
     //find_dataset_size();
-    //shell_testcase(ml);
     return 0;
 }

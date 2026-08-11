@@ -2,6 +2,10 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include <filesystem>
+#include <iomanip>
+#include <sstream>
+#include <system_error>
 #include "stencil_rotator.h"
 
 #include <vtkSmartPointer.h>
@@ -31,6 +35,15 @@
 #include <cmath>
 
 namespace IRL {
+
+namespace fs = std::filesystem;
+
+static std::string makeTimestepTag(int timestep)
+{
+    std::ostringstream stream;
+    stream << std::setfill('0') << std::setw(6) << timestep;
+    return stream.str();
+}
 
 static inline vtkIdType cellId3D(int i, int j, int k, int nx, int ny) {
     return static_cast<vtkIdType>(i + j * nx + k * nx * ny);
@@ -67,9 +80,13 @@ static inline double unitAreaFromPhysicalScalarArea(
     return areaPhysical / areaScale;
 }
 
-void classify_simulation(IRL::Classifier& classifier, const std::string& filenameNGA, const std::string& filenamePlic,
-    int cannonicalize_symmetries = 0, int include_Moments = 1, bool include_Surface_Area = false, bool include_Eigenvalues = false, 
-    float noise_stddev = 0.0f, float epsilon_connectivity = 1e-12f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2, double pdistribution_step = 0.0) 
+void classify_timestep(IRL::Classifier& classifier, const std::string& filenameNGA,
+    const std::string& filenamePlic,
+    const std::string& outputDataFilename,
+    const std::string& outputPlicFilename,
+    int canonicalize_symmetries = 0, int include_Moments = 1, bool include_Surface_Area = false, bool include_Eigenvalues = false, 
+    float noise_stddev = 0.0f, float epsilon_connectivity = 1e-12f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2, double pdistribution_step = 0.0,
+    bool write_output = true) 
     {
     auto reader = vtkSmartPointer<vtkXMLRectilinearGridReader>::New();
     reader->SetFileName(filenameNGA.c_str());
@@ -602,7 +619,6 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                         }
                     }
                 }*/
-
                 // Flatten stencil into 1D vector
                 std::vector<double> flattened_state;
                 for (int si = 0; si < stencil_size_reader; ++si) {
@@ -644,7 +660,7 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
                 
                 IRL::preprocess_stencil(flattened_state_float,
                         stencil_size_reader,
-                        cannonicalize_symmetries,
+                        canonicalize_symmetries,
                         include_Moments,
                         include_Surface_Area,
                         include_Eigenvalues,
@@ -874,118 +890,312 @@ void classify_simulation(IRL::Classifier& classifier, const std::string& filenam
     std::cout << "Average certainty: " << (certainty_sum / no_cells_cert) << std::endl;
     std::cout << "Minimum certainty: " << minimum_certainty << std::endl;
 
-    // Write Grid file
-    grid->GetCellData()->AddArray(interface_type);
-    grid->GetCellData()->AddArray(certainty);
-    auto grid_writer = vtkSmartPointer<vtkXMLRectilinearGridWriter>::New();
-    grid_writer->SetFileName("grid.vtr");
-    grid_writer->SetInputData(downsampledGrid);
-    grid_writer->Write();
+    if (write_output) {
 
-    // Cell locator
-    auto locator = vtkSmartPointer<vtkCellLocator>::New();
-    locator->SetDataSet(downsampledGrid);
-    locator->BuildLocator();
-    /*
-    // Convert interface_type to PLIC array
-    for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
-        auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
-        plic_interface_type->SetValue(i, type);
-        auto cert = certainty->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
-        plic_certainty->SetValue(i, cert);
-    }
-    */
-    
-    // Optional nplane=2 diagnostic counters.
-    // Denominator: all PLIC cells with nplane == 2.
-    // True positives: those classified as sheet or sheet edge.
-    int nplane2_total = 0;
-    int nplane2_true_positive = 0;
-    int nplane2_as_sheet = 0;
-    int nplane2_as_sheet_edge = 0;
-    int nplane2_as_other = 0;
-    int nplane2_unmapped = 0;
+        // Write Grid file
+        grid->GetCellData()->AddArray(interface_type);
+        grid->GetCellData()->AddArray(certainty);
+        auto grid_writer = vtkSmartPointer<vtkXMLRectilinearGridWriter>::New();
+        grid_writer->SetFileName("grid.vtr");
+        grid_writer->SetInputData(downsampledGrid);
+        grid_writer->Write();
 
-    // Convert interface_type to PLIC array
-    for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
-
-        vtkIdType mappedCellId = locator->FindCell(cell_centers->GetPoint(i));
-
-        int type = -1;
-        float cert = 0.0f;
-
-        if (mappedCellId >= 0) {
-            type = interface_type->GetValue(mappedCellId);
-            cert = certainty->GetValue(mappedCellId);
+        // Cell locator
+        auto locator = vtkSmartPointer<vtkCellLocator>::New();
+        locator->SetDataSet(downsampledGrid);
+        locator->BuildLocator();
+        /*
+        // Convert interface_type to PLIC array
+        for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
+            auto type = interface_type->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
+            plic_interface_type->SetValue(i, type);
+            auto cert = certainty->GetValue(locator->FindCell(cell_centers->GetPoint(i)));
+            plic_certainty->SetValue(i, cert);
         }
+        */
+        
+        // Optional nplane=2 diagnostic counters.
+        // Denominator: all PLIC cells with nplane == 2.
+        // True positives: those classified as sheet or sheet edge.
+        int nplane2_total = 0;
+        int nplane2_true_positive = 0;
+        int nplane2_as_sheet = 0;
+        int nplane2_as_sheet_edge = 0;
+        int nplane2_as_other = 0;
+        int nplane2_unmapped = 0;
 
-        plic_interface_type->SetValue(i, type);
-        plic_certainty->SetValue(i, cert);
+        // Convert interface_type to PLIC array
+        for (int i = 0; i < plic_grid->GetNumberOfCells(); i++) {
 
-        if (evaluateNplane2Sheets) {
-            int nplane = static_cast<int>(
-                std::lround(nplaneArray->GetComponent(i, 0))
-            );
+            vtkIdType mappedCellId = locator->FindCell(cell_centers->GetPoint(i));
 
-            if (nplane == 2) {
-                ++nplane2_total;
+            int type = -1;
+            float cert = 0.0f;
 
-                if (mappedCellId < 0) {
-                    ++nplane2_unmapped;
-                } else if (type == 3) {
-                    // Class 3 = sheet
-                    ++nplane2_true_positive;
-                    ++nplane2_as_sheet;
-                } else if (type == 5) {
-                    // Class 5 = sheet edge / cut sheet
-                    ++nplane2_true_positive;
-                    ++nplane2_as_sheet_edge;
-                } else {
-                    ++nplane2_as_other;
+            if (mappedCellId >= 0) {
+                type = interface_type->GetValue(mappedCellId);
+                cert = certainty->GetValue(mappedCellId);
+            }
+
+            plic_interface_type->SetValue(i, type);
+            plic_certainty->SetValue(i, cert);
+
+            if (evaluateNplane2Sheets) {
+                int nplane = static_cast<int>(
+                    std::lround(nplaneArray->GetComponent(i, 0))
+                );
+
+                if (nplane == 2) {
+                    ++nplane2_total;
+
+                    if (mappedCellId < 0) {
+                        ++nplane2_unmapped;
+                    } else if (type == 3) {
+                        // Class 3 = sheet
+                        ++nplane2_true_positive;
+                        ++nplane2_as_sheet;
+                    } else if (type == 5) {
+                        // Class 5 = sheet edge / cut sheet
+                        ++nplane2_true_positive;
+                        ++nplane2_as_sheet_edge;
+                    } else {
+                        ++nplane2_as_other;
+                    }
                 }
             }
         }
+
+        if (evaluateNplane2Sheets) {
+            std::cout << "\n=== nplane=2 Sheet Diagnostic ===" << std::endl;
+            std::cout << "PLIC cells with nplane = 2:           "
+                    << nplane2_total << std::endl;
+
+            std::cout << "Correctly classified as sheet/edge:   "
+                    << nplane2_true_positive << std::endl;
+
+            std::cout << "  classified as sheet, class 3:       "
+                    << nplane2_as_sheet << std::endl;
+
+            std::cout << "  classified as sheet edge, class 5:  "
+                    << nplane2_as_sheet_edge << std::endl;
+
+            std::cout << "Classified as other type:             "
+                    << nplane2_as_other << std::endl;
+
+            std::cout << "Unmapped PLIC cells:                  "
+                    << nplane2_unmapped << std::endl;
+
+            if (nplane2_total > 0) {
+                const double recall =
+                    static_cast<double>(nplane2_true_positive)
+                    / static_cast<double>(nplane2_total);
+
+                std::cout << "nplane=2 sheet/sheet-edge recall:     "
+                        << recall << std::endl;
+            } else {
+                std::cout << "nplane=2 sheet/sheet-edge recall:     undefined, no nplane=2 cells"
+                        << std::endl;
+            }
+        }
+
+        // Write PLIC file
+        plic_grid->GetCellData()->AddArray(plic_interface_type);
+        plic_grid->GetCellData()->AddArray(plic_certainty);
+        auto plic_writer = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
+        plic_writer->SetFileName(outputPlicFilename.c_str());
+        plic_writer->SetInputData(plic_grid);
+        plic_writer->Write();
+    }
+}
+
+void classify_simulation(
+    IRL::Classifier& classifier,
+    const std::string& dataDirectory,
+    const std::string& plicDirectory,
+    const std::string& outputDirectory,
+    int canonicalize_symmetries,
+    int include_Moments,
+    bool include_Surface_Area,
+    bool include_Eigenvalues,
+    float noise_stddev,
+    float epsilon_connectivity,
+    std::vector<int>* savedClasses,
+    int downsample_factor,
+    double pdistribution_step,
+    bool write_output = true,
+    std::vector<std::size_t>* savedTimestepCellCounts = nullptr)
+{
+    const fs::path dataInputDirectory(dataDirectory);
+    const fs::path plicInputDirectory(plicDirectory);
+    const fs::path outputRoot(outputDirectory);
+
+    if (!fs::is_directory(dataInputDirectory)) {
+        throw std::runtime_error(
+            "Data input directory does not exist: "
+            + dataInputDirectory.string()
+        );
     }
 
-    if (evaluateNplane2Sheets) {
-        std::cout << "\n=== nplane=2 Sheet Diagnostic ===" << std::endl;
-        std::cout << "PLIC cells with nplane = 2:           "
-                << nplane2_total << std::endl;
+    if (!fs::is_directory(plicInputDirectory)) {
+        throw std::runtime_error(
+            "PLIC input directory does not exist: "
+            + plicInputDirectory.string()
+        );
+    }
 
-        std::cout << "Correctly classified as sheet/edge:   "
-                << nplane2_true_positive << std::endl;
+    fs::path dataOutputDirectory;
+    fs::path plicOutputDirectory;
 
-        std::cout << "  classified as sheet, class 3:       "
-                << nplane2_as_sheet << std::endl;
+    if (write_output) {
+        dataOutputDirectory = outputRoot / "data";
+        plicOutputDirectory = outputRoot / "plic";
 
-        std::cout << "  classified as sheet edge, class 5:  "
-                << nplane2_as_sheet_edge << std::endl;
+        fs::create_directories(dataOutputDirectory);
+        fs::create_directories(plicOutputDirectory);
+    }
 
-        std::cout << "Classified as other type:             "
-                << nplane2_as_other << std::endl;
+    if (savedTimestepCellCounts) {
+        savedTimestepCellCounts->clear();
 
-        std::cout << "Unmapped PLIC cells:                  "
-                << nplane2_unmapped << std::endl;
-
-        if (nplane2_total > 0) {
-            const double recall =
-                static_cast<double>(nplane2_true_positive)
-                / static_cast<double>(nplane2_total);
-
-            std::cout << "nplane=2 sheet/sheet-edge recall:     "
-                    << recall << std::endl;
-        } else {
-            std::cout << "nplane=2 sheet/sheet-edge recall:     undefined, no nplane=2 cells"
-                    << std::endl;
+        if (!savedClasses) {
+            throw std::runtime_error(
+                "savedTimestepCellCounts requires savedClasses."
+            );
         }
     }
 
-    // Write PLIC file
-    plic_grid->GetCellData()->AddArray(plic_interface_type);
-    plic_grid->GetCellData()->AddArray(plic_certainty);
-    auto plic_writer = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
-    plic_writer->SetFileName("plic.vtu");
-    plic_writer->SetInputData(plic_grid);
-    plic_writer->Write();
+    int numberOfProcessedTimesteps = 0;
+
+    for (int timestep = 1; ; ++timestep) {
+        const std::string tag = makeTimestepTag(timestep);
+
+        // Input names:
+        // data.000001.vtr
+        // plic.000001.vtu
+        const fs::path inputDataFile =
+            dataInputDirectory / ("data." + tag + ".vtr");
+
+        const fs::path inputPlicFile =
+            plicInputDirectory / ("plic." + tag + ".vtu");
+
+        const bool dataExists = fs::is_regular_file(inputDataFile);
+        const bool plicExists = fs::is_regular_file(inputPlicFile);
+
+        // Normal end of the consecutive sequence.
+        if (!dataExists && !plicExists) {
+            if (timestep == 1) {
+                throw std::runtime_error(
+                    "No initial timestep was found. Expected:\n  "
+                    + inputDataFile.string()
+                    + "\n  "
+                    + inputPlicFile.string());
+            }
+
+            std::cout
+                << "\nNo input files found for timestep "
+                << tag
+                << ". Finished simulation classification."
+                << std::endl;
+
+            break;
+        }
+
+        // One file exists without its matching partner. Treat this as an input error instead of silently ignoring the incomplete timestep.
+        if (!dataExists || !plicExists) {
+            std::ostringstream message;
+
+            message
+                << "Incomplete file pair for timestep "
+                << tag
+                << ":\n  data: "
+                << inputDataFile.string()
+                << (dataExists ? " [found]" : " [missing]")
+                << "\n  plic: "
+                << inputPlicFile.string()
+                << (plicExists ? " [found]" : " [missing]");
+
+            throw std::runtime_error(message.str());
+        }
+
+        const std::size_t savedClassesBeforeTimestep = savedClasses ? savedClasses->size() : 0;
+
+        std::string outputDataFilename;
+        std::string outputPlicFilename;
+
+        if (write_output) {
+            const fs::path outputDataFile =
+                dataOutputDirectory / ("data-" + tag + ".vtr");
+
+            const fs::path outputPlicFile =
+                plicOutputDirectory / ("plic-" + tag + ".vtu");
+
+            outputDataFilename = outputDataFile.string();
+            outputPlicFilename = outputPlicFile.string();
+        }
+
+        std::cout
+            << "\n==================================================\n"
+            << "Classifying timestep " << tag << "\n"
+            << "Data input:  " << inputDataFile.string() << "\n"
+            << "PLIC input:  " << inputPlicFile.string() << "\n";
+
+        if (write_output) {
+            std::cout
+                << "Data output: " << outputDataFilename << "\n"
+                << "PLIC output: " << outputPlicFilename << "\n";
+        } else {
+            std::cout
+                << "Output writing disabled for model selection.\n";
+        }
+
+        std::cout
+            << "=================================================="
+            << std::endl;
+
+        classify_timestep(
+            classifier,
+            inputDataFile.string(),
+            inputPlicFile.string(),
+            outputDataFilename,
+            outputPlicFilename,
+            canonicalize_symmetries,
+            include_Moments,
+            include_Surface_Area,
+            include_Eigenvalues,
+            noise_stddev,
+            epsilon_connectivity,
+            savedClasses,
+            downsample_factor,
+            pdistribution_step,
+            write_output
+        );
+
+        ++numberOfProcessedTimesteps;
+
+        if (savedTimestepCellCounts) {
+            const std::size_t savedClassesAfterTimestep =
+                savedClasses->size();
+
+            if (savedClassesAfterTimestep <
+                savedClassesBeforeTimestep) {
+
+                throw std::runtime_error(
+                    "savedClasses unexpectedly decreased in size."
+                );
+            }
+
+            savedTimestepCellCounts->push_back(
+                savedClassesAfterTimestep -
+                savedClassesBeforeTimestep
+            );
+        }
+    }
+
+    std::cout
+        << "\nProcessed "
+        << numberOfProcessedTimesteps
+        << " timestep(s)."
+        << std::endl;
 }
+
 } // namespace IRL

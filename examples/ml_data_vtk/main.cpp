@@ -799,7 +799,7 @@ void ellipsoid_sphere_test()
 int main(int argc, char* argv[]) {
 
 
-int stencil_size = 5;
+    int stencil_size = 5;
 
     //Data parameters
     int no_batches;
@@ -841,7 +841,7 @@ int stencil_size = 5;
     int max_epochs = 50;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
-
+    /*
     // Below for visualizing generated data and testing the data generator interactively:
     IRL::Data_gen gen; 
     
@@ -893,16 +893,16 @@ int stencil_size = 5;
 
         std::cout << "Generated state for class " << input_class
                 << " with size " << state.size() << ".\n";
-    }
+    }*/
 
-    /* Below for testing ellipsoid generation
+    //Below for testing ellipsoid generation
     try {
         ellipsoid_test();
         ellipsoid_sphere_test();
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << std::endl;
         return 1;
-    }*/
+    }
 
     // bool well_resolved = false;
 
