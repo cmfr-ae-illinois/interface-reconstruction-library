@@ -47,6 +47,40 @@ inline double Wendland::secondDer(double r, double delta) {
   }
 }
 
+// Near Center Methods
+inline Eigen::Vector3d Wendland::getGradient(const Pt& xi, const double& delta,
+                                             const Pt& x_eval) {
+  // First, get r
+  double r = Wendland::computeR(xi, x_eval);
+
+  // Now, we need to calculate the distance function derivative. To do this,
+  // first make x an Eigen Vector.
+  Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
+  // Apply Formula
+  Eigen::Vector3d gradF = (-20.0 * x / (delta * delta)) * (1.0 - r / delta) *
+                          (1.0 - r / delta) * (1.0 - r / delta);
+  return gradF;
+}
+
+inline Eigen::Matrix3d Wendland::getHessian(const Pt& xi, const double& delta,
+                                            const Pt& x_eval) {
+  // First, get r
+  double r = Wendland::computeR(xi, x_eval);
+
+  // Now, we need to calculate the distance function derivative. To do this,
+  // first make x an Eigen Vector.
+  Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
+
+  // Calculate Return Values
+  double diagonal1 = (-20.0 / (delta * delta)) * (1.0 - r / delta) *
+                     (1.0 - r / delta) * (1.0 - r / delta);
+  double otherTerms =
+      (60.0 / (delta * delta * delta)) * (1.0 - r / delta) * (1.0 - r / delta);
+  Eigen::Matrix3d hessF = diagonal1 * Eigen::Matrix3d::Identity() +
+                          otherTerms * x * x.transpose() / safelyTiny(r);
+  return hessF;
+}
+
 // Evaluate 1
 inline void Wendland::evaluate(const Pt& xi, const double& delta,
                                const Pt& x_eval, double* retVal) {
@@ -64,21 +98,14 @@ inline void Wendland::evaluate(const Pt& xi, const double& delta,
                                std::pair<double, Eigen::Vector3d>* retVal) {
   // First, get r
   double r = Wendland::computeR(xi, x_eval);
-
   // Next Calculate F, the function value
   double F = Wendland::eval(r, delta);
-
-  // Next Calculate F',F''
-  double Fp = Wendland::firstDer(r, delta);
-
   // Now, we need to calculate the distance function derivative. To do this,
   // first make x an Eigen Vector.
   Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
 
-  // Now, calculate the Gradient of r
-  Eigen::Vector3d gradR = x / safelyEpsilon(r);
   // Calculate Gradient
-  Eigen::Vector3d gradF = Fp * gradR;
+  Eigen::Vector3d gradF = getGradient(xi, delta, x_eval);
   // Return
   *retVal = std::make_pair(F, gradF);
 }
@@ -93,25 +120,13 @@ inline void Wendland::evaluate(
   // Next Calculate F, the function value
   double F = Wendland::eval(r, delta);
 
-  // Next Calculate F',F''
-  double Fp = Wendland::firstDer(r, delta);
-  double Fpp = Wendland::secondDer(r, delta);
-
   // Now, we need to calculate the distance function derivative. To do this,
   // first make x an Eigen Vector.
   Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
 
-  // Now, calculate the Gradient of r
-  Eigen::Vector3d gradR = x / safelyEpsilon(r);
-
-  // Finally, calculate the Hessian of r
-  Eigen::Matrix3d hessR =
-      (Eigen::Matrix3d::Identity() - x * x.transpose() / safelyEpsilon(r * r)) /
-      safelyEpsilon(r);
-
   // Calculate Return Values
-  Eigen::Vector3d gradF = Fp * gradR;
-  Eigen::Matrix3d hessF = Fpp * (gradR * gradR.transpose()) + Fp * hessR;
+  Eigen::Vector3d gradF = getGradient(xi, delta, x_eval);
+  Eigen::Matrix3d hessF = getHessian(xi, delta, x_eval);
   *retVal = std::make_tuple(F, gradF, hessF);
 }
 }  // namespace IRL

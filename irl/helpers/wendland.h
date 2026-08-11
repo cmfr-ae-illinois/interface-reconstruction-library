@@ -32,7 +32,11 @@ class Wendland {
   static inline void evaluate(
       const Pt& xi, const double& delta, const Pt& x_eval,
       std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
-
+  // Specialized Evaluate Function for when we are evaluating near the center
+  static inline Eigen::Vector3d getGradient(const Pt& xi, const double& delta,
+                                            const Pt& x_eval);
+  static inline Eigen::Matrix3d getHessian(const Pt& xi, const double& delta,
+                                           const Pt& x_eval);
   // Disallow Instance Creation
   Wendland() = delete;
 };
