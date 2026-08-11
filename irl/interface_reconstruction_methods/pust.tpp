@@ -223,6 +223,7 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
   // std::cout << "Case Value: " << caseValue << "\n";
   std::vector<std::vector<int>> pairs = {{-1, -1}, {-1, -1}};
   // std::cout << "================== Case Value: " << caseValue << "\n";
+
   switch (caseValue) {
     case 0:
       return Normal(0.0, 0.0, 0.0);
@@ -320,13 +321,20 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
   Normal edge2 = {dP2[0], dP2[1], dP2[2]};
   Normal faceNormal = IRL::crossProduct(edge1, edge2);
   faceNormal.normalize();
+  double L1 = std::sqrt(dP1[0] * dP1[0] + dP1[1] * dP1[1] + dP1[2] * dP1[2]);
+  double L2 = std::sqrt(dP2[0] * dP2[0] + dP2[1] * dP2[1] + dP2[2] * dP2[2]);
+  double faceArea = L1 * L2;
 
   // Give space for working variables
   Normal normal1, normal2, tangentStart, tangentEnd;
   Pt startPoint, endPoint, controlPoint;
   double weight = 1;  // Make Nonrational for now, but can add later if we want
   Normal total = {0.0, 0.0, 0.0};  // Total force
-
+  double averageCurvature, averageSurfaceTension, arcLength;
+  averageCurvature = 0.0;
+  averageSurfaceTension = 0.0;
+  arcLength = 0.0;
+  double area = 0.0;
   // Loop over pairs, make splines, integrate, add forces to total.
   for (int j = 0; j < 2; j++) {
     if (pairs[j][0] != -1) {  // If there is a pair
@@ -392,6 +400,28 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
         f.normalize();
         f = f * ST;
         total = total + 0.5 * w * f * denom * speed;
+
+        if (Pressure >= 0.5) {
+          // Integrate the curvature and surface tension along the arc to get
+          // the average values for Pressure Term
+          // std::cout << "Pressure Terms\n";
+          double curv = this->getMeanCurvature(pt);
+          arcLength += 0.5 * w * speed;
+          averageCurvature += 0.5 * w * curv * speed;
+          averageSurfaceTension += 0.5 * w * ST * speed;
+
+          // Also need the area contribution of the spline wth F = {x,0,0}
+          // First, get outward pointing normal to spline.
+          Normal tangentVector = Normal(tangent[0], tangent[1], tangent[2]);
+          tangentVector.normalize();
+          Normal outwardNormal = IRL::crossProduct(tangentVector, faceNormal);
+          outwardNormal.normalize();
+          // Now get F
+          Normal F = {pt[0] / 3.0, pt[1] / 3.0, pt[2] / 3.0};
+          // Now get the integrand
+          double integrand = outwardNormal * F;
+          area += 0.5 * w * integrand * speed;
+        }
       }
 
       // Debug Prints
@@ -419,17 +449,196 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
         std::cout << "P3: " << P3 << "\n\n";
         // Output Info
         std::cout << "Total: " << total << "\n";
+        std::cout << "Area: " << area << "\n";
         std::cout << "===================================================== \n";
       }
     }
   }
-  return -total;
+  total = -total;
+  if (Pressure >= 0.5 && std::abs(arcLength) > 1e-12) {
+    averageCurvature = averageCurvature / safelyTiny(arcLength);
+    averageSurfaceTension = averageSurfaceTension / safelyTiny(arcLength);
+    // std::cout << "Average Curvature: " << averageCurvature << "\n";
+    Normal inwardsNormal = -faceNormal;
+    inwardsNormal.normalize();
+    // Next, we want to complete the area integral for the pressure term.
+    // We already have the contribution of the spline so far, so we just
+    // need to traverse the straight lines along the cell. This is done
+    // automatically below
+    area += this->computeFaceAreaContribution(P0, P1, P2, P3, caseValue,
+                                              intersectionsSet);
+    // std::cout << "Area Contribution: " << area << "\n";
+    // PressureTermFactor tells us to add or subtract pressure term based on
+    // if the wetted area includes or excludes the center of the cell face.
+    // To do this, we want to do an orientation test with the center of the
+    // cell face and the two points at the start and end of the arc. if the
+    // center is to the left of the arc, then we add, else we subtract.
+    if (val4 > 0.0) {  // Outside
+      total = total +
+              averageSurfaceTension * averageCurvature * area * inwardsNormal;
+      // Subtract since pressure acts inwards and the pressure is increasing,
+      // and the normal is outwards
+
+    } else {                   // Inside
+      area = faceArea - area;  // Get the area of the other side of the face
+      total = total -
+              averageSurfaceTension * averageCurvature * area * inwardsNormal;
+    }
+  }
+  return total;
 }
+
+// Compute Face Area Contribution
+template <class CellType>
+double PUST<CellType>::computeFaceAreaContribution(
+    const Pt& P0, const Pt& P1, const Pt& P2, const Pt& P3, int caseValue,
+    std::vector<std::vector<Pt>> intersectionsSet) {
+  // For the different cases, add pairs of points to integrate along.
+  Pt dP1 = P1 - P0;
+  Pt dP2 = P2 - P1;
+  Normal edge1 = {dP1[0], dP1[1], dP1[2]};
+  Normal edge2 = {dP2[0], dP2[1], dP2[2]};
+
+  edge1.normalize();
+  edge2.normalize();
+  Normal faceNormal = IRL::crossProduct(edge1, edge2);
+  faceNormal.normalize();
+
+  std::vector<std::pair<Pt, Pt>> pairs = {};
+  switch (caseValue) {
+    case 0:
+      return 0.0;
+    case 1:
+      // pairs[0] = {0, 3};
+      pairs.push_back({intersectionsSet[3][0], P0});
+      pairs.push_back({P0, intersectionsSet[0][0]});
+      break;
+    case 2:
+      // pairs[0] = {1, 0};
+      pairs.push_back({intersectionsSet[0][0], P0});
+      pairs.push_back({P0, intersectionsSet[1][0]});
+      break;
+    case 3:
+      // pairs[0] = {1, 3};
+      pairs.push_back({intersectionsSet[3][0], P0});
+      pairs.push_back({P0, P1});
+      pairs.push_back({P1, intersectionsSet[1][0]});
+      break;
+    case 4:
+      // pairs[0] = {2, 1};
+      pairs.push_back({intersectionsSet[1][0], P1});
+      pairs.push_back({P1, intersectionsSet[2][0]});
+      break;
+    case 5:
+      pairs.push_back({P0, intersectionsSet[0][0]});
+      pairs.push_back({intersectionsSet[1][0], P2});
+      pairs.push_back({P2, intersectionsSet[2][0]});
+      pairs.push_back({intersectionsSet[3][0], P0});
+      break;
+    case 6:
+      // pairs[0] = {2, 0};
+      pairs.push_back({intersectionsSet[0][0], P1});
+      pairs.push_back({P1, P2});
+      pairs.push_back({P2, intersectionsSet[2][0]});
+      break;
+    case 7:
+      // pairs[0] = {2, 3};
+      pairs.push_back({intersectionsSet[3][0], P0});
+      pairs.push_back({P0, P1});
+      pairs.push_back({P1, P2});
+      pairs.push_back({P2, intersectionsSet[2][0]});
+      break;
+    case 8:
+      // pairs[0] = {3, 2};
+      pairs.push_back({intersectionsSet[2][0], P3});
+      pairs.push_back({P3, intersectionsSet[3][0]});
+      break;
+    case 9:
+      // pairs[0] = {0, 2};
+      pairs.push_back({intersectionsSet[2][0], P3});
+      pairs.push_back({P3, P0});
+      pairs.push_back({P0, intersectionsSet[0][0]});
+      break;
+    case 10:
+      pairs.push_back({intersectionsSet[0][0], P1});
+      pairs.push_back({P1, intersectionsSet[1][0]});
+      pairs.push_back({intersectionsSet[2][0], P3});
+      pairs.push_back({P3, intersectionsSet[3][0]});
+      break;
+    case 11:
+      // pairs[0] = {1, 2};
+      pairs.push_back({intersectionsSet[2][0], P3});
+      pairs.push_back({P3, P0});
+      pairs.push_back({P0, P1});
+      pairs.push_back({P1, intersectionsSet[1][0]});
+      break;
+    case 12:
+      // pairs[0] = {3, 1};
+      pairs.push_back({intersectionsSet[1][0], P2});
+      pairs.push_back({P2, P3});
+      pairs.push_back({P3, intersectionsSet[3][0]});
+      break;
+    case 13:
+      // pairs[0] = {0, 1};
+      pairs.push_back({intersectionsSet[1][0], P2});
+      pairs.push_back({P2, P3});
+      pairs.push_back({P3, P0});
+      pairs.push_back({P0, intersectionsSet[0][0]});
+      break;
+    case 14:
+      // pairs[0] = {3, 0};
+      pairs.push_back({intersectionsSet[0][0], P1});
+      pairs.push_back({P1, P2});
+      pairs.push_back({P2, P3});
+      pairs.push_back({P3, intersectionsSet[3][0]});
+      break;
+    case 15:
+      pairs.push_back({P0, P1});
+      pairs.push_back({P1, P2});
+      pairs.push_back({P2, P3});
+      pairs.push_back({P3, P0});
+      break;
+    default:
+      std::cout
+          << "Warning: Invalid case value in computeFaceAreaContribution\n";
+      break;
+  }
+  // Now integrate along the pairs to get the area contribution
+  double areaContribution = 0.0;
+  for (const auto& pair : pairs) {
+    Pt start = pair.first;
+    Pt end = pair.second;
+    Pt dP = end - start;
+    int QuadRuleOrder = 50;
+    const auto& abscissea = AbscissaeGauss<double, 50>();
+    const auto& weights = WeightsGauss<double, 50>();
+    for (int j = 0; j < QuadRuleOrder; ++j) {
+      const double t = 0.5 * (1.0 + abscissea[j]);
+      const double w = weights[j];
+      Pt pt = start + t * dP;
+      Normal tangentVector = Normal(dP[0], dP[1], dP[2]);
+      double speed = std::sqrt(tangentVector[0] * tangentVector[0] +
+                               tangentVector[1] * tangentVector[1] +
+                               tangentVector[2] * tangentVector[2]);
+      tangentVector.normalize();
+      Normal outwardNormal = IRL::crossProduct(tangentVector, faceNormal);
+      outwardNormal.normalize();
+      // Now get F
+      Normal F = {pt[0] / 3.0, pt[1] / 3.0, pt[2] / 3.0};
+      // Now get the integrand
+      double integrand = outwardNormal * F;
+      areaContribution += 0.5 * w * integrand * speed;
+    }
+  }
+  return areaContribution;
+}
+
 // Print Solver
 template <class CellType>
 void PUST<CellType>::printSolver(void) {
   this->printSurface();
 }
+
 // Specialized Project to PUt
 template <class CellType>
 const Pt PUST<CellType>::projectOntoPU(const Pt& a_pt) {
@@ -620,11 +829,12 @@ Normal PUST<CellType>::solveFaceEllipsoid(
     const double STin, const Pt& P0, const Pt& P1, const Pt& P2, const Pt& P3,
     const Normal& column1, const Normal& column2, const Normal& column3,
     const Pt& center, const double Pressure, const Normal& Marangoni) {
-  // The Marangoni normal object holds the Xgradient, then the Y gradient, then
-  // the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make Implicit
-  // Surface std::cout << "In Solve Edge\n";
+  // The Marangoni normal object holds the Xgradient, then the Y gradient,
+  // then the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make
+  // Implicit Surface std::cout << "In Solve Edge\n";
 
-  // Something is up with paraboloids because they take like 8x the time to run.
+  // Something is up with paraboloids because they take like 8x the time to
+  // run.
   double STCoeff = STin;
   // The Pressure Option tells us if we should include the pressure terms or
   // not.
@@ -663,7 +873,8 @@ Normal PUST<CellType>::solveFaceEllipsoid(
     // Check Determinant
     double discriminant = b * b - 4 * a * c;
 
-    // std::cout << "\n\n\n=============================\nROOTS FINDING DEBUG "
+    // std::cout << "\n\n\n=============================\nROOTS FINDING DEBUG
+    // "
     //              "INFO - "
     //           << j << ":" << "\n";
     // std::cout << "a: " << a << ", b: " << b << ", c: " << c
@@ -735,10 +946,10 @@ Normal PUST<CellType>::solveFaceEllipsoid(
   faceNormal.normalize();
 
   // After getting all intersection points, we can pair them one after the
-  // other. However, we need to ensure that we have an properly oriented points.
-  // Check the outward pointing normal at the first point. If it is the same
-  // direction at the first edge, then put it at the back of the list.
-  // Otherwise, leave it at the front
+  // other. However, we need to ensure that we have an properly oriented
+  // points. Check the outward pointing normal at the first point. If it is
+  // the same direction at the first edge, then put it at the back of the
+  // list. Otherwise, leave it at the front
   if (intersection.size() >= 2) {
     Normal normalAtFirstIntersection = -this->getNormalEllipsoid(
         intersection[0], column1, column2, column3, center);
@@ -892,14 +1103,16 @@ Normal PUST<CellType>::solveFaceEllipsoid(
 template <class CellType>
 double PUST<CellType>::getPlaneCurvatureEllipsoid(
     Pt& x, const Normal& column1, const Normal& column2, const Normal& column3,
-    const Pt& center, Normal& planeNormal) {  // Verified
+    const Pt& center,
+    Normal& planeNormal) {  // Verified
   std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d> holdsGradAndHessian;
   this->evaluateEllipsoid(x, column1, column2, column3, center,
                           &holdsGradAndHessian);
   auto gradF = std::get<1>(holdsGradAndHessian);
   auto hessF = std::get<2>(holdsGradAndHessian);
   // Print Gradient and Hessian
-  // std::cout << "=============================== In Plane Curvature Ellipsoid
+  // std::cout << "=============================== In Plane Curvature
+  // Ellipsoid
   // "
   //              "===============================\n";
   // std::cout << "Point: " << x << "\n";
@@ -928,7 +1141,8 @@ double PUST<CellType>::getPlaneCurvatureEllipsoid(
   // std::cout << "Plane Normal: " << planeNormal << "\n";
   // std::cout << "M: " << m << "\n";
   double denom = gradFVec * m;  // gradFVec dot (planeNormal cross tangent)
-  // std::cout << "=============END ELIPSOID PLANE CURVATURE================\n";
+  // std::cout << "=============END ELIPSOID PLANE
+  // CURVATURE================\n";
   return std::abs(numer) / std::abs(safelyEpsilon(denom));
 }
 }  // namespace IRL
