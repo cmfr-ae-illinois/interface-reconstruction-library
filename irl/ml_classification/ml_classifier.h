@@ -4,7 +4,6 @@
 #include "data_set.h"
 #include "trainer.h"
 #include "net.h"
-#include "stencil_rotator.h"
 
 #include <torch/torch.h>
 #include <iostream>
@@ -16,29 +15,58 @@ namespace IRL {
 
 class MLClassifier : public Classifier {
 protected:
-    //Network Parameters
-    int stencil_size = 3;
-    int input_size = stencil_size * stencil_size * stencil_size; // 27 if stencil_size=3 and only vof
-    int hidden_size1 = 128;
+    // Helper for determining network input size from the selected data layout
+    static int calculateInputSize(
+        int stencil,
+        int include_moments,
+        bool include_surface_area,
+        bool include_eigenvalues)
+    {
+        // Per-cell layout:
+        // include_moments = 0: [vfrac]
+        // include_moments >= 1: [vfrac, mx, my, mz]
+        // include_surface_area: + [area]
+        const int per_cell_stride =
+            (include_moments >= 1 ? 4 : 1)
+            + (include_surface_area ? 1 : 0);
+
+        int size =
+            stencil * stencil * stencil * per_cell_stride;
+
+        // Stencil-wide second moment tensor
+        if (include_moments >= 2) {
+            size += 6;
+        }
+
+        // Stencil-wide eigenvalues
+        if (include_eigenvalues) {
+            size += 3;
+        }
+
+        return size;
+    }
+
+    // Network Parameters
+    int input_size = calculateInputSize(stencil_size, include_Moments, include_Surface_Area, include_Eigenvalues);
+    int hidden_size1 = 256;
     int hidden_size2 = 64;
     int hidden_size3 = 32;
-    int output_size = 4;
+    int output_size = 6;
 
-    //Training Parameters
-    double learning_rate = 0.001; // was 0.01 for SGD
+
+    // Training Parameters
+    double learning_rate = 0.001;
     int batch_size = 64;
-    int epochs = 20;
+    int epochs = 50;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
-    //Data Parameters
-    int no_batches;
+    // Data Parameters
+    int no_batches = 4096 * 4;
     int no_datapoints = no_batches * batch_size;
-    int include_Moments = 1;
-    bool include_Surface_Area = false;
-    bool include_Eigenvalues = false;
+
     double paraboloid_coeff_stddev = 0.1;
-    double hyperbolic_cylinder_opening_angle_stddev = 20; //degrees
+    double hyperbolic_cylinder_opening_angle_stddev = 20.0;
     double sheet_coeff_stddev = 0.1;
     double sheet_thickness_stddev = 0.0;
     double cylinder_radius_stddev = 0.0;
@@ -48,8 +76,10 @@ protected:
     double ellipsoid_subgrid_stddev = 0.7;
     double min_long_ellipsoid_axis = 3.0;
     double max_long_ellipsoid_axis = 5.0;
-    bool exact_2nd_moment = false;  // enable calculation of exact 2nd moments for data generation
-    bool visualize = false; // if true, print centroids and / or write surfaces
+
+    bool exact_2nd_moment = false;
+    bool visualize = false;
+
     double machineZero = 1e-12;
     double lower_limit_subgrid = machineZero;
     double upper_limit_subgrid = std::sqrt(3.0);
@@ -76,42 +106,75 @@ protected:
     std::vector<std::vector<int64_t>> confusion_matrix;
 
 public:
-    MLClassifier(int stencil = 3, int input = 27,
-                 int h1 = 128, int h2 = 64, int h3 = 32, int out = 4)
+    MLClassifier(
+        int stencil = 5,
+        int include_moments = 1,
+        bool include_surface_area = false,
+        bool include_eigenvalues = false,
+        int h1 = 256,
+        int h2 = 64,
+        int h3 = 32,
+        int out = 6)
         : Classifier(stencil),
-          stencil_size(stencil),
-          input_size(input),
-          hidden_size1(h1), hidden_size2(h2), hidden_size3(h3),
-          output_size(out),
-          net(input, h1, h2, h3, out) {}
+        input_size(calculateInputSize(
+            stencil,
+            include_moments,
+            include_surface_area,
+            include_eigenvalues)),
+        hidden_size1(h1),
+        hidden_size2(h2),
+        hidden_size3(h3),
+        output_size(out),
+        net(input_size, h1, h2, h3, out)
+    {
+        include_Moments = include_moments;
+        include_Surface_Area = include_surface_area;
+        include_Eigenvalues = include_eigenvalues;
+    }
 
-    int getIncludeMoments() const { return include_Moments; }
-    bool getIncludeSurfaceArea() const { return include_Surface_Area; }
-    bool getIncludeEigenvalues() const { return include_Eigenvalues; }
-
-    void updateTrainingParameters(double lr, int bs, int ep, int reduce_lr_pat = 4, int early_stop_pat = 8) {
+    void updateTrainingParameters(
+        double lr = 0.001,
+        int bs = 64,
+        int ep = 50,
+        int reduce_lr_pat = 4,
+        int early_stop_pat = 8)
+    {
         learning_rate = lr;
         batch_size = bs;
         epochs = ep;
         reduce_lr_patience = reduce_lr_pat;
         early_stop_patience = early_stop_pat;
+
+        // Number of generated datapoints depends on batch size
+        no_datapoints = no_batches * batch_size;
     }
 
-    void updateDataParameters(int no_batches_in, int include_Moments_in, bool include_Surface_Area_in, bool include_Eigenvalues_in,
-                                double paraboloid_coeff_stddev_in, double hyperbolic_cylinder_opening_angle_stddev_in,
-                                double sheet_coeff_stddev_in, double sheet_thickness_stddev_in,
-                                double cylinder_radius_stddev_in, double radius_circle_min_in, double radius_circle_max_in,
-                                double sphere_radius_stddev_in, 
-                                double ellipsoid_subgrid_stddev_in, double min_long_ellipsoid_axis_in, double max_long_ellipsoid_axis_in,
-                                bool exact_2nd_mom = false, bool visualize_in = false, double machineZero_in = 1e-12, 
-                                double lower_limit_subgrid_in = 1e-12, double upper_limit_subgrid_in = 1.732, double class0_max_characteristic_in = 2.5) {
+    void updateDataParameters(
+        int no_batches_in,
+        double paraboloid_coeff_stddev_in,
+        double hyperbolic_cylinder_opening_angle_stddev_in,
+        double sheet_coeff_stddev_in,
+        double sheet_thickness_stddev_in,
+        double cylinder_radius_stddev_in,
+        double radius_circle_min_in,
+        double radius_circle_max_in,
+        double sphere_radius_stddev_in,
+        double ellipsoid_subgrid_stddev_in,
+        double min_long_ellipsoid_axis_in,
+        double max_long_ellipsoid_axis_in,
+        bool exact_2nd_mom = false,
+        bool visualize_in = false,
+        double machineZero_in = 1e-12,
+        double lower_limit_subgrid_in = 1e-12,
+        double upper_limit_subgrid_in = std::sqrt(3.0),
+        double class0_max_characteristic_in = 2.5)
+    {
         no_batches = no_batches_in;
         no_datapoints = no_batches * batch_size;
-        include_Moments = include_Moments_in;
-        include_Surface_Area = include_Surface_Area_in;
-        include_Eigenvalues = include_Eigenvalues_in;
+
         paraboloid_coeff_stddev = paraboloid_coeff_stddev_in;
-        hyperbolic_cylinder_opening_angle_stddev = hyperbolic_cylinder_opening_angle_stddev_in;
+        hyperbolic_cylinder_opening_angle_stddev =
+            hyperbolic_cylinder_opening_angle_stddev_in;
         sheet_coeff_stddev = sheet_coeff_stddev_in;
         sheet_thickness_stddev = sheet_thickness_stddev_in;
         cylinder_radius_stddev = cylinder_radius_stddev_in;
@@ -121,6 +184,7 @@ public:
         ellipsoid_subgrid_stddev = ellipsoid_subgrid_stddev_in;
         min_long_ellipsoid_axis = min_long_ellipsoid_axis_in;
         max_long_ellipsoid_axis = max_long_ellipsoid_axis_in;
+
         exact_2nd_moment = exact_2nd_mom;
         visualize = visualize_in;
         machineZero = machineZero_in;
@@ -131,6 +195,7 @@ public:
 
     void generateDataset() {
         IRL::Data_gen data_gen;
+        data_gen.set_stencil_size(stencil_size);
         data_gen.updateDataParameters(
             no_datapoints,
             include_Moments,
@@ -399,7 +464,7 @@ public:
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::preprocess_stencil(flat, stencil_size, no_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues);
+            preprocess_stencil(flat, stencil_size, no_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
@@ -419,7 +484,7 @@ public:
         for (size_t sample = 0; sample < statesV.size(); sample++) {
             auto& flat = statesV[sample];
 
-            IRL::preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev);
+            preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev);
         }
         std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
 
@@ -623,6 +688,16 @@ public:
 
     int classify(const std::vector<float>& flattened_state,
                  std::vector<float>* out_probs = nullptr) override {
+
+        if (flattened_state.size() != static_cast<size_t>(input_size)) {
+            throw std::runtime_error(
+                "MLClassifier::classify: expected input size "
+                + std::to_string(input_size)
+                + ", but received "
+                + std::to_string(flattened_state.size())
+            );
+        }
+
         torch::NoGradGuard no_grad;
         auto input = torch::tensor(flattened_state,
                                    torch::TensorOptions().dtype(torch::kFloat32))
@@ -749,6 +824,13 @@ public:
         out << "namespace IRL {\n";
         out << "namespace mlclassifier {\n\n";
 
+        // Input/data layout
+        out << "static constexpr int stencil_size = " << stencil_size << ";\n";
+        out << "static constexpr int include_Moments = " << include_Moments << ";\n";
+        out << "static constexpr bool include_Surface_Area = " << (include_Surface_Area ? "true" : "false") << ";\n";
+        out << "static constexpr bool include_Eigenvalues = " << (include_Eigenvalues ? "true" : "false") << ";\n\n";
+
+        // Network architecture
         out << "static constexpr int input_size = " << input_size << ";\n";
         out << "static constexpr int hidden_size1 = " << hidden_size1 << ";\n";
         out << "static constexpr int hidden_size2 = " << hidden_size2 << ";\n";

@@ -9,8 +9,18 @@
 
 namespace IRL {
 
-inline MLClassifierNoTorch::MLClassifierNoTorch(int stencil_size)
-    : Classifier(stencil_size) {}
+inline MLClassifierNoTorch::MLClassifierNoTorch()
+    : Classifier(mlclassifier::stencil_size)
+{
+    include_Moments =
+        mlclassifier::include_Moments;
+
+    include_Surface_Area =
+        mlclassifier::include_Surface_Area;
+
+    include_Eigenvalues =
+        mlclassifier::include_Eigenvalues;
+}
 
 inline void MLClassifierNoTorch::forwardLogits(
     const std::vector<float>& flattened_state,

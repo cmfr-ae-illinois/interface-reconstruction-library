@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <sstream>
 #include <system_error>
-#include "stencil_rotator.h"
+#include "common_functions.h"
 
 #include <vtkSmartPointer.h>
 #include <vtkEnSightGoldBinaryReader.h>
@@ -658,14 +658,7 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
 
                 //Preprocess stencil
                 
-                IRL::preprocess_stencil(flattened_state_float,
-                        stencil_size_reader,
-                        canonicalize_symmetries,
-                        include_Moments,
-                        include_Surface_Area,
-                        include_Eigenvalues,
-                        noise_stddev,
-                        epsilon_connectivity);
+                ml.preprocess_stencil(flattened_state_float);
 
                 // Classify
                 std::vector<float> out_probs;

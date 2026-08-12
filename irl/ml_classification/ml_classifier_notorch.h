@@ -8,7 +8,7 @@ namespace IRL {
 
 class MLClassifierNoTorch : public Classifier {
 public:
-    explicit MLClassifierNoTorch(int stencil_size = 5);
+    MLClassifierNoTorch();
 
     int classify(const std::vector<float>& flattened_state,
                  std::vector<float>* out_probs = nullptr) override;

@@ -1274,28 +1274,25 @@ int main (int argc, char* argv[]) {
     //IRL::MLClassifier_E3NN ml(stencil_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     IRL::MLClassifier ml(stencil_size, input_size, hidden_size1, hidden_size2, hidden_size3, output_size);
     ml.updateDataParameters(
-            no_batches,
-            include_Moments,
-            include_Surface_Area,
-            include_Eigenvalues,
-            paraboloid_coeff_stddev,
-            hyperbolic_cylinder_opening_angle_stddev,
-            sheet_coeff_stddev,
-            sheet_thickness_stddev,
-            cylinder_radius_stddev,
-            radius_circle_min,
-            radius_circle_max,
-            sphere_radius_stddev,
-            ellipsoid_subgrid_stddev,
-            min_long_ellipsoid_axis,
-            max_long_ellipsoid_axis,
-            exact_2nd_moment,
-            visualize,
-            machineZero,
-            lower_limit_subgrid,
-            upper_limit_subgrid,
-            class0_max_characteristic
-        );                    
+        no_batches,
+        paraboloid_coeff_stddev,
+        hyperbolic_cylinder_opening_angle_stddev,
+        sheet_coeff_stddev,
+        sheet_thickness_stddev,
+        cylinder_radius_stddev,
+        radius_circle_min,
+        radius_circle_max,
+        sphere_radius_stddev,
+        ellipsoid_subgrid_stddev,
+        min_long_ellipsoid_axis,
+        max_long_ellipsoid_axis,
+        exact_2nd_moment,
+        visualize,
+        machineZero,
+        lower_limit_subgrid,
+        upper_limit_subgrid,
+        class0_max_characteristic
+    );   
     ml.updateTrainingParameters(learning_rate, batch_size, max_epochs, reduce_lr_patience, early_stop_patience);
     //ml.generateDataset();
     //ml.loadDataset("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/data/data.bin");

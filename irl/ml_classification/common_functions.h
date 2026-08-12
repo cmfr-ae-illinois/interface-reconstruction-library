@@ -174,59 +174,6 @@ inline void convert_to_local_centroids(std::vector<CellData>& stencil,
     }
 }
 
-/*
-// Write CellData stencil back into flat array (and optional global inertia)
-static void repackStencil(std::vector<float>& flat,
-                          const std::vector<CellData>& stencil,
-                          const SecondMoments* I,
-                          const Eigenvalues* eigenvalues,
-                          int stencil_size,
-                          int include_moments,
-                          bool include_Surface_Area = false,
-                          //bool include_Total_Surface_Area = false,
-                          bool include_Eigenvalues = false)
-{
-    std::vector<CellData> packed_stencil = stencil;
-    //convert_to_local_centroids(packed_stencil, N, include_moments);
-    
-
-    const int nCells = stencil_size * stencil_size * stencil_size;
-    int stride = perCellStride(include_moments, include_Surface_Area);
-    const int tail   = globalTailStride(include_moments, include_Eigenvalues);
-
-    flat.resize(stride * nCells); //This is the size not including stencil wide 2nd moments or eigenvalues, those get appended later
-
-    for (int idx = 0; idx < nCells; ++idx) {
-        flat[stride * idx + 0] = packed_stencil[idx].vfrac;
-
-        if (include_moments >= 1) {
-            flat[stride * idx + 1] = packed_stencil[idx].mx;
-            flat[stride * idx + 2] = packed_stencil[idx].my;
-            flat[stride * idx + 3] = packed_stencil[idx].mz;
-        }
-
-        if (include_Surface_Area) {
-            flat[stride * idx + 4] = packed_stencil[idx].area;
-        }
-    }
-
-    // Re-calculate 2nd moments and eigenvalues
-    if (include_moments >= 2) {
-        // Append approximate 2nd moments to flattened_state
-        Eigen::Matrix3d approxSecondMoment = IRL::compute2ndMoment(flat, stencil_size, 1, include_Surface_Area, 1e-12, 1.0);
-        flat.push_back(static_cast<float>(approxSecondMoment(0, 0))); // Ixx
-        flat.push_back(static_cast<float>(approxSecondMoment(1, 1))); // Iyy
-        flat.push_back(static_cast<float>(approxSecondMoment(2, 2))); // Izz
-        flat.push_back(static_cast<float>(approxSecondMoment(0, 1))); // Ixy
-        flat.push_back(static_cast<float>(approxSecondMoment(0, 2))); // Ixz
-        flat.push_back(static_cast<float>(approxSecondMoment(1, 2))); // Iyz
-    }
-    if (include_Eigenvalues) {
-        IRL::appendInertiaEigenvalues(flat, stencil_size, include_moments, 1, include_Surface_Area, 1e-12);
-    }
-}
-    */
-
 static void repackStencil(std::vector<float>& flat,
                           const std::vector<CellData>& stencil,
                           const SecondMoments* I,
@@ -573,305 +520,302 @@ inline void retain_only_0th_moments(
     (void)include_eigenvalues;
 }
 
-inline void preprocess_stencil(std::vector<float>& flat_stencil,
-                           int stencil_size, int no_symmetries, int include_moments = 1, bool include_Surface_Area = false, 
-                           bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
-{
-    // Unpack
-    std::vector<CellData> stencil;
-    SecondMoments I{};
-    SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
-    Eigenvalues eig{};
-    Eigenvalues* eigp = include_Eigenvalues ? &eig : nullptr;
-    unpackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
+// inline void preprocess_stencil(std::vector<float>& flat_stencil,
+//                            int stencil_size, int no_symmetries, int include_moments = 1, bool include_Surface_Area = false, 
+//                            bool include_Eigenvalues = false, float noise_stddev = 0.0f, float epsilon_connect = 1e-12f)
+// {
+//     // Unpack
+//     std::vector<CellData> stencil;
+//     SecondMoments I{};
+//     SecondMoments* Ip = (include_moments >= 2) ? &I : nullptr;
+//     Eigenvalues eig{};
+//     Eigenvalues* eigp = include_Eigenvalues ? &eig : nullptr;
+//     unpackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
 
-    // Noise
-    if (noise_stddev > 1e-10f) {
-        const float epsilon_noise = 1.0e-6f;
-        const float c0 = 0.5f * (static_cast<float>(stencil_size) - 1.0f);
+//     // Noise
+//     if (noise_stddev > 1e-10f) {
+//         const float epsilon_noise = 1.0e-6f;
+//         const float c0 = 0.5f * (static_cast<float>(stencil_size) - 1.0f);
 
-        // Probability to inject small noise into an empty cell
-        const float empty_cell_probability = 1.0f / 6.0f;
+//         // Probability to inject small noise into an empty cell
+//         const float empty_cell_probability = 1.0f / 6.0f;
 
-        // Keep synthetic empty-cell noise small
-        const float empty_vfrac_scale    = 0.25f;
-        const float empty_centroid_scale = 0.25f;
+//         // Keep synthetic empty-cell noise small
+//         const float empty_vfrac_scale    = 0.25f;
+//         const float empty_centroid_scale = 0.25f;
 
-        std::bernoulli_distribution add_empty_noise(empty_cell_probability);
+//         std::bernoulli_distribution add_empty_noise(empty_cell_probability);
 
-        auto shapeFactor = [](float v) -> float {
-            // max at v=0.5, zero at v=0 and v=1
-            return 4.0f * v * (1.0f - v);
-        };
+//         auto shapeFactor = [](float v) -> float {
+//             // max at v=0.5, zero at v=0 and v=1
+//             return 4.0f * v * (1.0f - v);
+//         };
 
-        for (int i = 0; i < stencil_size; ++i) {
-            for (int j = 0; j < stencil_size; ++j) {
-                for (int k = 0; k < stencil_size; ++k) {
+//         for (int i = 0; i < stencil_size; ++i) {
+//             for (int j = 0; j < stencil_size; ++j) {
+//                 for (int k = 0; k < stencil_size; ++k) {
 
-                    auto& c = stencil[cellIndex(i, j, k, stencil_size)];
-                    const float v_old = c.vfrac;
+//                     auto& c = stencil[cellIndex(i, j, k, stencil_size)];
+//                     const float v_old = c.vfrac;
 
-                    // cell-center coordinates in global stencil frame
-                    const float x_center = static_cast<float>(i) - c0;
-                    const float y_center = static_cast<float>(j) - c0;
-                    const float z_center = static_cast<float>(k) - c0;
+//                     // cell-center coordinates in global stencil frame
+//                     const float x_center = static_cast<float>(i) - c0;
+//                     const float y_center = static_cast<float>(j) - c0;
+//                     const float z_center = static_cast<float>(k) - c0;
 
-                    // Case 1: cell already has liquid
-                    if (v_old > epsilon_noise) {
+//                     // Case 1: cell already has liquid
+//                     if (v_old > epsilon_noise) {
 
-                        // Multiply the sampled Gaussian by f(v)
-                        const float v_new = clampf(
-                            v_old + sampleGaussian(noise_stddev) * shapeFactor(v_old),
-                            1e-12f,
-                            1.0f - 1e-12f
-                        );
+//                         // Multiply the sampled Gaussian by f(v)
+//                         const float v_new = clampf(
+//                             v_old + sampleGaussian(noise_stddev) * shapeFactor(v_old),
+//                             1e-12f,
+//                             1.0f - 1e-12f
+//                         );
 
-                        c.vfrac = v_new;
+//                         c.vfrac = v_new;
 
-                        if (include_moments >= 1) {
-                            // recover centroid in global stencil coordinates
-                            float cx_cell = c.mx / v_old;
-                            float cy_cell = c.my / v_old;
-                            float cz_cell = c.mz / v_old;
+//                         if (include_moments >= 1) {
+//                             // recover centroid in global stencil coordinates
+//                             float cx_cell = c.mx / v_old;
+//                             float cy_cell = c.my / v_old;
+//                             float cz_cell = c.mz / v_old;
 
-                            // add centroid noise directly, no clipping to cell bounds
-                            cx_cell += sampleGaussian(noise_stddev) * (1-v_new);
-                            cy_cell += sampleGaussian(noise_stddev) * (1-v_new);
-                            cz_cell += sampleGaussian(noise_stddev) * (1-v_new);
+//                             // add centroid noise directly, no clipping to cell bounds
+//                             cx_cell += sampleGaussian(noise_stddev) * (1-v_new);
+//                             cy_cell += sampleGaussian(noise_stddev) * (1-v_new);
+//                             cz_cell += sampleGaussian(noise_stddev) * (1-v_new);
 
-                            c.mx = v_new * cx_cell;
-                            c.my = v_new * cy_cell;
-                            c.mz = v_new * cz_cell;
-                        }
+//                             c.mx = v_new * cx_cell;
+//                             c.my = v_new * cy_cell;
+//                             c.mz = v_new * cz_cell;
+//                         }
 
-                        continue;
-                    }
+//                         continue;
+//                     }
                     
-                    // Case 2: currently empty cell
-                    if (v_old <= 1e-12f && add_empty_noise(globalNoiseRng())) {
+//                     // Case 2: currently empty cell
+//                     if (v_old <= 1e-12f && add_empty_noise(globalNoiseRng())) {
 
-                        // choose vfrac uniformly in [1e-12, 1-1e-12]
-                        static thread_local std::uniform_real_distribution<float> uniform_vfrac(
-                            1e-12f, 1.0f - 1e-12f
-                        );
-                        const float v_new = uniform_vfrac(globalNoiseRng());
+//                         // choose vfrac uniformly in [1e-12, 1-1e-12]
+//                         static thread_local std::uniform_real_distribution<float> uniform_vfrac(
+//                             1e-12f, 1.0f - 1e-12f
+//                         );
+//                         const float v_new = uniform_vfrac(globalNoiseRng());
 
-                        c.vfrac = v_new;
+//                         c.vfrac = v_new;
 
-                        if (include_moments >= 1) {
-                            // assume old centroid is at the cell center
-                            float cx_cell = x_center;
-                            float cy_cell = y_center;
-                            float cz_cell = z_center;
+//                         if (include_moments >= 1) {
+//                             // assume old centroid is at the cell center
+//                             float cx_cell = x_center;
+//                             float cy_cell = y_center;
+//                             float cz_cell = z_center;
 
-                            // add centroid noise exactly as for non-empty cells
-                            // add centroid noise directly, no clipping to cell bounds
-                            cx_cell += sampleGaussian(noise_stddev) * (1-v_new);
-                            cy_cell += sampleGaussian(noise_stddev) * (1-v_new);
-                            cz_cell += sampleGaussian(noise_stddev) * (1-v_new);
+//                             // add centroid noise exactly as for non-empty cells
+//                             // add centroid noise directly, no clipping to cell bounds
+//                             cx_cell += sampleGaussian(noise_stddev) * (1-v_new);
+//                             cy_cell += sampleGaussian(noise_stddev) * (1-v_new);
+//                             cz_cell += sampleGaussian(noise_stddev) * (1-v_new);
 
-                            c.mx = v_new * cx_cell;
-                            c.my = v_new * cy_cell;
-                            c.mz = v_new * cz_cell;
-                        } else {
-                            c.mx = c.my = c.mz = 0.0f;
-                        }
-                    }
-                    else {
-                        c.vfrac = 0.0f;
-                        c.mx = c.my = c.mz = 0.0f;
-                    }
+//                             c.mx = v_new * cx_cell;
+//                             c.my = v_new * cy_cell;
+//                             c.mz = v_new * cz_cell;
+//                         } else {
+//                             c.mx = c.my = c.mz = 0.0f;
+//                         }
+//                     }
+//                     else {
+//                         c.vfrac = 0.0f;
+//                         c.mx = c.my = c.mz = 0.0f;
+//                     }
                     
-                }
-            }
-        }
-    }
+//                 }
+//             }
+//         }
+//     }
 
-    const int N = stencil_size;
-    const int c = N / 2;
+//     const int N = stencil_size;
+//     const int c = N / 2;
     
-    // Perform BFS Search
-    //const float eps = 1e-2f; // "positive" threshold for connectivity, value here for simulation purposes but can be made smaller for sythetic data 
+//     // Perform BFS Search
+//     //const float eps = 1e-2f; // "positive" threshold for connectivity, value here for simulation purposes but can be made smaller for sythetic data 
 
-    // helper: bounds check
-    auto in_bounds = [&](int i, int j, int k) {
-        return (i >= 0 && i < N &&
-                j >= 0 && j < N &&
-                k >= 0 && k < N);
-    };
+//     // helper: bounds check
+//     auto in_bounds = [&](int i, int j, int k) {
+//         return (i >= 0 && i < N &&
+//                 j >= 0 && j < N &&
+//                 k >= 0 && k < N);
+//     };
 
-    // 6-neighborhood
-    static const int n6[6][3] = {
-        {+1, 0, 0}, {-1, 0, 0},
-        { 0,+1, 0}, { 0,-1, 0},
-        { 0, 0,+1}, { 0, 0,-1}
-    };
+//     // 6-neighborhood
+//     static const int n6[6][3] = {
+//         {+1, 0, 0}, {-1, 0, 0},
+//         { 0,+1, 0}, { 0,-1, 0},
+//         { 0, 0,+1}, { 0, 0,-1}
+//     };
 
-    // If center is not positive → zero everything and return
-    if (stencil[cellIndex(c,c,c,N)].vfrac <= epsilon_connect) {
-        /*
-        for (auto& cell : stencil) {
-            cell.vfrac = 0.0f;
-            cell.mx = cell.my = cell.mz = 0.0f;
-        }
-        */
-        repackStencil(flat_stencil, stencil, Ip, eigp, N, include_moments, include_Surface_Area, include_Eigenvalues);
-        return;
-    }
+//     // If center is not positive → zero everything and return
+//     if (stencil[cellIndex(c,c,c,N)].vfrac <= epsilon_connect) {
+//         /*
+//         for (auto& cell : stencil) {
+//             cell.vfrac = 0.0f;
+//             cell.mx = cell.my = cell.mz = 0.0f;
+//         }
+//         */
+//         repackStencil(flat_stencil, stencil, Ip, eigp, N, include_moments, include_Surface_Area, include_Eigenvalues);
+//         return;
+//     }
 
-    // visited mask
-    std::vector<uint8_t> visited(N * N * N, 0);
+//     // visited mask
+//     std::vector<uint8_t> visited(N * N * N, 0);
 
-    // BFS queue
-    std::vector<std::array<int,3>> q;
-    q.reserve(N * N * N);
+//     // BFS queue
+//     std::vector<std::array<int,3>> q;
+//     q.reserve(N * N * N);
 
-    // seed
-    visited[cellIndex(c,c,c,N)] = 1;
-    q.push_back({c,c,c});
+//     // seed
+//     visited[cellIndex(c,c,c,N)] = 1;
+//     q.push_back({c,c,c});
 
-    // flood fill
-    for (size_t qi = 0; qi < q.size(); ++qi) {
-        int i = q[qi][0];
-        int j = q[qi][1];
-        int k = q[qi][2];
+//     // flood fill
+//     for (size_t qi = 0; qi < q.size(); ++qi) {
+//         int i = q[qi][0];
+//         int j = q[qi][1];
+//         int k = q[qi][2];
 
-        for (int n = 0; n < 6; ++n) {
-            int ni = i + n6[n][0];
-            int nj = j + n6[n][1];
-            int nk = k + n6[n][2];
+//         for (int n = 0; n < 6; ++n) {
+//             int ni = i + n6[n][0];
+//             int nj = j + n6[n][1];
+//             int nk = k + n6[n][2];
 
-            if (!in_bounds(ni,nj,nk)) continue;
+//             if (!in_bounds(ni,nj,nk)) continue;
 
-            int id = cellIndex(ni,nj,nk,N);
-            if (visited[id]) continue;
+//             int id = cellIndex(ni,nj,nk,N);
+//             if (visited[id]) continue;
 
-            if (stencil[id].vfrac > epsilon_connect) {
-                visited[id] = 1;
-                q.push_back({ni,nj,nk});
-            }
-        }
-    }
+//             if (stencil[id].vfrac > epsilon_connect) {
+//                 visited[id] = 1;
+//                 q.push_back({ni,nj,nk});
+//             }
+//         }
+//     }
 
-    // zero everything not connected
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            for (int k = 0; k < N; ++k) {
+//     // zero everything not connected
+//     for (int i = 0; i < N; ++i) {
+//         for (int j = 0; j < N; ++j) {
+//             for (int k = 0; k < N; ++k) {
 
-                int id = cellIndex(i,j,k,N);
+//                 int id = cellIndex(i,j,k,N);
 
-                if (visited[id]) continue;
+//                 if (visited[id]) continue;
 
-                if (stencil[id].vfrac > 0.0f) {
-                    stencil[id].vfrac = 0.0f;
-                    stencil[id].mx = 0.0f;
-                    stencil[id].my = 0.0f;
-                    stencil[id].mz = 0.0f;
-                    stencil[id].area = 0.0f;
-                }
-            }
-        }
-    }
+//                 if (stencil[id].vfrac > 0.0f) {
+//                     stencil[id].vfrac = 0.0f;
+//                     stencil[id].mx = 0.0f;
+//                     stencil[id].my = 0.0f;
+//                     stencil[id].mz = 0.0f;
+//                     stencil[id].area = 0.0f;
+//                 }
+//             }
+//         }
+//     }
     
 
-    if (no_symmetries < 8) {
-        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
-        return;
-    }
+//     if (no_symmetries < 8) {
+//         repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
+//         return;
+//     }
 
-    // Compute global centroid of first moments
-    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
-    float Vsum = 0.0f;
+//     // Compute global centroid of first moments
+//     float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+//     float Vsum = 0.0f;
 
-    if (include_moments >= 1) {
-        for (const auto& c : stencil) {
-            cx += c.mx;
-            cy += c.my;
-            cz += c.mz;
-            Vsum += c.vfrac;
-        }
+//     if (include_moments >= 1) {
+//         for (const auto& c : stencil) {
+//             cx += c.mx;
+//             cy += c.my;
+//             cz += c.mz;
+//             Vsum += c.vfrac;
+//         }
 
-        if (Vsum > 0.0) {
-            cx /= Vsum;
-            cy /= Vsum;
-            cz /= Vsum;
-        } else {
-            cx = cy = cz = 0.0;
-        }
-    } else {
-        // include_moments == 0: approximate centroid from vfrac + cell centers
-        approximateCentroidFromVfrac(stencil, stencil_size, cx, cy, cz, Vsum);
-    }
+//         if (Vsum > 0.0) {
+//             cx /= Vsum;
+//             cy /= Vsum;
+//             cz /= Vsum;
+//         } else {
+//             cx = cy = cz = 0.0;
+//         }
+//     } else {
+//         // include_moments == 0: approximate centroid from vfrac + cell centers
+//         approximateCentroidFromVfrac(stencil, stencil_size, cx, cy, cz, Vsum);
+//     }
 
-    // Reflect into first octant: ensure cx,cy,cz >= 0 using x/y/z reflections.
-    if (cx < 0.0) {
-        reflect_x(stencil, stencil_size, include_moments);
-        if (include_moments >= 2) reflect_x(I);
-        cx = -cx;   // centroid x-component flips sign as well
-    }
-    if (cy < 0.0) {
-        reflect_y(stencil, stencil_size, include_moments);
-        if (include_moments >= 2) reflect_y(I);
-        cy = -cy;
-    }
-    if (cz < 0.0) {
-        reflect_z(stencil, stencil_size, include_moments);
-        if (include_moments >= 2) reflect_z(I);
-        cz = -cz;
-    }
+//     // Reflect into first octant: ensure cx,cy,cz >= 0 using x/y/z reflections.
+//     if (cx < 0.0) {
+//         reflect_x(stencil, stencil_size, include_moments);
+//         if (include_moments >= 2) reflect_x(I);
+//         cx = -cx;   // centroid x-component flips sign as well
+//     }
+//     if (cy < 0.0) {
+//         reflect_y(stencil, stencil_size, include_moments);
+//         if (include_moments >= 2) reflect_y(I);
+//         cy = -cy;
+//     }
+//     if (cz < 0.0) {
+//         reflect_z(stencil, stencil_size, include_moments);
+//         if (include_moments >= 2) reflect_z(I);
+//         cz = -cz;
+//     }
 
-    if (no_symmetries <= 8) {
-        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
-        return;
-    }
+//     if (no_symmetries <= 8) {
+//         repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
+//         return;
+//     }
 
-    // 120° rotations about (1,1,1) diagonal.
+//     // 120° rotations about (1,1,1) diagonal.
 
-    const float z0 = cz;
-    const float z1 = cx;
-    const float z2 = cy;
+//     const float z0 = cz;
+//     const float z1 = cx;
+//     const float z2 = cy;
 
-    int best = 0;
-    float bestz = z0;
-    if (z1 > bestz) { best = 1; bestz = z1; }
-    if (z2 > bestz) { best = 2; bestz = z2; }
+//     int best = 0;
+//     float bestz = z0;
+//     if (z1 > bestz) { best = 1; bestz = z1; }
+//     if (z2 > bestz) { best = 2; bestz = z2; }
 
-    if (best == 1) {
-        permute_xyz(stencil, stencil_size, 1, include_moments);
-        if (include_moments >= 2) permute_xyz(I, 1);
-        // (cx,cy,cz) -> (cy,cz,cx)
-        const float tmp = cx;
-        cx = cy;
-        cy = cz;
-        cz = tmp;
-    } else if (best == 2) {
-        permute_xyz(stencil, stencil_size, 2, include_moments);
-        if (include_moments >= 2) permute_xyz(I, 2);
-        // (cx,cy,cz) -> (cz,cx,cy)
-        const float tmp = cx;
-        cx = cz;
-        cz = cy;
-        cy = tmp;
-    }
+//     if (best == 1) {
+//         permute_xyz(stencil, stencil_size, 1, include_moments);
+//         if (include_moments >= 2) permute_xyz(I, 1);
+//         // (cx,cy,cz) -> (cy,cz,cx)
+//         const float tmp = cx;
+//         cx = cy;
+//         cy = cz;
+//         cz = tmp;
+//     } else if (best == 2) {
+//         permute_xyz(stencil, stencil_size, 2, include_moments);
+//         if (include_moments >= 2) permute_xyz(I, 2);
+//         // (cx,cy,cz) -> (cz,cx,cy)
+//         const float tmp = cx;
+//         cx = cz;
+//         cz = cy;
+//         cy = tmp;
+//     }
 
-    // If we only want 24 symmetries (rotations + octant choice), stop here.
-    if (no_symmetries <= 24) {
-        repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
-        return;
-    }
+//     // If we only want 24 symmetries (rotations + octant choice), stop here.
+//     if (no_symmetries <= 24) {
+//         repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
+//         return;
+//     }
 
-    // Mirror symmetry around diagonal x = y.
-    if (cy > cx /*+ 1e-8*/) {
-        // count small differences
-        swap_xy(stencil, stencil_size, include_moments);
-        if (include_moments >= 2) swap_xy(I);
-    }
-    // Pack back into flat storage
-    repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
-
-    //m1.x / IRL::safelyEpsilon(vfrac);, recheck if -0.5,0.5 after
-    // check in sheet if it is well resolved by comparing V1 and V2
-}
+//     // Mirror symmetry around diagonal x = y.
+//     if (cy > cx /*+ 1e-8*/) {
+//         // count small differences
+//         swap_xy(stencil, stencil_size, include_moments);
+//         if (include_moments >= 2) swap_xy(I);
+//     }
+//     // Pack back into flat storage
+//     repackStencil(flat_stencil, stencil, Ip, eigp, stencil_size, include_moments, include_Surface_Area, include_Eigenvalues);
+// }
 
 } // namespace IRL
 #include "irl/ml_classification/inertia_calc.h"
