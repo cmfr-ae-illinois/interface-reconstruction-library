@@ -47,18 +47,20 @@ inline double Wendland::secondDer(double r, double delta) {
   }
 }
 
-// Near Center Methods
 inline Eigen::Vector3d Wendland::getGradient(const Pt& xi, const double& delta,
                                              const Pt& x_eval) {
   // First, get r
   double r = Wendland::computeR(xi, x_eval);
-
+  if (r > delta) {
+    return Eigen::Vector3d::Zero();
+  }
   // Now, we need to calculate the distance function derivative. To do this,
   // first make x an Eigen Vector.
   Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
   // Apply Formula
   Eigen::Vector3d gradF = (-20.0 * x / (delta * delta)) * (1.0 - r / delta) *
                           (1.0 - r / delta) * (1.0 - r / delta);
+
   return gradF;
 }
 
@@ -66,7 +68,9 @@ inline Eigen::Matrix3d Wendland::getHessian(const Pt& xi, const double& delta,
                                             const Pt& x_eval) {
   // First, get r
   double r = Wendland::computeR(xi, x_eval);
-
+  if (r > delta) {
+    return Eigen::Matrix3d::Zero();
+  }
   // Now, we need to calculate the distance function derivative. To do this,
   // first make x an Eigen Vector.
   Eigen::Vector3d x(x_eval[0] - xi[0], x_eval[1] - xi[1], x_eval[2] - xi[2]);
