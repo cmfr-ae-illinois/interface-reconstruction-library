@@ -61,10 +61,14 @@ SepUnionArrayBox::SepUnionArrayBox(Arena* ar) noexcept
 SepUnionArrayBox::SepUnionArrayBox(const Box& b, int n, Arena* ar)
     : BaseFab<IRL::SeparatorUnion>(b, n, ar) {
 #ifndef AMREX_USE_GPU
-  // // For debugging purposes
-  // if (do_initval) {
-  //   setVal<RunOn::Host>(std::numeric_limits<int>::max());
-  // }
+  // For debugging purposes
+  if (do_initval) {
+    setVal<RunOn::Host>(IRL::SeparatorUnion(
+        IRL::Plane(IRL::Normal(std::numeric_limits<double>::max(),
+                               std::numeric_limits<double>::max(),
+                               std::numeric_limits<double>::max()),
+                   std::numeric_limits<double>::max())));
+  }
 #endif
 }
 
@@ -72,10 +76,14 @@ SepUnionArrayBox::SepUnionArrayBox(const Box& b, int n, bool alloc, bool shared,
                                    Arena* ar)
     : BaseFab<IRL::SeparatorUnion>(b, n, alloc, shared, ar) {
 #ifndef AMREX_USE_GPU
-  // // For debugging purposes
-  // if (alloc && do_initval) {
-  //   setVal<RunOn::Host>(std::numeric_limits<int>::max());
-  // }
+  // For debugging purposes
+  if (alloc && do_initval) {
+    setVal<RunOn::Host>(IRL::SeparatorUnion(
+        IRL::Plane(IRL::Normal(std::numeric_limits<double>::max(),
+                               std::numeric_limits<double>::max(),
+                               std::numeric_limits<double>::max()),
+                   std::numeric_limits<double>::max())));
+  }
 #endif
 }
 
@@ -85,18 +93,26 @@ SepUnionArrayBox::SepUnionArrayBox(const SepUnionArrayBox& rhs,
 
 void SepUnionArrayBox::resize(const Box& b, int N, Arena* ar) {
   BaseFab<IRL::SeparatorUnion>::resize(b, N, ar);
-  //   // For debugging purposes
-  //   if (do_initval) {
-  // #if defined(AMREX_USE_GPU)
-  //     if (Gpu::inLaunchRegion() && arena()->isDeviceAccessible()) {
-  //       setVal<RunOn::Device>(std::numeric_limits<int>::max());
-  //       Gpu::streamSynchronize();
-  //     } else
-  // #endif
-  //     {
-  //       setVal<RunOn::Host>(std::numeric_limits<int>::max());
-  //     }
-  //   }
+  // For debugging purposes
+  if (do_initval) {
+#if defined(AMREX_USE_GPU)
+    if (Gpu::inLaunchRegion() && arena()->isDeviceAccessible()) {
+      setVal<RunOn::Device>(IRL::SeparatorUnion(
+          IRL::Plane(IRL::Normal(std::numeric_limits<double>::max(),
+                                 std::numeric_limits<double>::max(),
+                                 std::numeric_limits<double>::max()),
+                     std::numeric_limits<double>::max())));
+      Gpu::streamSynchronize();
+    } else
+#endif
+    {
+      setVal<RunOn::Host>(IRL::SeparatorUnion(
+          IRL::Plane(IRL::Normal(std::numeric_limits<double>::max(),
+                                 std::numeric_limits<double>::max(),
+                                 std::numeric_limits<double>::max()),
+                     std::numeric_limits<double>::max())));
+    }
+  }
 }
 
 std::string SepUnionArrayBox::getClassName() {
