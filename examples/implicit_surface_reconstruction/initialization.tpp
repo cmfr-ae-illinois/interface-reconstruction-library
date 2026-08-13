@@ -20,94 +20,199 @@ struct ZeroRefineSurface : S {
   static constexpr std::size_t getMaxRefineLevel() { return 0; }
 };
 
+struct SizeRange {
+  std::size_t begin;
+  std::size_t end;
+};
+
+inline SizeRange blockPartitionSize(const std::size_t count, const int rank,
+                                    const int size) {
+  const std::size_t size_value = static_cast<std::size_t>(size);
+  const std::size_t rank_value = static_cast<std::size_t>(rank);
+  const std::size_t quotient = count / size_value;
+  const std::size_t remainder = count % size_value;
+  const std::size_t begin =
+      rank_value * quotient + std::min(rank_value, remainder);
+  const std::size_t local_count = quotient + (rank_value < remainder ? 1 : 0);
+  return {begin, begin + local_count};
+}
+
 // finding mixed cells ----------------------------------------------
 template <class SurfaceType>
-std::vector<std::tuple<int, int, int>> getCellStatus(
-    Data<int>* cell_status, const SurfaceType& surface) {
+void getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
+                   InsideCellMask* inside_cells,
+                   std::vector<std::uint32_t>* mixed_cell_indices) {
+  int rank = 0, size = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
   using S0 = ZeroRefineSurface<std::decay_t<SurfaceType>>;
   S0 surface0(surface);
 
-  std::vector<std::tuple<int, int, int>> mixed_cells_list;
-  const BasicMesh& mesh = cell_status->getMesh();
+  if (inside_cells == nullptr || mixed_cell_indices == nullptr) {
+    throw std::invalid_argument("Sparse cell-status outputs cannot be null");
+  }
 
-  for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-    for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-      for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-        IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
-        IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
-        IRL::RectangularCuboid cell =
-            IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+  const std::size_t cell_count =
+      static_cast<std::size_t>(mesh.getNx()) * mesh.getNy() * mesh.getNz();
+  if (cell_count == 0 ||
+      cell_count - 1 >
+          static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+    throw std::overflow_error("Cell index exceeds sparse file format");
+  }
 
-        IRL::ImplicitSurfaceCutter<S0, IRL::Volume> cutter(surface0, cell);
+  // Partition complete 64-bit mask words so local masks can be concatenated
+  // directly on rank 0 without allocating the global mask on every rank.
+  const std::size_t total_word_count = (cell_count + 63) / 64;
+  const SizeRange local_word_range =
+      blockPartitionSize(total_word_count, rank, size);
+  const std::size_t local_word_count =
+      local_word_range.end - local_word_range.begin;
+  const std::size_t first_linear_index = local_word_range.begin * 64;
+  const std::size_t end_linear_index =
+      std::min(cell_count, local_word_range.end * 64);
 
-        const int status = cutter.getBaseCellStatus();
-        (*cell_status)(i, j, k) = status;
-        if (status == 0) mixed_cells_list.emplace_back(i, j, k);
-      }
+  // Allocate whole local words, including harmless padding after the final
+  // physical cell on the last rank.
+  InsideCellMask local_inside(local_word_count * 64);
+  std::vector<std::uint32_t> local_mixed_cell_indices;
+
+  for (std::size_t index = first_linear_index; index < end_linear_index;
+       ++index) {
+    int i, j, k;
+    getCellIndicesFromLinearIndex(index, mesh.getNy(), mesh.getNz(), &i, &j,
+                                  &k);
+    i += mesh.imin();
+    j += mesh.jmin();
+    k += mesh.kmin();
+
+    const IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
+    const IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
+    const IRL::RectangularCuboid cell =
+        IRL::RectangularCuboid::fromBoundingPts(x0, x1);
+    IRL::ImplicitSurfaceCutter<S0, IRL::Volume> cutter(surface0, cell);
+
+    const int status = cutter.getBaseCellStatus();
+    if (status == 0) {
+      local_mixed_cell_indices.push_back(static_cast<std::uint32_t>(index));
+    } else if (status == -1) {
+      local_inside.set(index - first_linear_index);
     }
   }
 
-  return mixed_cells_list;
+  if (local_word_count >
+      static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw std::overflow_error("Local inside mask exceeds MPI count limit");
+  }
+
+  std::vector<int> mask_counts, mask_displacements;
+  if (rank == 0) {
+    *inside_cells = InsideCellMask(cell_count);
+    mask_counts.resize(size);
+    mask_displacements.resize(size);
+    for (int r = 0; r < size; ++r) {
+      const SizeRange range = blockPartitionSize(total_word_count, r, size);
+      const std::size_t count = range.end - range.begin;
+      if (count > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+          range.begin >
+              static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        throw std::overflow_error("Global inside mask exceeds MPI limits");
+      }
+      mask_counts[r] = static_cast<int>(count);
+      mask_displacements[r] = static_cast<int>(range.begin);
+    }
+  }
+
+  MPI_Gatherv(local_inside.words().data(), static_cast<int>(local_word_count),
+              MPI_UINT64_T, rank == 0 ? inside_cells->words().data() : nullptr,
+              rank == 0 ? mask_counts.data() : nullptr,
+              rank == 0 ? mask_displacements.data() : nullptr, MPI_UINT64_T, 0,
+              MPI_COMM_WORLD);
+
+  if (local_mixed_cell_indices.size() >
+      static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw std::overflow_error("Local mixed-cell list exceeds MPI count limit");
+  }
+  const int local_mixed_count =
+      static_cast<int>(local_mixed_cell_indices.size());
+  std::vector<int> mixed_counts, mixed_displacements;
+  if (rank == 0) mixed_counts.resize(size);
+  MPI_Gather(&local_mixed_count, 1, MPI_INT,
+             rank == 0 ? mixed_counts.data() : nullptr, 1, MPI_INT, 0,
+             MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    mixed_displacements.resize(size);
+    std::size_t total_mixed_count = 0;
+    for (int r = 0; r < size; ++r) {
+      if (total_mixed_count >
+          static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        throw std::overflow_error("Global mixed-cell list exceeds MPI limits");
+      }
+      mixed_displacements[r] = static_cast<int>(total_mixed_count);
+      total_mixed_count += static_cast<std::size_t>(mixed_counts[r]);
+    }
+    if (total_mixed_count >
+        static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+      throw std::overflow_error("Global mixed-cell list exceeds MPI limits");
+    }
+    mixed_cell_indices->resize(total_mixed_count);
+  } else {
+    mixed_cell_indices->clear();
+  }
+
+  MPI_Gatherv(local_mixed_cell_indices.data(), local_mixed_count, MPI_UINT32_T,
+              rank == 0 ? mixed_cell_indices->data() : nullptr,
+              rank == 0 ? mixed_counts.data() : nullptr,
+              rank == 0 ? mixed_displacements.data() : nullptr, MPI_UINT32_T, 0,
+              MPI_COMM_WORLD);
 }
 
 // finding implicit surface moments -----------------------------------
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
-void getInitializedField(
-    const Data<int>& cell_status,
-    std::vector<std::tuple<int, int, int>> mixed_cells_list_root,
-    Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>* moments,
+std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
+    const BasicMesh& mesh,
+    const std::vector<std::uint32_t>& mixed_cell_indices_root,
     const SurfaceType& surface) {
   int rank = 0, size = 1;
   (void)MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   (void)MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  // broadcast mixed (i,j,k) to all ranks
-  std::vector<int> flat;
+  int mixed_count =
+      rank == 0 ? static_cast<int>(mixed_cell_indices_root.size()) : 0;
+  MPI_Bcast(&mixed_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  std::vector<int> counts, displacements;
   if (rank == 0) {
-    flat.reserve(3 * mixed_cells_list_root.size());
-    for (auto& t : mixed_cells_list_root) {
-      flat.push_back(std::get<0>(t));
-      flat.push_back(std::get<1>(t));
-      flat.push_back(std::get<2>(t));
+    counts.resize(size);
+    displacements.resize(size);
+    for (int r = 0; r < size; ++r) {
+      const Range range = block_partition(mixed_count, r, size);
+      counts[r] = range.end - range.begin;
+      displacements[r] = range.begin;
     }
   }
-  int Ntriples =
-      (rank == 0) ? static_cast<int>(mixed_cells_list_root.size()) : 0;
-  MPI_Bcast(&Ntriples, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  if (rank != 0) flat.resize(3 * Ntriples);
-  if (Ntriples > 0) {
-    MPI_Bcast(flat.data(), 3 * Ntriples, MPI_INT, 0, MPI_COMM_WORLD);
-  }
 
-  std::vector<std::tuple<int, int, int>> mixed_cells_list;
-  mixed_cells_list.reserve(Ntriples);
-  for (int n = 0; n < Ntriples; ++n) {
-    mixed_cells_list.emplace_back(flat[3 * n + 0], flat[3 * n + 1],
-                                  flat[3 * n + 2]);
-  }
+  const Range local_range = block_partition(mixed_count, rank, size);
+  const int local_count = local_range.end - local_range.begin;
+  std::vector<std::uint32_t> local_indices(local_count);
+  MPI_Scatterv(rank == 0 ? mixed_cell_indices_root.data() : nullptr,
+               rank == 0 ? counts.data() : nullptr,
+               rank == 0 ? displacements.data() : nullptr, MPI_UINT32_T,
+               local_indices.data(), local_count, MPI_UINT32_T, 0,
+               MPI_COMM_WORLD);
 
-  const BasicMesh& mesh = cell_status.getMesh();
+  using Record = SparseMixedCellMoments<VM_ORDER, SM_ORDER>;
+  std::vector<Record> local;
+  local.reserve(local_indices.size());
 
-  // partition mixed cells across ranks
-  const int N = static_cast<int>(mixed_cells_list.size());
-  Range rnge = block_partition(N, rank, size);
-
-  // computing local moment results
-  constexpr int NV = (VM_ORDER + 1) * (VM_ORDER + 2) * (VM_ORDER + 3) / 6;
-  constexpr int NS = (SM_ORDER + 1) * (SM_ORDER + 2) * (SM_ORDER + 3) / 6;
-
-  struct CellMomentsRec {
+  for (const std::uint32_t linear_index : local_indices) {
     int i, j, k;
-    double vol[NV];
-    double surf[NS];
-  };
-
-  std::vector<CellMomentsRec> local;
-  local.reserve(std::max(0, rnge.end - rnge.begin));
-
-  for (int n = rnge.begin; n < rnge.end; ++n) {
-    const auto [i, j, k] = mixed_cells_list[n];
+    getCellIndicesFromLinearIndex(linear_index, mesh.getNy(), mesh.getNz(), &i,
+                                  &j, &k);
+    i += mesh.imin();
+    j += mesh.jmin();
+    k += mesh.kmin();
 
     IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
     IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
@@ -121,109 +226,53 @@ void getInitializedField(
     auto surf = cutter.template computeSurfaceMoments<SM_ORDER>(
         false, Eigen::Integrator<double, 2>::GaussKronrod15, 5);
 
-    CellMomentsRec rec{};
-    rec.i = i;
-    rec.j = j;
-    rec.k = k;
-    for (int t = 0; t < NV; ++t) rec.vol[t] = vol[t];
-    for (int t = 0; t < NS; ++t) rec.surf[t] = surf[t];
+    Record rec{};
+    rec.linear_index = linear_index;
+    for (std::size_t t = 0; t < Record::NV; ++t) rec.volume[t] = vol[t];
+    for (std::size_t t = 0; t < Record::NS; ++t) rec.surface[t] = surf[t];
     local.push_back(rec);
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  int local_n = static_cast<int>(local.size());
-
-  std::vector<int> counts(size, 0);
-  MPI_Gather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT, 0,
-             MPI_COMM_WORLD);
-
-  std::vector<int> displs, counts_bytes, displs_bytes;
-  int total_n = 0;
-  const int rec_bytes = static_cast<int>(sizeof(CellMomentsRec));
-
+  const int record_bytes = static_cast<int>(sizeof(Record));
+  std::vector<int> byte_counts, byte_displacements;
   if (rank == 0) {
-    displs.resize(size);
-    counts_bytes.resize(size);
-    displs_bytes.resize(size);
-    displs[0] = 0;
-    for (int r = 1; r < size; ++r) displs[r] = displs[r - 1] + counts[r - 1];
-    total_n = displs[size - 1] + counts[size - 1];
+    byte_counts.resize(size);
+    byte_displacements.resize(size);
     for (int r = 0; r < size; ++r) {
-      counts_bytes[r] = counts[r] * rec_bytes;
-      displs_bytes[r] = displs[r] * rec_bytes;
+      byte_counts[r] = counts[r] * record_bytes;
+      byte_displacements[r] = displacements[r] * record_bytes;
     }
   }
 
-  std::vector<CellMomentsRec> all;
-  if (rank == 0) all.resize(total_n);
-
-  MPI_Gatherv(reinterpret_cast<const void*>(local.data()), local_n * rec_bytes,
-              MPI_BYTE,
-              rank == 0 ? reinterpret_cast<void*>(all.data()) : nullptr,
-              rank == 0 ? counts_bytes.data() : nullptr,
-              rank == 0 ? displs_bytes.data() : nullptr, MPI_BYTE, /*root=*/0,
+  std::vector<Record> gathered;
+  if (rank == 0) gathered.resize(mixed_count);
+  MPI_Gatherv(local.data(), local_count * record_bytes, MPI_BYTE,
+              rank == 0 ? gathered.data() : nullptr,
+              rank == 0 ? byte_counts.data() : nullptr,
+              rank == 0 ? byte_displacements.data() : nullptr, MPI_BYTE, 0,
               MPI_COMM_WORLD);
-
-  // writing all moments to rank 0
-  if (rank == 0) {
-    for (const auto& rec : all) {
-      IRL::GeneralMoments3D<VM_ORDER> vol{};
-      IRL::GeneralSurfaceMoments3D<SM_ORDER> surf{};
-      for (int t = 0; t < NV; ++t) vol[t] = rec.vol[t];
-      for (int t = 0; t < NS; ++t) surf[t] = rec.surf[t];
-      (*moments)(rec.i, rec.j, rec.k).first = vol;
-      (*moments)(rec.i, rec.j, rec.k).second = surf;
-    }
-    // volume moments for cells below
-    for (int i = mesh.imin(); i <= mesh.imax(); i++) {
-      for (int j = mesh.jmin(); j <= mesh.jmax(); j++) {
-        for (int k = mesh.kmin(); k <= mesh.kmax(); k++) {
-          if (cell_status(i, j, k) == -1) {
-            IRL::Pt x0(mesh.x(i), mesh.y(j), mesh.z(k));
-            IRL::Pt x1(mesh.x(i + 1), mesh.y(j + 1), mesh.z(k + 1));
-            IRL::RectangularCuboid cell =
-                IRL::RectangularCuboid::fromBoundingPts(x0, x1);
-            IRL::GeneralMoments3D<VM_ORDER> cell_moment =
-                IRL::getVolumeMoments<IRL::GeneralMoments3D<VM_ORDER>>(cell);
-            (*moments)(i, j, k).first = cell_moment;
-          }
-        }
-      }
-    }
-  }
-
-  MPI_Barrier(MPI_COMM_WORLD);
+  return gathered;
 }
 
 // initializing moments and writing to binary ------------------------------
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
-Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-               IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-initializeMomentsAndWriteBin(const BasicMesh& mesh, const SurfaceType& surface,
-                             const std::string& bin_path) {
-  int rank = 0, size = 1;
+void initializeMomentsAndWriteBin(const BasicMesh& mesh,
+                                  const SurfaceType& surface,
+                                  const std::string& bin_path) {
+  int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  Data<int> cell_status(&mesh);
-  std::vector<std::tuple<int, int, int>> mixed_cells_list;
+  InsideCellMask inside_cells;
+  std::vector<std::uint32_t> mixed_cell_indices;
+  getCellStatus(mesh, surface, &inside_cells, &mixed_cell_indices);
+
+  auto mixed_moments = getInitializedField<SurfaceType, VM_ORDER, SM_ORDER>(
+      mesh, mixed_cell_indices, surface);
+
   if (rank == 0) {
-    mixed_cells_list = getCellStatus(&cell_status, surface);
+    writeMomentsToBinary<VM_ORDER, SM_ORDER>(mesh, inside_cells, mixed_moments,
+                                             bin_path);
   }
-
-  Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                 IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-      moments(&mesh);
-  getInitializedField<SurfaceType, VM_ORDER, SM_ORDER>(
-      cell_status, mixed_cells_list, &moments, surface);
-
-  // writing moments to binary
-  if (rank == 0) {
-    writeMomentsToBinary<VM_ORDER, SM_ORDER>(moments, bin_path);
-  }
-
-  return moments;
 }
 
 // running initialization for generic shape ---------------------------
@@ -242,8 +291,8 @@ void run_initialization(const std::string& shape, int Nx,
         using S = std::decay_t<decltype(surface)>;
 
         auto t0 = std::chrono::steady_clock::now();
-        auto data = initializeMomentsAndWriteBin<S, VM_ORDER, SM_ORDER>(
-            mesh, surface, bin_path);
+        initializeMomentsAndWriteBin<S, VM_ORDER, SM_ORDER>(mesh, surface,
+                                                            bin_path);
         auto t1 = std::chrono::steady_clock::now();
         if (rank == 0) {
           const double dt = std::chrono::duration<double>(t1 - t0).count();

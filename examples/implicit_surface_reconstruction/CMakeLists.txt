@@ -13,6 +13,7 @@ IRLAddExample_cpp(
   "binary.h"
   "reconstruction.h"
   "surface_select.h"
+  "sparse_moments.h"
   SRCS
   "main.cpp"
   "basic_mesh.cpp"
