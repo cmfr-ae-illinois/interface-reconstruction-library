@@ -39,12 +39,14 @@ inline SizeRange blockPartitionSize(const std::size_t count, const int rank,
 
 // finding mixed cells ----------------------------------------------
 template <class SurfaceType>
-void getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
-                   InsideCellMask* inside_cells,
-                   std::vector<std::uint32_t>* mixed_cell_indices) {
+CellStatusStats getCellStatus(
+    const BasicMesh& mesh, const SurfaceType& surface,
+    InsideCellMask* inside_cells,
+    std::vector<std::uint32_t>* mixed_cell_indices) {
   int rank = 0, size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
+  const auto t0 = std::chrono::steady_clock::now();
 
   using S0 = ZeroRefineSurface<std::decay_t<SurfaceType>>;
   S0 surface0(surface);
@@ -76,6 +78,7 @@ void getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
   // physical cell on the last rank.
   InsideCellMask local_inside(local_word_count * 64);
   std::vector<std::uint32_t> local_mixed_cell_indices;
+  std::uint64_t local_inside_count = 0;
 
   for (std::size_t index = first_linear_index; index < end_linear_index;
        ++index) {
@@ -97,6 +100,7 @@ void getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
       local_mixed_cell_indices.push_back(static_cast<std::uint32_t>(index));
     } else if (status == -1) {
       local_inside.set(index - first_linear_index);
+      ++local_inside_count;
     }
   }
 
@@ -166,6 +170,35 @@ void getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
               rank == 0 ? mixed_counts.data() : nullptr,
               rank == 0 ? mixed_displacements.data() : nullptr, MPI_UINT32_T, 0,
               MPI_COMM_WORLD);
+
+  const std::uint64_t local_mixed_count_u64 =
+      static_cast<std::uint64_t>(local_mixed_cell_indices.size());
+  std::uint64_t global_inside_count = 0;
+  std::uint64_t global_mixed_count = 0;
+  MPI_Reduce(&local_inside_count, &global_inside_count, 1, MPI_UINT64_T,
+             MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&local_mixed_count_u64, &global_mixed_count, 1, MPI_UINT64_T,
+             MPI_SUM, 0, MPI_COMM_WORLD);
+
+  const auto t1 = std::chrono::steady_clock::now();
+  const double local_time = std::chrono::duration<double>(t1 - t0).count();
+  double status_time = 0.0;
+  MPI_Reduce(&local_time, &status_time, 1, MPI_DOUBLE, MPI_MAX, 0,
+             MPI_COMM_WORLD);
+
+  CellStatusStats stats{};
+  if (rank == 0) {
+    stats.cells = static_cast<std::uint64_t>(cell_count);
+    stats.mixed = global_mixed_count;
+    stats.inside = global_inside_count;
+    stats.outside = stats.cells - stats.mixed - stats.inside;
+    stats.time = status_time;
+    std::cout << "[status] finished cells=" << stats.cells
+              << " mixed=" << stats.mixed << " inside=" << stats.inside
+              << " outside=" << stats.outside << " time=" << stats.time
+              << " s\n";
+  }
+  return stats;
 }
 
 // finding implicit surface moments -----------------------------------
@@ -205,8 +238,12 @@ std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
   using Record = SparseMixedCellMoments<VM_ORDER, SM_ORDER>;
   std::vector<Record> local;
   local.reserve(local_indices.size());
+  int next_progress_pct = 10;
 
-  for (const std::uint32_t linear_index : local_indices) {
+  for (int local_index_number = 0; local_index_number < local_count;
+       ++local_index_number) {
+    const std::uint32_t linear_index =
+        local_indices[static_cast<std::size_t>(local_index_number)];
     int i, j, k;
     getCellIndicesFromLinearIndex(linear_index, mesh.getNy(), mesh.getNz(), &i,
                                   &j, &k);
@@ -231,6 +268,20 @@ std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
     for (std::size_t t = 0; t < Record::NV; ++t) rec.volume[t] = vol[t];
     for (std::size_t t = 0; t < Record::NS; ++t) rec.surface[t] = surf[t];
     local.push_back(rec);
+
+    const std::uint64_t initialized =
+        static_cast<std::uint64_t>(local_index_number + 1);
+    const std::uint64_t local_count_u64 =
+        static_cast<std::uint64_t>(local_count);
+    while (rank == 0 && local_count > 0 && next_progress_pct <= 100 &&
+           initialized * 100 >=
+               static_cast<std::uint64_t>(next_progress_pct) *
+                   local_count_u64) {
+      std::cout << "[moments] rank0_progress initialized=" << initialized
+                << "/" << local_count << " local pct=" << next_progress_pct
+                << "\n";
+      next_progress_pct += 10;
+    }
   }
 
   const int record_bytes = static_cast<int>(sizeof(Record));
@@ -256,31 +307,59 @@ std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
 
 // initializing moments and writing to binary ------------------------------
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
-void initializeMomentsAndWriteBin(const BasicMesh& mesh,
-                                  const SurfaceType& surface,
-                                  const std::string& bin_path) {
-  int rank = 0;
+std::size_t initializeMomentsAndWriteBin(const BasicMesh& mesh,
+                                         const SurfaceType& surface,
+                                         const std::string& bin_path) {
+  int rank = 0, size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   InsideCellMask inside_cells;
   std::vector<std::uint32_t> mixed_cell_indices;
-  getCellStatus(mesh, surface, &inside_cells, &mixed_cell_indices);
-
-  auto mixed_moments = getInitializedField<SurfaceType, VM_ORDER, SM_ORDER>(
-      mesh, mixed_cell_indices, surface);
+  const CellStatusStats status_stats =
+      getCellStatus(mesh, surface, &inside_cells, &mixed_cell_indices);
+  const std::size_t mixed_cell_count =
+      rank == 0 ? mixed_cell_indices.size() : 0;
 
   if (rank == 0) {
+    std::cout << "[moments] starting mixed=" << status_stats.mixed
+              << " ranks=" << size << "\n";
+  }
+  const auto moments_t0 = std::chrono::steady_clock::now();
+  auto mixed_moments = getInitializedField<SurfaceType, VM_ORDER, SM_ORDER>(
+      mesh, mixed_cell_indices, surface);
+  const auto moments_t1 = std::chrono::steady_clock::now();
+  const double local_moments_time =
+      std::chrono::duration<double>(moments_t1 - moments_t0).count();
+  double moments_time = 0.0;
+  MPI_Reduce(&local_moments_time, &moments_time, 1, MPI_DOUBLE, MPI_MAX, 0,
+             MPI_COMM_WORLD);
+  if (rank == 0) {
+    std::cout << "[moments] finished mixed=" << mixed_cell_count
+              << " time=" << moments_time << " s\n";
+  }
+
+  if (rank == 0) {
+    const auto write_t0 = std::chrono::steady_clock::now();
     writeMomentsToBinary<VM_ORDER, SM_ORDER>(mesh, inside_cells, mixed_moments,
                                              bin_path);
+    const auto write_t1 = std::chrono::steady_clock::now();
+    const double write_time =
+        std::chrono::duration<double>(write_t1 - write_t0).count();
+    std::cout << "[write] finished mask_words=" << inside_cells.words().size()
+              << " mixed_records=" << mixed_moments.size()
+              << " time=" << write_time << " s file=" << bin_path << "\n";
   }
+  return mixed_cell_count;
 }
 
 // running initialization for generic shape ---------------------------
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void run_initialization(const std::string& shape, int Nx,
                         const std::string& output_dir) {
-  int rank = 0;
+  int rank = 0, size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   BasicMesh mesh(Nx, Nx, Nx, 1);
   SurfaceVariant surf = makeSurface(shape, mesh);
@@ -291,13 +370,19 @@ void run_initialization(const std::string& shape, int Nx,
         using S = std::decay_t<decltype(surface)>;
 
         auto t0 = std::chrono::steady_clock::now();
-        initializeMomentsAndWriteBin<S, VM_ORDER, SM_ORDER>(mesh, surface,
-                                                            bin_path);
+        if (rank == 0) {
+          std::cout << "[init] starting shape=" << shape << " Nx=" << Nx
+                    << " ranks=" << size << " file=" << bin_path << "\n";
+        }
+        const std::size_t mixed_cell_count =
+            initializeMomentsAndWriteBin<S, VM_ORDER, SM_ORDER>(mesh, surface,
+                                                                bin_path);
         auto t1 = std::chrono::steady_clock::now();
         if (rank == 0) {
           const double dt = std::chrono::duration<double>(t1 - t0).count();
-          std::cout << "✅ Initialization complete for " << shape << " in "
-                    << dt << " s\n";
+          std::cout << "[init] finished shape=" << shape << " Nx=" << Nx
+                    << " mixed_cells=" << mixed_cell_count << " time=" << dt
+                    << " s file=" << bin_path << "\n";
         }
       },
       surf);

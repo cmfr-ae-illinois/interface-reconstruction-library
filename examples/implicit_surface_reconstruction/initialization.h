@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <Eigen/Dense>
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -45,10 +46,19 @@ inline Range block_partition(int N, int rank, int size) {
   return {start, start + count};
 }
 
+struct CellStatusStats {
+  std::uint64_t cells = 0;
+  std::uint64_t mixed = 0;
+  std::uint64_t inside = 0;
+  std::uint64_t outside = 0;
+  double time = 0.0;
+};
+
 template <class SurfaceType>
-void getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
-                   InsideCellMask* inside_cells,
-                   std::vector<std::uint32_t>* mixed_cell_indices);
+CellStatusStats getCellStatus(
+    const BasicMesh& mesh, const SurfaceType& surface,
+    InsideCellMask* inside_cells,
+    std::vector<std::uint32_t>* mixed_cell_indices);
 
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
 std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
@@ -57,9 +67,9 @@ std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
     const SurfaceType& surface);
 
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
-void initializeMomentsAndWriteBin(const BasicMesh& mesh,
-                                  const SurfaceType& surface,
-                                  const std::string& bin_path);
+std::size_t initializeMomentsAndWriteBin(const BasicMesh& mesh,
+                                         const SurfaceType& surface,
+                                         const std::string& bin_path);
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void run_initialization(const std::string& shape, int Nx,

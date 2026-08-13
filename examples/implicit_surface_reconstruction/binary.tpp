@@ -179,8 +179,6 @@ void writeMomentsToBinary(
     for (std::size_t n = 0; n < Record::NS; ++n)
       sparse_moment_io::writeValue(&stream, record.surface[n]);
   }
-  std::cout << "✅ Sparse moments written to binary file: " << filename
-            << std::endl;
 }
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
