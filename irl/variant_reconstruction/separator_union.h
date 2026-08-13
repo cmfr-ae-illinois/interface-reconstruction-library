@@ -23,7 +23,9 @@ namespace IRL {
 
 // This class is meant to be trivially copyable for use in AMReX
 // For application outside AMReX, use SeparatorVariant instead
-class alignas(16) SeparatorUnion {
+class alignas(8) SeparatorUnion {
+  friend struct SeparatorUnionLayoutCheck;
+
  public:
   enum class SeparatorType : std::uint8_t {
     OnePlane = 1,
@@ -40,6 +42,10 @@ class alignas(16) SeparatorUnion {
   SeparatorUnion(const Plane& a_plane_0, const Plane& a_plane_1);
   SeparatorUnion(const Paraboloid& a_paraboloid);
   SeparatorUnion(const Cylinder& a_cylinder);
+
+  // Create empty or full separator
+  static SeparatorUnion createAlwaysAbove(void);
+  static SeparatorUnion createAlwaysBelow(void);
 
   // Overloaded copy
   SeparatorUnion& operator=(const SeparatorUnion& other);
@@ -132,18 +138,25 @@ class alignas(16) SeparatorUnion {
                const double a_loc);
 
  private:
-  SeparatorType type_m;
   union {
     std::array<Plane, 2> planes_m;
     Paraboloid paraboloid_m;
     Cylinder cylinder_m;
   };
+  SeparatorType type_m;
 };
 
-static_assert(
-    sizeof(SeparatorUnion) == 128,
-    "SeparatorUnion size must be 128 for its corresponding Fortran type "
-    "to be correct");
+struct SeparatorUnionLayoutCheck {
+  static_assert(
+      sizeof(SeparatorUnion) == 128,
+      "SeparatorUnion size must be 128 to match Fortran SeparatorUnion");
+  static_assert(alignof(SeparatorUnion) == 8,
+                "Alignment must be 8 to match Fortran SeparatorUnion");
+  static_assert(offsetof(SeparatorUnion, planes_m) == 0, "");
+  static_assert(offsetof(SeparatorUnion, paraboloid_m) == 0, "");
+  static_assert(offsetof(SeparatorUnion, cylinder_m) == 0, "");
+  static_assert(offsetof(SeparatorUnion, type_m) == sizeof(Paraboloid), "");
+};
 
 inline std::ostream& operator<<(std::ostream& out,
                                 const SeparatorUnion& a_reconstruction);
