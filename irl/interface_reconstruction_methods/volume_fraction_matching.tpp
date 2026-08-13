@@ -93,18 +93,20 @@ inline void setDistanceToMatchVolumeFractionPartialFill(
         a_cell, a_volume_fraction, &separator2, a_volume_fraction_tolerance);
   } else if (a_reconstruction->type() ==
              SeparatorUnion::SeparatorType::Paraboloid) {
-    auto& paraboloid = a_reconstruction->getParaboloid();
+    auto paraboloid = a_reconstruction->getParaboloid();
     const Pt& datum = paraboloid.getDatum();
     const ReferenceFrame& frame = paraboloid.getReferenceFrame();
     ProgressiveDistanceSolverParaboloid<CellType> solverp(
         a_cell, a_volume_fraction, a_volume_fraction_tolerance, paraboloid);
     paraboloid.setDatum(Pt(datum + solverp.getDistance() * frame[2]));
+    a_reconstruction->setToParaboloid(paraboloid);
   } else if (a_reconstruction->type() ==
              SeparatorUnion::SeparatorType::Cylinder) {
-    auto& cylinder = a_reconstruction->getCylinder();
+    auto cylinder = a_reconstruction->getCylinder();
     ProgressiveRadiusSolverCylinder<CellType> solverc(
         a_cell, a_volume_fraction, a_volume_fraction_tolerance, cylinder);
     cylinder = solverc.getCylinder();
+    a_reconstruction->setToCylinder(cylinder);
   } else {
     std::runtime_error("Unrecognized reconstruction type in SeparatorUnion");
   }

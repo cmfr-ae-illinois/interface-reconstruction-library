@@ -90,16 +90,16 @@ void setToPurePhaseReconstruction(const double a_internal_volume_fraction,
     } else if (a_reconstruction->type() ==
                SeparatorUnion::SeparatorType::Paraboloid) {
       if (wantPurelyInternal(a_internal_volume_fraction)) {
-        a_reconstruction->getParaboloid().markAsAlwaysAbove();
+        *a_reconstruction = Paraboloid::createAlwaysAbove();
       } else {
-        a_reconstruction->getParaboloid().markAsAlwaysBelow();
+        *a_reconstruction = Paraboloid::createAlwaysBelow();
       }
     } else if (a_reconstruction->type() ==
                SeparatorUnion::SeparatorType::Cylinder) {
       if (wantPurelyInternal(a_internal_volume_fraction)) {
-        a_reconstruction->getCylinder().markAsAlwaysAbove();
+        *a_reconstruction = Cylinder::createAlwaysAbove();
       } else {
-        a_reconstruction->getCylinder().markAsAlwaysBelow();
+        *a_reconstruction = Cylinder::createAlwaysBelow();
       }
     } else {
       throw std::runtime_error(
