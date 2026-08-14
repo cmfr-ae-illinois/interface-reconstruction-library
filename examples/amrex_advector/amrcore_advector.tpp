@@ -7,6 +7,8 @@
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>
+#include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -111,16 +113,116 @@ AmrCoreAdv::AmrCoreAdv() {
 
 AmrCoreAdv::~AmrCoreAdv() {}
 
+bool AmrCoreAdv::UsingPlotInterval() const { return plot_int > 0; }
+
+bool AmrCoreAdv::UsingPlotTimes() const {
+  return plot_int <= 0 && !plot_times.empty();
+}
+
+Real AmrCoreAdv::PlotTimeEps() const {
+  return 1.e-12_rt * std::max(1.0_rt, std::abs(stop_time));
+}
+
+void AmrCoreAdv::PreparePlotTimes() {
+  plot_times.clear();
+  next_plot_time = 0;
+
+  if (plot_time_fractions.empty() || UsingPlotInterval()) return;
+
+  if (stop_time == std::numeric_limits<Real>::max()) {
+    amrex::Abort("amr.plot_times requires a finite stop_time");
+  }
+
+  std::sort(plot_time_fractions.begin(), plot_time_fractions.end());
+
+  const Real eps = 1.e-14_rt;
+  plot_time_fractions.erase(
+      std::unique(
+          plot_time_fractions.begin(), plot_time_fractions.end(),
+          [eps](Real lhs, Real rhs) { return std::abs(lhs - rhs) <= eps; }),
+      plot_time_fractions.end());
+
+  for (const Real fraction : plot_time_fractions) {
+    if (fraction < 0.0_rt || fraction > 1.0_rt) {
+      std::ostringstream oss;
+      oss << "amr.plot_times entries must be in [0, 1], got " << fraction;
+      amrex::Abort(oss.str());
+    }
+    plot_times.push_back(fraction * stop_time);
+  }
+}
+
+bool AmrCoreAdv::ShouldWriteInitialPlotTime() {
+  if (!UsingPlotTimes()) return false;
+
+  bool write_initial_plot = false;
+  const Real time = t_new[0];
+  const Real eps = PlotTimeEps();
+
+  while (next_plot_time < plot_times.size() &&
+         plot_times[next_plot_time] <= time + eps) {
+    if (plot_times[next_plot_time] >= time - eps) {
+      write_initial_plot = true;
+    }
+    ++next_plot_time;
+  }
+
+  return write_initial_plot;
+}
+
+void AmrCoreAdv::GetPlotWriteTimesForStep(Real cur_time, Real next_time,
+                                          bool& write_before_step,
+                                          bool& write_after_step) {
+  write_before_step = false;
+  write_after_step = false;
+
+  if (!UsingPlotTimes()) return;
+
+  const Real eps = PlotTimeEps();
+
+  while (next_plot_time < plot_times.size()) {
+    const Real output_time = plot_times[next_plot_time];
+
+    if (output_time < cur_time - eps) {
+      ++next_plot_time;
+      continue;
+    }
+
+    if (output_time > next_time + eps) break;
+
+    if (std::abs(output_time - cur_time) <= std::abs(next_time - output_time)) {
+      write_before_step = true;
+    } else {
+      write_after_step = true;
+    }
+
+    ++next_plot_time;
+  }
+}
+
 // advance solution to final time
 void AmrCoreAdv::Evolve() {
   Real cur_time = t_new[0];
-  int last_plot_file_step = 0;
+  int last_plot_file_step = -1;
 
   for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step) {
     amrex::Print() << "\nCoarse STEP " << step + 1 << " starts ..."
                    << std::endl;
 
     ComputeDt();
+
+    const Real next_time = cur_time + dt[0];
+    bool write_intermediate_before_step = false;
+    bool write_intermediate_after_step = false;
+    GetPlotWriteTimesForStep(cur_time, next_time,
+                             write_intermediate_before_step,
+                             write_intermediate_after_step);
+
+    if (write_intermediate_before_step && istep[0] > last_plot_file_step) {
+      last_plot_file_step = istep[0];
+      UpdateBand();
+      WritePlotFile();
+    }
 
     int lev = 0;
     int iteration = 1;
@@ -140,8 +242,13 @@ void AmrCoreAdv::Evolve() {
       t_new[lev] = cur_time;
     }
 
-    if (plot_int > 0 && (step + 1) % plot_int == 0) {
+    if (UsingPlotInterval() && (step + 1) % plot_int == 0) {
       last_plot_file_step = step + 1;
+      UpdateBand();
+      WritePlotFile();
+    } else if (write_intermediate_after_step &&
+               istep[0] > last_plot_file_step) {
+      last_plot_file_step = istep[0];
       UpdateBand();
       WritePlotFile();
     }
@@ -191,7 +298,7 @@ void AmrCoreAdv::Evolve() {
                    << relative_change_liquid_mass << "\n";
   }
 
-  if (plot_int > 0 && istep[0] > last_plot_file_step) {
+  if (UsingPlotInterval() && istep[0] > last_plot_file_step) {
     UpdateBand();
     GetReconstruction(finest_level);
     WritePlotFile();
@@ -235,7 +342,7 @@ void AmrCoreAdv::InitData() {
     ReadCheckpointFile();
   }
 
-  if (plot_int > 0) {
+  if (UsingPlotInterval() || ShouldWriteInitialPlotTime()) {
     GetReconstruction(finest_level);
     WritePlotFile();
   }
@@ -617,10 +724,13 @@ void AmrCoreAdv::ReadParameters() {
     pp.query("regrid_int", regrid_int);
     pp.query("plot_file", plot_file);
     pp.query("plot_int", plot_int);
+    pp.queryarr("plot_times", plot_time_fractions);
     pp.query("chk_file", chk_file);
     pp.query("chk_int", chk_int);
     pp.query("restart", restart_chkfile);
   }
+
+  PreparePlotTimes();
 
   {
     ParmParse pp("adv");

@@ -13,7 +13,7 @@ case.name = deformation3d
 # *****************************************************************
 # Which interface reconstruction method to use?
 # *****************************************************************
-reconstruction.name = ivf
+reconstruction.name = lvira
 
 # *****************************************************************
 # Which interface advection method to use?
@@ -47,10 +47,10 @@ amr.v              = 1       # verbosity in Amr
 # Resolution and refinement
 # *****************************************************************
 amr.n_cell          = 2 2 2
-amr.max_level       = 5       # maximum level number allowed -- 
+amr.max_level       = 4       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
-amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
+amr.ref_ratio       = 2 2 2 2 # refinement ratio between levels
 
 # *****************************************************************
 # Control of grid creation
@@ -80,8 +80,11 @@ adv.do_reflux = 1
 # Plotfile name and frequency
 # *****************************************************************
 amr.plot_file  = plt    # root name of plot file
-amr.plot_int   =  1    # number of timesteps between plot files
+amr.plot_int   =  -1    # number of timesteps between plot files
                         # if negative then no plot files will be written
+amr.plot_times = 0.0 0.25 0.5 0.75 1.0
+                        # fractions of stop_time for plot files
+                        # ignored when amr.plot_int > 0
 
 # *****************************************************************
 # Checkpoint name and frequency

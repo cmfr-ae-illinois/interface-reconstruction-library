@@ -161,6 +161,15 @@ class AmrCoreAdv : public amrex::AmrCore {
   // write plotfile to disk
   void WritePlotFile();
 
+  bool UsingPlotInterval() const;
+  bool UsingPlotTimes() const;
+  amrex::Real PlotTimeEps() const;
+  void PreparePlotTimes();
+  bool ShouldWriteInitialPlotTime();
+  void GetPlotWriteTimesForStep(amrex::Real cur_time, amrex::Real next_time,
+                                bool& write_before_step,
+                                bool& write_after_step);
+
   // write checkpoint file to disk
   void WriteCheckpointFile() const;
 
@@ -269,6 +278,9 @@ class AmrCoreAdv : public amrex::AmrCore {
   // plotfile prefix and frequency
   std::string plot_file{"plt"};
   int plot_int = -1;
+  amrex::Vector<amrex::Real> plot_time_fractions;
+  amrex::Vector<amrex::Real> plot_times;
+  int next_plot_time = 0;
 
   // checkpoint prefix and frequency
   std::string chk_file{"chk"};
