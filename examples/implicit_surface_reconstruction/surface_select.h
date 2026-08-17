@@ -18,11 +18,11 @@
 #include "irl/geometry/implicit_surfaces/general_implicit_surface.h"
 #include "irl/geometry/implicit_surfaces/implicit_surfaces.h"
 
-// refine levels for initializing moments (for Nx = 256)
-constexpr std::size_t SPHERE_MAX_REFINE = 6;
-constexpr std::size_t ELLIPSOID_MAX_REFINE = 6;
-constexpr std::size_t GENUS_MAX_REFINE = 5;
-constexpr std::size_t ORTHOCIRCLE_MAX_REFINE = 6;
+// refine levels for initializing moments (for Nx = 1024)
+constexpr std::size_t SPHERE_MAX_REFINE = 4;
+constexpr std::size_t ELLIPSOID_MAX_REFINE = 4;
+constexpr std::size_t GENUS_MAX_REFINE = 4;
+constexpr std::size_t ORTHOCIRCLE_MAX_REFINE = 2;
 
 using SphereVariant = IRL::Sphere<double, SPHERE_MAX_REFINE>;
 using EllipsoidVariant = IRL::Ellipsoid<double, ELLIPSOID_MAX_REFINE>;
