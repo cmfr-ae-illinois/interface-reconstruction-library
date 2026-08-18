@@ -22,7 +22,7 @@
 constexpr std::size_t SPHERE_MAX_REFINE = 4;
 constexpr std::size_t ELLIPSOID_MAX_REFINE = 4;
 constexpr std::size_t GENUS_MAX_REFINE = 4;
-constexpr std::size_t ORTHOCIRCLE_MAX_REFINE = 2;
+constexpr std::size_t ORTHOCIRCLE_MAX_REFINE = 4;
 
 using SphereVariant = IRL::Sphere<double, SPHERE_MAX_REFINE>;
 using EllipsoidVariant = IRL::Ellipsoid<double, ELLIPSOID_MAX_REFINE>;
