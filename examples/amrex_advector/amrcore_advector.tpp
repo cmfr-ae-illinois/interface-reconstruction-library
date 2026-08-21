@@ -6,6 +6,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
 #include <algorithm>
 #include <cmath>
@@ -109,9 +110,26 @@ AmrCoreAdv::AmrCoreAdv() {
 
   ParmParse ppadv("advection");
   ppadv.get("name", advection_name);
+
+  ApplyOutputDirectories();
 }
 
 AmrCoreAdv::~AmrCoreAdv() {}
+
+std::string AmrCoreAdv::OutputPath(const std::string& dir,
+                                   const std::string& basename) const {
+  if (dir.empty() || dir == ".") return basename;
+
+  amrex::UtilCreateDirectory(dir, 0755);
+
+  if (dir.back() == '/') return dir + basename;
+  return dir + "/" + basename;
+}
+
+void AmrCoreAdv::ApplyOutputDirectories() {
+  plot_file = OutputPath(plot_dir, plot_file);
+  chk_file = OutputPath(chk_dir, chk_file);
+}
 
 bool AmrCoreAdv::UsingPlotInterval() const { return plot_int > 0; }
 
@@ -200,10 +218,99 @@ void AmrCoreAdv::GetPlotWriteTimesForStep(Real cur_time, Real next_time,
   }
 }
 
+bool AmrCoreAdv::UsingCheckpointInterval() const { return chk_int > 0; }
+
+bool AmrCoreAdv::UsingCheckpointTimes() const {
+  return chk_int <= 0 && !checkpoint_times.empty();
+}
+
+Real AmrCoreAdv::CheckpointTimeEps() const {
+  return 1.e-12_rt * std::max(1.0_rt, std::abs(stop_time));
+}
+
+void AmrCoreAdv::PrepareCheckpointTimes() {
+  checkpoint_times.clear();
+  next_checkpoint_time = 0;
+
+  if (checkpoint_time_fractions.empty() || UsingCheckpointInterval()) return;
+
+  if (stop_time == std::numeric_limits<Real>::max()) {
+    amrex::Abort("amr.chk_times requires a finite stop_time");
+  }
+
+  std::sort(checkpoint_time_fractions.begin(), checkpoint_time_fractions.end());
+
+  const Real eps = 1.e-14_rt;
+  checkpoint_time_fractions.erase(
+      std::unique(
+          checkpoint_time_fractions.begin(), checkpoint_time_fractions.end(),
+          [eps](Real lhs, Real rhs) { return std::abs(lhs - rhs) <= eps; }),
+      checkpoint_time_fractions.end());
+
+  for (const Real fraction : checkpoint_time_fractions) {
+    if (fraction < 0.0_rt || fraction > 1.0_rt) {
+      std::ostringstream oss;
+      oss << "amr.chk_times entries must be in [0, 1], got " << fraction;
+      amrex::Abort(oss.str());
+    }
+    checkpoint_times.push_back(fraction * stop_time);
+  }
+}
+
+bool AmrCoreAdv::ShouldWriteInitialCheckpointTime() {
+  if (!UsingCheckpointTimes()) return false;
+
+  bool write_initial_checkpoint = false;
+  const Real time = t_new[0];
+  const Real eps = CheckpointTimeEps();
+
+  while (next_checkpoint_time < checkpoint_times.size() &&
+         checkpoint_times[next_checkpoint_time] <= time + eps) {
+    if (checkpoint_times[next_checkpoint_time] >= time - eps) {
+      write_initial_checkpoint = true;
+    }
+    ++next_checkpoint_time;
+  }
+
+  return write_initial_checkpoint;
+}
+
+void AmrCoreAdv::GetCheckpointWriteTimesForStep(Real cur_time, Real next_time,
+                                                bool& write_before_step,
+                                                bool& write_after_step) {
+  write_before_step = false;
+  write_after_step = false;
+
+  if (!UsingCheckpointTimes()) return;
+
+  const Real eps = CheckpointTimeEps();
+
+  while (next_checkpoint_time < checkpoint_times.size()) {
+    const Real output_time = checkpoint_times[next_checkpoint_time];
+
+    if (output_time < cur_time - eps) {
+      ++next_checkpoint_time;
+      continue;
+    }
+
+    if (output_time > next_time + eps) break;
+
+    if (std::abs(output_time - cur_time) <= std::abs(next_time - output_time)) {
+      write_before_step = true;
+    } else {
+      write_after_step = true;
+    }
+
+    ++next_checkpoint_time;
+  }
+}
+
 // advance solution to final time
 void AmrCoreAdv::Evolve() {
   Real cur_time = t_new[0];
-  int last_plot_file_step = -1;
+  int last_plot_file_step = initial_plot_file_written ? istep[0] : -1;
+  int last_checkpoint_file_step =
+      initial_checkpoint_file_written ? istep[0] : -1;
 
   for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step) {
     amrex::Print() << "\nCoarse STEP " << step + 1 << " starts ..."
@@ -217,11 +324,21 @@ void AmrCoreAdv::Evolve() {
     GetPlotWriteTimesForStep(cur_time, next_time,
                              write_intermediate_before_step,
                              write_intermediate_after_step);
+    bool write_checkpoint_before_step = false;
+    bool write_checkpoint_after_step = false;
+    GetCheckpointWriteTimesForStep(cur_time, next_time,
+                                   write_checkpoint_before_step,
+                                   write_checkpoint_after_step);
 
     if (write_intermediate_before_step && istep[0] > last_plot_file_step) {
       last_plot_file_step = istep[0];
       UpdateBand();
       WritePlotFile();
+    }
+
+    if (write_checkpoint_before_step && istep[0] > last_checkpoint_file_step) {
+      last_checkpoint_file_step = istep[0];
+      WriteCheckpointFile();
     }
 
     int lev = 0;
@@ -253,7 +370,12 @@ void AmrCoreAdv::Evolve() {
       WritePlotFile();
     }
 
-    if (chk_int > 0 && (step + 1) % chk_int == 0) {
+    if (UsingCheckpointInterval() && (step + 1) % chk_int == 0) {
+      last_checkpoint_file_step = step + 1;
+      WriteCheckpointFile();
+    } else if (write_checkpoint_after_step &&
+               istep[0] > last_checkpoint_file_step) {
+      last_checkpoint_file_step = istep[0];
       WriteCheckpointFile();
     }
 
@@ -333,8 +455,9 @@ void AmrCoreAdv::InitData() {
       // WriteUniformMomentsBinary(uniform_initial_moments, initial_filename);
     }
 
-    if (chk_int > 0) {
+    if (UsingCheckpointInterval() || ShouldWriteInitialCheckpointTime()) {
       WriteCheckpointFile();
+      initial_checkpoint_file_written = true;
     }
 
   } else {
@@ -345,6 +468,7 @@ void AmrCoreAdv::InitData() {
   if (UsingPlotInterval() || ShouldWriteInitialPlotTime()) {
     GetReconstruction(finest_level);
     WritePlotFile();
+    initial_plot_file_written = true;
   }
 }
 
@@ -723,14 +847,18 @@ void AmrCoreAdv::ReadParameters() {
 
     pp.query("regrid_int", regrid_int);
     pp.query("plot_file", plot_file);
+    pp.query("plot_dir", plot_dir);
     pp.query("plot_int", plot_int);
     pp.queryarr("plot_times", plot_time_fractions);
     pp.query("chk_file", chk_file);
+    pp.query("chk_dir", chk_dir);
     pp.query("chk_int", chk_int);
+    pp.queryarr("chk_times", checkpoint_time_fractions);
     pp.query("restart", restart_chkfile);
   }
 
   PreparePlotTimes();
+  PrepareCheckpointTimes();
 
   {
     ParmParse pp("adv");
