@@ -6,7 +6,10 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
+#include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -107,20 +110,236 @@ AmrCoreAdv::AmrCoreAdv() {
 
   ParmParse ppadv("advection");
   ppadv.get("name", advection_name);
+
+  ApplyOutputDirectories();
 }
 
 AmrCoreAdv::~AmrCoreAdv() {}
 
+std::string AmrCoreAdv::OutputPath(const std::string& dir,
+                                   const std::string& basename) const {
+  if (dir.empty() || dir == ".") return basename;
+
+  amrex::UtilCreateDirectory(dir, 0755);
+
+  if (dir.back() == '/') return dir + basename;
+  return dir + "/" + basename;
+}
+
+void AmrCoreAdv::ApplyOutputDirectories() {
+  plot_file = OutputPath(plot_dir, plot_file);
+  chk_file = OutputPath(chk_dir, chk_file);
+}
+
+bool AmrCoreAdv::UsingPlotInterval() const { return plot_int > 0; }
+
+bool AmrCoreAdv::UsingPlotTimes() const {
+  return plot_int <= 0 && !plot_times.empty();
+}
+
+Real AmrCoreAdv::PlotTimeEps() const {
+  return 1.e-12_rt * std::max(1.0_rt, std::abs(stop_time));
+}
+
+void AmrCoreAdv::PreparePlotTimes() {
+  plot_times.clear();
+  next_plot_time = 0;
+
+  if (plot_time_fractions.empty() || UsingPlotInterval()) return;
+
+  if (stop_time == std::numeric_limits<Real>::max()) {
+    amrex::Abort("amr.plot_times requires a finite stop_time");
+  }
+
+  std::sort(plot_time_fractions.begin(), plot_time_fractions.end());
+
+  const Real eps = 1.e-14_rt;
+  plot_time_fractions.erase(
+      std::unique(
+          plot_time_fractions.begin(), plot_time_fractions.end(),
+          [eps](Real lhs, Real rhs) { return std::abs(lhs - rhs) <= eps; }),
+      plot_time_fractions.end());
+
+  for (const Real fraction : plot_time_fractions) {
+    if (fraction < 0.0_rt || fraction > 1.0_rt) {
+      std::ostringstream oss;
+      oss << "amr.plot_times entries must be in [0, 1], got " << fraction;
+      amrex::Abort(oss.str());
+    }
+    plot_times.push_back(fraction * stop_time);
+  }
+}
+
+bool AmrCoreAdv::ShouldWriteInitialPlotTime() {
+  if (!UsingPlotTimes()) return false;
+
+  bool write_initial_plot = false;
+  const Real time = t_new[0];
+  const Real eps = PlotTimeEps();
+
+  while (next_plot_time < plot_times.size() &&
+         plot_times[next_plot_time] <= time + eps) {
+    if (plot_times[next_plot_time] >= time - eps) {
+      write_initial_plot = true;
+    }
+    ++next_plot_time;
+  }
+
+  return write_initial_plot;
+}
+
+void AmrCoreAdv::GetPlotWriteTimesForStep(Real cur_time, Real next_time,
+                                          bool& write_before_step,
+                                          bool& write_after_step) {
+  write_before_step = false;
+  write_after_step = false;
+
+  if (!UsingPlotTimes()) return;
+
+  const Real eps = PlotTimeEps();
+
+  while (next_plot_time < plot_times.size()) {
+    const Real output_time = plot_times[next_plot_time];
+
+    if (output_time < cur_time - eps) {
+      ++next_plot_time;
+      continue;
+    }
+
+    if (output_time > next_time + eps) break;
+
+    if (std::abs(output_time - cur_time) <= std::abs(next_time - output_time)) {
+      write_before_step = true;
+    } else {
+      write_after_step = true;
+    }
+
+    ++next_plot_time;
+  }
+}
+
+bool AmrCoreAdv::UsingCheckpointInterval() const { return chk_int > 0; }
+
+bool AmrCoreAdv::UsingCheckpointTimes() const {
+  return chk_int <= 0 && !checkpoint_times.empty();
+}
+
+Real AmrCoreAdv::CheckpointTimeEps() const {
+  return 1.e-12_rt * std::max(1.0_rt, std::abs(stop_time));
+}
+
+void AmrCoreAdv::PrepareCheckpointTimes() {
+  checkpoint_times.clear();
+  next_checkpoint_time = 0;
+
+  if (checkpoint_time_fractions.empty() || UsingCheckpointInterval()) return;
+
+  if (stop_time == std::numeric_limits<Real>::max()) {
+    amrex::Abort("amr.chk_times requires a finite stop_time");
+  }
+
+  std::sort(checkpoint_time_fractions.begin(), checkpoint_time_fractions.end());
+
+  const Real eps = 1.e-14_rt;
+  checkpoint_time_fractions.erase(
+      std::unique(
+          checkpoint_time_fractions.begin(), checkpoint_time_fractions.end(),
+          [eps](Real lhs, Real rhs) { return std::abs(lhs - rhs) <= eps; }),
+      checkpoint_time_fractions.end());
+
+  for (const Real fraction : checkpoint_time_fractions) {
+    if (fraction < 0.0_rt || fraction > 1.0_rt) {
+      std::ostringstream oss;
+      oss << "amr.chk_times entries must be in [0, 1], got " << fraction;
+      amrex::Abort(oss.str());
+    }
+    checkpoint_times.push_back(fraction * stop_time);
+  }
+}
+
+bool AmrCoreAdv::ShouldWriteInitialCheckpointTime() {
+  if (!UsingCheckpointTimes()) return false;
+
+  bool write_initial_checkpoint = false;
+  const Real time = t_new[0];
+  const Real eps = CheckpointTimeEps();
+
+  while (next_checkpoint_time < checkpoint_times.size() &&
+         checkpoint_times[next_checkpoint_time] <= time + eps) {
+    if (checkpoint_times[next_checkpoint_time] >= time - eps) {
+      write_initial_checkpoint = true;
+    }
+    ++next_checkpoint_time;
+  }
+
+  return write_initial_checkpoint;
+}
+
+void AmrCoreAdv::GetCheckpointWriteTimesForStep(Real cur_time, Real next_time,
+                                                bool& write_before_step,
+                                                bool& write_after_step) {
+  write_before_step = false;
+  write_after_step = false;
+
+  if (!UsingCheckpointTimes()) return;
+
+  const Real eps = CheckpointTimeEps();
+
+  while (next_checkpoint_time < checkpoint_times.size()) {
+    const Real output_time = checkpoint_times[next_checkpoint_time];
+
+    if (output_time < cur_time - eps) {
+      ++next_checkpoint_time;
+      continue;
+    }
+
+    if (output_time > next_time + eps) break;
+
+    if (std::abs(output_time - cur_time) <= std::abs(next_time - output_time)) {
+      write_before_step = true;
+    } else {
+      write_after_step = true;
+    }
+
+    ++next_checkpoint_time;
+  }
+}
+
 // advance solution to final time
 void AmrCoreAdv::Evolve() {
   Real cur_time = t_new[0];
-  int last_plot_file_step = 0;
+  int last_plot_file_step = initial_plot_file_written ? istep[0] : -1;
+  int last_checkpoint_file_step =
+      initial_checkpoint_file_written ? istep[0] : -1;
 
   for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step) {
     amrex::Print() << "\nCoarse STEP " << step + 1 << " starts ..."
                    << std::endl;
 
     ComputeDt();
+
+    const Real next_time = cur_time + dt[0];
+    bool write_intermediate_before_step = false;
+    bool write_intermediate_after_step = false;
+    GetPlotWriteTimesForStep(cur_time, next_time,
+                             write_intermediate_before_step,
+                             write_intermediate_after_step);
+    bool write_checkpoint_before_step = false;
+    bool write_checkpoint_after_step = false;
+    GetCheckpointWriteTimesForStep(cur_time, next_time,
+                                   write_checkpoint_before_step,
+                                   write_checkpoint_after_step);
+
+    if (write_intermediate_before_step && istep[0] > last_plot_file_step) {
+      last_plot_file_step = istep[0];
+      UpdateBand();
+      WritePlotFile();
+    }
+
+    if (write_checkpoint_before_step && istep[0] > last_checkpoint_file_step) {
+      last_checkpoint_file_step = istep[0];
+      WriteCheckpointFile();
+    }
 
     int lev = 0;
     int iteration = 1;
@@ -140,13 +359,23 @@ void AmrCoreAdv::Evolve() {
       t_new[lev] = cur_time;
     }
 
-    if (plot_int > 0 && (step + 1) % plot_int == 0) {
+    if (UsingPlotInterval() && (step + 1) % plot_int == 0) {
       last_plot_file_step = step + 1;
+      UpdateBand();
+      WritePlotFile();
+    } else if (write_intermediate_after_step &&
+               istep[0] > last_plot_file_step) {
+      last_plot_file_step = istep[0];
       UpdateBand();
       WritePlotFile();
     }
 
-    if (chk_int > 0 && (step + 1) % chk_int == 0) {
+    if (UsingCheckpointInterval() && (step + 1) % chk_int == 0) {
+      last_checkpoint_file_step = step + 1;
+      WriteCheckpointFile();
+    } else if (write_checkpoint_after_step &&
+               istep[0] > last_checkpoint_file_step) {
+      last_checkpoint_file_step = istep[0];
       WriteCheckpointFile();
     }
 
@@ -191,7 +420,7 @@ void AmrCoreAdv::Evolve() {
                    << relative_change_liquid_mass << "\n";
   }
 
-  if (plot_int > 0 && istep[0] > last_plot_file_step) {
+  if (UsingPlotInterval() && istep[0] > last_plot_file_step) {
     UpdateBand();
     GetReconstruction(finest_level);
     WritePlotFile();
@@ -226,8 +455,9 @@ void AmrCoreAdv::InitData() {
       // WriteUniformMomentsBinary(uniform_initial_moments, initial_filename);
     }
 
-    if (chk_int > 0) {
+    if (UsingCheckpointInterval() || ShouldWriteInitialCheckpointTime()) {
       WriteCheckpointFile();
+      initial_checkpoint_file_written = true;
     }
 
   } else {
@@ -235,9 +465,10 @@ void AmrCoreAdv::InitData() {
     ReadCheckpointFile();
   }
 
-  if (plot_int > 0) {
+  if (UsingPlotInterval() || ShouldWriteInitialPlotTime()) {
     GetReconstruction(finest_level);
     WritePlotFile();
+    initial_plot_file_written = true;
   }
 }
 
@@ -616,11 +847,18 @@ void AmrCoreAdv::ReadParameters() {
 
     pp.query("regrid_int", regrid_int);
     pp.query("plot_file", plot_file);
+    pp.query("plot_dir", plot_dir);
     pp.query("plot_int", plot_int);
+    pp.queryarr("plot_times", plot_time_fractions);
     pp.query("chk_file", chk_file);
+    pp.query("chk_dir", chk_dir);
     pp.query("chk_int", chk_int);
+    pp.queryarr("chk_times", checkpoint_time_fractions);
     pp.query("restart", restart_chkfile);
   }
+
+  PreparePlotTimes();
+  PrepareCheckpointTimes();
 
   {
     ParmParse pp("adv");
@@ -1634,6 +1872,50 @@ Real AmrCoreAdv::RecTime() { return reconstruction_time; }
 
 Real AmrCoreAdv::AdvTime() { return advection_time; }
 
+void AmrCoreAdv::BuildUniformCheckpointState(
+    const std::string& checkpoint, amrex::MultiFab& uniform_moments,
+    amrex::SepUnionMultiFab& uniform_interface) {
+  using namespace amrex;
+
+  restart_chkfile = checkpoint;
+
+  ReadCheckpointFile();
+
+  BuildUniformFinestMoments(uniform_moments);
+
+  const BoxArray& uniform_ba = uniform_moments.boxArray();
+  const DistributionMapping& uniform_dm = uniform_moments.DistributionMap();
+
+  uniform_interface.define(uniform_ba, uniform_dm, 1, 0);
+
+  InitializeSepUnionMultiFab(uniform_interface);
+
+  SepUnionMultiFab uniform_interface_with_ghost(uniform_ba, uniform_dm, 1,
+                                                num_grow);
+
+  InitializeSepUnionMultiFab(uniform_interface_with_ghost);
+
+  MultiFab uniform_moments_with_ghost(uniform_ba, uniform_dm, ncomp_moments,
+                                      num_grow);
+
+  uniform_moments_with_ghost.setVal(0.0);
+
+  MultiFab::Copy(uniform_moments_with_ghost, uniform_moments, 0, 0,
+                 uniform_moments.nComp(), 0);
+
+  uniform_moments_with_ghost.FillBoundary(Geom(finest_level).periodicity());
+
+  std::vector<InterfaceScalarField> scalar_fields;
+
+  GetReconstruction(uniform_interface, uniform_interface_with_ghost,
+                    uniform_moments_with_ghost, Geom(finest_level),
+                    &scalar_fields);
+
+  amrex::Print() << "Postprocessed checkpoint " << checkpoint
+                 << " on uniform finest domain "
+                 << uniform_moments.boxArray().minimalBox() << "\n";
+}
+
 void AmrCoreAdv::BuildUniformFinestMoments(
     amrex::MultiFab& a_uniform_moments) const {
   using namespace amrex;
@@ -1644,7 +1926,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
 
   BoxArray uniform_ba(Geom(finest).Domain());
 
-  // Optional: controls box decomposition only, not grid spacing.
   uniform_ba.maxSize(32);
 
   DistributionMapping uniform_dm(uniform_ba);
@@ -1688,7 +1969,7 @@ void AmrCoreAdv::BuildUniformFinestMoments(
     const int lev_lo_z = lev_dom_lo[2];
 
     //
-    // Build a temporary MultiFab whose boxes are the AMR boxes on this
+    // temporary MultiFab whose boxes are the AMR boxes on this
     // level,
     // but refined into finest-level index space.
     //
@@ -1712,11 +1993,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
 
       auto fine_arr = lev_on_fine.array(mfi);
 
-      // Important:
-      // mfi iterates over lev_on_fine, whose BoxArray is refined compared
-      // with
-      // moments_new[lev]. Use mfi.index() to access the corresponding
-      // source FAB.
       auto lev_arr = moments_new[lev].const_array(mfi.index());
 
       amrex::ParallelFor(
@@ -1733,11 +2009,7 @@ void AmrCoreAdv::BuildUniformFinestMoments(
               //
 
               // Finest AMR level:
-              // Copy stored moments directly. These cells may be mixed,
-              // liquid,
-              // or gas, but the stored moments are already at finest
-              // resolution.
-              //
+              // Copy stored moments directly
               fine_arr(i, j, k, 0) = lev_arr(i, j, k, 0);
               fine_arr(i, j, k, 1) = lev_arr(i, j, k, 1);
               fine_arr(i, j, k, 2) = lev_arr(i, j, k, 2);
@@ -1770,20 +2042,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
                 fine_arr(i, j, k, 2) = Real(0.0);
                 fine_arr(i, j, k, 3) = Real(0.0);
               }
-              // else {
-              //   // Unexpected case:
-              //   // A mixed cell exists below the finest level.
-              //   //
-              //   // This should not happen if AMR refinement is doing what
-              // you
-              //   // want. But do not leave it unwritten. Use a simple
-              //   uniform-vf
-              //   // fallback.
-              //   fine_arr(i, j, k, 0) = vf * fine_vol;
-              //   fine_arr(i, j, k, 1) = vf * fine_vol * x;
-              //   fine_arr(i, j, k, 2) = vf * fine_vol * y;
-              //   fine_arr(i, j, k, 3) = vf * fine_vol * z;
-              // }
             }
           });
     }
@@ -1793,241 +2051,81 @@ void AmrCoreAdv::BuildUniformFinestMoments(
   }
 }
 
-// void AmrCoreAdv::WriteUniformMomentsBinary(
-//     const amrex::MultiFab& a_uniform_moments,
-//     const std::string& a_filename) const {
-//   using namespace amrex;
+amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
+  Real local_sum = 0.0;
 
-//   const int finest = finest_level;
-//   const int ncomp = a_uniform_moments.nComp();
+  for (int lev = 0; lev <= finest_level; ++lev) {
+    // Build a mask: 1 means include this cell, 0 means covered by finer level
+    iMultiFab mask(moments_new[lev].boxArray(),
+                   moments_new[lev].DistributionMap(), 1, 0);
 
-//   const Box& domain = Geom(finest).Domain();
-//   const IntVect lo = domain.smallEnd();
-//   const IntVect hi = domain.bigEnd();
+    mask.setVal(1);
 
-//   const int nx = domain.length(0);
-//   const int ny = domain.length(1);
-//   const int nz = domain.length(2);
+    if (lev < finest_level) {
+      // Mark cells covered by level lev+1 as 0.
+      BoxArray fine_ba = moments_new[lev + 1].boxArray();
 
-//   // Gather the distributed uniform MultiFab onto the IO processor
-//   // as one full-domain box, so the binary file has a simple ordering.
-//   BoxArray single_ba(domain);
+      // Convert fine boxes down to this level's index space.
+      fine_ba.coarsen(refRatio(lev));
 
-//   Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());
-//   DistributionMapping single_dm(pmap);
+      for (MFIter mfi(mask); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto mask_arr = mask.array(mfi);
 
-//   MultiFab uniform_single(single_ba, single_dm, ncomp, 0);
-//   uniform_single.setVal(0.0);
+        for (int ibox = 0; ibox < fine_ba.size(); ++ibox) {
+          Box covered = bx & fine_ba[ibox];
 
-//   uniform_single.ParallelCopy(a_uniform_moments, 0, 0, ncomp, 0, 0,
-//                               Geom(finest).periodicity());
+          if (!covered.ok()) continue;
 
-//   if (ParallelDescriptor::IOProcessor()) {
-//     std::ofstream ofs(a_filename, std::ios::out | std::ios::binary);
+          amrex::Loop(covered, [=](int i, int j, int k) noexcept {
+            mask_arr(i, j, k) = 0;
+          });
+        }
+      }
+    }
 
-//     if (!ofs.good()) {
-//       amrex::Abort("Could not open binary output file: " + a_filename);
-//     }
+    // Sum m0 only where mask == 1.
+    for (MFIter mfi(moments_new[lev]); mfi.isValid(); ++mfi) {
+      const Box& bx = mfi.validbox();
 
-//     //
-//     -----------------------------------------------------------------------
-//     // Header
-//     //
-//     -----------------------------------------------------------------------
+      auto m_arr = moments_new[lev].const_array(mfi);
+      auto mask_arr = mask.const_array(mfi);
 
-//     // Magic number and version.
-//     // These help MATLAB check that it is reading the right file type.
-//     const std::int32_t magic = 20260504;
-//     const std::int32_t version = 1;
+      Real fab_sum = 0.0;
 
-//     ofs.write(reinterpret_cast<const char*>(&magic), sizeof(std::int32_t));
-//     ofs.write(reinterpret_cast<const char*>(&version), sizeof(std::int32_t));
+      amrex::Loop(bx, [=, &fab_sum](int i, int j, int k) noexcept {
+        if (mask_arr(i, j, k) == 1) {
+          fab_sum += m_arr(i, j, k, 0);
+        }
+      });
 
-//     // Write case.name
-//     {
-//       const std::int32_t len = static_cast<std::int32_t>(case_name.size());
+      local_sum += fab_sum;
+    }
+  }
 
-//       ofs.write(reinterpret_cast<const char*>(&len), sizeof(std::int32_t));
-//       ofs.write(case_name.data(), len);
-//     }
+  ParallelDescriptor::ReduceRealSum(local_sum);
 
-//     // Write reconstruction.name
-//     {
-//       const std::int32_t len =
-//           static_cast<std::int32_t>(reconstruction_name.size());
+  return local_sum;
+}
 
-//       ofs.write(reinterpret_cast<const char*>(&len), sizeof(std::int32_t));
-//       ofs.write(reconstruction_name.data(), len);
-//     }
-
-//     // Integer mesh/header data.
-//     // 13 int32 values:
-//     // lo_x lo_y lo_z
-//     // hi_x hi_y hi_z
-//     // nx ny nz
-//     // ncomp
-//     // finest_level
-//     // max_level
-//     // reserved
-//     std::int32_t header[13];
-
-//     header[0] = static_cast<std::int32_t>(lo[0]);
-//     header[1] = static_cast<std::int32_t>(lo[1]);
-//     header[2] = static_cast<std::int32_t>(lo[2]);
-
-//     header[3] = static_cast<std::int32_t>(hi[0]);
-//     header[4] = static_cast<std::int32_t>(hi[1]);
-//     header[5] = static_cast<std::int32_t>(hi[2]);
-
-//     header[6] = static_cast<std::int32_t>(nx);
-//     header[7] = static_cast<std::int32_t>(ny);
-//     header[8] = static_cast<std::int32_t>(nz);
-
-//     header[9] = static_cast<std::int32_t>(ncomp);
-
-//     header[10] = static_cast<std::int32_t>(finest_level);
-//     header[11] = static_cast<std::int32_t>(max_level);
-//     header[12] = static_cast<std::int32_t>(0);  // reserved
-
-//     ofs.write(reinterpret_cast<const char*>(header), sizeof(header));
-
-//     // Optional printout
-//     amrex::Print() << "Writing uniform moments binary file: " << a_filename
-//                    << "\n";
-//     amrex::Print() << "  case.name = " << case_name << "\n";
-//     amrex::Print() << "  reconstruction.name = " << reconstruction_name <<
-//     "\n"; amrex::Print() << "  uniform finest mesh = " << nx << " x " << ny
-//     << " x "
-//                    << nz << "\n";
-//     amrex::Print() << "  ncomp = " << ncomp << "\n";
-
-//     //
-//     -----------------------------------------------------------------------
-//     // Data layout:
-//     //
-//     // for k = lo_z : hi_z
-//     //   for j = lo_y : hi_y
-//     //     for i = lo_x : hi_x
-//     //       for n = 0 : ncomp-1
-//     //         write moment(i,j,k,n)
-//     //
-//     // Components:
-//     //   n = 0 : m0
-//     //   n = 1 : m1x
-//     //   n = 2 : m1y
-//     //   n = 3 : m1z
-//     //
-//     -----------------------------------------------------------------------
-
-//     for (MFIter mfi(uniform_single); mfi.isValid(); ++mfi) {
-//       auto const arr = uniform_single.const_array(mfi);
-
-//       for (int k = lo[2]; k <= hi[2]; ++k) {
-//         for (int j = lo[1]; j <= hi[1]; ++j) {
-//           for (int i = lo[0]; i <= hi[0]; ++i) {
-//             for (int n = 0; n < ncomp; ++n) {
-//               const double value = static_cast<double>(arr(i, j, k, n));
-//               ofs.write(reinterpret_cast<const char*>(&value),
-//               sizeof(double));
-//             }
-//           }
-//         }
-//       }
-//     }
-
-//     ofs.close();
-//   }
-// }
-
-// std::string AmrCoreAdv::UniformMomentsBinaryFileName(
-//     const std::string& a_label) const {
-//   const int finest = finest_level;
-
-//   const amrex::Box& domain = Geom(finest).Domain();
-
-//   const int nx = domain.length(0);
-//   const int ny = domain.length(1);
-//   const int nz = domain.length(2);
-
-//   std::ostringstream oss;
-//   oss << "uniform_moments_" << a_label << "_" << case_name << "_"
-//       << reconstruction_name << "_" << nx << ".bin";
-
-//   return oss.str();
-// }
-
-// amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
-//   Real local_sum = 0.0;
-
-//   for (int lev = 0; lev <= finest_level; ++lev) {
-//     // Build a mask: 1 means include this cell, 0 means covered by finer
-//     level. iMultiFab mask(moments_new[lev].boxArray(),
-//                    moments_new[lev].DistributionMap(), 1, 0);
-
-//     mask.setVal(1);
-
-//     if (lev < finest_level) {
-//       // Mark cells covered by level lev+1 as 0.
-//       BoxArray fine_ba = moments_new[lev + 1].boxArray();
-
-//       // Convert fine boxes down to this level's index space.
-//       fine_ba.coarsen(refRatio(lev));
-
-//       for (MFIter mfi(mask); mfi.isValid(); ++mfi) {
-//         const Box& bx = mfi.validbox();
-//         auto mask_arr = mask.array(mfi);
-
-//         for (int ibox = 0; ibox < fine_ba.size(); ++ibox) {
-//           Box covered = bx & fine_ba[ibox];
-
-//           if (!covered.ok()) continue;
-
-//           amrex::Loop(covered, [=](int i, int j, int k) noexcept {
-//             mask_arr(i, j, k) = 0;
-//           });
-//         }
-//       }
-//     }
-
-//     // Sum m0 only where mask == 1.
-//     for (MFIter mfi(moments_new[lev]); mfi.isValid(); ++mfi) {
-//       const Box& bx = mfi.validbox();
-
-//       auto m_arr = moments_new[lev].const_array(mfi);
-//       auto mask_arr = mask.const_array(mfi);
-
-//       Real fab_sum = 0.0;
-
-//       amrex::Loop(bx, [=, &fab_sum](int i, int j, int k) noexcept {
-//         if (mask_arr(i, j, k) == 1) {
-//           fab_sum += m_arr(i, j, k, 0);
-//         }
-//       });
-
-//       local_sum += fab_sum;
-//     }
-//   }
-
-//   ParallelDescriptor::ReduceRealSum(local_sum);
-
-//   return local_sum;
-// }
-
+// summing zeroth moment on a mesh with no refinement
 // amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
 //   amrex::Real local_sum = 0.0;
 
-//   const int lev = 0;
-
-//   for (MFIter mfi(moments_new[lev]); mfi.isValid(); ++mfi) {
+//   for (MFIter mfi(moments_new[0]); mfi.isValid(); ++mfi) {
 //     const Box& bx = mfi.validbox();
 
-//     auto m_arr = moments_new[lev].const_array(mfi);
+//     auto m_arr = moments_new[0].const_array(mfi);
 
 //     amrex::Real fab_sum = 0.0;
 
-//     amrex::Loop(bx, [=, &fab_sum](int i, int j, int k) noexcept {
-//       fab_sum += m_arr(i, j, k, 0);
-//     });
+//     for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+//       for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+//         for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+//           fab_sum += m_arr(i, j, k, 0);
+//         }
+//       }
+//     }
 
 //     local_sum += fab_sum;
 //   }
@@ -2036,33 +2134,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
 
 //   return local_sum;
 // }
-
-// summing zeroth moment on a mesh with no refinement
-amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
-  amrex::Real local_sum = 0.0;
-
-  for (MFIter mfi(moments_new[0]); mfi.isValid(); ++mfi) {
-    const Box& bx = mfi.validbox();
-
-    auto m_arr = moments_new[0].const_array(mfi);
-
-    amrex::Real fab_sum = 0.0;
-
-    for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
-      for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
-        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-          fab_sum += m_arr(i, j, k, 0);
-        }
-      }
-    }
-
-    local_sum += fab_sum;
-  }
-
-  amrex::ParallelDescriptor::ReduceRealSum(local_sum);
-
-  return local_sum;
-}
 
 void AmrCoreAdv::ComputeUniformMomentL1Errors(
     const amrex::MultiFab& a_initial, const amrex::MultiFab& a_final) const {

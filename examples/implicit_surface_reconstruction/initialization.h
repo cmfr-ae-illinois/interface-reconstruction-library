@@ -14,10 +14,15 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <Eigen/Dense>
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <limits>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "irl/generic_cutting/implicit_surface_cutting/cut_implicit_surface.h"
 #include "irl/geometry/implicit_surfaces/general_implicit_surface.h"
@@ -25,6 +30,7 @@
 
 #include "examples/implicit_surface_reconstruction/basic_mesh.h"
 #include "examples/implicit_surface_reconstruction/data.h"
+#include "examples/implicit_surface_reconstruction/sparse_moments.h"
 #include "examples/implicit_surface_reconstruction/surface_select.h"
 
 // for parallelization
@@ -40,23 +46,29 @@ inline Range block_partition(int N, int rank, int size) {
   return {start, start + count};
 }
 
+struct CellStatusStats {
+  std::uint64_t cells = 0;
+  std::uint64_t mixed = 0;
+  std::uint64_t inside = 0;
+  std::uint64_t outside = 0;
+  double time = 0.0;
+};
+
 template <class SurfaceType>
-std::vector<std::tuple<int, int, int>> getCellStatus(
-    Data<int>* cell_status, const SurfaceType& surface);
+CellStatusStats getCellStatus(const BasicMesh& mesh, const SurfaceType& surface,
+                              InsideCellMask* inside_cells,
+                              std::vector<std::uint32_t>* mixed_cell_indices);
 
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
-void getInitializedField(
-    const Data<int>& cell_status,
-    std::vector<std::tuple<int, int, int>> mixed_cells_list_root,
-    Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                   IRL::GeneralSurfaceMoments3D<SM_ORDER>>>* moments,
+std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>> getInitializedField(
+    const BasicMesh& mesh,
+    const std::vector<std::uint32_t>& mixed_cell_indices_root,
     const SurfaceType& surface);
 
 template <class SurfaceType, std::size_t VM_ORDER, std::size_t SM_ORDER>
-Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-               IRL::GeneralSurfaceMoments3D<SM_ORDER>>>
-initializeMomentsAndWriteBin(const BasicMesh& mesh, const SurfaceType& surface,
-                             const std::string& bin_path);
+std::size_t initializeMomentsAndWriteBin(const BasicMesh& mesh,
+                                         const SurfaceType& surface,
+                                         const std::string& bin_path);
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void run_initialization(const std::string& shape, int Nx,

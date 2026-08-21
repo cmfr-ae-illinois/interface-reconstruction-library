@@ -110,6 +110,14 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Real RecTime();
   amrex::Real AdvTime();
 
+  void BuildUniformCheckpointState(const std::string& checkpoint,
+                                   amrex::MultiFab& uniform_moments,
+                                   amrex::SepUnionMultiFab& uniform_interface);
+
+  const amrex::Geometry& GetFinestGeometry() const {
+    return Geom(finest_level);
+  }
+
  private:
   ////////////////
   // private member functions
@@ -161,8 +169,31 @@ class AmrCoreAdv : public amrex::AmrCore {
   // write plotfile to disk
   void WritePlotFile();
 
+  bool UsingPlotInterval() const;
+  bool UsingPlotTimes() const;
+  amrex::Real PlotTimeEps() const;
+  void PreparePlotTimes();
+  bool ShouldWriteInitialPlotTime();
+  void GetPlotWriteTimesForStep(amrex::Real cur_time, amrex::Real next_time,
+                                bool& write_before_step,
+                                bool& write_after_step);
+
   // write checkpoint file to disk
   void WriteCheckpointFile() const;
+
+  std::string OutputPath(const std::string& dir,
+                         const std::string& basename) const;
+  void ApplyOutputDirectories();
+
+  bool UsingCheckpointInterval() const;
+  bool UsingCheckpointTimes() const;
+  amrex::Real CheckpointTimeEps() const;
+  void PrepareCheckpointTimes();
+  bool ShouldWriteInitialCheckpointTime();
+  void GetCheckpointWriteTimesForStep(amrex::Real cur_time,
+                                      amrex::Real next_time,
+                                      bool& write_before_step,
+                                      bool& write_after_step);
 
   // read checkpoint file from disk
   void ReadCheckpointFile();
@@ -181,12 +212,6 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::Geometry& a_geom, const double a_dt, const double a_time);
 
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
-
-  //   void WriteUniformMomentsBinary(const amrex::MultiFab& a_uniform_moments,
-  //                                  const std::string& a_filename) const;
-
-  //   std::string UniformMomentsBinaryFileName(const std::string& a_label)
-  //   const;
 
   amrex::Real ComputeCompositeM0() const;
 
@@ -268,11 +293,21 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // plotfile prefix and frequency
   std::string plot_file{"plt"};
+  std::string plot_dir{""};
   int plot_int = -1;
+  amrex::Vector<amrex::Real> plot_time_fractions;
+  amrex::Vector<amrex::Real> plot_times;
+  int next_plot_time = 0;
+  bool initial_plot_file_written = false;
 
   // checkpoint prefix and frequency
   std::string chk_file{"chk"};
+  std::string chk_dir{""};
   int chk_int = -1;
+  amrex::Vector<amrex::Real> checkpoint_time_fractions;
+  amrex::Vector<amrex::Real> checkpoint_times;
+  int next_checkpoint_time = 0;
+  bool initial_checkpoint_file_written = false;
 
   // Number of ghost layers needed for advection
   int num_grow = 1;
