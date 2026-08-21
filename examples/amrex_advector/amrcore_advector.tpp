@@ -95,15 +95,7 @@ AmrCoreAdv::AmrCoreAdv() {
   ParmParse ppcase("case");
   ppcase.get("name", case_name);
 
-  if (case_name == "rotation3d") {
-    velocity_field_type = VelocityFieldType::Rotation;
-  } else if (case_name == "translation3d") {
-    velocity_field_type = VelocityFieldType::Translation;
-  } else if (case_name == "deformation3d") {
-    velocity_field_type = VelocityFieldType::Deformation;
-  } else {
-    velocity_field_type = VelocityFieldType::Interpolated;
-  }
+  SetVelocityFieldType();
 
   ParmParse pprec("reconstruction");
   pprec.get("name", reconstruction_name);
@@ -115,6 +107,29 @@ AmrCoreAdv::AmrCoreAdv() {
 }
 
 AmrCoreAdv::~AmrCoreAdv() {}
+
+void AmrCoreAdv::SetVelocityFieldType() {
+  if (velocity_field == 1) {
+    velocity_field_type = VelocityFieldType::Interpolated;
+  } else if (velocity_field == 0) {
+    if (case_name == "rotation3d") {
+      velocity_field_type = VelocityFieldType::Rotation;
+    } else if (case_name == "translation3d" || case_name == "default") {
+      velocity_field_type = VelocityFieldType::Translation;
+    } else if (case_name == "deformation3d") {
+      velocity_field_type = VelocityFieldType::Deformation;
+    } else {
+      std::ostringstream oss;
+      oss << "Exact velocity field is not available for case: " << case_name;
+      amrex::Abort(oss.str());
+    }
+  } else {
+    std::ostringstream oss;
+    oss << "adv.velocity_field must be 0 for exact or 1 for interpolated, got "
+        << velocity_field;
+    amrex::Abort(oss.str());
+  }
+}
 
 std::string AmrCoreAdv::OutputPath(const std::string& dir,
                                    const std::string& basename) const {
@@ -867,6 +882,7 @@ void AmrCoreAdv::ReadParameters() {
     num_grow = std::max(2, 2 + static_cast<int>(std::ceil(cfl)));
     amrex::Print() << "Target CFL = " << cfl << ", requiring " << num_grow
                    << " ghost layers\n";
+    pp.query("velocity_field", velocity_field);
     pp.query("do_reflux", do_reflux);
   }
 }
