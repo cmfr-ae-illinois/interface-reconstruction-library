@@ -8,8 +8,8 @@
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <sstream>
@@ -86,7 +86,7 @@ AmrCoreAdv::AmrCoreAdv() {
     transport_m2 = true;
   }
   // Compute number of moment components transported
-  ncomp_moments = 1 + 4 * ((transport_m1 || transport_m2) ? 2 : 0) +
+  ncomp_moments = 1 + 3 * ((transport_m1 || transport_m2) ? 2 : 0) +
                   6 * (transport_m2 ? 2 : 0);
 
   ParmParse ppcase("case");
@@ -461,20 +461,9 @@ void AmrCoreAdv::Evolve() {
   {
     amrex::MultiFab uniform_final;
     BuildUniformFinestMoments(uniform_final);
-    // const std::string final_filename = UniformMomentsBinaryFileName("final");
-    // WriteUniformMomentsBinary(uniform_final, final_filename);
-    // amrex::Print() << "Initial uniform domain = "
-    //                << uniform_initial_moments.boxArray().minimalBox() <<
-    //                "\n";
-
-    // amrex::Print() << "Final uniform domain   = "
-    //                << uniform_final.boxArray().minimalBox() << "\n";
-
-    // amrex::Print() << "Initial nComp = " << uniform_initial_moments.nComp()
-    //                << "\n";
-
-    // amrex::Print() << "Final nComp   = " << uniform_final.nComp() << "\n";
-    ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
+    if (transport_m1) {
+      ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
+    }
   }
 
   {
@@ -1223,7 +1212,7 @@ Vector<std::string> AmrCoreAdv::PlotFileVarNames() const {
     varnames.push_back("m1y_g");
     varnames.push_back("m1z_g");
   }
-  if (transport_m2 == 6) {
+  if (transport_m2) {
     varnames.push_back("m2xx_l");
     varnames.push_back("m2xy_l");
     varnames.push_back("m2xz_l");
@@ -2119,9 +2108,16 @@ void AmrCoreAdv::BuildUniformFinestMoments(
               // Finest AMR level:
               // Copy stored moments directly
               fine_arr(i, j, k, 0) = lev_arr(i, j, k, 0);
-              fine_arr(i, j, k, 1) = lev_arr(i, j, k, 1);
-              fine_arr(i, j, k, 2) = lev_arr(i, j, k, 2);
-              fine_arr(i, j, k, 3) = lev_arr(i, j, k, 3);
+              if (transport_m1) {
+                for (int n = 0; n < 6; n++) {
+                  fine_arr(i, j, k, 1 + n) = lev_arr(i, j, k, 1 + n);
+                }
+              }
+              if (transport_m2) {
+                for (int n = 0; n < 12; n++) {
+                  fine_arr(i, j, k, 7 + n) = lev_arr(i, j, k, 7 + n);
+                }
+              }
 
             } else {
               //
@@ -2137,18 +2133,61 @@ void AmrCoreAdv::BuildUniformFinestMoments(
               if (vf > IRL::global_constants::VF_HIGH) {
                 // Pure liquid coarse cell.
                 // Every generated finest cell inside it is full liquid.
-                fine_arr(i, j, k, 0) = fine_vol;
-                fine_arr(i, j, k, 1) = fine_vol * x;
-                fine_arr(i, j, k, 2) = fine_vol * y;
-                fine_arr(i, j, k, 3) = fine_vol * z;
-
+                fine_arr(i, j, k, 0) = lev_vol;
+                if (transport_m1) {
+                  fine_arr(i, j, k, 1) = lev_vol * x;
+                  fine_arr(i, j, k, 2) = lev_vol * y;
+                  fine_arr(i, j, k, 3) = lev_vol * z;
+                  fine_arr(i, j, k, 4) = Real(0.0);
+                  fine_arr(i, j, k, 5) = Real(0.0);
+                  fine_arr(i, j, k, 6) = Real(0.0);
+                }
+                if (transport_m2) {
+                  fine_arr(i, j, k, 7) =
+                      lev_vol * (lev_dx[0] * lev_dx[0] / 12.0 + x * x);
+                  fine_arr(i, j, k, 8) = lev_vol * x * y;
+                  fine_arr(i, j, k, 9) = lev_vol * x * z;
+                  fine_arr(i, j, k, 10) =
+                      lev_vol * (lev_dx[1] * lev_dx[1] / 12.0 + y * y);
+                  fine_arr(i, j, k, 11) = lev_vol * y * z;
+                  fine_arr(i, j, k, 12) =
+                      lev_vol * (lev_dx[2] * lev_dx[2] / 12.0 + z * z);
+                  fine_arr(i, j, k, 13) = Real(0.0);
+                  fine_arr(i, j, k, 14) = Real(0.0);
+                  fine_arr(i, j, k, 15) = Real(0.0);
+                  fine_arr(i, j, k, 16) = Real(0.0);
+                  fine_arr(i, j, k, 17) = Real(0.0);
+                  fine_arr(i, j, k, 18) = Real(0.0);
+                }
               } else if (vf < IRL::global_constants::VF_LOW) {
                 // Pure gas coarse cell.
                 // Every generated finest cell inside it is empty.
                 fine_arr(i, j, k, 0) = Real(0.0);
-                fine_arr(i, j, k, 1) = Real(0.0);
-                fine_arr(i, j, k, 2) = Real(0.0);
-                fine_arr(i, j, k, 3) = Real(0.0);
+                if (transport_m1) {
+                  fine_arr(i, j, k, 1) = Real(0.0);
+                  fine_arr(i, j, k, 2) = Real(0.0);
+                  fine_arr(i, j, k, 3) = Real(0.0);
+                  fine_arr(i, j, k, 4) = lev_vol * x;
+                  fine_arr(i, j, k, 5) = lev_vol * y;
+                  fine_arr(i, j, k, 6) = lev_vol * z;
+                }
+                if (transport_m2) {
+                  fine_arr(i, j, k, 7) = Real(0.0);
+                  fine_arr(i, j, k, 8) = Real(0.0);
+                  fine_arr(i, j, k, 9) = Real(0.0);
+                  fine_arr(i, j, k, 10) = Real(0.0);
+                  fine_arr(i, j, k, 11) = Real(0.0);
+                  fine_arr(i, j, k, 12) = Real(0.0);
+                  fine_arr(i, j, k, 13) =
+                      lev_vol * (lev_dx[0] * lev_dx[0] / 12.0 + x * x);
+                  fine_arr(i, j, k, 14) = lev_vol * x * y;
+                  fine_arr(i, j, k, 15) = lev_vol * x * z;
+                  fine_arr(i, j, k, 16) =
+                      lev_vol * (lev_dx[1] * lev_dx[1] / 12.0 + y * y);
+                  fine_arr(i, j, k, 17) = lev_vol * y * z;
+                  fine_arr(i, j, k, 18) =
+                      lev_vol * (lev_dx[2] * lev_dx[2] / 12.0 + z * z);
+                }
               }
             }
           });
