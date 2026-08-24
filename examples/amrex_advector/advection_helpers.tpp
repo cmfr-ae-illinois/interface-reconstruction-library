@@ -139,6 +139,40 @@ inline IRL::Vec3<double> GetInterpolatedVelocity(const IRL::Pt& pt,
   return interpolated_velocity;
 }
 
+Eigen::Vector3d GetVelocity(const Eigen::Vector3d& pt, const double time,
+                            const VelocityFieldType velocity_field_type,
+                            Array4<Real const> const& vx,
+                            Array4<Real const> const& vy,
+                            Array4<Real const> const& vz, const Box& bx,
+                            const Geometry& a_geom) {
+  const IRL::Pt pt_irl(pt[0], pt[1], pt[2]);
+  const IRL::Vec3<double> velocity_irl =
+      GetVelocity(pt_irl, time, velocity_field_type, vx, vy, vz, bx, a_geom);
+  return Eigen::Vector3d({velocity_irl[0], velocity_irl[1], velocity_irl[2]});
+}
+
+// general velocity gradient accessor
+Eigen::Matrix3d GetVelocityGradient(const Eigen::Vector3d& pt,
+                                    const double time,
+                                    const VelocityFieldType velocity_field_type,
+                                    Array4<Real const> const& vx,
+                                    Array4<Real const> const& vy,
+                                    Array4<Real const> const& vz, const Box& bx,
+                                    const Geometry& a_geom) {
+  if (velocity_field_type == VelocityFieldType::Deformation) {
+    return Deformation3D::get_velocity_gradient(pt[0], pt[1], pt[2], time);
+  } else if (velocity_field_type == VelocityFieldType::Rotation) {
+    return Rotation3D::get_velocity_gradient(pt[0], pt[1], pt[2], time);
+  } else if (velocity_field_type == VelocityFieldType::Translation) {
+    return Translation3D::get_velocity_gradient(pt[0], pt[1], pt[2], time);
+  } else {
+    throw std::runtime_error(
+        "Function to interplate velocity gradient does not exist yet.");
+    return Eigen::Matrix3d::Zero();  // GetInterpolatedVelocityGradient(pt, vx,
+                                     // vy, vz, bx, a_geom);
+  }
+}
+
 IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt, const double time,
                       const VelocityFieldType velocity_field_type,
                       Array4<Real const> const& vx,

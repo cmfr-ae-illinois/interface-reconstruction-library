@@ -24,7 +24,8 @@ struct Translation3D {
       Box const& bx, Array4<Real> const& moments,
       Array4<IRL::SeparatorUnion> const& interface,
       GpuArray<amrex::Real, AMREX_SPACEDIM> const& problo,
-      GpuArray<amrex::Real, AMREX_SPACEDIM> const& dx) {
+      GpuArray<amrex::Real, AMREX_SPACEDIM> const& dx, bool const& transport_m1,
+      bool const& transport_m2) {
     const auto lo = lbound(bx);
     const auto hi = ubound(bx);
 
@@ -59,12 +60,35 @@ struct Translation3D {
           }
           const auto cell = IRL::RectangularCuboid::fromBoundingPts(
               lower_cell_pt, upper_cell_pt);
-          const auto cell_moments = IRL::getVolumeMoments<IRL::VolumeMoments>(
-              cell, interface(i, j, k));
-          moments(i, j, k, 0) = cell_moments.volume();
-          moments(i, j, k, 1) = cell_moments.centroid()[0];
-          moments(i, j, k, 2) = cell_moments.centroid()[1];
-          moments(i, j, k, 3) = cell_moments.centroid()[2];
+          const auto cell_moments =
+              IRL::getVolumeMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
+                  cell, interface(i, j, k));
+          moments(i, j, k, 0) = cell_moments[0].volume();
+          if (transport_m1) {
+            moments(i, j, k, 1) = cell_moments[0].centroid()[0];
+            moments(i, j, k, 2) = cell_moments[0].centroid()[1];
+            moments(i, j, k, 3) = cell_moments[0].centroid()[2];
+            moments(i, j, k, 4) = cell_moments[1].centroid()[0];
+            moments(i, j, k, 5) = cell_moments[1].centroid()[1];
+            moments(i, j, k, 6) = cell_moments[1].centroid()[2];
+          }
+          if (transport_m2) {
+            const auto cell_general_moments = IRL::getVolumeMoments<
+                IRL::SeparatedMoments<IRL::GeneralMoments3D<2>>>(
+                cell, interface(i, j, k));
+            moments(i, j, k, 7) = cell_general_moments[0][4];
+            moments(i, j, k, 8) = cell_general_moments[0][5];
+            moments(i, j, k, 9) = cell_general_moments[0][6];
+            moments(i, j, k, 10) = cell_general_moments[0][7];
+            moments(i, j, k, 11) = cell_general_moments[0][8];
+            moments(i, j, k, 12) = cell_general_moments[0][9];
+            moments(i, j, k, 13) = cell_general_moments[1][4];
+            moments(i, j, k, 14) = cell_general_moments[1][5];
+            moments(i, j, k, 15) = cell_general_moments[1][6];
+            moments(i, j, k, 16) = cell_general_moments[1][7];
+            moments(i, j, k, 17) = cell_general_moments[1][8];
+            moments(i, j, k, 18) = cell_general_moments[1][9];
+          }
         }
       }
     }
@@ -95,6 +119,12 @@ struct Translation3D {
     const Real w = get_face_velocity_z(x, y, z, time);
 
     return IRL::Vec3<double>(u, v, w);
+  }
+
+  static AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Eigen::Matrix3d
+  get_velocity_gradient(const Real x, const Real y, const Real z,
+                        const Real time) {
+    return Eigen::Matrix3d::Zero();
   }
 };
 

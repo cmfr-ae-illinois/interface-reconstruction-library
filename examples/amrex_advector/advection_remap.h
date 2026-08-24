@@ -33,12 +33,16 @@ struct LagrangianRemap {
                                const MultiFab& a_band_id, MultiFab& a_moments,
                                const Geometry& a_geom, const double a_dt,
                                const double a_time,
-                               const VelocityFieldType velocity_field_type) {
+                               const VelocityFieldType velocity_field_type,
+                               const bool transport_m1,
+                               const bool transport_m2) {
     const auto dx = a_geom.CellSizeArray();
     const auto problo = a_geom.ProbLoArray();
     const double new_time = a_time;                // t^{n+1}
     const double old_time = a_time - a_dt;         // t^n
     const double half_time = a_time - 0.5 * a_dt;  // t^{n+1/2}
+    const double cell_volume = dx[0] * dx[1] * dx[2];
+    const int ncomp = a_moments.nComp();
 
     for (MFIter mfi(a_interface_with_ghost, TilingIfNotGPU()); mfi.isValid();
          ++mfi) {
@@ -167,9 +171,14 @@ struct LagrangianRemap {
         }
 
         // Intersect preimage
-        for (int n = 0; n < 4; ++n) {
+        for (int n = 0; n < ncomp; ++n) {
           moments_array(i, j, k, n) = 0.0;
         }
+        double M0_l = 0.0, M0_g = 0.0;
+        Eigen::Vector3d M1_l = Eigen::Vector3d::Zero(),
+                        M1_g = Eigen::Vector3d::Zero();
+        Eigen::Matrix3d M2_l = Eigen::Matrix3d::Zero(),
+                        M2_g = Eigen::Matrix3d::Zero();
         for (int ii = ilo; ii <= ihi; ++ii) {
           for (int jj = jlo; jj <= jhi; ++jj) {
             for (int kk = klo; kk <= khi; ++kk) {
@@ -186,27 +195,146 @@ struct LagrangianRemap {
               IRL::PlanarLocalizer localizer = cell_loc.getLocalizer();
               IRL::LocalizedSeparatorUnion local_sep(
                   &localizer, &interface_array(ii, jj, kk));
-              const auto cut_moments =
-                  IRL::getVolumeMoments<IRL::VolumeMoments>(preimage_cell,
-                                                            local_sep);
-              const double m0 = cut_moments.volume();
-              IRL::Pt centroid =
-                  (1.0 / IRL::safelyEpsilon(m0)) * cut_moments.centroid();
-              centroid[0] = std::max(centroid[0], xloc);
-              centroid[0] = std::min(centroid[0], xloc + dx[0]);
-              centroid[1] = std::max(centroid[1], yloc);
-              centroid[1] = std::min(centroid[1], yloc + dx[1]);
-              centroid[2] = std::max(centroid[2], zloc);
-              centroid[2] = std::min(centroid[2], zloc + dx[2]);
-              // forward projecting the centroid
-              centroid =
-                  ProjectVertex(centroid, a_dt, old_time, velocity_field_type,
-                                velx, vely, velz, grown_bx, a_geom);
-              moments_array(i, j, k, 0) += m0;
-              moments_array(i, j, k, 1) += m0 * centroid[0];
-              moments_array(i, j, k, 2) += m0 * centroid[1];
-              moments_array(i, j, k, 3) += m0 * centroid[2];
+              const auto cut_moments = IRL::getVolumeMoments<
+                  IRL::SeparatedMoments<IRL::VolumeMoments>>(preimage_cell,
+                                                             local_sep);
+              M0_l += cut_moments[0].volume();
+              M0_g += cut_moments[1].volume();
+              if (transport_m1) {
+                for (int m = 0; m < 3; ++m) {
+                  M1_l[m] += cut_moments[0].centroid()[m];
+                  M1_g[m] += cut_moments[1].centroid()[m];
+                }
+              }
+              if (transport_m2) {
+                const auto cut_general_moments = IRL::getVolumeMoments<
+                    IRL::SeparatedMoments<IRL::GeneralMoments3D<2>>>(
+                    preimage_cell, local_sep);
+                M2_l += Eigen::Matrix3d(
+                    {{cut_general_moments[0][4], cut_general_moments[0][5],
+                      cut_general_moments[0][6]},
+                     {cut_general_moments[0][5], cut_general_moments[0][7],
+                      cut_general_moments[0][8]},
+                     {cut_general_moments[0][6], cut_general_moments[0][8],
+                      cut_general_moments[0][9]}});
+                M2_g += Eigen::Matrix3d(
+                    {{cut_general_moments[1][4], cut_general_moments[1][5],
+                      cut_general_moments[1][6]},
+                     {cut_general_moments[1][5], cut_general_moments[1][7],
+                      cut_general_moments[1][8]},
+                     {cut_general_moments[1][6], cut_general_moments[1][8],
+                      cut_general_moments[1][9]}});
+              }
             }
+          }
+        }
+
+        // Correct moment 0
+        if (M0_l < 0.0) {
+          M0_l = 0.0;
+        } else if (M0_l > cell_volume) {
+          M0_l = cell_volume;
+        }
+        M0_g = cell_volume - M0_l;
+        moments_array(i, j, k, 0) += M0_l;
+        // Transport M1 with RK4
+        if (transport_m1) {
+          IRL::Pt liquid_centroid =
+              (1.0 / IRL::safelyTiny(M0_l)) * IRL::Pt::fromEigenVector(M1_l);
+          IRL::Pt gas_centroid =
+              (1.0 / IRL::safelyTiny(M0_g)) * IRL::Pt::fromEigenVector(M1_g);
+          liquid_centroid = ProjectVertex(liquid_centroid, a_dt, old_time,
+                                          velocity_field_type, velx, vely, velz,
+                                          grown_bx, a_geom);
+          gas_centroid =
+              ProjectVertex(gas_centroid, a_dt, old_time, velocity_field_type,
+                            velx, vely, velz, grown_bx, a_geom);
+          moments_array(i, j, k, 1) += M0_l * liquid_centroid[0];
+          moments_array(i, j, k, 2) += M0_l * liquid_centroid[1];
+          moments_array(i, j, k, 3) += M0_l * liquid_centroid[2];
+          moments_array(i, j, k, 4) += M0_g * gas_centroid[0];
+          moments_array(i, j, k, 5) += M0_g * gas_centroid[1];
+          moments_array(i, j, k, 6) += M0_g * gas_centroid[2];
+        }
+        // Transport M2 with RK4
+        if (transport_m2) {
+          for (int m = 0; m < 2; m++) {
+            const double M0 = (m == 0) ? M0_l : M0_g;
+            const Eigen::Vector3d M1 = (m == 0) ? M1_l : M1_g;
+            const Eigen::Matrix3d M2 = (m == 0) ? M2_l : M2_g;
+
+            // RK4 -- step 1
+            const auto X0_k1 = M1 / IRL::safelyTiny(M0);
+            const auto XtX0_k1 = X0_k1 * X0_k1.transpose();
+            const auto U0_k1 = GetVelocity(X0_k1, old_time, velocity_field_type,
+                                           velx, vely, velz, grown_bx, a_geom);
+            const auto gradU0_k1 =
+                GetVelocityGradient(X0_k1, old_time, velocity_field_type, velx,
+                                    vely, velz, grown_bx, a_geom);
+            const auto M2t0_k1 = M0 * X0_k1 * U0_k1.transpose();
+            const auto M2t1_k1 = -M0 * XtX0_k1 * gradU0_k1.transpose();
+            const auto M2t2_k1 = M2 * gradU0_k1.transpose();
+            const auto dM2dt_k1 = M2t0_k1 + M2t1_k1 + M2t2_k1;
+
+            // RK4 -- step 2
+            const auto X0_k2 = X0_k1 + 0.5 * a_dt * U0_k1;
+            const auto I0_k2 =
+                M2 + 0.5 * a_dt * (dM2dt_k1 + dM2dt_k1.transpose());
+            const auto XtX0_k2 = X0_k2 * X0_k2.transpose();
+            const auto U0_k2 =
+                GetVelocity(X0_k2, old_time + 0.5 * a_dt, velocity_field_type,
+                            velx, vely, velz, grown_bx, a_geom);
+            const auto gradU0_k2 = GetVelocityGradient(
+                X0_k2, old_time + 0.5 * a_dt, velocity_field_type, velx, vely,
+                velz, grown_bx, a_geom);
+            const auto M2t0_k2 = M0 * X0_k2 * U0_k2.transpose();
+            const auto M2t1_k2 = -M0 * XtX0_k2 * gradU0_k2.transpose();
+            const auto M2t2_k2 = I0_k2 * gradU0_k2.transpose();
+            const auto dM2dt_k2 = M2t0_k2 + M2t1_k2 + M2t2_k2;
+
+            // RK4 -- step 3
+            const auto X0_k3 = X0_k1 + 0.5 * a_dt * U0_k2;
+            const auto I0_k3 =
+                M2 + 0.5 * a_dt * (dM2dt_k2 + dM2dt_k2.transpose());
+            const auto XtX0_k3 = X0_k3 * X0_k3.transpose();
+            const auto U0_k3 =
+                GetVelocity(X0_k3, old_time + 0.5 * a_dt, velocity_field_type,
+                            velx, vely, velz, grown_bx, a_geom);
+            const auto gradU0_k3 = GetVelocityGradient(
+                X0_k3, old_time + 0.5 * a_dt, velocity_field_type, velx, vely,
+                velz, grown_bx, a_geom);
+            const auto M2t0_k3 = M0 * X0_k3 * U0_k3.transpose();
+            const auto M2t1_k3 = -M0 * XtX0_k3 * gradU0_k3.transpose();
+            const auto M2t2_k3 = I0_k3 * gradU0_k3.transpose();
+            const auto dM2dt_k3 = M2t0_k3 + M2t1_k3 + M2t2_k3;
+
+            // RK4 -- step 4
+            const auto X0_k4 = X0_k1 + a_dt * U0_k3;
+            const auto I0_k4 = M2 + a_dt * (dM2dt_k3 + dM2dt_k3.transpose());
+            const auto XtX0_k4 = X0_k4 * X0_k4.transpose();
+            const auto U0_k4 =
+                GetVelocity(X0_k4, old_time + a_dt, velocity_field_type, velx,
+                            vely, velz, grown_bx, a_geom);
+            const auto gradU0_k4 =
+                GetVelocityGradient(X0_k4, old_time + a_dt, velocity_field_type,
+                                    velx, vely, velz, grown_bx, a_geom);
+            const auto M2t0_k4 = M0 * X0_k4 * U0_k4.transpose();
+            const auto M2t1_k4 = -M0 * XtX0_k4 * gradU0_k4.transpose();
+            const auto M2t2_k4 = I0_k4 * gradU0_k4.transpose();
+            const auto dM2dt_k4 = M2t0_k4 + M2t1_k4 + M2t2_k4;
+
+            // RK4 -- final update
+            const auto M2_rk4 =
+                a_dt * (dM2dt_k1 + 2.0 * dM2dt_k2 + 2.0 * dM2dt_k3 + dM2dt_k4) /
+                6.0;
+            const auto M2_final = M2 + M2_rk4 + M2_rk4.transpose();
+
+            moments_array(i, j, k, 7 + m * 6) += M2_final(0, 0);
+            moments_array(i, j, k, 8 + m * 6) += M2_final(0, 1);
+            moments_array(i, j, k, 9 + m * 6) += M2_final(0, 2);
+            moments_array(i, j, k, 10 + m * 6) += M2_final(1, 1);
+            moments_array(i, j, k, 11 + m * 6) += M2_final(1, 2);
+            moments_array(i, j, k, 12 + m * 6) += M2_final(2, 2);
           }
         }
       });

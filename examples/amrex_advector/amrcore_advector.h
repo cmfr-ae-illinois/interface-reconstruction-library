@@ -177,6 +177,9 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& moments, const amrex::Geometry& a_geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr);
 
+  void ResetMoments(const amrex::SepUnionMultiFab& a_interface,
+                    amrex::MultiFab& a_moments, const amrex::Geometry& a_geom);
+
   void TransportMoments(
       const amrex::SepUnionMultiFab& a_interface_with_ghost,
       const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& a_facevel,
@@ -204,7 +207,10 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // array of multifabs to store the solution at each level of refinement
   // after advancing a level we use "swap".
-  int ncomp_moments = 4;
+  bool transport_m1 = false;
+  bool transport_m2 = false;
+  bool reset_moments = false;
+  int ncomp_moments = 1;
   amrex::Vector<amrex::MultiFab> moments_new;
   amrex::Vector<amrex::MultiFab> moments_old;
   amrex::Vector<amrex::MultiFab> band_id;

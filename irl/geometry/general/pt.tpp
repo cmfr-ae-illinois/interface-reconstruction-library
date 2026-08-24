@@ -56,6 +56,12 @@ inline PtBase<ScalarType> PtBase<ScalarType>::fromVec3(
 }
 
 template <class ScalarType>
+inline PtBase<ScalarType> PtBase<ScalarType>::fromEigenVector(
+    const Eigen::Vector<ScalarType, 3>& a_vec) {
+  return PtBase<ScalarType>(a_vec);
+}
+
+template <class ScalarType>
 inline PtBase<ScalarType>::operator Vec3<ScalarType>(void) {
   return Vec3<ScalarType>(loc_m[0], loc_m[1], loc_m[2]);
 }
@@ -248,6 +254,10 @@ inline PtBase<ScalarType>::PtBase(const Vec3<ScalarType>& a_vec)
     : loc_m{a_vec[0], a_vec[1], a_vec[2]} {}
 
 template <class ScalarType>
+inline PtBase<ScalarType>::PtBase(const Eigen::Vector<ScalarType, 3>& a_vec)
+    : loc_m{a_vec[0], a_vec[1], a_vec[2]} {}
+
+template <class ScalarType>
 template <class E>
 inline PtBase<ScalarType>::PtBase(const Expr<E>& a_expr) {
   const E& expr(a_expr);
@@ -290,11 +300,11 @@ template <class ScalarType>
 inline std::ostream& operator<<(std::ostream& out,
                                 const PtBase<ScalarType>& a_pt) {
   if constexpr (std::is_same<ScalarType, __float128>::value) {
-  out << std::setprecision(15);
-  out << "( " << static_cast<double>(a_pt[0]);
-  out << ", " << static_cast<double>(a_pt[1]);
-  out << ", " << static_cast<double>(a_pt[2]);
-  out << " )";
+    out << std::setprecision(15);
+    out << "( " << static_cast<double>(a_pt[0]);
+    out << ", " << static_cast<double>(a_pt[1]);
+    out << ", " << static_cast<double>(a_pt[2]);
+    out << " )";
   } else {
     out << std::setprecision(15);
     out << "( " << a_pt[0];

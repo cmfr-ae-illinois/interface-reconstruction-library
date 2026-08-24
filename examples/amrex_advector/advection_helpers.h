@@ -41,6 +41,21 @@ inline IRL::Vec3<double> GetInterpolatedVelocity(const IRL::Pt& pt,
                                                  const Box& bx,
                                                  const Geometry& a_geom);
 
+Eigen::Vector3d GetVelocity(const Eigen::Vector3d& pt, const double time,
+                            const VelocityFieldType velocity_field_type,
+                            Array4<Real const> const& vx,
+                            Array4<Real const> const& vy,
+                            Array4<Real const> const& vz, const Box& bx,
+                            const Geometry& a_geom);
+
+Eigen::Matrix3d GetVelocityGradient(const Eigen::Vector3d& pt,
+                                    const double time,
+                                    const VelocityFieldType velocity_field_type,
+                                    Array4<Real const> const& vx,
+                                    Array4<Real const> const& vy,
+                                    Array4<Real const> const& vz, const Box& bx,
+                                    const Geometry& a_geom);
+
 inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
                              const double time,
                              const VelocityFieldType velocity_field_type,

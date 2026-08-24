@@ -18,6 +18,7 @@
 #include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
+#include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
 #include "examples/amrex_advector/reconstruction_pu.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
@@ -69,6 +70,12 @@ void AmrCoreAdv::GetReconstruction(
   } else if (reconstruction_name == "cf") {
     CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                           a_geom, scalar_fields);
+  } else if (reconstruction_name == "mof2") {
+    MOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                            a_geom, scalar_fields);
+  } else if (reconstruction_name == "supermof2") {
+    SuperMOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                                 a_geom, scalar_fields);
   } else {
     std::ostringstream oss;
     oss << "Unknown reconstruction method: " << reconstruction_name << '\n';
