@@ -21,20 +21,18 @@
 #include "irl/interface_reconstruction_methods/plicnet.h"
 #include "irl/interface_reconstruction_methods/pu.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
+#include "irl/interface_reconstruction_methods/pu_paraboloid.h"
 #include "irl/interface_reconstruction_methods/r2p_optimization.h"
 #include "irl/interface_reconstruction_methods/reconstruction_cleaning.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 
 namespace IRL {
 
-// /// \brief Reconstruction metric for Jibben 3D (resolved or not)
-// inline double reconstructionMetricWithJibben3D(
-//     const JibbenNeighborhood& a_neighborhood_geometry);
-
 /// \brief Perform PU reconstruction for a 3D problem.
+template <class CellType>
 inline Paraboloid reconstructionWithPU3D(
-    const PUNeighborhood& a_neighborhood_geometry, const double a_delta,
-    const double a_dx);
+    const PUNeighborhood<CellType>& a_neighborhood_geometry,
+    const double a_delta, const double a_dx);
 
 /// \brief Perform Jibben squared volume reconstruction for a 3D problem.
 inline Paraboloid reconstructionWithJibbenSq3D(

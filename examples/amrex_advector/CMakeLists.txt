@@ -20,8 +20,7 @@ IRLAddExample_cpp(
   "reconstruction_ivf.h"
   "reconstruction_pu.h"
   "reconstruction_cf.h"
-  # "reconstruction_hybrid.h"
-  # "reconstruction.h"
+  "reconstruction_hybrid.h"
   "advection_remap.h"
   "advection_helpers.h"
   SRCS
@@ -54,8 +53,7 @@ IRLAddExample_cpp(
   "reconstruction_ivf.h"
   "reconstruction_pu.h"
   "reconstruction_cf.h"
-  # "reconstruction_hybrid.h"
-  # "reconstruction.h"
+  "reconstruction_hybrid.h"
   "advection_remap.h"
   "advection_helpers.h"
   SRCS

@@ -21,30 +21,6 @@ module amrex_sepunionmfab_module
   public :: amrex_sepunionmfab_build, amrex_sepunionmfab_rebuild
   public :: amrex_sepunionmfab_write, amrex_sepunionmfab_read
   public :: amrex_sepunionmfab_build_alias
-  public :: amrex_mfiter_build
-
-  ! Creating public interfaces for generic constructors and destructors 
-  ! for both multifabs and sepunionmfabs
-  public :: amrex_generic_mfab_build   ! expose the generic interface
-  public :: amrex_generic_mfab_destroy   ! expose the generic interface
-  public :: amrex_generic_mfab_rebuild   ! expose the generic interface
-
-  interface amrex_generic_mfab_build
-    module procedure mfab_build_wrapper_s
-    module procedure mfab_build_wrapper_a
-    module procedure amrex_sepunionmfab_build_s
-    module procedure amrex_sepunionmfab_build_a
-  end interface amrex_generic_mfab_build
-
-  interface amrex_generic_mfab_destroy
-    procedure amrex_multifab_destroy
-    module procedure amrex_sepunionmfab_destroy
-  end interface amrex_generic_mfab_destroy
-
-  interface amrex_generic_mfab_rebuild
-    module procedure amrex_mfab_rebuild
-    module procedure amrex_sepunionmfab_rebuild
-  end interface amrex_generic_mfab_rebuild
 
   type, public   :: amrex_sepunionmfab
      logical               :: owner = .false.
@@ -61,7 +37,7 @@ module amrex_sepunionmfab_module
      procedure :: nghostvect    => amrex_sepunionmfab_nghost_vect
      procedure :: nodal_type    => amrex_sepunionmfab_nodal_type   ! get index type
      generic   :: dataPtr       => amrex_sepunionmfab_dataptr_iter, amrex_sepunionmfab_dataptr_int
-     generic :: copy            => amrex_sepunionmfab_copy, amrex_sepunionmfab_copy_cgv ! This copies the data
+     generic   :: copy          => amrex_sepunionmfab_copy, amrex_sepunionmfab_copy_cgv ! This copies the data
      generic   :: parallel_copy => amrex_sepunionmfab_parallel_copy, amrex_sepunionmfab_parallel_copy_c, &
           amrex_sepunionmfab_parallel_copy_cg, amrex_sepunionmfab_parallel_copy_cgv
      generic   :: fill_boundary => amrex_sepunionmfab_fill_boundary, amrex_sepunionmfab_fill_boundary_c
@@ -90,13 +66,6 @@ module amrex_sepunionmfab_module
     module procedure amrex_sepunionmfab_destroy
   end interface amrex_sepunionmfab_destroy
 #endif
-
-  ! interface amrex_mfiter_build
-  !    module procedure amrex_mfiter_build_sep
-  !    module procedure amrex_mfiter_build_seps
-  ! end interface amrex_mfiter_build
-
-  ! interfaces to c++ functions
 
   interface
      subroutine amrex_fi_new_sepunionmfab (mf,ba,dm,nc,ng,nodal) bind(c)
@@ -219,44 +188,7 @@ module amrex_sepunionmfab_module
      end subroutine amrex_fi_read_sepunionmfab
   end interface
 
-  ! interface
-  !    subroutine amrex_fi_new_mfiter_sep (mfi, mf, tiling, dynamic) bind(c)
-  !      import
-  !      implicit none
-  !      type(c_ptr) :: mfi
-  !      type(c_ptr), value :: mf
-  !      integer(c_int), value :: tiling, dynamic
-  !    end subroutine amrex_fi_new_mfiter_sep
-
-  !    subroutine amrex_fi_new_mfiter_seps (mfi, mf, tilesize, dynamic) bind(c)
-  !      import
-  !      implicit none
-  !      type(c_ptr) :: mfi
-  !      type(c_ptr), value :: mf
-  !      integer, intent(in) :: tilesize(*)
-  !      integer(c_int), value :: dynamic
-  !    end subroutine amrex_fi_new_mfiter_seps
-  ! end interface
-
 contains
-
-  subroutine mfab_build_wrapper_a(mf, ba, dm, nc, ng, nodal)
-    type(amrex_multifab), intent(inout) :: mf
-    type(amrex_boxarray), intent(in )   :: ba
-    type(amrex_distromap),intent(in )   :: dm
-    integer, intent(in) :: nc, ng(*)
-    logical, intent(in), optional :: nodal(*)
-    call amrex_multifab_build(mf, ba, dm, nc, ng, nodal)   ! dispatches via AMReX's own generic
-  end subroutine
-
-  subroutine mfab_build_wrapper_s(mf, ba, dm, nc, ng, nodal)
-    type(amrex_multifab), intent(inout) :: mf
-    type(amrex_boxarray), intent(in )   :: ba
-    type(amrex_distromap),intent(in )   :: dm
-    integer, intent(in) :: nc, ng
-    logical, intent(in), optional :: nodal(*)
-    call amrex_multifab_build(mf, ba, dm, nc, ng, nodal)   ! dispatches via AMReX's own generic
-  end subroutine
 
   subroutine amrex_sepunionmfab_build_a (mf, ba, dm, nc, ng, nodal)
     type(amrex_sepunionmfab), intent(inout) :: mf
@@ -300,18 +232,6 @@ contains
     mf%dm    = srcmf%dm
     call amrex_fi_new_sepunionmfab_alias(mf%p, srcmf%p, comp-1, ncomp)
   end subroutine amrex_sepunionmfab_build_alias
-
-   !> Rebuild a multifab and set to zero
-   subroutine amrex_mfab_rebuild(mf,ba,dm,nc,ng)
-      implicit none
-      type(amrex_multifab), intent(inout) :: mf
-      type(amrex_boxarray), intent(in) :: ba
-      type(amrex_distromap), intent(in) :: dm
-      integer, intent(in) :: nc,ng
-      call amrex_multifab_destroy(mf)
-      call amrex_multifab_build(mf,ba,dm,nc,ng)
-      call mf%setval(0.0_amrex_real)
-   end subroutine amrex_mfab_rebuild
 
    !> Rebuild a sepunionmfab and set to zero
    subroutine amrex_sepunionmfab_rebuild (mf, ba, dm, nc, ng)
@@ -522,56 +442,6 @@ contains
     mf%ba    = amrex_fi_sepunionmfab_boxarray(mf%p)
     mf%dm    = amrex_fi_sepunionmfab_distromap(mf%p)
   end subroutine amrex_sepunionmfab_read
-
-!------ MFIter routines ------!
-
-  ! subroutine amrex_mfiter_build_sep (mfi, mf, tiling, dynamic)
-  !   type(amrex_mfiter) :: mfi
-  !   type(amrex_sepunionmfab), intent(in ) :: mf
-  !   logical, intent(in), optional :: tiling, dynamic
-  !   integer(c_int) :: t, d
-
-  !   t = 0
-  !   if (present(tiling)) then
-  !      if (tiling) then
-  !         t = 1
-  !      else
-  !         t = 0
-  !      end if
-  !   end if
-
-  !   d = 0
-  !   if (present(dynamic)) then
-  !      if (dynamic) then
-  !         d = 1
-  !      else
-  !         d = 0
-  !      end if
-  !   end if
-
-  !   mfi%counter = 0
-  !   call amrex_fi_new_mfiter_sep(mfi%p, mf%p, t, d)
-  ! end subroutine amrex_mfiter_build_sep
-
-  ! subroutine amrex_mfiter_build_seps (mfi, mf, tilesize, dynamic)
-  !   type(amrex_mfiter) :: mfi
-  !   type(amrex_sepunionmfab), intent(in ) :: mf
-  !   integer, intent(in) :: tilesize(*)
-  !   logical, intent(in), optional :: dynamic
-  !   integer(c_int) :: d
-
-  !   d = 0
-  !   if (present(dynamic)) then
-  !      if (dynamic) then
-  !         d = 1
-  !      else
-  !         d = 0
-  !      end if
-  !   end if
-
-  !   mfi%counter = 0
-  !   call amrex_fi_new_mfiter_seps(mfi%p, mf%p, tilesize, d)
-  ! end subroutine amrex_mfiter_build_seps
 
 end module amrex_sepunionmfab_module
 

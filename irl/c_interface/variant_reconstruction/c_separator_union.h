@@ -10,18 +10,9 @@
 #ifndef IRL_C_INTERFACE_VARIANT_RECONSTRUCTION_C_SEPARATOR_UNION_H_
 #define IRL_C_INTERFACE_VARIANT_RECONSTRUCTION_C_SEPARATOR_UNION_H_
 
-#include "irl/data_structures/object_allocation_server.h"
-#include "irl/geometry/general/normal.h"
-#include "irl/geometry/general/plane.h"
-#include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/variant_reconstruction/separator_union.h"
 
 extern "C" {
-
-struct c_SeparatorUnion {
-  IRL::SeparatorUnion* obj_ptr = nullptr;
-  bool is_owning = false;
-};
 
 void c_SeparatorUnion_setToOnePlane_raw(IRL::SeparatorUnion& a_self,
                                         const double* a_normal,
@@ -49,32 +40,6 @@ bool c_SeparatorUnion_isFull_raw(const IRL::SeparatorUnion& a_self);
 bool c_SeparatorUnion_isEmpty_raw(const IRL::SeparatorUnion& a_self);
 
 double c_SeparatorUnion_getMeanCurvature_raw(IRL::SeparatorUnion& a_self);
-
-void c_SeparatorUnion_new(c_SeparatorUnion* a_self);
-
-void c_SeparatorUnion_delete(c_SeparatorUnion* a_self);
-
-void c_SeparatorUnion_setNumberOfPlanes(c_SeparatorUnion* a_self,
-                                        const int* a_number_to_set);
-
-void c_SeparatorUnion_setPlane(c_SeparatorUnion* a_self,
-                               const int* a_plane_index_to_set,
-                               const double* a_normal,
-                               const double* a_distance);
-
-void c_SeparatorUnion_copy(c_SeparatorUnion* a_self,
-                           const c_SeparatorUnion* a_other_planar_separator);
-
-int c_SeparatorUnion_getNumberOfPlanes(const c_SeparatorUnion* a_self);
-
-void c_SeparatorUnion_getPlane(c_SeparatorUnion* a_self, const int* a_index,
-                               double* a_plane_listed);
-
-bool c_SeparatorUnion_isFlipped(const c_SeparatorUnion* a_self);
-
-void c_SeparatorUnion_printToScreen(const c_SeparatorUnion* a_self);
-
-void c_SeparatorUnion_shift(c_SeparatorUnion* a_self, const double* a_shift);
 
 }  // end extern C
 

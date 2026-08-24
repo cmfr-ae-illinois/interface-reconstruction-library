@@ -11,7 +11,7 @@
 #define IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_RECONSTRUCTION_METRICS_INTERFACE_H_
 
 #include "irl/c_interface/interface_reconstruction_methods/c_jibben_neighborhood.h"
-#include "irl/c_interface/interface_reconstruction_methods/c_pu_neighborhood.h"
+#include "irl/c_interface/interface_reconstruction_methods/c_pu_neighborhood_rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/reconstruction_metrics_interface.h"
 
 extern "C" {

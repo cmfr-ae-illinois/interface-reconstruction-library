@@ -12,16 +12,12 @@
 
 namespace IRL {
 
-// double reconstructionMetricWithJibben3D(
-//     const JibbenNeighborhood& a_neighborhood_geometry) {
-//   Jibben_3D jibben_solver(&a_neighborhood_geometry);
-//   return jibben_solver.getNormalScatterMetric();
-// }
-
-Paraboloid reconstructionWithPU3D(const PUNeighborhood& a_neighborhood_geometry,
-                                  const double a_delta, const double a_dx) {
-  PU pu_solver;
-  return pu_solver.solve(&a_neighborhood_geometry, a_delta, a_dx);
+template <class CellType>
+Paraboloid reconstructionWithPU3D(
+    const PUNeighborhood<CellType>& a_neighborhood_geometry,
+    const double a_delta, const double a_dx) {
+  PUParaboloid<CellType> pu_solver;
+  return pu_solver.solve(a_neighborhood_geometry, a_delta, a_dx);
 }
 
 Paraboloid reconstructionWithJibbenSq3D(

@@ -290,9 +290,13 @@ struct PU {
           return;
         }
 
-        IRL::PUNeighborhood pu_neighborhood;
+        using CellType = IRL::RectangularCuboid;
+        IRL::PUNeighborhood<CellType> pu_neighborhood;
         pu_neighborhood.reserve(nstencil);
         pu_neighborhood.emptyNeighborhood();
+
+        const CellType center_cell = makeCell(i, j, k, problo, dx);
+        pu_neighborhood.setCenterCell(&center_cell);
 
         int pu_count = 0;
 
@@ -342,7 +346,7 @@ struct PU {
               const IRL::SeparatorVariant neighbor_interface =
                   pu_neigh_array(ii, jj, kk);
 
-              pu_neighborhood.addMember(neighbor_interface, centroid, weight);
+              pu_neighborhood.addMember(&centroid, &neighbor_interface, weight);
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
@@ -358,10 +362,12 @@ struct PU {
           return;
         }
 
-        const double delta = 2.5 * dx_avg;
+        const double kernel_size = 2.5 * dx_avg;
 
-        IRL::Paraboloid pu_paraboloid =
-            IRL::reconstructionWithPU3D(pu_neighborhood, delta, dx_avg);
+        IRL::PUParaboloid<CellType> pu_solver(pu_neighborhood, kernel_size,
+                                              dx_avg);
+
+        IRL::Paraboloid pu_paraboloid = pu_solver.solve();
 
         // Check for NaN/Inf datum
         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||

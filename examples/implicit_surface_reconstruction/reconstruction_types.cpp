@@ -1061,13 +1061,15 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
 
   // neighborhoods for jibben and pu reconstruction
   IRL::JibbenNeighborhood jibben_neighborhood;
-  IRL::PUNeighborhood pu_neighborhood;
+  using CellType = IRL::RectangularCuboid;
+  IRL::PUNeighborhood<CellType> pu_neighborhood;
   const int nlayers = 1;
   const int nstencil =
       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
   jibben_neighborhood.reserve(nstencil);
   jibben_neighborhood.setDelta(2.5 * mesh.dx());
   pu_neighborhood.reserve(nstencil);
+  pu_neighborhood.emptyNeighborhood();
 
   // plic polygons
   Data<IRL::Polygon> polygon(&mesh);
@@ -1207,8 +1209,9 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                 const double weight = area_weight * vfrac_weight;
                 const IRL::Pt centroid =
                     polygon(ii, jj, kk).calculateCentroid();
-                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
-                                          centroid, weight);
+                pu_neighborhood.addMember(
+                    &centroid, &(pu_neighborhood_interface(ii, jj, kk)),
+                    weight);
                 if (i == ii && j == jj && k == kk) {
                   pu_neighborhood.setCenterOfStencil(pu_count);
                 }
@@ -1224,8 +1227,13 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
 
         // building pu paraboloid
         const double delta = 2.5 * mesh.dx();
-        IRL::Paraboloid pu_paraboloid =
-            IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
+        // IRL::Paraboloid pu_paraboloid =
+        //     IRL::reconstructionWithPU3D(pu_neighborhood, delta, mesh.dx());
+
+        IRL::PUParaboloid<CellType> pu_solver(pu_neighborhood, delta,
+                                              mesh.dx());
+
+        IRL::Paraboloid pu_paraboloid = pu_solver.solve();
 
         if (!std::isfinite(pu_paraboloid.getDatum()[0]) ||
             !std::isfinite(pu_paraboloid.getDatum()[1]) ||

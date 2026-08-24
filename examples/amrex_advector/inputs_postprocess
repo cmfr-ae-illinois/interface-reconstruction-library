@@ -2,11 +2,13 @@
 # Checkpoint postprocessing
 # *****************************************************************
 
-postprocess.initial_checkpoint = chk00000
-postprocess.final_checkpoint   = chk00384
+postprocess.initial_checkpoint = ./chk00000
+postprocess.final_checkpoint   = ./chk00384
+postprocess.volumetric_moment_order = 2
+postprocess.surface_moment_order    = 2
 
 case.name = deformation3d
-reconstruction.name = pu
+reconstruction.name = hybrid
 advection.name = remap # not used but required by AmrCoreAdv
 
 geometry.prob_lo     =  0.0  0.0  0.0
@@ -30,7 +32,5 @@ adv.cfl       = 1.0
 adv.do_reflux = 1
 amr.plot_file = plt
 amr.plot_int  = -1
-amr.interface_output_path = .
 amr.chk_file  = chk
 amr.chk_int   = -1
-amr.checkpoint_path = /home/parinht2/Simulations/irl/amrex/checkpoint_files/

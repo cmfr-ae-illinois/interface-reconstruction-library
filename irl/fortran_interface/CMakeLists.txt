@@ -82,10 +82,10 @@ target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_localiz
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_jibbenneighborhood_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_objectallocationserver_mixedsurface_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_mixedsurface_class.f90)
-target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_puneighborhood_class.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_reconstruction_metrics_interface.f90)
 target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_separatorunion_class.f90)
-
 if(IRL_BUILD_AMREX_INTERFACE)
     target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/amrex/AMReX_sepunionmfab_mod.F90)
 endif()
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_pust_rectangularcuboid_class.f90)
+target_sources(irl_fortran PRIVATE ${IRL_SOURCE_DIR}/fortran_interface/f_puneighborhood_rectangularcuboid_class.f90)

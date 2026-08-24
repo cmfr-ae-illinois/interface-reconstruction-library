@@ -110,8 +110,13 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Real RecTime();
   amrex::Real AdvTime();
 
-  void PostProcessCheckpointPair(const std::string& initial_checkpoint,
-                                 const std::string& final_checkpoint);
+  void BuildUniformCheckpointState(const std::string& checkpoint,
+                                   amrex::MultiFab& uniform_moments,
+                                   amrex::SepUnionMultiFab& uniform_interface);
+
+  const amrex::Geometry& GetFinestGeometry() const {
+    return Geom(finest_level);
+  }
 
  private:
   ////////////////
@@ -164,8 +169,33 @@ class AmrCoreAdv : public amrex::AmrCore {
   // write plotfile to disk
   void WritePlotFile();
 
+  bool UsingPlotInterval() const;
+  bool UsingPlotTimes() const;
+  amrex::Real PlotTimeEps() const;
+  void PreparePlotTimes();
+  bool ShouldWriteInitialPlotTime();
+  void GetPlotWriteTimesForStep(amrex::Real cur_time, amrex::Real next_time,
+                                bool& write_before_step,
+                                bool& write_after_step);
+
   // write checkpoint file to disk
   void WriteCheckpointFile() const;
+
+  void SetVelocityFieldType();
+
+  std::string OutputPath(const std::string& dir,
+                         const std::string& basename) const;
+  void ApplyOutputDirectories();
+
+  bool UsingCheckpointInterval() const;
+  bool UsingCheckpointTimes() const;
+  amrex::Real CheckpointTimeEps() const;
+  void PrepareCheckpointTimes();
+  bool ShouldWriteInitialCheckpointTime();
+  void GetCheckpointWriteTimesForStep(amrex::Real cur_time,
+                                      amrex::Real next_time,
+                                      bool& write_before_step,
+                                      bool& write_after_step);
 
   // read checkpoint file from disk
   void ReadCheckpointFile();
@@ -257,6 +287,9 @@ class AmrCoreAdv : public amrex::AmrCore {
   // advection name
   std::string advection_name = "default";
 
+  // velocity field mode: 0 exact case formula, 1 interpolated face field
+  int velocity_field = 0;
+
   // advective cfl number - dt = cfl*dx/umax
   amrex::Real cfl = 0.7;
 
@@ -273,11 +306,21 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // plotfile prefix and frequency
   std::string plot_file{"plt"};
+  std::string plot_dir{""};
   int plot_int = -1;
+  amrex::Vector<amrex::Real> plot_time_fractions;
+  amrex::Vector<amrex::Real> plot_times;
+  int next_plot_time = 0;
+  bool initial_plot_file_written = false;
 
   // checkpoint prefix and frequency
   std::string chk_file{"chk"};
+  std::string chk_dir{""};
   int chk_int = -1;
+  amrex::Vector<amrex::Real> checkpoint_time_fractions;
+  amrex::Vector<amrex::Real> checkpoint_times;
+  int next_checkpoint_time = 0;
+  bool initial_checkpoint_file_written = false;
 
   // Number of ghost layers needed for advection
   int num_grow = 1;

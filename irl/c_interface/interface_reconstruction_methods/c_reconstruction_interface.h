@@ -20,7 +20,7 @@
 #include "irl/c_interface/interface_reconstruction_methods/c_lvira_neighborhood_rectangular_cuboid.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_lvira_neighborhood_tet.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_optimization_behavior.h"
-#include "irl/c_interface/interface_reconstruction_methods/c_pu_neighborhood.h"
+#include "irl/c_interface/interface_reconstruction_methods/c_pu_neighborhood_rectangular_cuboid.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_r2p_neighborhood_rectangular_cuboid.h"
 #include "irl/c_interface/interface_reconstruction_methods/c_r2p_weighting.h"
 #include "irl/c_interface/moments/c_listedvm_vman.h"
@@ -45,12 +45,9 @@ extern "C" {
 /// the individual needs of each reconstruction method,
 /// it is best to constult its specific documentation.
 
-// double c_reconstructionMetricWithJibben3D(
-//     const c_JibbenNeigh* a_jibben_neighborhood);
-
-void c_reconstructPU3D_Variant(const c_PUNeigh* a_pu_neighborhood,
-                               const double* a_delta, const double* a_dx,
-                               c_SeparatorVariant* a_separator);
+void c_reconstructPU3D_RectCub_Variant(
+    const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
+    const double* a_dx, c_SeparatorVariant* a_separator);
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
                                      c_SeparatorVariant* a_separator);

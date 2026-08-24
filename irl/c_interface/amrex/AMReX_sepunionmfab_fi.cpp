@@ -11,6 +11,7 @@ void amrex_fi_new_sepunionmfab(SepUnionMultiFab*& mf, const BoxArray*& ba,
                                const int* ng, const int* nodal) {
   mf = new SepUnionMultiFab(amrex::convert(*ba, IntVect(nodal)), *dm, nc,
                             IntVect(ng));
+  mf->setVal(IRL::SeparatorUnion());
   ba = &(mf->boxArray());
   dm = &(mf->DistributionMap());
 }
@@ -19,6 +20,7 @@ void amrex_fi_new_sepunionmfab_alias(SepUnionMultiFab*& mf,
                                      const SepUnionMultiFab* srcmf, int comp,
                                      int ncomp) {
   mf = new SepUnionMultiFab(*srcmf, amrex::make_alias, comp, ncomp);
+  mf->setVal(IRL::SeparatorUnion());
 }
 
 void amrex_fi_delete_sepunionmfab(SepUnionMultiFab* mf) { delete mf; }
@@ -110,19 +112,4 @@ void amrex_fi_read_sepunionmfab(SepUnionMultiFab* mf, const char* name) {
   SepUnionMultiFab_Read(*mf, std::string(name));
 }
 
-// MFIter routines
-void amrex_fi_new_mfiter_sep(MFIter*& mfi, SepUnionMultiFab* mf, int tiling,
-                             int dynamic) {
-  if (tiling) {
-    mfi = new MFIter(*mf, MFItInfo().EnableTiling().SetDynamic(dynamic));
-  } else {
-    mfi = new MFIter(*mf, MFItInfo().SetDynamic(dynamic));
-  }
-}
-
-void amrex_fi_new_mfiter_seps(MFIter*& mfi, SepUnionMultiFab* mf,
-                              const int* tilesize, int dynamic) {
-  mfi = new MFIter(
-      *mf, MFItInfo().EnableTiling(IntVect(tilesize)).SetDynamic(dynamic));
-}
-}
+}  // extern "C"

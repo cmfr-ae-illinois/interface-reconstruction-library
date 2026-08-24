@@ -11,7 +11,7 @@ module f_ReconstructionMetricsInterface
   use f_DefinedTypes
   use f_SeparatorVariant_class
   use f_JibbenNeigh_class
-  use f_PUNeigh_class
+  use f_PUNeigh_RectCub_class
   implicit none
 
   ! ---------------------------------------------------------------------------------------

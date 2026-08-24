@@ -37,11 +37,19 @@ inline SeparatorUnion::SeparatorUnion(const Cylinder& a_cylinder) {
   cylinder_m = a_cylinder;
 };
 
+inline SeparatorUnion SeparatorUnion::createAlwaysAbove(void) {
+  return Plane(Normal(0.0, 0.0, 0.0), std::numeric_limits<double>::lowest());
+}
+
+inline SeparatorUnion SeparatorUnion::createAlwaysBelow(void) {
+  return Plane(Normal(0.0, 0.0, 0.0), std::numeric_limits<double>::max());
+}
+
 inline SeparatorUnion& SeparatorUnion::operator=(const SeparatorUnion& other) {
   type_m = other.type();
   switch (type_m) {
     case SeparatorType::OnePlane:
-      planes_m[0] = other.getPlanes()[0];
+      planes_m[0] = other.getPlane();
       break;
     case SeparatorType::TwoPlanes:
       planes_m = other.getPlanes();
@@ -65,7 +73,7 @@ inline SeparatorUnion& SeparatorUnion::operator+=(const SeparatorUnion& other) {
   type_m = other.type();
   switch (type_m) {
     case SeparatorType::OnePlane:
-      planes_m[0] = other.getPlanes()[0];
+      planes_m[0] = other.getPlane();
       break;
     case SeparatorType::TwoPlanes:
       planes_m = other.getPlanes();
@@ -102,7 +110,7 @@ inline SeparatorUnion& SeparatorUnion::operator=(const PlanarSeparator& other) {
     case 2:
       type_m = SeparatorType::TwoPlanes;
       planes_m[0] = other[0];
-      planes_m[1] = other[0];
+      planes_m[1] = other[1];
       break;
     default:
       throw std::runtime_error(

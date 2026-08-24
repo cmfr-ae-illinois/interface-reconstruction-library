@@ -12,3 +12,6 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/helpers/serializer.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/helpers/byte_buffer.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/helpers/expression_templates.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/helpers/expression_templates.tpp)
+
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/helpers/wendland.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/helpers/wendland.tpp)

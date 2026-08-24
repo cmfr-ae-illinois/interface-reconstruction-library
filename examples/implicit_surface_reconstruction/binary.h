@@ -14,11 +14,12 @@
 
 #include "examples/implicit_surface_reconstruction/basic_mesh.h"
 #include "examples/implicit_surface_reconstruction/data.h"
+#include "examples/implicit_surface_reconstruction/sparse_moments.h"
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void writeMomentsToBinary(
-    const Data<std::pair<IRL::GeneralMoments3D<VM_ORDER>,
-                         IRL::GeneralSurfaceMoments3D<SM_ORDER>>>& moments,
+    const BasicMesh& mesh, const InsideCellMask& inside_cells,
+    const std::vector<SparseMixedCellMoments<VM_ORDER, SM_ORDER>>& mixed_cells,
     const std::string& filename);
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
