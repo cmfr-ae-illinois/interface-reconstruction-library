@@ -4,6 +4,8 @@
 
 postprocess.initial_checkpoint = ./chk00000
 postprocess.final_checkpoint   = ./chk00384
+postprocess.volumetric_moment_order = 2
+postprocess.surface_moment_order    = 2
 
 case.name = deformation3d
 reconstruction.name = hybrid

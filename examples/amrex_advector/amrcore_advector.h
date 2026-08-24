@@ -181,6 +181,8 @@ class AmrCoreAdv : public amrex::AmrCore {
   // write checkpoint file to disk
   void WriteCheckpointFile() const;
 
+  void SetVelocityFieldType();
+
   std::string OutputPath(const std::string& dir,
                          const std::string& basename) const;
   void ApplyOutputDirectories();
@@ -276,6 +278,9 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // advection name
   std::string advection_name = "default";
+
+  // velocity field mode: 0 exact case formula, 1 interpolated face field
+  int velocity_field = 0;
 
   // advective cfl number - dt = cfl*dx/umax
   amrex::Real cfl = 0.7;

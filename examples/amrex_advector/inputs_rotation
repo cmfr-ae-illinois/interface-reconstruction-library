@@ -19,6 +19,7 @@ reconstruction.name = vf
 # Which interface advection method to use?
 # *****************************************************************
 advection.name = remap
+adv.velocity_field = 0  # 0 exact case velocity, 1 interpolated face velocity
 
 # *****************************************************************
 # Are we restarting from an existing checkpoint file?

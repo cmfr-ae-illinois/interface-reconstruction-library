@@ -13,12 +13,13 @@ case.name = deformation3d
 # *****************************************************************
 # Which interface reconstruction method to use?
 # *****************************************************************
-reconstruction.name = vf
+reconstruction.name = pu
 
 # *****************************************************************
 # Which interface advection method to use?
 # *****************************************************************
 advection.name = remap
+adv.velocity_field = 1  # 0 exact case velocity, 1 interpolated face velocity
 
 # *****************************************************************
 # Are we restarting from an existing checkpoint file?
@@ -47,10 +48,10 @@ amr.v              = 1       # verbosity in Amr
 # Resolution and refinement
 # *****************************************************************
 amr.n_cell          = 2 2 2
-amr.max_level       = 4       # maximum level number allowed -- 
+amr.max_level       = 5       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
-amr.ref_ratio       = 2 2 2 2 # refinement ratio between levels
+amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
 
 # *****************************************************************
 # Control of grid creation
@@ -94,6 +95,6 @@ amr.chk_file = chk      # root name of checkpoint file
 # amr.chk_dir = .
 amr.chk_int  = -1       # number of timesteps between checkpoint files
                         # if negative then no checkpoint files will be written
-amr.chk_times = 0.0 1.0
+# amr.chk_times = 0.0 1.0
                         # fractions of stop_time for checkpoint files
                         # ignored when amr.chk_int > 0

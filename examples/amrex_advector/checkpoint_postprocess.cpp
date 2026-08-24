@@ -16,8 +16,8 @@
 #include <array>
 #include <cmath>
 #include <iomanip>
+#include <sstream>
 #include <string>
-#include <vector>
 
 #include "examples/amrex_advector/amrcore_advector.h"
 
@@ -60,6 +60,30 @@ double momentNormalization(const int m, const double dx) {
   return 1.0 / (dx * dx);
 }
 
+void validateMomentOrder(const int order, const std::string& name) {
+  if (order < 0 || order > 2) {
+    std::ostringstream oss;
+    oss << name << " must be 0, 1, or 2; got " << order;
+    amrex::Abort(oss.str());
+  }
+}
+
+void copyVolumeMomentsToArray(const IRL::VolumeMoments& moments,
+                              MomentArray& result) {
+  result[0] = moments.volume();
+  result[1] = moments.centroid()[0];
+  result[2] = moments.centroid()[1];
+  result[3] = moments.centroid()[2];
+}
+
+template <class MomentsType>
+void copyGeneralMomentsToArray(const MomentsType& moments,
+                               MomentArray& result) {
+  for (IRL::UnsignedIndex_t m = 0; m < moments.size(); ++m) {
+    result[m] = moments[m];
+  }
+}
+
 // Recenter moments around cell center xc
 MomentArray recenterMoments(const MomentArray& moments, const IRL::Pt& xc) {
   MomentArray centered{};
@@ -95,9 +119,9 @@ MomentArray recenterMoments(const MomentArray& moments, const IRL::Pt& xc) {
   return centered;
 }
 
-// Surface moments of a planar polygon through order 2
-
-MomentArray calculatePolygonSurfaceMoments(const IRL::Polygon& polygon) {
+// Surface moments of a planar polygon through the requested order.
+MomentArray calculatePolygonSurfaceMoments(const IRL::Polygon& polygon,
+                                           const int max_order) {
   MomentArray moments{};
 
   const int n = polygon.getNumberOfVertices();
@@ -125,12 +149,20 @@ MomentArray calculatePolygonSurfaceMoments(const IRL::Polygon& polygon) {
     // M0
     moments[0] += area;
 
+    if (max_order == 0) {
+      continue;
+    }
+
     // M1
     const IRL::Pt centroid = (v0 + v1 + v2) * (1.0 / 3.0);
 
     moments[1] += centroid[0] * area;
     moments[2] += centroid[1] * area;
     moments[3] += centroid[2] * area;
+
+    if (max_order == 1) {
+      continue;
+    }
 
     // M2
     const auto a = v1 - v0;
@@ -162,10 +194,10 @@ MomentArray calculatePolygonSurfaceMoments(const IRL::Polygon& polygon) {
   return moments;
 }
 
-// Volume moments through order 2
+// Volume moments through the requested order.
 MomentArray getVolumeMoments(const IRL::RectangularCuboid& cell,
                              const IRL::SeparatorUnion& interface,
-                             const double vf) {
+                             const double vf, const int max_order) {
   MomentArray result{};
 
   if (vf <= IRL::global_constants::VF_LOW) {
@@ -173,9 +205,14 @@ MomentArray getVolumeMoments(const IRL::RectangularCuboid& cell,
   }
 
   if (vf >= IRL::global_constants::VF_HIGH) {
-    const auto moments = IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell);
-    for (int m = 0; m < NUM_MOMENTS; ++m) {
-      result[m] = moments[m];
+    if (max_order == 0) {
+      result[0] = IRL::getVolumeMoments<IRL::Volume>(cell);
+    } else if (max_order == 1) {
+      copyVolumeMomentsToArray(IRL::getVolumeMoments<IRL::VolumeMoments>(cell),
+                               result);
+    } else {
+      copyGeneralMomentsToArray(
+          IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell), result);
     }
     return result;
   }
@@ -183,20 +220,30 @@ MomentArray getVolumeMoments(const IRL::RectangularCuboid& cell,
   if (interface.type() == IRL::SeparatorUnion::SeparatorType::OnePlane) {
     const auto separator =
         IRL::PlanarSeparator::fromOnePlane(interface.getPlane());
-    const auto moments =
-        IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, separator);
-    for (int m = 0; m < NUM_MOMENTS; ++m) {
-      result[m] = moments[m];
+    if (max_order == 0) {
+      result[0] = IRL::getVolumeMoments<IRL::Volume>(cell, separator);
+    } else if (max_order == 1) {
+      copyVolumeMomentsToArray(
+          IRL::getVolumeMoments<IRL::VolumeMoments>(cell, separator), result);
+    } else {
+      copyGeneralMomentsToArray(
+          IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, separator),
+          result);
     }
     return result;
   }
 
   if (interface.type() == IRL::SeparatorUnion::SeparatorType::Paraboloid) {
     const auto paraboloid = interface.getParaboloid();
-    const auto moments =
-        IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid);
-    for (int m = 0; m < NUM_MOMENTS; ++m) {
-      result[m] = moments[m];
+    if (max_order == 0) {
+      result[0] = IRL::getVolumeMoments<IRL::Volume>(cell, paraboloid);
+    } else if (max_order == 1) {
+      copyVolumeMomentsToArray(
+          IRL::getVolumeMoments<IRL::VolumeMoments>(cell, paraboloid), result);
+    } else {
+      copyGeneralMomentsToArray(
+          IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid),
+          result);
     }
     return result;
   }
@@ -206,10 +253,10 @@ MomentArray getVolumeMoments(const IRL::RectangularCuboid& cell,
   return result;
 }
 
-// Surface moments through order 2
+// Surface moments through the requested order.
 MomentArray getSurfaceMoments(const IRL::RectangularCuboid& cell,
                               const IRL::SeparatorUnion& interface,
-                              const double vf) {
+                              const double vf, const int max_order) {
   MomentArray result{};
 
   if (vf <= IRL::global_constants::VF_LOW ||
@@ -224,22 +271,25 @@ MomentArray getSurfaceMoments(const IRL::RectangularCuboid& cell,
         cell, separator, separator[0]);
     if (polygon.getNumberOfVertices() > 2) {
       polygon.calculateAndSetPlaneOfExistence();
-      result = calculatePolygonSurfaceMoments(polygon);
+      result = calculatePolygonSurfaceMoments(polygon, max_order);
     }
     return result;
   }
 
   if (interface.type() == IRL::SeparatorUnion::SeparatorType::Paraboloid) {
     using VolumeMomentsAndSurface =
-        IRL::AddSurfaceOutput<IRL::VolumeMoments,
+        IRL::AddSurfaceOutput<IRL::Volume,
                               IRL::ParaboloidParametrizedSurfaceOutput>;
     const auto paraboloid = interface.getParaboloid();
     auto volume_and_surface =
         IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid);
     auto surface = volume_and_surface.getSurface();
-    const auto moments = surface.getSurfaceMoments<2>();
-    for (int m = 0; m < NUM_MOMENTS; ++m) {
-      result[m] = moments[m];
+    if (max_order == 0) {
+      copyGeneralMomentsToArray(surface.getSurfaceMoments<0>(), result);
+    } else if (max_order == 1) {
+      copyGeneralMomentsToArray(surface.getSurfaceMoments<1>(), result);
+    } else {
+      copyGeneralMomentsToArray(surface.getSurfaceMoments<2>(), result);
     }
     return result;
   }
@@ -254,7 +304,9 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
                          const amrex::MultiFab& final_moments,
                          const amrex::SepUnionMultiFab& initial_interface,
                          const amrex::SepUnionMultiFab& final_interface,
-                         const amrex::Geometry& geom) {
+                         const amrex::Geometry& geom,
+                         const int volume_moment_order,
+                         const int surface_moment_order) {
   using namespace amrex;
 
   if (initial_moments.boxArray() != final_moments.boxArray()) {
@@ -271,15 +323,29 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
   const double cell_volume = dx[0] * dx[1] * dx[2];
   const double h = dx[0];
 
+  const bool compute_volume_M0 = volume_moment_order >= 0;
+  const bool compute_volume_M1 = volume_moment_order >= 1;
+  const bool compute_volume_M2 = volume_moment_order >= 2;
+
+  const bool compute_surface_M0 = surface_moment_order >= 0;
+  const bool compute_surface_M1 = surface_moment_order >= 1;
+  const bool compute_surface_M2 = surface_moment_order >= 2;
+
   // Volume errors
   double volume_L1_M0 = 0.0;
   double volume_L1_M1 = 0.0;
   double volume_L1_M2 = 0.0;
+  double volume_Linf_M0 = 0.0;
+  double volume_Linf_M1 = 0.0;
+  double volume_Linf_M2 = 0.0;
 
   // Surface errors
   double surface_L1_M0 = 0.0;
   double surface_L1_M1 = 0.0;
   double surface_L1_M2 = 0.0;
+  double surface_Linf_M0 = 0.0;
+  double surface_Linf_M1 = 0.0;
+  double surface_Linf_M2 = 0.0;
 
   for (MFIter mfi(initial_moments); mfi.isValid(); ++mfi) {
     const Box& box = mfi.validbox();
@@ -312,111 +378,157 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
           const double initial_vf = initial_mom_arr(i, j, k, 0) / cell_volume;
           const double final_vf = final_mom_arr(i, j, k, 0) / cell_volume;
 
-          MomentArray initial_volume = getVolumeMoments(
-              cell, initial_interface_arr(i, j, k), initial_vf);
+          MomentArray initial_volume =
+              getVolumeMoments(cell, initial_interface_arr(i, j, k), initial_vf,
+                               volume_moment_order);
           MomentArray final_volume =
-              getVolumeMoments(cell, final_interface_arr(i, j, k), final_vf);
-          MomentArray initial_surface = getSurfaceMoments(
-              cell, initial_interface_arr(i, j, k), initial_vf);
-          MomentArray final_surface =
-              getSurfaceMoments(cell, final_interface_arr(i, j, k), final_vf);
+              getVolumeMoments(cell, final_interface_arr(i, j, k), final_vf,
+                               volume_moment_order);
 
           // Recenter about cell center
           initial_volume = recenterMoments(initial_volume, center);
           final_volume = recenterMoments(final_volume, center);
 
+          if (compute_volume_M0) {
+            const double M0_error = std::abs(final_volume[0] - initial_volume[0]);
+            volume_L1_M0 += M0_error;
+            volume_Linf_M0 = std::max(volume_Linf_M0, M0_error);
+          }
+
+          if (compute_volume_M1) {
+            const double dMx = final_volume[1] - initial_volume[1];
+            const double dMy = final_volume[2] - initial_volume[2];
+            const double dMz = final_volume[3] - initial_volume[3];
+            const double M1_error =
+                std::sqrt(dMx * dMx + dMy * dMy + dMz * dMz);
+            volume_L1_M1 += M1_error;
+            volume_Linf_M1 = std::max(volume_Linf_M1, M1_error);
+          }
+
+          if (compute_volume_M2) {
+            const double dMxx = final_volume[4] - initial_volume[4];
+            const double dMxy = final_volume[5] - initial_volume[5];
+            const double dMxz = final_volume[6] - initial_volume[6];
+            const double dMyy = final_volume[7] - initial_volume[7];
+            const double dMyz = final_volume[8] - initial_volume[8];
+            const double dMzz = final_volume[9] - initial_volume[9];
+            const double M2_error =
+                std::sqrt(dMxx * dMxx + dMyy * dMyy + dMzz * dMzz +
+                          2.0 * (dMxy * dMxy + dMxz * dMxz + dMyz * dMyz));
+            volume_L1_M2 += M2_error;
+            volume_Linf_M2 = std::max(volume_Linf_M2, M2_error);
+          }
+
+          MomentArray initial_surface =
+              getSurfaceMoments(cell, initial_interface_arr(i, j, k),
+                                initial_vf, surface_moment_order);
+          MomentArray final_surface =
+              getSurfaceMoments(cell, final_interface_arr(i, j, k), final_vf,
+                                surface_moment_order);
+
+          // Recenter about cell center
           initial_surface = recenterMoments(initial_surface, center);
           final_surface = recenterMoments(final_surface, center);
 
-          // Volume moment errors
+          if (compute_surface_M0) {
+            const double SM0_error =
+                std::abs(final_surface[0] - initial_surface[0]);
+            surface_L1_M0 += SM0_error;
+            surface_Linf_M0 = std::max(surface_Linf_M0, SM0_error);
+          }
 
-          // M0
-          const double dM0 = final_volume[0] - initial_volume[0];
-          volume_L1_M0 += std::abs(dM0);
+          if (compute_surface_M1) {
+            const double dSMx = final_surface[1] - initial_surface[1];
+            const double dSMy = final_surface[2] - initial_surface[2];
+            const double dSMz = final_surface[3] - initial_surface[3];
+            const double surface_M1_error =
+                std::sqrt(dSMx * dSMx + dSMy * dSMy + dSMz * dSMz);
+            surface_L1_M1 += surface_M1_error;
+            surface_Linf_M1 = std::max(surface_Linf_M1, surface_M1_error);
+          }
 
-          // M1
-          const double dMx = final_volume[1] - initial_volume[1];
-          const double dMy = final_volume[2] - initial_volume[2];
-          const double dMz = final_volume[3] - initial_volume[3];
-          const double M1_error = std::sqrt(dMx * dMx + dMy * dMy + dMz * dMz);
-          volume_L1_M1 += M1_error;
-
-          // M2
-          const double dMxx = final_volume[4] - initial_volume[4];
-          const double dMxy = final_volume[5] - initial_volume[5];
-          const double dMxz = final_volume[6] - initial_volume[6];
-          const double dMyy = final_volume[7] - initial_volume[7];
-          const double dMyz = final_volume[8] - initial_volume[8];
-          const double dMzz = final_volume[9] - initial_volume[9];
-          const double M2_error =
-              std::sqrt(dMxx * dMxx + dMyy * dMyy + dMzz * dMzz +
-                        2.0 * (dMxy * dMxy + dMxz * dMxz + dMyz * dMyz));
-          volume_L1_M2 += M2_error;
-
-          // Surface moment errors
-
-          // M0
-          const double dSM0 = final_surface[0] - initial_surface[0];
-          surface_L1_M0 += std::abs(dSM0);
-
-          // M1
-          const double dSMx = final_surface[1] - initial_surface[1];
-          const double dSMy = final_surface[2] - initial_surface[2];
-          const double dSMz = final_surface[3] - initial_surface[3];
-          const double surface_M1_error =
-              std::sqrt(dSMx * dSMx + dSMy * dSMy + dSMz * dSMz);
-          surface_L1_M1 += surface_M1_error;
-
-          // M2
-          const double dSMxx = final_surface[4] - initial_surface[4];
-          const double dSMxy = final_surface[5] - initial_surface[5];
-          const double dSMxz = final_surface[6] - initial_surface[6];
-          const double dSMyy = final_surface[7] - initial_surface[7];
-          const double dSMyz = final_surface[8] - initial_surface[8];
-          const double dSMzz = final_surface[9] - initial_surface[9];
-          const double surface_M2_error =
-              std::sqrt(dSMxx * dSMxx + dSMyy * dSMyy + dSMzz * dSMzz +
-                        2.0 * (dSMxy * dSMxy + dSMxz * dSMxz + dSMyz * dSMyz));
-          surface_L1_M2 += surface_M2_error;
+          if (compute_surface_M2) {
+            const double dSMxx = final_surface[4] - initial_surface[4];
+            const double dSMxy = final_surface[5] - initial_surface[5];
+            const double dSMxz = final_surface[6] - initial_surface[6];
+            const double dSMyy = final_surface[7] - initial_surface[7];
+            const double dSMyz = final_surface[8] - initial_surface[8];
+            const double dSMzz = final_surface[9] - initial_surface[9];
+            const double surface_M2_error = std::sqrt(
+                dSMxx * dSMxx + dSMyy * dSMyy + dSMzz * dSMzz +
+                2.0 * (dSMxy * dSMxy + dSMxz * dSMxz + dSMyz * dSMyz));
+            surface_L1_M2 += surface_M2_error;
+            surface_Linf_M2 = std::max(surface_Linf_M2, surface_M2_error);
+          }
         }
       }
     }
   }
 
   // MPI reduction
-  ParallelDescriptor::ReduceRealSum(volume_L1_M0);
-  ParallelDescriptor::ReduceRealSum(volume_L1_M1);
-  ParallelDescriptor::ReduceRealSum(volume_L1_M2);
+  if (compute_volume_M0) ParallelDescriptor::ReduceRealSum(volume_L1_M0);
+  if (compute_volume_M1) ParallelDescriptor::ReduceRealSum(volume_L1_M1);
+  if (compute_volume_M2) ParallelDescriptor::ReduceRealSum(volume_L1_M2);
+  if (compute_volume_M0) ParallelDescriptor::ReduceRealMax(volume_Linf_M0);
+  if (compute_volume_M1) ParallelDescriptor::ReduceRealMax(volume_Linf_M1);
+  if (compute_volume_M2) ParallelDescriptor::ReduceRealMax(volume_Linf_M2);
 
-  ParallelDescriptor::ReduceRealSum(surface_L1_M0);
-  ParallelDescriptor::ReduceRealSum(surface_L1_M1);
-  ParallelDescriptor::ReduceRealSum(surface_L1_M2);
+  if (compute_surface_M0) ParallelDescriptor::ReduceRealSum(surface_L1_M0);
+  if (compute_surface_M1) ParallelDescriptor::ReduceRealSum(surface_L1_M1);
+  if (compute_surface_M2) ParallelDescriptor::ReduceRealSum(surface_L1_M2);
+  if (compute_surface_M0) ParallelDescriptor::ReduceRealMax(surface_Linf_M0);
+  if (compute_surface_M1) ParallelDescriptor::ReduceRealMax(surface_Linf_M1);
+  if (compute_surface_M2) ParallelDescriptor::ReduceRealMax(surface_Linf_M2);
 
   // Normalize by moment order
-  volume_L1_M1 /= h;
-  volume_L1_M2 /= (h * h);
+  if (compute_volume_M1) {
+    volume_L1_M1 /= h;
+    volume_Linf_M1 /= h;
+  }
+  if (compute_volume_M2) {
+    volume_L1_M2 /= (h * h);
+    volume_Linf_M2 /= (h * h);
+  }
 
-  surface_L1_M1 /= h;
-  surface_L1_M2 /= (h * h);
+  if (compute_surface_M1) {
+    surface_L1_M1 /= h;
+    surface_Linf_M1 /= h;
+  }
+  if (compute_surface_M2) {
+    surface_L1_M2 /= (h * h);
+    surface_Linf_M2 /= (h * h);
+  }
 
   // Print
   amrex::Print() << "\n"
                  << "=============================================\n"
                  << "VOLUME MOMENT ERRORS\n"
                  << "=============================================\n"
-                 << std::scientific << std::setprecision(16)
-                 << "M0  L1 = " << volume_L1_M0 << "\n"
-                 << "M1  L1 = " << volume_L1_M1 << "\n"
-                 << "M2  L1 = " << volume_L1_M2 << "\n";
+                 << std::scientific << std::setprecision(16);
+  if (compute_volume_M0)
+    amrex::Print() << "M0  L1 = " << volume_L1_M0
+                   << "  Linf = " << volume_Linf_M0 << "\n";
+  if (compute_volume_M1)
+    amrex::Print() << "M1  L1 = " << volume_L1_M1
+                   << "  Linf = " << volume_Linf_M1 << "\n";
+  if (compute_volume_M2)
+    amrex::Print() << "M2  L1 = " << volume_L1_M2
+                   << "  Linf = " << volume_Linf_M2 << "\n";
 
   amrex::Print() << "\n"
                  << "=============================================\n"
                  << "SURFACE MOMENT ERRORS\n"
                  << "=============================================\n"
-                 << std::scientific << std::setprecision(16)
-                 << "M0  L1 = " << surface_L1_M0 << "\n"
-                 << "M1  L1 = " << surface_L1_M1 << "\n"
-                 << "M2  L1 = " << surface_L1_M2 << "\n";
+                 << std::scientific << std::setprecision(16);
+  if (compute_surface_M0)
+    amrex::Print() << "M0  L1 = " << surface_L1_M0
+                   << "  Linf = " << surface_Linf_M0 << "\n";
+  if (compute_surface_M1)
+    amrex::Print() << "M1  L1 = " << surface_L1_M1
+                   << "  Linf = " << surface_Linf_M1 << "\n";
+  if (compute_surface_M2)
+    amrex::Print() << "M2  L1 = " << surface_L1_M2
+                   << "  Linf = " << surface_Linf_M2 << "\n";
 }
 
 }  // namespace
@@ -428,11 +540,20 @@ int main(int argc, char* argv[]) {
     BL_PROFILE("checkpoint_postprocess()");
     std::string initial_checkpoint;
     std::string final_checkpoint;
+    int volume_moment_order = 2;
+    int surface_moment_order = 2;
     {
       amrex::ParmParse pp("postprocess");
       pp.get("initial_checkpoint", initial_checkpoint);
       pp.get("final_checkpoint", final_checkpoint);
+      pp.query("volumetric_moment_order", volume_moment_order);
+      pp.query("surface_moment_order", surface_moment_order);
     }
+
+    validateMomentOrder(volume_moment_order,
+                        "postprocess.volumetric_moment_order");
+    validateMomentOrder(surface_moment_order,
+                        "postprocess.surface_moment_order");
 
     const auto start_total = amrex::second();
 
@@ -484,7 +605,7 @@ int main(int argc, char* argv[]) {
 
     computeMomentErrors(initial_uniform_moments, final_uniform_moments,
                         initial_uniform_interface, final_uniform_interface,
-                        final_geom);
+                        final_geom, volume_moment_order, surface_moment_order);
 
     auto total_time = amrex::second() - start_total;
 
