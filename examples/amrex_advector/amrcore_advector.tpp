@@ -147,6 +147,7 @@ AmrCoreAdv::AmrCoreAdv() {
   flux_reg.resize(nlevs_max + 1);
 
   SetVelocityFieldType();
+  ApplyOutputDirectories();
 }
 
 AmrCoreAdv::~AmrCoreAdv() {}
