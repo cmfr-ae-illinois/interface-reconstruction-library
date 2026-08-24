@@ -145,6 +145,8 @@ AmrCoreAdv::AmrCoreAdv() {
   // with the lev/lev-1 interface (and has grid spacing associated with lev-1)
   // therefore flux_reg[0] is never actually used in the reflux operation
   flux_reg.resize(nlevs_max + 1);
+
+  SetVelocityFieldType();
 }
 
 AmrCoreAdv::~AmrCoreAdv() {}
