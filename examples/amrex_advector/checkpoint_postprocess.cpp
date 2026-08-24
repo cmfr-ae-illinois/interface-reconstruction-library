@@ -12,6 +12,7 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_ParmParse.H>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iomanip>
@@ -334,11 +335,17 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
   double volume_L1_M0 = 0.0;
   double volume_L1_M1 = 0.0;
   double volume_L1_M2 = 0.0;
+  double volume_Linf_M0 = 0.0;
+  double volume_Linf_M1 = 0.0;
+  double volume_Linf_M2 = 0.0;
 
   // Surface errors
   double surface_L1_M0 = 0.0;
   double surface_L1_M1 = 0.0;
   double surface_L1_M2 = 0.0;
+  double surface_Linf_M0 = 0.0;
+  double surface_Linf_M1 = 0.0;
+  double surface_Linf_M2 = 0.0;
 
   for (MFIter mfi(initial_moments); mfi.isValid(); ++mfi) {
     const Box& box = mfi.validbox();
@@ -383,8 +390,9 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
           final_volume = recenterMoments(final_volume, center);
 
           if (compute_volume_M0) {
-            const double dM0 = final_volume[0] - initial_volume[0];
-            volume_L1_M0 += std::abs(dM0);
+            const double M0_error = std::abs(final_volume[0] - initial_volume[0]);
+            volume_L1_M0 += M0_error;
+            volume_Linf_M0 = std::max(volume_Linf_M0, M0_error);
           }
 
           if (compute_volume_M1) {
@@ -394,6 +402,7 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
             const double M1_error =
                 std::sqrt(dMx * dMx + dMy * dMy + dMz * dMz);
             volume_L1_M1 += M1_error;
+            volume_Linf_M1 = std::max(volume_Linf_M1, M1_error);
           }
 
           if (compute_volume_M2) {
@@ -407,6 +416,7 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
                 std::sqrt(dMxx * dMxx + dMyy * dMyy + dMzz * dMzz +
                           2.0 * (dMxy * dMxy + dMxz * dMxz + dMyz * dMyz));
             volume_L1_M2 += M2_error;
+            volume_Linf_M2 = std::max(volume_Linf_M2, M2_error);
           }
 
           MomentArray initial_surface =
@@ -421,8 +431,10 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
           final_surface = recenterMoments(final_surface, center);
 
           if (compute_surface_M0) {
-            const double dSM0 = final_surface[0] - initial_surface[0];
-            surface_L1_M0 += std::abs(dSM0);
+            const double SM0_error =
+                std::abs(final_surface[0] - initial_surface[0]);
+            surface_L1_M0 += SM0_error;
+            surface_Linf_M0 = std::max(surface_Linf_M0, SM0_error);
           }
 
           if (compute_surface_M1) {
@@ -432,6 +444,7 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
             const double surface_M1_error =
                 std::sqrt(dSMx * dSMx + dSMy * dSMy + dSMz * dSMz);
             surface_L1_M1 += surface_M1_error;
+            surface_Linf_M1 = std::max(surface_Linf_M1, surface_M1_error);
           }
 
           if (compute_surface_M2) {
@@ -445,6 +458,7 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
                 dSMxx * dSMxx + dSMyy * dSMyy + dSMzz * dSMzz +
                 2.0 * (dSMxy * dSMxy + dSMxz * dSMxz + dSMyz * dSMyz));
             surface_L1_M2 += surface_M2_error;
+            surface_Linf_M2 = std::max(surface_Linf_M2, surface_M2_error);
           }
         }
       }
@@ -455,17 +469,35 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
   if (compute_volume_M0) ParallelDescriptor::ReduceRealSum(volume_L1_M0);
   if (compute_volume_M1) ParallelDescriptor::ReduceRealSum(volume_L1_M1);
   if (compute_volume_M2) ParallelDescriptor::ReduceRealSum(volume_L1_M2);
+  if (compute_volume_M0) ParallelDescriptor::ReduceRealMax(volume_Linf_M0);
+  if (compute_volume_M1) ParallelDescriptor::ReduceRealMax(volume_Linf_M1);
+  if (compute_volume_M2) ParallelDescriptor::ReduceRealMax(volume_Linf_M2);
 
   if (compute_surface_M0) ParallelDescriptor::ReduceRealSum(surface_L1_M0);
   if (compute_surface_M1) ParallelDescriptor::ReduceRealSum(surface_L1_M1);
   if (compute_surface_M2) ParallelDescriptor::ReduceRealSum(surface_L1_M2);
+  if (compute_surface_M0) ParallelDescriptor::ReduceRealMax(surface_Linf_M0);
+  if (compute_surface_M1) ParallelDescriptor::ReduceRealMax(surface_Linf_M1);
+  if (compute_surface_M2) ParallelDescriptor::ReduceRealMax(surface_Linf_M2);
 
   // Normalize by moment order
-  if (compute_volume_M1) volume_L1_M1 /= h;
-  if (compute_volume_M2) volume_L1_M2 /= (h * h);
+  if (compute_volume_M1) {
+    volume_L1_M1 /= h;
+    volume_Linf_M1 /= h;
+  }
+  if (compute_volume_M2) {
+    volume_L1_M2 /= (h * h);
+    volume_Linf_M2 /= (h * h);
+  }
 
-  if (compute_surface_M1) surface_L1_M1 /= h;
-  if (compute_surface_M2) surface_L1_M2 /= (h * h);
+  if (compute_surface_M1) {
+    surface_L1_M1 /= h;
+    surface_Linf_M1 /= h;
+  }
+  if (compute_surface_M2) {
+    surface_L1_M2 /= (h * h);
+    surface_Linf_M2 /= (h * h);
+  }
 
   // Print
   amrex::Print() << "\n"
@@ -473,9 +505,15 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
                  << "VOLUME MOMENT ERRORS\n"
                  << "=============================================\n"
                  << std::scientific << std::setprecision(16);
-  if (compute_volume_M0) amrex::Print() << "M0  L1 = " << volume_L1_M0 << "\n";
-  if (compute_volume_M1) amrex::Print() << "M1  L1 = " << volume_L1_M1 << "\n";
-  if (compute_volume_M2) amrex::Print() << "M2  L1 = " << volume_L1_M2 << "\n";
+  if (compute_volume_M0)
+    amrex::Print() << "M0  L1 = " << volume_L1_M0
+                   << "  Linf = " << volume_Linf_M0 << "\n";
+  if (compute_volume_M1)
+    amrex::Print() << "M1  L1 = " << volume_L1_M1
+                   << "  Linf = " << volume_Linf_M1 << "\n";
+  if (compute_volume_M2)
+    amrex::Print() << "M2  L1 = " << volume_L1_M2
+                   << "  Linf = " << volume_Linf_M2 << "\n";
 
   amrex::Print() << "\n"
                  << "=============================================\n"
@@ -483,11 +521,14 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
                  << "=============================================\n"
                  << std::scientific << std::setprecision(16);
   if (compute_surface_M0)
-    amrex::Print() << "M0  L1 = " << surface_L1_M0 << "\n";
+    amrex::Print() << "M0  L1 = " << surface_L1_M0
+                   << "  Linf = " << surface_Linf_M0 << "\n";
   if (compute_surface_M1)
-    amrex::Print() << "M1  L1 = " << surface_L1_M1 << "\n";
+    amrex::Print() << "M1  L1 = " << surface_L1_M1
+                   << "  Linf = " << surface_Linf_M1 << "\n";
   if (compute_surface_M2)
-    amrex::Print() << "M2  L1 = " << surface_L1_M2 << "\n";
+    amrex::Print() << "M2  L1 = " << surface_L1_M2
+                   << "  Linf = " << surface_Linf_M2 << "\n";
 }
 
 }  // namespace
