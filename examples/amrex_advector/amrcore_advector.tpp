@@ -8,6 +8,7 @@
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
 #include <AMReX_VisMF.H>
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -16,6 +17,22 @@
 #include "examples/amrex_advector/cases.h"
 
 using namespace amrex;
+
+bool IsAbsolutePath(const std::string& path) {
+  return !path.empty() && path.front() == '/';
+}
+
+std::string JoinPath(const std::string& directory,
+                     const std::string& filename) {
+  if (directory.empty() || directory == "." || filename.empty() ||
+      IsAbsolutePath(filename)) {
+    return filename;
+  }
+  if (directory.back() == '/') {
+    return directory + filename;
+  }
+  return directory + "/" + filename;
+}
 
 void InitializeSepUnionMultiFab(SepUnionMultiFab& mf) {
   for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -44,6 +61,46 @@ struct AmrCoreFill {
 //             - initializes BCRec boundary condition object
 AmrCoreAdv::AmrCoreAdv() {
   ReadParameters();
+
+  ParmParse pprec("reconstruction");
+  pprec.get("name", reconstruction_name);
+
+  ParmParse ppadv("advection");
+  ppadv.get("name", advection_name);
+  ppadv.query("transport_m1", transport_m1);
+  ppadv.query("transport_m2", transport_m2);
+  ppadv.query("reset_moments", reset_moments);
+  // Overwrite transport flag if reconstruction method requires M1 or M2
+  if (!transport_m1 &&
+      (reconstruction_name == "plicnet" || reconstruction_name == "mof" ||
+       reconstruction_name == "mof1" || reconstruction_name == "mof2" ||
+       reconstruction_name == "supermof2")) {
+    amrex::Print()
+        << "Reconstruction method requires transport of first moments\n";
+    transport_m1 = true;
+  }
+  if (!transport_m2 &&
+      (reconstruction_name == "mof2" || reconstruction_name == "supermof2")) {
+    amrex::Print()
+        << "Reconstruction method requires transport of second moments\n";
+    transport_m2 = true;
+  }
+  // Compute number of moment components transported
+  ncomp_moments = 1 + 4 * ((transport_m1 || transport_m2) ? 2 : 0) +
+                  6 * (transport_m2 ? 2 : 0);
+
+  ParmParse ppcase("case");
+  ppcase.get("name", case_name);
+
+  if (case_name == "rotation3d") {
+    velocity_field_type = VelocityFieldType::Rotation;
+  } else if (case_name == "translation3d") {
+    velocity_field_type = VelocityFieldType::Translation;
+  } else if (case_name == "deformation3d") {
+    velocity_field_type = VelocityFieldType::Deformation;
+  } else {
+    velocity_field_type = VelocityFieldType::Interpolated;
+  }
 
   // Geometry on all levels has been defined already.
 
@@ -77,8 +134,8 @@ AmrCoreAdv::AmrCoreAdv() {
     }
   }
 
-  bcs.resize(4);  // Setup 4-component BC vector
-  for (int n = 0; n < 4; ++n) {
+  bcs.resize(ncomp_moments);  // Setup 4-component BC vector
+  for (int n = 0; n < ncomp_moments; ++n) {
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       bcs[n].setLo(idim, BCType::int_dir);
       bcs[n].setHi(idim, BCType::int_dir);
@@ -92,17 +149,7 @@ AmrCoreAdv::AmrCoreAdv() {
   // therefore flux_reg[0] is never actually used in the reflux operation
   flux_reg.resize(nlevs_max + 1);
 
-  ParmParse ppcase("case");
-  ppcase.get("name", case_name);
-
   SetVelocityFieldType();
-
-  ParmParse pprec("reconstruction");
-  pprec.get("name", reconstruction_name);
-
-  ParmParse ppadv("advection");
-  ppadv.get("name", advection_name);
-
   ApplyOutputDirectories();
 }
 
@@ -327,6 +374,16 @@ void AmrCoreAdv::Evolve() {
   int last_checkpoint_file_step =
       initial_checkpoint_file_written ? istep[0] : -1;
 
+  // times at which an interface output is required
+  const std::array<Real, 3> required_intermediate_output_times = {
+      0.25 * stop_time, 0.5 * stop_time, 0.75 * stop_time};
+  std::size_t next_intermediate_output = 0;
+  while (next_intermediate_output < required_intermediate_output_times.size() &&
+         required_intermediate_output_times[next_intermediate_output] <=
+             cur_time) {
+    ++next_intermediate_output;
+  }
+
   for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step) {
     amrex::Print() << "\nCoarse STEP " << step + 1 << " starts ..."
                    << std::endl;
@@ -396,6 +453,10 @@ void AmrCoreAdv::Evolve() {
 
     if (cur_time >= stop_time - 1.e-6 * dt[0]) break;
   }
+
+  // writing interfaces and checkpoint file at final time
+  WritePlotFile();
+  WriteCheckpointFile();
 
   {
     amrex::MultiFab uniform_final;
@@ -475,6 +536,9 @@ void AmrCoreAdv::InitData() {
       initial_checkpoint_file_written = true;
     }
 
+    // writing checkpoint file for initial time step
+    WriteCheckpointFile();
+
   } else {
     // restart from a checkpoint
     ReadCheckpointFile();
@@ -485,6 +549,9 @@ void AmrCoreAdv::InitData() {
     WritePlotFile();
     initial_plot_file_written = true;
   }
+  // writing interface for initial time step
+  GetReconstruction(finest_level);
+  WritePlotFile();
 }
 
 // Make a new level using provided BoxArray and DistributionMapping and
@@ -780,17 +847,17 @@ void AmrCoreAdv::MakeNewLevelFromScratch(int lev, Real time, const BoxArray& ba,
     if (case_name == "deformation3d") {
       amrex::launch(box, [=] AMREX_GPU_DEVICE(const Box& tbx) {
         Deformation3D::initialize_case(tbx, moments_fab, interface_fab, problo,
-                                       dx);
+                                       dx, transport_m1, transport_m2);
       });
     } else if (case_name == "translation3d" || case_name == "default") {
       amrex::launch(box, [=] AMREX_GPU_DEVICE(const Box& tbx) {
         Translation3D::initialize_case(tbx, moments_fab, interface_fab, problo,
-                                       dx);
+                                       dx, transport_m1, transport_m2);
       });
     } else if (case_name == "rotation3d") {
       amrex::launch(box, [=] AMREX_GPU_DEVICE(const Box& tbx) {
-        Rotation3D::initialize_case(tbx, moments_fab, interface_fab, problo,
-                                    dx);
+        Rotation3D::initialize_case(tbx, moments_fab, interface_fab, problo, dx,
+                                    transport_m1, transport_m2);
       });
     } else {
       throw std::runtime_error("Unknown case");
@@ -1124,7 +1191,7 @@ Real AmrCoreAdv::EstTimeStep(int lev, Real time) {
 
 // get plotfile name
 std::string AmrCoreAdv::PlotFileName(int lev) const {
-  return amrex::Concatenate(plot_file, lev, 5);
+  return JoinPath(interface_output_path, amrex::Concatenate(plot_file, lev, 5));
 }
 
 // put together an array of multifabs for writing
@@ -1132,12 +1199,12 @@ Vector<const MultiFab*> AmrCoreAdv::PlotFileMF() const {
   amrex::Print() << "finest_level = " << finest_level << "\n";
   Vector<const MultiFab*> r(finest_level + 1);
   Vector<MultiFab> plotmf(finest_level + 1);
-  const int ncomp_output = 5;
+  const int ncomp_output = ncomp_moments + 1;
   for (int lev = 0; lev <= finest_level; ++lev) {
     plotmf[lev].define(grids[lev], dmap[lev], ncomp_output, 0);
     int comp = 0;
-    MultiFab::Copy(plotmf[lev], moments_new[lev], 0, comp, 4, 0);
-    comp += 4;
+    MultiFab::Copy(plotmf[lev], moments_new[lev], 0, comp, ncomp_moments, 0);
+    comp += ncomp_moments;
     MultiFab::Copy(plotmf[lev], band_id[lev], 0, comp, 1, 0);
     r[lev] = &plotmf[lev];
   }
@@ -1146,7 +1213,32 @@ Vector<const MultiFab*> AmrCoreAdv::PlotFileMF() const {
 
 // set plotfile variable names
 Vector<std::string> AmrCoreAdv::PlotFileVarNames() const {
-  return {"m0", "m1x", "m1y", "m1z", "band_id"};
+  Vector<std::string> varnames;
+  varnames.push_back("m0");
+  if (transport_m1) {
+    varnames.push_back("m1x_l");
+    varnames.push_back("m1y_l");
+    varnames.push_back("m1z_l");
+    varnames.push_back("m1x_g");
+    varnames.push_back("m1y_g");
+    varnames.push_back("m1z_g");
+  }
+  if (transport_m2 == 6) {
+    varnames.push_back("m2xx_l");
+    varnames.push_back("m2xy_l");
+    varnames.push_back("m2xz_l");
+    varnames.push_back("m2yy_l");
+    varnames.push_back("m2yz_l");
+    varnames.push_back("m2zz_l");
+    varnames.push_back("m2xx_g");
+    varnames.push_back("m2xy_g");
+    varnames.push_back("m2xz_g");
+    varnames.push_back("m2yy_g");
+    varnames.push_back("m2yz_g");
+    varnames.push_back("m2zz_g");
+  }
+  varnames.push_back("band_id");
+  return varnames;
 }
 
 // write plotfile to disk
@@ -1156,19 +1248,17 @@ void AmrCoreAdv::WritePlotFile() {
 
   Vector<const MultiFab*> mf(finest_level + 1);
   Vector<MultiFab> plotmf(finest_level + 1);
-  const int ncomp_output = 5;
+  const int ncomp_output = ncomp_moments + 1;
   for (int lev = 0; lev <= finest_level; ++lev) {
     plotmf[lev].define(grids[lev], dmap[lev], ncomp_output, 0);
     int comp = 0;
-    MultiFab::Copy(plotmf[lev], moments_new[lev], 0, comp, 4, 0);
-    comp += 4;
+    MultiFab::Copy(plotmf[lev], moments_new[lev], 0, comp, ncomp_moments, 0);
+    comp += ncomp_moments;
     MultiFab::Copy(plotmf[lev], band_id[lev], 0, comp, 1, 0);
     mf[lev] = &plotmf[lev];
   }
 
-  // const auto& varnames = PlotFileVarNames();
-  const auto& varnames =
-      Vector<std::string>({"m0", "m1x", "m1y", "m1z", "band_id"});
+  const auto& varnames = PlotFileVarNames();
 
   amrex::Print() << "Writing plotfile " << plotfilename << "\n";
 
@@ -1182,7 +1272,8 @@ void AmrCoreAdv::WritePlotFile() {
     // Print PVD file
     if (rank == 0) {
       // Write file header
-      const std::string pvdfile = std::string("interface.pvd");
+      const std::string pvdfile =
+          JoinPath(interface_output_path, std::string("interface.pvd"));
       if (istep[0] == 0) {
         std::ofstream outFile(pvdfile);
         outFile << "<?xml version=\"1.0\"?>\n";
@@ -1463,7 +1554,8 @@ void AmrCoreAdv::WriteCheckpointFile() const {
   // each level of refinement
 
   // checkpoint file name, e.g., chk00010
-  const std::string& checkpointname = amrex::Concatenate(chk_file, istep[0]);
+  const std::string checkpointname =
+      JoinPath(checkpoint_path, amrex::Concatenate(chk_file, istep[0]));
 
   amrex::Print() << "Writing checkpoint " << checkpointname << "\n";
 
@@ -1541,10 +1633,12 @@ void GotoNextLine(std::istream& is) {
 }  // namespace
 
 void AmrCoreAdv::ReadCheckpointFile() {
-  amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
+  const std::string checkpointname = JoinPath(checkpoint_path, restart_chkfile);
+
+  amrex::Print() << "Restart from checkpoint " << checkpointname << "\n";
 
   // Header
-  std::string File(restart_chkfile + "/Header");
+  std::string File(checkpointname + "/Header");
 
   VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
 
@@ -1607,7 +1701,7 @@ void AmrCoreAdv::ReadCheckpointFile() {
     SetDistributionMap(lev, dm);
 
     // build MultiFab and FluxRegister data
-    int ncomp = 4;
+    int ncomp = ncomp_moments;
     int nghost = 0;
     moments_old[lev].define(grids[lev], dmap[lev], ncomp, nghost);
     moments_new[lev].define(grids[lev], dmap[lev], ncomp, nghost);
@@ -1628,7 +1722,7 @@ void AmrCoreAdv::ReadCheckpointFile() {
   // read in the MultiFab data
   for (int lev = 0; lev <= finest_level; ++lev) {
     VisMF::Read(moments_new[lev],
-                amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_",
                                               "moments"));
   }
 }
@@ -2022,8 +2116,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
                 problo[2] + (static_cast<Real>(k) + Real(0.5)) * fine_dx[2];
 
             if (lev == finest) {
-              //
-
               // Finest AMR level:
               // Copy stored moments directly
               fine_arr(i, j, k, 0) = lev_arr(i, j, k, 0);
@@ -2185,7 +2277,7 @@ void AmrCoreAdv::ComputeUniformMomentL1Errors(
 
   final_on_initial_layout.setVal(0.0);
 
-  final_on_initial_layout.ParallelCopy(a_final, 0, 0, 4, 0, 0,
+  final_on_initial_layout.ParallelCopy(a_final, 0, 0, ncomp_moments, 0, 0,
                                        Geom(finest_level).periodicity());
 
   Real local_L1_M0 = 0.0;

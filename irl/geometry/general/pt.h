@@ -17,6 +17,8 @@
 #include <ostream>
 #include <type_traits>
 
+#include <Eigen/Dense>
+
 #include "irl/geometry/general/math_vector.h"
 #include "irl/helpers/byte_buffer.h"
 #include "irl/helpers/expression_templates.h"
@@ -72,6 +74,8 @@ class PtBase : public Expr<PtBase<ScalarType>> {
   static constexpr PtBase fromScalarConstant(const ScalarType a_value);
 
   static PtBase fromVec3(const Vec3<ScalarType>& a_vec);
+
+  static PtBase fromEigenVector(const Eigen::Vector<ScalarType, 3>& a_vec);
 
   operator Vec3<ScalarType>(void);
 
@@ -172,6 +176,9 @@ class PtBase : public Expr<PtBase<ScalarType>> {
 
   /// \brief Construct from a Vec3 MathVector.
   explicit PtBase(const Vec3<ScalarType>& a_vec);
+
+  /// \brief Construct from an Eigen::Vector3.
+  explicit PtBase(const Eigen::Vector<ScalarType, 3>& a_vec);
 
   std::array<ScalarType, 3> loc_m;  ///< x,y,z (0,1,2) location of the point.
 };

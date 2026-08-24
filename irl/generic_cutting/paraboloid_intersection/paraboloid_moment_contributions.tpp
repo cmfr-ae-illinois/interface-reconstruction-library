@@ -856,7 +856,7 @@ ReturnType computeType3Contribution(
   } else if constexpr (std::is_same_v<
                            ReturnType,
                            GeneralMomentsBase<2, 3, ReturnScalarType>>) {
-    ParaboloidMomentArcIntegrator<ReturnType, ScalarType, 10> integrator(
+    ParaboloidMomentArcIntegrator<ReturnType, ScalarType, 50> integrator(
         a_paraboloid, a_arc, a_face_normal, 3);
     return integrator.integrate();
   } else {
