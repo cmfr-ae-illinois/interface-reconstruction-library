@@ -20,25 +20,27 @@
 
 using namespace amrex;
 
-void RecenterMoments(IRL::GeneralMoments3D<2>& moments, const IRL::Pt& center) {
-  const double M0 = moments[0];
-  const Eigen::Matrix<double, 3, 1> M1{moments[1], moments[2], moments[3]};
-  const Eigen::Matrix<double, 3, 3> M2{{moments[4], moments[5], moments[6]},
-                                       {moments[5], moments[7], moments[8]},
-                                       {moments[6], moments[8], moments[9]}};
+void RecenterMoments(IRL::GeneralMoments3D<2>* moments, const IRL::Pt& center) {
+  const double M0 = (*moments)[0];
+  const Eigen::Matrix<double, 3, 1> M1{(*moments)[1], (*moments)[2],
+                                       (*moments)[3]};
+  const Eigen::Matrix<double, 3, 3> M2{
+      {(*moments)[4], (*moments)[5], (*moments)[6]},
+      {(*moments)[5], (*moments)[7], (*moments)[8]},
+      {(*moments)[6], (*moments)[8], (*moments)[9]}};
   const Eigen::Matrix<double, 3, 1> C{center[0], center[1], center[2]};
   const auto M1_final = M1 - M0 * C;
   const auto M2_final =
       M2 - M1 * C.transpose() - C * M1.transpose() + M0 * C * C.transpose();
-  moments[1] = M1_final(0);
-  moments[2] = M1_final(1);
-  moments[3] = M1_final(2);
-  moments[4] = M2_final(0, 0);
-  moments[5] = M2_final(0, 1);
-  moments[6] = M2_final(0, 2);
-  moments[7] = M2_final(1, 1);
-  moments[8] = M2_final(1, 2);
-  moments[9] = M2_final(2, 2);
+  (*moments)[1] = M1_final(0);
+  (*moments)[2] = M1_final(1);
+  (*moments)[3] = M1_final(2);
+  (*moments)[4] = M2_final(0, 0);
+  (*moments)[5] = M2_final(0, 1);
+  (*moments)[6] = M2_final(0, 2);
+  (*moments)[7] = M2_final(1, 1);
+  (*moments)[8] = M2_final(1, 2);
+  (*moments)[9] = M2_final(2, 2);
 }
 
 struct MOF2Functor {
@@ -74,27 +76,26 @@ struct MOF2Functor {
         m_cell_centroid(cell.calculateCentroid()),
         m_liquid_moments(liquid_moments),
         m_gas_moments(gas_moments),
-        m_vfrac(liquid_moments[0] / m_cell_volume),
         m_vfrac_constraint(constraint_vfrac),
         m_cell_constraint(constraint_cell),
-        m_length_scale(std::cbrt(m_cell_volume)),
         m_liquid_centroid(
             IRL::Pt(liquid_moments[1], liquid_moments[2], liquid_moments[3]) *
             (1.0 / IRL::safelyTiny(liquid_moments[0]))),
         m_gas_centroid(IRL::Pt(gas_moments[1], gas_moments[2], gas_moments[3]) *
-                       (1.0 / IRL::safelyTiny(gas_moments[0]))),
-        m_datum(IRL::Pt((1.0 - m_vfrac) * m_liquid_centroid +
-                        m_vfrac * m_gas_centroid)),
-        m_m0_scale(1.0 / m_cell_volume),
-        m_m1_scale_liquid(
-            std::pow(IRL::safelyTiny(m_liquid_moments[0]), -4.0 / 3.0)),
-        m_m1_scale_gas(std::pow(IRL::safelyTiny(m_gas_moments[0]), -4.0 / 3.0)),
-        m_m2_scale_liquid(
-            std::pow(IRL::safelyTiny(m_liquid_moments[0]), -5.0 / 3.0)),
-        m_m2_scale_gas(
-            std::pow(IRL::safelyTiny(m_gas_moments[0]), -5.0 / 3.0)) {
-    RecenterMoments(m_liquid_moments, m_liquid_centroid);
-    RecenterMoments(m_gas_moments, m_gas_centroid);
+                       (1.0 / IRL::safelyTiny(gas_moments[0]))) {
+    m_vfrac = liquid_moments[0] / m_cell_volume;
+    m_length_scale = std::cbrt(m_cell_volume);
+    m_m0_scale = std::pow(IRL::safelyTiny(m_liquid_moments[0]), -1.0);
+    m_m1_scale_liquid =
+        std::pow(IRL::safelyTiny(m_liquid_moments[0]), -4.0 / 3.0);
+    m_m1_scale_gas = std::pow(IRL::safelyTiny(m_gas_moments[0]), -4.0 / 3.0);
+    m_m2_scale_liquid =
+        std::pow(IRL::safelyTiny(m_liquid_moments[0]), -5.0 / 3.0);
+    m_m2_scale_gas = std::pow(IRL::safelyTiny(m_gas_moments[0]), -5.0 / 3.0);
+    m_datum =
+        IRL::Pt((1.0 - m_vfrac) * m_liquid_centroid + m_vfrac * m_gas_centroid);
+    RecenterMoments(&m_liquid_moments, m_liquid_centroid);
+    RecenterMoments(&m_gas_moments, m_gas_centroid);
   }
 
   void setguess(const IRL::Normal& guess_direction,
@@ -167,8 +168,8 @@ struct MOF2Functor {
             m_cell, paraboloid);
     auto liquid_moments = sep_moments[0];
     auto gas_moments = sep_moments[1];
-    RecenterMoments(liquid_moments, m_liquid_centroid);
-    RecenterMoments(gas_moments, m_gas_centroid);
+    RecenterMoments(&liquid_moments, m_liquid_centroid);
+    RecenterMoments(&gas_moments, m_gas_centroid);
     fvec.setZero();
     const double k1dx =
         2.0 * (m_a + (x(2) - 0.999) / m_length_scale) * m_length_scale;

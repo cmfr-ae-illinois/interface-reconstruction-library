@@ -243,6 +243,10 @@ struct LagrangianRemap {
               (1.0 / IRL::safelyTiny(M0_l)) * IRL::Pt::fromEigenVector(M1_l);
           IRL::Pt gas_centroid =
               (1.0 / IRL::safelyTiny(M0_g)) * IRL::Pt::fromEigenVector(M1_g);
+          RestrictPtToBBox(liquid_centroid, IRL::Pt(xlo, ylo, zlo),
+                           IRL::Pt(xhi, yhi, zhi));
+          RestrictPtToBBox(gas_centroid, IRL::Pt(xlo, ylo, zlo),
+                           IRL::Pt(xhi, yhi, zhi));
           liquid_centroid = ProjectVertex(liquid_centroid, a_dt, old_time,
                                           velocity_field_type, velx, vely, velz,
                                           grown_bx, a_geom);

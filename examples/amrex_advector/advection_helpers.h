@@ -25,8 +25,10 @@ enum class VelocityFieldType {
   Deformation
 };
 
-// general velocity accessor (vx, vy, vz is only used if analytical velocity is
-// not used)
+inline void RestrictPtToBBox(IRL::Pt& pt, const IRL::Pt& lo, const IRL::Pt& hi);
+
+// general velocity accessor (vx, vy, vz is only used if analytical velocity
+// is not used)
 IRL::Vec3<double> GetVelocity(const IRL::Pt& pt, const double time,
                               const VelocityFieldType velocity_field_type,
                               Array4<Real const> const& vx,

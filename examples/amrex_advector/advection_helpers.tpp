@@ -14,6 +14,14 @@
 
 using namespace amrex;
 
+inline void RestrictPtToBBox(IRL::Pt& pt, const IRL::Pt& lo,
+                             const IRL::Pt& hi) {
+  for (int i = 0; i < 3; i++) {
+    pt[i] = std::max(pt[i], lo[i]);
+    pt[i] = std::min(pt[i], hi[i]);
+  }
+}
+
 // general velocity accessor
 IRL::Vec3<double> GetVelocity(const IRL::Pt& pt, const double time,
                               const VelocityFieldType velocity_field_type,
