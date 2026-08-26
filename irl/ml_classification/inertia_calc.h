@@ -3,7 +3,7 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include <iostream>
-#include "stencil_rotator.h"
+#include "common_functions.h"
 
 namespace IRL {
 

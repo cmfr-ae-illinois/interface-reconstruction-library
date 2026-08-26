@@ -84,10 +84,16 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
     const std::string& filenamePlic,
     const std::string& outputDataFilename,
     const std::string& outputPlicFilename,
-    int canonicalize_symmetries = 0, int include_Moments = 1, bool include_Surface_Area = false, bool include_Eigenvalues = false, 
-    float noise_stddev = 0.0f, float epsilon_connectivity = 1e-12f, std::vector<int>* savedClasses = nullptr, int downsample_factor = 2, double pdistribution_step = 0.0,
+    std::vector<int>* savedClasses = nullptr, int downsample_factor = 2, double pdistribution_step = 0.0,
     bool write_output = true) 
     {
+
+    int canonicalize_symmetries = classifier.getNoSymmetries();
+    int include_Moments = classifier.getIncludeMoments();
+    bool include_Surface_Area = classifier.getIncludeSurfaceArea(); 
+    bool include_Eigenvalues = classifier.getIncludeEigenvalues();
+    float epsilon_connectivity = classifier.getEpsilonConnect();
+
     auto reader = vtkSmartPointer<vtkXMLRectilinearGridReader>::New();
     reader->SetFileName(filenameNGA.c_str());
     reader->Update();
@@ -215,20 +221,22 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
 
         if (nplaneArray && nplaneArray->GetNumberOfComponents() == 1) {
             evaluateNplane2Sheets = true;
-
-            std::cout << "Found optional PLIC cell array 'nplane'. "
-                    << "Will evaluate nplane=2 classification because downsample_factor == 1."
-                    << std::endl;
+            if (write_output) {
+                std::cout << "Found optional PLIC cell array 'nplane'. "
+                        << "Will evaluate nplane=2 classification because downsample_factor == 1."
+                        << std::endl;
+            }
         } else {
-            std::cout << "Optional PLIC cell array 'nplane' not found or invalid. "
-                    << "Skipping nplane=2 diagnostic."
-                    << std::endl;
+            if (write_output) {
+                std::cout << "Optional PLIC cell array 'nplane' not found or invalid. "
+                        << "Skipping nplane=2 diagnostic."
+                        << std::endl;
+            }
         }
     } else {
-        std::cout << "Skipping nplane=2 diagnostic because downsample_factor = "
-                << downsample_factor
-                << " instead of 1."
-                << std::endl;
+        if (write_output) {
+            std::cout << "Skipping nplane=2 diagnostic because downsample_factor = " << downsample_factor << " instead of 1." << std::endl;   
+        }
     }
     
     // Cell cell locator and plic centroids
@@ -411,10 +419,12 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
     int ny = newCellDims[1];
     int nz = newCellDims[2];
 
-    std::cout << "Downsampled grid cell dimensions:" << std::endl;
-    std::cout << "  nx = " << nx << std::endl;
-    std::cout << "  ny = " << ny << std::endl;
-    std::cout << "  nz = " << nz << std::endl;
+    if (write_output) {
+        std::cout << "Downsampled grid cell dimensions:" << std::endl;
+        std::cout << "  nx = " << nx << std::endl;
+        std::cout << "  ny = " << ny << std::endl;
+        std::cout << "  nz = " << nz << std::endl;
+    }
 
     // Create new cell data array for interface type
     auto interface_type = vtkSmartPointer<vtkIntArray>::New();
@@ -658,7 +668,7 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
 
                 //Preprocess stencil
                 
-                ml.preprocess_stencil(flattened_state_float);
+                classifier.preprocess_stencil(flattened_state_float);
 
                 // Classify
                 std::vector<float> out_probs;
@@ -690,7 +700,7 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
                     case 5:
                         no_cut_sheets++;
                         interface_type->SetValue(centerCellId, 5);
-                        std::cout << "certainty for class 5: " << max_prob << "\n";
+                        //std::cout << "certainty for class 5: " << max_prob << "\n";
                         /*
                         // Debugging: print stencil and moments for first few class 5 predictions
                         static int printed_class5 = 0;
@@ -789,7 +799,10 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
     }
 
     double end_time = static_cast<double>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    std::cout << "Classification time (s): " << (end_time - start_time) / 1e9 << std::endl;
+    if (write_output) {
+        std::cout << "Total number of interface cells classified: " << no_filled_cells << std::endl;
+        std::cout << "Classification time (s): " << (end_time - start_time) / 1e9 << std::endl;
+    }
 
     if (pdistribution_step > 0.0) {
         int no_classes = 6;
@@ -857,16 +870,17 @@ void classify_timestep(IRL::Classifier& classifier, const std::string& filenameN
             }
         }
     }
-  
 
-    std::cout << "\n=== Classification Summary ===" << std::endl;
-    std::cout << "Total cells with interface:   " << no_filled_cells << std::endl;
-    std::cout << "Paraboloids:          " << no_paraboloids << std::endl;
-    std::cout << "Cylinders:            " << no_cylinders << std::endl;
-    std::cout << "Spheres:              " << no_spheres << std::endl;
-    std::cout << "Sheets:               " << no_sheets << std::endl;
-    std::cout << "Ligament tips:        " << no_ligament_tip << std::endl;
-    std::cout << "Sheet Edges:          " << no_cut_sheets << std::endl;
+    if (write_output) {
+        std::cout << "\n=== Classification Summary ===" << std::endl;
+        std::cout << "Total cells with interface:   " << no_filled_cells << std::endl;
+        std::cout << "Paraboloids:          " << no_paraboloids << std::endl;
+        std::cout << "Cylinders:            " << no_cylinders << std::endl;
+        std::cout << "Spheres:              " << no_spheres << std::endl;
+        std::cout << "Sheets:               " << no_sheets << std::endl;
+        std::cout << "Ligament tips:        " << no_ligament_tip << std::endl;
+        std::cout << "Sheet Edges:          " << no_cut_sheets << std::endl;
+    }
 
     // Get average certainty
     double certainty_sum = 0.0;
@@ -1006,12 +1020,6 @@ void classify_simulation(
     const std::string& dataDirectory,
     const std::string& plicDirectory,
     const std::string& outputDirectory,
-    int canonicalize_symmetries,
-    int include_Moments,
-    bool include_Surface_Area,
-    bool include_Eigenvalues,
-    float noise_stddev,
-    float epsilon_connectivity,
     std::vector<int>* savedClasses,
     int downsample_factor,
     double pdistribution_step,
@@ -1126,24 +1134,18 @@ void classify_simulation(
             outputPlicFilename = outputPlicFile.string();
         }
 
-        std::cout
+        if (write_output) {
+            std::cout
             << "\n==================================================\n"
             << "Classifying timestep " << tag << "\n"
             << "Data input:  " << inputDataFile.string() << "\n"
             << "PLIC input:  " << inputPlicFile.string() << "\n";
 
-        if (write_output) {
             std::cout
                 << "Data output: " << outputDataFilename << "\n"
                 << "PLIC output: " << outputPlicFilename << "\n";
-        } else {
-            std::cout
-                << "Output writing disabled for model selection.\n";
+            std::cout << "==================================================" << std::endl;
         }
-
-        std::cout
-            << "=================================================="
-            << std::endl;
 
         classify_timestep(
             classifier,
@@ -1151,12 +1153,6 @@ void classify_simulation(
             inputPlicFile.string(),
             outputDataFilename,
             outputPlicFilename,
-            canonicalize_symmetries,
-            include_Moments,
-            include_Surface_Area,
-            include_Eigenvalues,
-            noise_stddev,
-            epsilon_connectivity,
             savedClasses,
             downsample_factor,
             pdistribution_step,

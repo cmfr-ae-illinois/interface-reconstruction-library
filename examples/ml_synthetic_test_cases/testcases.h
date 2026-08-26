@@ -1,4 +1,4 @@
-#include "irl/ml_classification/stencil_rotator.h"
+#include "irl/ml_classification/common_functions.h"
 #include "irl/ml_classification/data_gen.h"
 #include "irl/ml_classification/ml_classifier.h"
 

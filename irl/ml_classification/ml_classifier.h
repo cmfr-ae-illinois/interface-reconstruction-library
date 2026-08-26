@@ -60,9 +60,10 @@ protected:
     int epochs = 50;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
+    uint64_t seed = 0;
 
     // Data Parameters
-    int no_batches = 4096 * 4;
+    int no_batches = 4096 * 4 * 2;
     int no_datapoints = no_batches * batch_size;
 
     double paraboloid_coeff_stddev = 0.1;
@@ -108,6 +109,9 @@ protected:
 public:
     MLClassifier(
         int stencil = 5,
+        float epsilon_connect_ = 1e-12f,
+        int no_symmetries_ = 0,
+        float noise_stddev_ = 0.0f,
         int include_moments = 1,
         bool include_surface_area = false,
         bool include_eigenvalues = false,
@@ -115,7 +119,7 @@ public:
         int h2 = 64,
         int h3 = 32,
         int out = 6)
-        : Classifier(stencil),
+        : Classifier(stencil, epsilon_connect_, no_symmetries_, noise_stddev_),
         input_size(calculateInputSize(
             stencil,
             include_moments,
@@ -191,6 +195,20 @@ public:
         lower_limit_subgrid = lower_limit_subgrid_in;
         upper_limit_subgrid = upper_limit_subgrid_in;
         class0_max_characteristic = class0_max_characteristic_in;
+    }
+
+    void setSeed(uint64_t seed_in) {
+        seed = seed_in;
+
+        // Set LibTorch RNG seed
+        torch::manual_seed(seed);
+
+        // Reinitialize the network so that its initial weights
+        // are determined by this seed.
+        net.fc1->reset_parameters();
+        net.fc2->reset_parameters();
+        net.fc3->reset_parameters();
+        net.fc4->reset_parameters();
     }
 
     void generateDataset() {
@@ -452,47 +470,45 @@ public:
         }
     }
 
-    void canonicalize_data(int no_symmetries) { //OLD kept for compatability
-        if (statesV.empty()) {
-            std::cerr << "⚠ No data loaded. Cannot canonicalize." << std::endl;
-            return;
-        }
-
-        std::cout << "🔄 Canonicalizing " << statesV.size()
-                << " samples using " << no_symmetries << " symmetries..." << std::endl;
-
-        for (size_t sample = 0; sample < statesV.size(); sample++) {
-            auto& flat = statesV[sample];
-
-            preprocess_stencil(flat, stencil_size, no_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues);
-        }
-        std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
-
-        std::cout << "✅ Canonicalization complete!" << std::endl;
-    }
-
-    void preprocess_data(int no_canonical_symmetries, float noise_stddev = 0.0f) {
+    void preprocess_data() {
         if (statesV.empty()) {
             std::cerr << "⚠ No data loaded. Cannot preprocess." << std::endl;
             return;
         }
 
-        std::cout << "🔧 Preprocessing " << statesV.size() << " samples..." << std::endl;
-        std::cout << "Length of flattened state before: " << statesV[0].size() << std::endl;
-        std::cout << "including Eigenvalues: " << include_Eigenvalues << ", including Moments: " << include_Moments << std::endl;
-        std::cout << "including Surface Area: " << include_Surface_Area << std::endl;
-        for (size_t sample = 0; sample < statesV.size(); sample++) {
-            auto& flat = statesV[sample];
+        std::cout << "🔧 Preprocessing " << statesV.size()
+                << " samples..." << std::endl;
 
-            preprocess_stencil(flat, stencil_size, no_canonical_symmetries, include_Moments, include_Surface_Area, include_Eigenvalues, noise_stddev);
+        std::cout << "Length of flattened state before: "
+                << statesV[0].size() << std::endl;
+
+        std::cout << "including Eigenvalues: " << include_Eigenvalues
+                << ", including Moments: " << include_Moments << std::endl;
+
+        std::cout << "including Surface Area: "
+                << include_Surface_Area << std::endl;
+
+        std::cout << "no_symmetries: "
+                << no_symmetries << std::endl;
+
+        std::cout << "noise_stddev: "
+                << noise_stddev << std::endl;
+
+        for (auto& flat : statesV) {
+            preprocess_stencil(flat);
         }
-        std::cout << "Length of flattened state: " << statesV[0].size() << std::endl;
+
+        std::cout << "Length of flattened state after: "
+                << statesV[0].size() << std::endl;
 
         std::cout << "✅ Preprocessing complete!" << std::endl;
     }
 
 
     double trainModel() {
+
+        torch::manual_seed(seed);
+
         optimizer = std::make_unique<torch::optim::AdamW>(
             net.parameters(),
             torch::optim::AdamWOptions(learning_rate)
@@ -634,6 +650,7 @@ public:
 
         param_out << "[TrainingParameters]\n";
         param_out << "learning_rate " << learning_rate << "\n";
+        param_out << "seed " << seed << "\n";
         param_out << "batch_size " << batch_size << "\n";
         param_out << "epochs " << epochs << "\n\n";
 

@@ -6274,14 +6274,8 @@ namespace IRL {
             switch (shape_type) {
                 case 1: {
                     if (subshape_probability < 0.2) {
-                        // 10% chance → truncated cylinder
-                        if (subshape_probability < 0.1) {
-                            generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
-                        }
-                        // 10% chance → ellipsoid
-                        else {
-                            generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, /*truncateinsidecentralcell*/false, secondMomentPtr);
-                        }
+                        // 20% chance → truncated cylinder
+                        generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/false, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
                     } else {
                         // 80% chance → continuous ligament
                         if (subshape_probability < 0.5) {
@@ -6347,13 +6341,7 @@ namespace IRL {
                     break;
                 }
                 case 4: {
-                    if (subshape_probability < 0.5) {
-                        // 50% chance → ellipsoid ligament tip
-                        generateEllipsoidLigamentTip(vfrac, firstMoment, area, min_long_ellipsoid_axis, max_long_ellipsoid_axis, min_small_ellipsoid_axis, max_small_ellipsoid_axis, /*truncateinsidecentralcell*/false, secondMomentPtr);
-                    } else {
-                        // 50% chance → bent truncated cylinder
-                        generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
-                    }
+                    generateBentTruncatedCylinder(vfrac, firstMoment, area, /*truncateinsidecentralcell*/true, min_cylinder_radius, max_cylinder_radius, secondMomentPtr);
                     break;
                 }
                 case 5: {
