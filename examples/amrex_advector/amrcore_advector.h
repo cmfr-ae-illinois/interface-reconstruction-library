@@ -128,6 +128,8 @@ class AmrCoreAdv : public amrex::AmrCore {
   // set covered coarse cells to be the average of overlying fine cells
   void AverageDown();
 
+  void AverageDownVolumeFraction();
+
   // more flexible version of AverageDown() that lets you average down across
   // multiple levels
   void AverageDownTo(int crse_lev);
@@ -216,6 +218,9 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
       const amrex::Geometry& a_geom, const double a_dt, const double a_time);
 
+  // void BuildUniformFinestVolumeFractionField(
+  //     amrex::MultiFab& a_uniform_vf) const;
+
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
 
   amrex::Real ComputeCompositeM0() const;
@@ -224,6 +229,12 @@ class AmrCoreAdv : public amrex::AmrCore {
                                     const amrex::MultiFab& a_final) const;
 
   amrex::Real ComputeL1ErrorM0() const;
+
+  void UpdateVolumeFraction(int lev);
+
+  void SetFullAndEmptyCellMoments(int lev);
+
+  void PrintBoxBounds() const;
 
   ////////////////
   // private data members
@@ -243,6 +254,7 @@ class AmrCoreAdv : public amrex::AmrCore {
   int ncomp_moments = 1;
   amrex::Vector<amrex::MultiFab> moments_new;
   amrex::Vector<amrex::MultiFab> moments_old;
+  amrex::Vector<amrex::MultiFab> volume_fraction;
   amrex::Vector<amrex::MultiFab> band_id;
   amrex::Vector<amrex::SepUnionMultiFab> interface;
 
