@@ -218,8 +218,8 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
       const amrex::Geometry& a_geom, const double a_dt, const double a_time);
 
-  // void BuildUniformFinestVolumeFractionField(
-  //     amrex::MultiFab& a_uniform_vf) const;
+  void BuildUniformFinestVolumeFractionField(
+      amrex::MultiFab& a_uniform_vf) const;
 
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
 
