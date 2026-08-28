@@ -47,14 +47,11 @@ amr.v              = 1       # verbosity in Amr
 # *****************************************************************
 # Resolution and refinement
 # *****************************************************************
-amr.n_cell          = 2 2 2
-amr.max_level       = 5       # maximum level number allowed -- 
 amr.n_cell          = 8 8 8
-amr.max_level       = 3       # maximum level number allowed -- 
+amr.max_level       = 2       # maximum level number allowed -- 
                               # number of levels = max_level + 1
 
-amr.ref_ratio       = 2 2 2 2 2 # refinement ratio between levels
-amr.ref_ratio       = 2 2 2 # refinement ratio between levels
+amr.ref_ratio       = 2 2 # refinement ratio between levels
 
 # *****************************************************************
 # Control of grid creation
@@ -62,9 +59,6 @@ amr.ref_ratio       = 2 2 2 # refinement ratio between levels
 # Blocking factor for grid creation in each dimension --
 #   this ensures that every grid is coarsenable by a factor of 8 --
 #   this is mostly relevant for multigrid performance
-amr.blocking_factor_x = 2
-amr.blocking_factor_y = 2
-amr.blocking_factor_z = 2
 amr.blocking_factor_x = 8
 amr.blocking_factor_y = 8
 amr.blocking_factor_z = 8
