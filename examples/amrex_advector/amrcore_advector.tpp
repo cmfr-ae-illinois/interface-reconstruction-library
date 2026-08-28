@@ -86,7 +86,7 @@ AmrCoreAdv::AmrCoreAdv() {
     transport_m2 = true;
   }
   // Compute number of moment components transported
-  ncomp_moments = 1 + 3 * ((transport_m1 || transport_m2) ? 2 : 0) +
+  ncomp_moments = 2 + 3 * ((transport_m1 || transport_m2) ? 2 : 0) +
                   6 * (transport_m2 ? 2 : 0);
 
   ParmParse ppcase("case");
@@ -400,7 +400,7 @@ void AmrCoreAdv::Evolve() {
     cur_time += dt[0];
 
     // sum phi to check conservation
-    Real sum_phi = moments_new[0].sum();
+    Real sum_phi = moments_new[0].sum(comp_m0);
 
     amrex::Print() << "Coarse STEP " << step + 1 << " ends."
                    << " TIME = " << cur_time << " DT = " << dt[0]
@@ -437,9 +437,10 @@ void AmrCoreAdv::Evolve() {
   {
     amrex::MultiFab uniform_final;
     BuildUniformFinestMoments(uniform_final);
-    if (transport_m1) {
-      ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
-    }
+    // if (transport_m1) {
+    //   ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
+    // }
+    ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
   }
 
   {
@@ -856,10 +857,6 @@ void AmrCoreAdv::ErrorEst(int lev, TagBoxArray& tags, Real /*time*/,
   const int tagval = TagBox::SET;
 
   const MultiFab& state = band_id[lev];
-  GeometryData geomdata = geom[lev].data();
-  const Real* AMREX_RESTRICT dx = geomdata.CellSize();
-  const Real vol_inv = 1.0 / (dx[0] * dx[1] * dx[2]);
-
   for (MFIter mfi(state, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
     const Box& bx = mfi.tilebox();
     const auto statefab = state.array(mfi);
@@ -921,6 +918,10 @@ void AmrCoreAdv::AverageDown() {
   for (int lev = finest_level - 1; lev >= 0; --lev) {
     amrex::average_down(moments_new[lev + 1], moments_new[lev], geom[lev + 1],
                         geom[lev], 0, moments_new[lev].nComp(), refRatio(lev));
+    const IntVect ratio = refRatio(lev);
+    const Real moment_scale = Real(ratio[0]) * Real(ratio[1]) * Real(ratio[2]);
+    moments_new[lev].mult(moment_scale, comp_m0, moments_new[lev].nComp() - 1,
+                          0);
   }
 }
 
@@ -930,6 +931,10 @@ void AmrCoreAdv::AverageDownTo(int crse_lev) {
   amrex::average_down(moments_new[crse_lev + 1], moments_new[crse_lev],
                       geom[crse_lev + 1], geom[crse_lev], 0,
                       moments_new[crse_lev].nComp(), refRatio(crse_lev));
+  const IntVect ratio = refRatio(crse_lev);
+  const Real moment_scale = Real(ratio[0]) * Real(ratio[1]) * Real(ratio[2]);
+  moments_new[crse_lev].mult(moment_scale, comp_m0,
+                             moments_new[crse_lev].nComp() - comp_m0, 0);
 }
 
 // compute a new multifab by coping in phi from valid region and filling ghost
@@ -1176,6 +1181,7 @@ Vector<const MultiFab*> AmrCoreAdv::PlotFileMF() const {
 // set plotfile variable names
 Vector<std::string> AmrCoreAdv::PlotFileVarNames() const {
   Vector<std::string> varnames;
+  varnames.push_back("vf");
   varnames.push_back("m0");
   if (transport_m1) {
     varnames.push_back("m1x_l");
@@ -1689,63 +1695,8 @@ void AmrCoreAdv::ReadCheckpointFile() {
   }
 }
 
-// inline IRL::Vec3<double> AmrCoreAdv::getVelocity(const IRL::Pt& pt,
-//                                                  Array4<Real const> const&
-//                                                  vx, Array4<Real const>
-//                                                  const& vy, Array4<Real
-//                                                  const> const& vz, const Box&
-//                                                  bx, const int lev) {
-//   const auto& dx = geom[lev].CellSizeArray();
-//   const auto& prob_lo = geom[lev].ProbLoArray();
-//   const auto& lo = lbound(bx);
-//   const auto& hi = ubound(bx);
-//   // Find which cell the point falls in
-//   int i = static_cast<int>(amrex::Math::floor((pt[0] - prob_lo[0]) / dx[0]));
-//   int j = static_cast<int>(amrex::Math::floor((pt[1] - prob_lo[1]) / dx[1]));
-//   int k = static_cast<int>(amrex::Math::floor((pt[2] - prob_lo[2]) / dx[2]));
-//   if (!bx.contains(i, j, k)) {
-//     std::ostringstream oss;
-//     oss << "Position (" << pt[0] << "," << pt[1] << "," << pt[2]
-//         << ") leads to index (" << i << "," << j << "," << k
-//         << ") outside of box (" << lo.x << "," << lo.y << "," << lo.z <<
-//         ")x("
-//         << hi.x << "," << hi.y << "," << hi.z << ")";
-//     throw std::runtime_error(oss.str());
-//   }
-//   // Cell lo face positions
-//   Real xlo = prob_lo[0] + i * dx[0];
-//   Real ylo = prob_lo[1] + j * dx[1];
-//   Real zlo = prob_lo[2] + k * dx[2];
-//   // Normalized position within cell [0,1]
-//   Real tx = (pt[0] - xlo) / dx[0];
-//   Real ty = (pt[1] - ylo) / dx[1];
-//   Real tz = (pt[2] - zlo) / dx[2];
-//   return IRL::Vec3<double>(vx(i, j, k) * (1.0 - tx) + vx(i + 1, j, k) * tx,
-//                            vy(i, j, k) * (1.0 - ty) + vy(i, j + 1, k) * ty,
-//                            vz(i, j, k) * (1.0 - tz) + vz(i, j, k + 1) * tz);
-// }
-
-// inline IRL::Pt AmrCoreAdv::project_vertex(const IRL::Pt& pt, const double dt,
-//                                           Array4<Real const> const& vx,
-//                                           Array4<Real const> const& vy,
-//                                           Array4<Real const> const& vz,
-//                                           const Box& bx, const int lev) {
-//   using Pt = IRL::Pt;
-//   auto v1 = getVelocity(pt, vx, vy, vz, bx, lev);
-//   auto v2 = getVelocity(pt + Pt::fromVec3(0.5 * dt * v1), vx, vy, vz, bx,
-//   lev); auto v3 = getVelocity(pt + Pt::fromVec3(0.5 * dt * v2), vx, vy, vz,
-//   bx, lev); auto v4 = getVelocity(pt + Pt::fromVec3(dt * v3), vx, vy, vz, bx,
-//   lev); return pt + Pt::fromVec3(dt * (v1 + 2.0 * v2 + 2.0 * v3 + v4) / 6.0);
-// }
-
 void AmrCoreAdv::UpdateBand() {
   for (int lev = 0; lev <= finest_level; lev++) {
-    // Get geometrical information
-    const auto dx = geom[lev].CellSizeArray();
-    const auto problo = geom[lev].ProbLoArray();
-    const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
-
     moments_new[lev].FillBoundary(geom[lev].periodicity());
     band_id[lev].setVal(0.0);
 
@@ -1754,8 +1705,8 @@ void AmrCoreAdv::UpdateBand() {
       Array4<Real> band = band_id[lev].array(mfi);
       const Box& bx = mfi.tilebox();
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        if (moments(i, j, k, 0) * vol_inv > IRL::global_constants::VF_LOW &&
-            moments(i, j, k, 0) * vol_inv < IRL::global_constants::VF_HIGH) {
+        if (moments(i, j, k, comp_vf) > IRL::global_constants::VF_LOW &&
+            moments(i, j, k, comp_vf) < IRL::global_constants::VF_HIGH) {
           band(i, j, k) = 1.0;
         }
       });
@@ -1794,12 +1745,6 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
   // for (int lev = 0; lev <= finest_level; lev++) {
   const int lev = finest_level;
   {
-    // Get geometrical information
-    const auto dx = geom[lev].CellSizeArray();
-    const auto problo = geom[lev].ProbLoArray();
-    const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
-
     // Store old moments
     MultiFab::Copy(moments_old[lev], moments_new[lev], 0, 0,
                    moments_new[lev].nComp(), moments_new[lev].nGrow());
@@ -2030,9 +1975,6 @@ void AmrCoreAdv::BuildUniformFinestMoments(
     const int ry = ratio_vect[1];
     const int rz = ratio_vect[2];
 
-    const auto lev_dx = Geom(lev).CellSizeArray();
-    const Real lev_vol = lev_dx[0] * lev_dx[1] * lev_dx[2];
-
     const Box& lev_domain = Geom(lev).Domain();
     const IntVect lev_dom_lo = lev_domain.smallEnd();
 
@@ -2080,15 +2022,18 @@ void AmrCoreAdv::BuildUniformFinestMoments(
             if (lev == finest) {
               // Finest AMR level:
               // Copy stored moments directly
-              fine_arr(i, j, k, 0) = lev_arr(i, j, k, 0);
+              fine_arr(i, j, k, comp_vf) = lev_arr(i, j, k, comp_vf);
+              fine_arr(i, j, k, comp_m0) = lev_arr(i, j, k, comp_m0);
               if (transport_m1) {
                 for (int n = 0; n < 6; n++) {
-                  fine_arr(i, j, k, 1 + n) = lev_arr(i, j, k, 1 + n);
+                  fine_arr(i, j, k, comp_m1_l + n) =
+                      lev_arr(i, j, k, comp_m1_l + n);
                 }
               }
               if (transport_m2) {
                 for (int n = 0; n < 12; n++) {
-                  fine_arr(i, j, k, 7 + n) = lev_arr(i, j, k, 7 + n);
+                  fine_arr(i, j, k, comp_m2_l + n) =
+                      lev_arr(i, j, k, comp_m2_l + n);
                 }
               }
 
@@ -2101,65 +2046,61 @@ void AmrCoreAdv::BuildUniformFinestMoments(
               const int jc = lev_lo_y + (j - fine_lo_y) / ry;
               const int kc = lev_lo_z + (k - fine_lo_z) / rz;
 
-              const Real vf = lev_arr(ic, jc, kc, 0) / lev_vol;
+              const Real vf = lev_arr(ic, jc, kc, comp_vf);
 
               if (vf > IRL::global_constants::VF_HIGH) {
                 // Pure liquid coarse cell.
                 // Every generated finest cell inside it is full liquid.
-                fine_arr(i, j, k, 0) = lev_vol;
+                fine_arr(i, j, k, comp_vf) = Real(1.0);
+                fine_arr(i, j, k, comp_m0) = fine_vol;
                 if (transport_m1) {
-                  fine_arr(i, j, k, 1) = lev_vol * x;
-                  fine_arr(i, j, k, 2) = lev_vol * y;
-                  fine_arr(i, j, k, 3) = lev_vol * z;
-                  fine_arr(i, j, k, 4) = Real(0.0);
-                  fine_arr(i, j, k, 5) = Real(0.0);
-                  fine_arr(i, j, k, 6) = Real(0.0);
+                  fine_arr(i, j, k, comp_m1_l) = fine_vol * x;
+                  fine_arr(i, j, k, comp_m1_l + 1) = fine_vol * y;
+                  fine_arr(i, j, k, comp_m1_l + 2) = fine_vol * z;
+                  fine_arr(i, j, k, comp_m1_g) = Real(0.0);
+                  fine_arr(i, j, k, comp_m1_g + 1) = Real(0.0);
+                  fine_arr(i, j, k, comp_m1_g + 2) = Real(0.0);
                 }
                 if (transport_m2) {
-                  fine_arr(i, j, k, 7) =
-                      lev_vol * (lev_dx[0] * lev_dx[0] / 12.0 + x * x);
-                  fine_arr(i, j, k, 8) = lev_vol * x * y;
-                  fine_arr(i, j, k, 9) = lev_vol * x * z;
-                  fine_arr(i, j, k, 10) =
-                      lev_vol * (lev_dx[1] * lev_dx[1] / 12.0 + y * y);
-                  fine_arr(i, j, k, 11) = lev_vol * y * z;
-                  fine_arr(i, j, k, 12) =
-                      lev_vol * (lev_dx[2] * lev_dx[2] / 12.0 + z * z);
-                  fine_arr(i, j, k, 13) = Real(0.0);
-                  fine_arr(i, j, k, 14) = Real(0.0);
-                  fine_arr(i, j, k, 15) = Real(0.0);
-                  fine_arr(i, j, k, 16) = Real(0.0);
-                  fine_arr(i, j, k, 17) = Real(0.0);
-                  fine_arr(i, j, k, 18) = Real(0.0);
+                  fine_arr(i, j, k, comp_m2_l) =
+                      fine_vol * (fine_dx[0] * fine_dx[0] / 12.0 + x * x);
+                  fine_arr(i, j, k, comp_m2_l + 1) = fine_vol * x * y;
+                  fine_arr(i, j, k, comp_m2_l + 2) = fine_vol * x * z;
+                  fine_arr(i, j, k, comp_m2_l + 3) =
+                      fine_vol * (fine_dx[1] * fine_dx[1] / 12.0 + y * y);
+                  fine_arr(i, j, k, comp_m2_l + 4) = fine_vol * y * z;
+                  fine_arr(i, j, k, comp_m2_l + 5) =
+                      fine_vol * (fine_dx[2] * fine_dx[2] / 12.0 + z * z);
+                  for (int n = 0; n < 6; n++) {
+                    fine_arr(i, j, k, comp_m2_g + n) = Real(0.0);
+                  }
                 }
               } else if (vf < IRL::global_constants::VF_LOW) {
                 // Pure gas coarse cell.
                 // Every generated finest cell inside it is empty.
-                fine_arr(i, j, k, 0) = Real(0.0);
+                fine_arr(i, j, k, comp_vf) = Real(0.0);
+                fine_arr(i, j, k, comp_m0) = Real(0.0);
                 if (transport_m1) {
-                  fine_arr(i, j, k, 1) = Real(0.0);
-                  fine_arr(i, j, k, 2) = Real(0.0);
-                  fine_arr(i, j, k, 3) = Real(0.0);
-                  fine_arr(i, j, k, 4) = lev_vol * x;
-                  fine_arr(i, j, k, 5) = lev_vol * y;
-                  fine_arr(i, j, k, 6) = lev_vol * z;
+                  fine_arr(i, j, k, comp_m1_l) = Real(0.0);
+                  fine_arr(i, j, k, comp_m1_l + 1) = Real(0.0);
+                  fine_arr(i, j, k, comp_m1_l + 2) = Real(0.0);
+                  fine_arr(i, j, k, comp_m1_g) = fine_vol * x;
+                  fine_arr(i, j, k, comp_m1_g + 1) = fine_vol * y;
+                  fine_arr(i, j, k, comp_m1_g + 2) = fine_vol * z;
                 }
                 if (transport_m2) {
-                  fine_arr(i, j, k, 7) = Real(0.0);
-                  fine_arr(i, j, k, 8) = Real(0.0);
-                  fine_arr(i, j, k, 9) = Real(0.0);
-                  fine_arr(i, j, k, 10) = Real(0.0);
-                  fine_arr(i, j, k, 11) = Real(0.0);
-                  fine_arr(i, j, k, 12) = Real(0.0);
-                  fine_arr(i, j, k, 13) =
-                      lev_vol * (lev_dx[0] * lev_dx[0] / 12.0 + x * x);
-                  fine_arr(i, j, k, 14) = lev_vol * x * y;
-                  fine_arr(i, j, k, 15) = lev_vol * x * z;
-                  fine_arr(i, j, k, 16) =
-                      lev_vol * (lev_dx[1] * lev_dx[1] / 12.0 + y * y);
-                  fine_arr(i, j, k, 17) = lev_vol * y * z;
-                  fine_arr(i, j, k, 18) =
-                      lev_vol * (lev_dx[2] * lev_dx[2] / 12.0 + z * z);
+                  for (int n = 0; n < 6; n++) {
+                    fine_arr(i, j, k, comp_m2_l + n) = Real(0.0);
+                  }
+                  fine_arr(i, j, k, comp_m2_g) =
+                      fine_vol * (fine_dx[0] * fine_dx[0] / 12.0 + x * x);
+                  fine_arr(i, j, k, comp_m2_g + 1) = fine_vol * x * y;
+                  fine_arr(i, j, k, comp_m2_g + 2) = fine_vol * x * z;
+                  fine_arr(i, j, k, comp_m2_g + 3) =
+                      fine_vol * (fine_dx[1] * fine_dx[1] / 12.0 + y * y);
+                  fine_arr(i, j, k, comp_m2_g + 4) = fine_vol * y * z;
+                  fine_arr(i, j, k, comp_m2_g + 5) =
+                      fine_vol * (fine_dx[2] * fine_dx[2] / 12.0 + z * z);
                 }
               }
             }
@@ -2215,7 +2156,7 @@ amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
 
       amrex::Loop(bx, [=, &fab_sum](int i, int j, int k) noexcept {
         if (mask_arr(i, j, k) == 1) {
-          fab_sum += m_arr(i, j, k, 0);
+          fab_sum += m_arr(i, j, k, comp_m0);
         }
       });
 
@@ -2259,9 +2200,10 @@ void AmrCoreAdv::ComputeUniformMomentL1Errors(
     const amrex::MultiFab& a_initial, const amrex::MultiFab& a_final) const {
   using namespace amrex;
 
-  if (a_initial.nComp() < 4 || a_final.nComp() < 4) {
+  if (a_initial.nComp() != a_final.nComp()) {
     amrex::Abort(
-        "ComputeUniformMomentL1Errors: expected at least 4 components.");
+        "ComputeUniformMomentL1Errors: initial/final don't have the same "
+        "number of components");
   }
 
   if (a_initial.boxArray().ixType() != a_final.boxArray().ixType()) {
@@ -2293,7 +2235,7 @@ void AmrCoreAdv::ComputeUniformMomentL1Errors(
                                        Geom(finest_level).periodicity());
 
   Real local_L1_M0 = 0.0;
-  Real local_L1_M1mag = 0.0;
+  // Real local_L1_M1mag = 0.0;
 
   for (MFIter mfi(a_initial, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
     const Box& bx = mfi.tilebox();
@@ -2302,43 +2244,47 @@ void AmrCoreAdv::ComputeUniformMomentL1Errors(
     auto fin = final_on_initial_layout.const_array(mfi);
 
     Real fab_L1_M0 = 0.0;
-    Real fab_L1_M1mag = 0.0;
+    // Real fab_L1_M1mag = 0.0;
 
-    amrex::Loop(bx,
-                [=, &fab_L1_M0, &fab_L1_M1mag](int i, int j, int k) noexcept {
-                  const Real M0_i = init(i, j, k, 0);
-                  const Real M0_f = fin(i, j, k, 0);
+    // amrex::Loop(bx,
+    //             [=, &fab_L1_M0, &fab_L1_M1mag](int i, int j, int k) noexcept
+    //             {
+    amrex::Loop(bx, [=, &fab_L1_M0](int i, int j, int k) noexcept {
+      const Real M0_i = init(i, j, k, comp_m0);
+      const Real M0_f = fin(i, j, k, comp_m0);
 
-                  const Real M1x_i = init(i, j, k, 1);
-                  const Real M1y_i = init(i, j, k, 2);
-                  const Real M1z_i = init(i, j, k, 3);
+      // const Real M1x_i = init(i, j, k, comp_m1_l);
+      // const Real M1y_i = init(i, j, k, comp_m1_l + 1);
+      // const Real M1z_i = init(i, j, k, comp_m1_l + 2);
 
-                  const Real M1x_f = fin(i, j, k, 1);
-                  const Real M1y_f = fin(i, j, k, 2);
-                  const Real M1z_f = fin(i, j, k, 3);
+      // const Real M1x_f = fin(i, j, k, comp_m1_l);
+      // const Real M1y_f = fin(i, j, k, comp_m1_l + 1);
+      // const Real M1z_f = fin(i, j, k, comp_m1_l + 2);
 
-                  const Real M1mag_i =
-                      std::sqrt(M1x_i * M1x_i + M1y_i * M1y_i + M1z_i * M1z_i);
+      // const Real M1mag_i =
+      //     std::sqrt(M1x_i * M1x_i + M1y_i * M1y_i + M1z_i *
+      //     M1z_i);
 
-                  const Real M1mag_f =
-                      std::sqrt(M1x_f * M1x_f + M1y_f * M1y_f + M1z_f * M1z_f);
+      // const Real M1mag_f =
+      //     std::sqrt(M1x_f * M1x_f + M1y_f * M1y_f + M1z_f *
+      //     M1z_f);
 
-                  fab_L1_M0 += std::abs(M0_f - M0_i);
-                  fab_L1_M1mag += std::abs(M1mag_f - M1mag_i);
-                });
+      fab_L1_M0 += std::abs(M0_f - M0_i);
+      // fab_L1_M1mag += std::abs(M1mag_f - M1mag_i);
+    });
 
     local_L1_M0 += fab_L1_M0;
-    local_L1_M1mag += fab_L1_M1mag;
+    // local_L1_M1mag += fab_L1_M1mag;
   }
 
   ParallelDescriptor::ReduceRealSum(local_L1_M0);
-  ParallelDescriptor::ReduceRealSum(local_L1_M1mag);
+  // ParallelDescriptor::ReduceRealSum(local_L1_M1mag);
 
   amrex::Print() << "\nUniform fine-grid L1 error norms\n";
   amrex::Print() << "  L1(M0)       = " << std::setprecision(17) << local_L1_M0
                  << "\n";
-  amrex::Print() << "  L1(|M1|)     = " << std::setprecision(17)
-                 << local_L1_M1mag << "\n";
+  // amrex::Print() << "  L1(|M1|)     = " << std::setprecision(17)
+  //                << local_L1_M1mag << "\n";
 }
 
 // computing error norm for a uniform mesh (no refinements)
@@ -2359,7 +2305,8 @@ amrex::Real AmrCoreAdv::ComputeL1ErrorM0() const {
     for (int k = lo.z; k <= hi.z; ++k) {
       for (int j = lo.y; j <= hi.y; ++j) {
         for (int i = lo.x; i <= hi.x; ++i) {
-          const Real mom_err = final_arr(i, j, k, 0) - init_arr(i, j, k, 0);
+          const Real mom_err =
+              final_arr(i, j, k, comp_m0) - init_arr(i, j, k, comp_m0);
           fab_l1 += std::abs(mom_err);
         }
       }

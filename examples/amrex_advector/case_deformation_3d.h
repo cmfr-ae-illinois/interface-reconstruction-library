@@ -64,31 +64,33 @@ struct Deformation3D {
           const auto cell_moments =
               IRL::getVolumeMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
                   cell, interface(i, j, k));
-          moments(i, j, k, 0) = cell_moments[0].volume();
+          moments(i, j, k, comp_vf) = cell_moments[0].volume() /
+                                      IRL::getVolumeMoments<IRL::Volume>(cell);
+          moments(i, j, k, comp_m0) = cell_moments[0].volume();
           if (transport_m1) {
-            moments(i, j, k, 1) = cell_moments[0].centroid()[0];
-            moments(i, j, k, 2) = cell_moments[0].centroid()[1];
-            moments(i, j, k, 3) = cell_moments[0].centroid()[2];
-            moments(i, j, k, 4) = cell_moments[1].centroid()[0];
-            moments(i, j, k, 5) = cell_moments[1].centroid()[1];
-            moments(i, j, k, 6) = cell_moments[1].centroid()[2];
+            moments(i, j, k, comp_m1_l) = cell_moments[0].centroid()[0];
+            moments(i, j, k, comp_m1_l + 1) = cell_moments[0].centroid()[1];
+            moments(i, j, k, comp_m1_l + 2) = cell_moments[0].centroid()[2];
+            moments(i, j, k, comp_m1_g) = cell_moments[1].centroid()[0];
+            moments(i, j, k, comp_m1_g + 1) = cell_moments[1].centroid()[1];
+            moments(i, j, k, comp_m1_g + 2) = cell_moments[1].centroid()[2];
           }
           if (transport_m2) {
             const auto cell_general_moments = IRL::getVolumeMoments<
                 IRL::SeparatedMoments<IRL::GeneralMoments3D<2>>>(
                 cell, interface(i, j, k));
-            moments(i, j, k, 7) = cell_general_moments[0][4];
-            moments(i, j, k, 8) = cell_general_moments[0][5];
-            moments(i, j, k, 9) = cell_general_moments[0][6];
-            moments(i, j, k, 10) = cell_general_moments[0][7];
-            moments(i, j, k, 11) = cell_general_moments[0][8];
-            moments(i, j, k, 12) = cell_general_moments[0][9];
-            moments(i, j, k, 13) = cell_general_moments[1][4];
-            moments(i, j, k, 14) = cell_general_moments[1][5];
-            moments(i, j, k, 15) = cell_general_moments[1][6];
-            moments(i, j, k, 16) = cell_general_moments[1][7];
-            moments(i, j, k, 17) = cell_general_moments[1][8];
-            moments(i, j, k, 18) = cell_general_moments[1][9];
+            moments(i, j, k, comp_m2_l) = cell_general_moments[0][4];
+            moments(i, j, k, comp_m2_l + 1) = cell_general_moments[0][5];
+            moments(i, j, k, comp_m2_l + 2) = cell_general_moments[0][6];
+            moments(i, j, k, comp_m2_l + 3) = cell_general_moments[0][7];
+            moments(i, j, k, comp_m2_l + 4) = cell_general_moments[0][8];
+            moments(i, j, k, comp_m2_l + 5) = cell_general_moments[0][9];
+            moments(i, j, k, comp_m2_g) = cell_general_moments[1][4];
+            moments(i, j, k, comp_m2_g + 1) = cell_general_moments[1][5];
+            moments(i, j, k, comp_m2_g + 2) = cell_general_moments[1][6];
+            moments(i, j, k, comp_m2_g + 3) = cell_general_moments[1][7];
+            moments(i, j, k, comp_m2_g + 4) = cell_general_moments[1][8];
+            moments(i, j, k, comp_m2_g + 5) = cell_general_moments[1][9];
           }
         }
       }

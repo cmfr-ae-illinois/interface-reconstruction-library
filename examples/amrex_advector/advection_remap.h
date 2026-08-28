@@ -236,7 +236,9 @@ struct LagrangianRemap {
           M0_l = cell_volume;
         }
         M0_g = cell_volume - M0_l;
-        moments_array(i, j, k, 0) += M0_l;
+        moments_array(i, j, k, comp_m0) = M0_l;
+        moments_array(i, j, k, comp_vf) =
+            moments_array(i, j, k, comp_m0) / cell_volume;
         // Transport M1 with RK4
         if (transport_m1) {
           IRL::Pt liquid_centroid =
@@ -253,12 +255,12 @@ struct LagrangianRemap {
           gas_centroid =
               ProjectVertex(gas_centroid, a_dt, old_time, velocity_field_type,
                             velx, vely, velz, grown_bx, a_geom);
-          moments_array(i, j, k, 1) += M0_l * liquid_centroid[0];
-          moments_array(i, j, k, 2) += M0_l * liquid_centroid[1];
-          moments_array(i, j, k, 3) += M0_l * liquid_centroid[2];
-          moments_array(i, j, k, 4) += M0_g * gas_centroid[0];
-          moments_array(i, j, k, 5) += M0_g * gas_centroid[1];
-          moments_array(i, j, k, 6) += M0_g * gas_centroid[2];
+          moments_array(i, j, k, comp_m1_l) = M0_l * liquid_centroid[0];
+          moments_array(i, j, k, comp_m1_l + 1) = M0_l * liquid_centroid[1];
+          moments_array(i, j, k, comp_m1_l + 2) = M0_l * liquid_centroid[2];
+          moments_array(i, j, k, comp_m1_g) = M0_g * gas_centroid[0];
+          moments_array(i, j, k, comp_m1_g + 1) = M0_g * gas_centroid[1];
+          moments_array(i, j, k, comp_m1_g + 2) = M0_g * gas_centroid[2];
         }
         // Transport M2 with RK4
         if (transport_m2) {
@@ -333,12 +335,13 @@ struct LagrangianRemap {
                 6.0;
             const auto M2_final = M2 + M2_rk4 + M2_rk4.transpose();
 
-            moments_array(i, j, k, 7 + m * 6) += M2_final(0, 0);
-            moments_array(i, j, k, 8 + m * 6) += M2_final(0, 1);
-            moments_array(i, j, k, 9 + m * 6) += M2_final(0, 2);
-            moments_array(i, j, k, 10 + m * 6) += M2_final(1, 1);
-            moments_array(i, j, k, 11 + m * 6) += M2_final(1, 2);
-            moments_array(i, j, k, 12 + m * 6) += M2_final(2, 2);
+            const int comp_m2 = (m == 0) ? comp_m2_l : comp_m2_g;
+            moments_array(i, j, k, comp_m2) = M2_final(0, 0);
+            moments_array(i, j, k, comp_m2 + 1) = M2_final(0, 1);
+            moments_array(i, j, k, comp_m2 + 2) = M2_final(0, 2);
+            moments_array(i, j, k, comp_m2 + 3) = M2_final(1, 1);
+            moments_array(i, j, k, comp_m2 + 4) = M2_final(1, 2);
+            moments_array(i, j, k, comp_m2 + 5) = M2_final(2, 2);
           }
         }
       });

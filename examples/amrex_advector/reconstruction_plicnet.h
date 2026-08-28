@@ -31,7 +31,7 @@ struct PLICNet {
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
         // Skip cell if vfrac ~0 or vfrac~1
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -54,18 +54,18 @@ struct PLICNet {
                   IRL::Pt(xx + dx[0], yy + dx[1], zz + dx[2]);
               const IRL::Pt cell_center = 0.5 * (lower_cell_pt + upper_cell_pt);
               // Compute gas and liquid moments (M0 and M1)
-              const double liq_m0 = moments_array(ii, jj, kk, 0);
+              const double liq_m0 = moments_array(ii, jj, kk, comp_m0);
               const double gas_m0 = vol - liq_m0;
               const IRL::Pt liq_m1 = (1.0 / IRL::safelyTiny(liq_m0)) *
-                                     IRL::Pt(moments_array(ii, jj, kk, 1),
-                                             moments_array(ii, jj, kk, 2),
-                                             moments_array(ii, jj, kk, 3));
+                                     IRL::Pt(moments_array(ii, jj, kk, comp_m1_l),
+                                             moments_array(ii, jj, kk, comp_m1_l + 1),
+                                             moments_array(ii, jj, kk, comp_m1_l + 2));
               const IRL::Pt gas_m1 =
                   (1.0 / IRL::safelyTiny(gas_m0)) *
                   IRL::Pt(vol * cell_center -
-                          IRL::Pt(moments_array(ii, jj, kk, 1),
-                                  moments_array(ii, jj, kk, 2),
-                                  moments_array(ii, jj, kk, 3)));
+                          IRL::Pt(moments_array(ii, jj, kk, comp_m1_l),
+                                  moments_array(ii, jj, kk, comp_m1_l + 1),
+                                  moments_array(ii, jj, kk, comp_m1_l + 2)));
               plicnet.setMember(lower_cell_pt, upper_cell_pt, liq_m0 * vol_inv,
                                 liq_m1, gas_m1, ii - i, jj - j, kk - k);
             }

@@ -32,8 +32,6 @@ struct VF {
     const auto dx = geom.CellSizeArray();
     const auto dx_avg = std::cbrt(dx[0] * dx[1] * dx[2]);
     const auto problo = geom.ProbLoArray();
-    const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
 
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
@@ -44,7 +42,7 @@ struct VF {
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
         // Skip cell if vfrac ~0 or vfrac~1
         if (vfrac < IRL::global_constants::VF_LOW) {
           interface_array(i, j, k) = IRL::Paraboloid::createAlwaysBelow();
@@ -66,7 +64,7 @@ struct VF {
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-              const double vfrac_local = moments_array(ii, jj, kk) * vol_inv;
+              const double vfrac_local = moments_array(ii, jj, kk, comp_vf);
               if (vfrac_local < IRL::global_constants::VF_LOW ||
                   vfrac_local > IRL::global_constants::VF_HIGH) {
                 continue;
