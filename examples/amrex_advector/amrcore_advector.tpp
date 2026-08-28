@@ -505,9 +505,6 @@ void AmrCoreAdv::InitData() {
       initial_checkpoint_file_written = true;
     }
 
-    // writing checkpoint file for initial time step
-    WriteCheckpointFile();
-
   } else {
     // restart from a checkpoint
     ReadCheckpointFile();
