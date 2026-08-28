@@ -92,16 +92,6 @@ AmrCoreAdv::AmrCoreAdv() {
   ParmParse ppcase("case");
   ppcase.get("name", case_name);
 
-  if (case_name == "rotation3d") {
-    velocity_field_type = VelocityFieldType::Rotation;
-  } else if (case_name == "translation3d") {
-    velocity_field_type = VelocityFieldType::Translation;
-  } else if (case_name == "deformation3d") {
-    velocity_field_type = VelocityFieldType::Deformation;
-  } else {
-    velocity_field_type = VelocityFieldType::Interpolated;
-  }
-
   // Geometry on all levels has been defined already.
 
   // No valid BoxArray and DistributionMapping have been defined.
@@ -374,16 +364,6 @@ void AmrCoreAdv::Evolve() {
   int last_checkpoint_file_step =
       initial_checkpoint_file_written ? istep[0] : -1;
 
-  // times at which an interface output is required
-  const std::array<Real, 3> required_intermediate_output_times = {
-      0.25 * stop_time, 0.5 * stop_time, 0.75 * stop_time};
-  std::size_t next_intermediate_output = 0;
-  while (next_intermediate_output < required_intermediate_output_times.size() &&
-         required_intermediate_output_times[next_intermediate_output] <=
-             cur_time) {
-    ++next_intermediate_output;
-  }
-
   for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step) {
     amrex::Print() << "\nCoarse STEP " << step + 1 << " starts ..."
                    << std::endl;
@@ -453,10 +433,6 @@ void AmrCoreAdv::Evolve() {
 
     if (cur_time >= stop_time - 1.e-6 * dt[0]) break;
   }
-
-  // writing interfaces and checkpoint file at final time
-  WritePlotFile();
-  WriteCheckpointFile();
 
   {
     amrex::MultiFab uniform_final;
@@ -538,9 +514,6 @@ void AmrCoreAdv::InitData() {
     WritePlotFile();
     initial_plot_file_written = true;
   }
-  // writing interface for initial time step
-  GetReconstruction(finest_level);
-  WritePlotFile();
 }
 
 // Make a new level using provided BoxArray and DistributionMapping and
