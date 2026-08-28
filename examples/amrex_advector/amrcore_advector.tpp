@@ -988,7 +988,7 @@ void AmrCoreAdv::FillPatch(int lev, Real time, MF& mf, int icomp, int ncomp) {
     GetData(lev - 1, time, cmf, ctime);
     GetData(lev, time, fmf, ftime);
 
-    Interpolater* mapper = &cell_cons_interp;
+    Interpolater* mapper = &pc_interp;
 
     if (Gpu::inLaunchRegion()) {
       GpuBndryFuncFab<AmrCoreFill> gpu_bndry_func(AmrCoreFill{});
@@ -1023,7 +1023,7 @@ void AmrCoreAdv::FillCoarsePatch(int lev, Real time, MF& mf, int icomp,
   Vector<MultiFab*> cmf;
   Vector<Real> ctime;
   GetData(lev - 1, time, cmf, ctime);
-  Interpolater* mapper = &cell_cons_interp;
+  Interpolater* mapper = &pc_interp;
 
   if (cmf.size() != 1) {
     amrex::Abort("FillCoarsePatch: how did this happen?");
