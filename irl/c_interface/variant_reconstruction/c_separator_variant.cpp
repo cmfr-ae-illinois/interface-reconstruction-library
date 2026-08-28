@@ -13,6 +13,7 @@
 
 #include "irl/interface_reconstruction_methods/volume_fraction_matching.h"
 #include "irl/parameters/constants.h"
+#include "irl/variant_reconstruction/separator_union.h"
 
 extern "C" {
 
@@ -21,6 +22,14 @@ void c_SeparatorVariant_new(c_SeparatorVariant* a_self) {
   // assert(a_self->obj_ptr == nullptr);
   a_self->is_owning = true;
   a_self->obj_ptr = new IRL::SeparatorVariant;
+}
+
+void c_SeparatorVariant_newFromSeparatorUnion(
+    c_SeparatorVariant* a_self, const IRL::SeparatorUnion& a_union) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr == nullptr);
+  a_self->obj_ptr = new IRL::SeparatorVariant(a_union);
+  a_self->is_owning = true;
 }
 
 void c_SeparatorVariant_newFromObjectAllocationServer(

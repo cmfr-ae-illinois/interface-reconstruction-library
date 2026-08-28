@@ -20,6 +20,7 @@ module f_SeparatorVariant_class
   use f_DefinedTypes
   use f_ObjServer_SeparatorVariant_class
   use f_Paraboloid_class
+  use f_SeparatorUnion_class
   implicit none
 
   type, public, bind(C) :: c_SeparatorVariant
@@ -35,6 +36,7 @@ module f_SeparatorVariant_class
 
   interface new
     module procedure SeparatorVariant_class_new
+    module procedure SeparatorVariant_class_newFromSeparatorUnion
     module procedure SeparatorVariant_class_newFromObjectAllocationServer
   end interface
   interface setNumberOfPlanes
@@ -88,6 +90,14 @@ module f_SeparatorVariant_class
       implicit none
       type(c_SeparatorVariant) :: this
     end subroutine F_SeparatorVariant_new
+
+    subroutine F_SeparatorVariant_newFromSeparatorUnion(this,sep_union) & 
+      bind(C,name="c_SeparatorVariant_newFromSeparatorUnion")
+      import 
+      implicit none 
+      type(c_SeparatorVariant) :: this 
+      type(SeparatorUnion_type_raw) :: sep_union
+    end subroutine F_SeparatorVariant_newFromSeparatorUnion
 
     subroutine F_SeparatorVariant_newFromObjectAllocationServer(this, a_object_allocation_server) &
       bind(C, name="c_SeparatorVariant_newFromObjectAllocationServer")
@@ -240,6 +250,14 @@ module f_SeparatorVariant_class
       type(SeparatorVariant_type), intent(inout) :: this
       call F_SeparatorVariant_new(this%c_object)
     end subroutine SeparatorVariant_class_new
+
+    subroutine SeparatorVariant_class_newFromSeparatorUnion(this,sep_union) 
+      implicit none 
+      type(SeparatorVariant_type), intent(inout) :: this 
+      type(SeparatorUnion_type_raw), intent(in) :: sep_union 
+      call F_SeparatorVariant_newFromSeparatorUnion(this%c_object,sep_union)
+    end subroutine SeparatorVariant_class_newFromSeparatorUnion
+
 
     subroutine SeparatorVariant_class_newFromObjectAllocationServer(this, a_object_allocation_server)
       implicit none

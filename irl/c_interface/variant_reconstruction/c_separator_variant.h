@@ -26,6 +26,9 @@ struct c_SeparatorVariant {
 
 void c_SeparatorVariant_new(c_SeparatorVariant* a_self);
 
+void c_SeparatorVariant_newFromSeparatorUnion(
+    c_SeparatorVariant* a_self, const IRL::SeparatorUnion& a_union);
+
 void c_SeparatorVariant_newFromObjectAllocationServer(
     c_SeparatorVariant* a_self,
     c_ObjServer_SeparatorVariant* a_object_allocation_server);
