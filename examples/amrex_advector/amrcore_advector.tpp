@@ -476,6 +476,9 @@ void AmrCoreAdv::InitData() {
     const Real time = 0.0;
     InitFromScratch(time);
     AverageDown();
+    for (int lev = finest_level - 1; lev >= 0; --lev) {
+      SetFullAndEmptyCellMoments(lev);
+    }
 
     // amrex::Print() << "  Number of levels = " << finest_level + 1 << "\n";
     // for (int lev = 0; lev <= finest_level; ++lev) {
@@ -551,6 +554,7 @@ void AmrCoreAdv::MakeNewLevelFromCoarse(int lev, Real time, const BoxArray& ba,
   }
 
   FillCoarsePatch(lev, time, moments_new[lev], 0, ncomp);
+  SetFullAndEmptyCellMoments(lev);
 }
 
 DistributionMapping AmrCoreAdv::MakeDistributionMapWithWeights(
@@ -721,6 +725,8 @@ void AmrCoreAdv::RemakeLevel(int lev, Real time, const BoxArray& ba,
   std::swap(old_state, moments_old[lev]);
   std::swap(old_band_id, band_id[lev]);
   std::swap(new_interface, interface[lev]);
+
+  SetFullAndEmptyCellMoments(lev);
 
   interface_scalar_fields[lev].clear();
 
@@ -1088,6 +1094,9 @@ void AmrCoreAdv::timeStepNoSubcycling(Real time, int iteration) {
 
   // Make sure the coarser levels are consistent with the finer levels
   AverageDown();
+  for (int lev = finest_level - 1; lev >= 0; --lev) {
+    SetFullAndEmptyCellMoments(lev);
+  }
 
   for (int lev = 0; lev <= finest_level; lev++) ++istep[lev];
 
@@ -2333,4 +2342,104 @@ amrex::Real AmrCoreAdv::ComputeL1ErrorM0() const {
   ParallelDescriptor::ReduceRealSum(local_l1);
 
   return local_l1;
+}
+
+void AmrCoreAdv::SetFullAndEmptyCellMoments(int lev) {
+  const auto dx = Geom(lev).CellSizeArray();
+  const auto problo = Geom(lev).ProbLoArray();
+  const Real cell_vol = dx[0] * dx[1] * dx[2];
+
+  for (MFIter mfi(moments_new[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    const Box& bx = mfi.tilebox();
+
+    auto moments = moments_new[lev].array(mfi);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      const Real alpha = moments(i, j, k, comp_vf);
+
+      // Only full and empty cells can be rebuilt from volume fraction alone.
+      const bool empty = (alpha <= IRL::global_constants::VF_LOW);
+      const bool full = (alpha >= IRL::global_constants::VF_HIGH);
+      if (!empty && !full) return;
+
+      // Cell center in global coordinates
+      const Real xc = problo[0] + (i + 0.5_rt) * dx[0];
+      const Real yc = problo[1] + (j + 0.5_rt) * dx[1];
+      const Real zc = problo[2] + (k + 0.5_rt) * dx[2];
+
+      // zeroth moment
+      if (empty) {
+        moments(i, j, k, comp_vf) = 0.0_rt;
+        moments(i, j, k, comp_m0) = 0.0_rt;
+      } else {
+        moments(i, j, k, comp_vf) = 1.0_rt;
+        moments(i, j, k, comp_m0) = cell_vol;
+      }
+      // First moments
+      // components:
+      //   comp_m1_l + 0..2 : liquid M1
+      //   comp_m1_g + 0..2 : gas    M1
+      if (transport_m1 || transport_m2) {
+        const Real M1x = cell_vol * xc;
+        const Real M1y = cell_vol * yc;
+        const Real M1z = cell_vol * zc;
+        if (full) {
+          // Liquid occupies whole cell
+          moments(i, j, k, comp_m1_l) = M1x;
+          moments(i, j, k, comp_m1_l + 1) = M1y;
+          moments(i, j, k, comp_m1_l + 2) = M1z;
+          // Gas is empty
+          moments(i, j, k, comp_m1_g) = 0.0_rt;
+          moments(i, j, k, comp_m1_g + 1) = 0.0_rt;
+          moments(i, j, k, comp_m1_g + 2) = 0.0_rt;
+        } else {
+          // Liquid is empty
+          moments(i, j, k, comp_m1_l) = 0.0_rt;
+          moments(i, j, k, comp_m1_l + 1) = 0.0_rt;
+          moments(i, j, k, comp_m1_l + 2) = 0.0_rt;
+          // Gas occupies whole cell
+          moments(i, j, k, comp_m1_g) = M1x;
+          moments(i, j, k, comp_m1_g + 1) = M1y;
+          moments(i, j, k, comp_m1_g + 2) = M1z;
+        }
+      }
+      // Second moments
+      // components:
+      //   comp_m2_l + 0..5 : liquid M2
+      //   comp_m2_g + 0..5 : gas M2
+      if (transport_m2) {
+        const Real M2xx = cell_vol * (xc * xc + dx[0] * dx[0] / 12.0_rt);
+        const Real M2xy = cell_vol * xc * yc;
+        const Real M2xz = cell_vol * xc * zc;
+        const Real M2yy = cell_vol * (yc * yc + dx[1] * dx[1] / 12.0_rt);
+        const Real M2yz = cell_vol * yc * zc;
+        const Real M2zz = cell_vol * (zc * zc + dx[2] * dx[2] / 12.0_rt);
+        if (full) {
+          // Liquid occupies whole cell
+          moments(i, j, k, comp_m2_l) = M2xx;
+          moments(i, j, k, comp_m2_l + 1) = M2xy;
+          moments(i, j, k, comp_m2_l + 2) = M2xz;
+          moments(i, j, k, comp_m2_l + 3) = M2yy;
+          moments(i, j, k, comp_m2_l + 4) = M2yz;
+          moments(i, j, k, comp_m2_l + 5) = M2zz;
+          // Gas empty
+          for (int n = 0; n < 6; ++n) {
+            moments(i, j, k, comp_m2_g + n) = 0.0_rt;
+          }
+        } else {
+          // Liquid empty
+          for (int n = 0; n < 6; ++n) {
+            moments(i, j, k, comp_m2_l + n) = 0.0_rt;
+          }
+          // Gas occupies whole cell
+          moments(i, j, k, comp_m2_g) = M2xx;
+          moments(i, j, k, comp_m2_g + 1) = M2xy;
+          moments(i, j, k, comp_m2_g + 2) = M2xz;
+          moments(i, j, k, comp_m2_g + 3) = M2yy;
+          moments(i, j, k, comp_m2_g + 4) = M2yz;
+          moments(i, j, k, comp_m2_g + 5) = M2zz;
+        }
+      }
+    });
+  }
 }

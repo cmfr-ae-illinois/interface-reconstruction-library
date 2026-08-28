@@ -235,6 +235,8 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   amrex::Real ComputeL1ErrorM0() const;
 
+  void SetFullAndEmptyCellMoments(int lev);
+
   ////////////////
   // private data members
 
