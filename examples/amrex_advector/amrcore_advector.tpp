@@ -1933,183 +1933,198 @@ void AmrCoreAdv::BuildUniformCheckpointState(
                  << uniform_moments.boxArray().minimalBox() << "\n";
 }
 
-void AmrCoreAdv::BuildUniformFinestMoments(
-    amrex::MultiFab& a_uniform_moments) const {
-  using namespace amrex;
-
-  const int finest = finest_level;
-  const int ncomp = ncomp_moments;
-  const int ngrow = 0;
-
-  BoxArray uniform_ba(Geom(finest).Domain());
-
+void AmrCoreAdv::BuildUniformFinestVolumeFractionField(
+    amrex::MultiFab& a_uniform_vf) const {
+  // Uniform mesh covering the entire domain at finest resolution.
+  BoxArray uniform_ba(Geom(finest_level).Domain());
   uniform_ba.maxSize(32);
 
   DistributionMapping uniform_dm(uniform_ba);
 
-  a_uniform_moments.define(uniform_ba, uniform_dm, ncomp, ngrow);
-  a_uniform_moments.setVal(0.0);
+  // storing only liquid volume fraction
+  a_uniform_vf.define(uniform_ba, uniform_dm, 1, 0);
+  a_uniform_vf.setVal(0.0);
 
-  // Finest-level geometry.
-  const auto fine_dx = Geom(finest).CellSizeArray();
-  const auto problo = Geom(finest).ProbLoArray();
-
-  const Real fine_vol = fine_dx[0] * fine_dx[1] * fine_dx[2];
-
-  const Box& fine_domain = Geom(finest).Domain();
+  // Finest-level index-space information
+  const Box& fine_domain = Geom(finest_level).Domain();
   const IntVect fine_dom_lo = fine_domain.smallEnd();
 
   const int fine_lo_x = fine_dom_lo[0];
   const int fine_lo_y = fine_dom_lo[1];
   const int fine_lo_z = fine_dom_lo[2];
 
-  for (int lev = 0; lev <= finest; ++lev) {
-    // Ratio from level lev to finest level.
+  // Process levels from coarse to fine
+  // Finer levels overwrite coarser values wherever they exist
+  for (int lev = 0; lev <= finest_level; ++lev) {
+    // Refinement ratio from level lev to finest
     IntVect ratio_vect(AMREX_D_DECL(1, 1, 1));
-
-    for (int l = lev; l < finest; ++l) {
+    for (int l = lev; l < finest_level; ++l) {
       ratio_vect *= refRatio(l);
     }
-
     const int rx = ratio_vect[0];
     const int ry = ratio_vect[1];
     const int rz = ratio_vect[2];
 
+    // Current level geometry
     const Box& lev_domain = Geom(lev).Domain();
     const IntVect lev_dom_lo = lev_domain.smallEnd();
-
     const int lev_lo_x = lev_dom_lo[0];
     const int lev_lo_y = lev_dom_lo[1];
     const int lev_lo_z = lev_dom_lo[2];
 
-    //
-    // temporary MultiFab whose boxes are the AMR boxes on this
-    // level,
-    // but refined into finest-level index space.
-    //
-    // Use the same DistributionMapping as moments_new[lev], so each rank
-    // expands the source boxes it already owns.
-    //
-    BoxArray lev_on_fine_ba = moments_new[lev].boxArray();
-    lev_on_fine_ba.refine(ratio_vect);
+    // Take the actual AMR boxes on this level and represent them
+    // in finest-level index space
+    BoxArray refined_level_boxes = moments_new[lev].boxArray();
+    refined_level_boxes.refine(ratio_vect);
+    MultiFab refined_level_vf(refined_level_boxes,
+                              moments_new[lev].DistributionMap(), 1, 0);
+    refined_level_vf.setVal(0.0);
 
-    MultiFab lev_on_fine(lev_on_fine_ba, moments_new[lev].DistributionMap(),
-                         ncomp, 0);
-
-    lev_on_fine.setVal(0.0);
-
-    //
-
-    // Locally fill lev_on_fine from moments_new[lev].
-    //
-    for (MFIter mfi(lev_on_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-      const Box& fine_box = mfi.tilebox();
-
-      auto fine_arr = lev_on_fine.array(mfi);
-
-      auto lev_arr = moments_new[lev].const_array(mfi.index());
-
-      amrex::ParallelFor(
-          fine_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            // Physical centroid of the uniform finest cell.
-            const Real x =
-                problo[0] + (static_cast<Real>(i) + Real(0.5)) * fine_dx[0];
-            const Real y =
-                problo[1] + (static_cast<Real>(j) + Real(0.5)) * fine_dx[1];
-            const Real z =
-                problo[2] + (static_cast<Real>(k) + Real(0.5)) * fine_dx[2];
-
-            if (lev == finest) {
-              // Finest AMR level:
-              // Copy stored moments directly
-              fine_arr(i, j, k, comp_vf) = lev_arr(i, j, k, comp_vf);
-              fine_arr(i, j, k, comp_m0) = lev_arr(i, j, k, comp_m0);
-              if (transport_m1) {
-                for (int n = 0; n < 6; n++) {
-                  fine_arr(i, j, k, comp_m1_l + n) =
-                      lev_arr(i, j, k, comp_m1_l + n);
-                }
-              }
-              if (transport_m2) {
-                for (int n = 0; n < 12; n++) {
-                  fine_arr(i, j, k, comp_m2_l + n) =
-                      lev_arr(i, j, k, comp_m2_l + n);
-                }
-              }
-
-            } else {
-              //
-              // Coarser AMR level:
-              // Map finest-level index back to this AMR level.
-              //
-              const int ic = lev_lo_x + (i - fine_lo_x) / rx;
-              const int jc = lev_lo_y + (j - fine_lo_y) / ry;
-              const int kc = lev_lo_z + (k - fine_lo_z) / rz;
-
-              const Real vf = lev_arr(ic, jc, kc, comp_vf);
-
-              if (vf > IRL::global_constants::VF_HIGH) {
-                // Pure liquid coarse cell.
-                // Every generated finest cell inside it is full liquid.
-                fine_arr(i, j, k, comp_vf) = Real(1.0);
-                fine_arr(i, j, k, comp_m0) = fine_vol;
-                if (transport_m1) {
-                  fine_arr(i, j, k, comp_m1_l) = fine_vol * x;
-                  fine_arr(i, j, k, comp_m1_l + 1) = fine_vol * y;
-                  fine_arr(i, j, k, comp_m1_l + 2) = fine_vol * z;
-                  fine_arr(i, j, k, comp_m1_g) = Real(0.0);
-                  fine_arr(i, j, k, comp_m1_g + 1) = Real(0.0);
-                  fine_arr(i, j, k, comp_m1_g + 2) = Real(0.0);
-                }
-                if (transport_m2) {
-                  fine_arr(i, j, k, comp_m2_l) =
-                      fine_vol * (fine_dx[0] * fine_dx[0] / 12.0 + x * x);
-                  fine_arr(i, j, k, comp_m2_l + 1) = fine_vol * x * y;
-                  fine_arr(i, j, k, comp_m2_l + 2) = fine_vol * x * z;
-                  fine_arr(i, j, k, comp_m2_l + 3) =
-                      fine_vol * (fine_dx[1] * fine_dx[1] / 12.0 + y * y);
-                  fine_arr(i, j, k, comp_m2_l + 4) = fine_vol * y * z;
-                  fine_arr(i, j, k, comp_m2_l + 5) =
-                      fine_vol * (fine_dx[2] * fine_dx[2] / 12.0 + z * z);
-                  for (int n = 0; n < 6; n++) {
-                    fine_arr(i, j, k, comp_m2_g + n) = Real(0.0);
-                  }
-                }
-              } else if (vf < IRL::global_constants::VF_LOW) {
-                // Pure gas coarse cell.
-                // Every generated finest cell inside it is empty.
-                fine_arr(i, j, k, comp_vf) = Real(0.0);
-                fine_arr(i, j, k, comp_m0) = Real(0.0);
-                if (transport_m1) {
-                  fine_arr(i, j, k, comp_m1_l) = Real(0.0);
-                  fine_arr(i, j, k, comp_m1_l + 1) = Real(0.0);
-                  fine_arr(i, j, k, comp_m1_l + 2) = Real(0.0);
-                  fine_arr(i, j, k, comp_m1_g) = fine_vol * x;
-                  fine_arr(i, j, k, comp_m1_g + 1) = fine_vol * y;
-                  fine_arr(i, j, k, comp_m1_g + 2) = fine_vol * z;
-                }
-                if (transport_m2) {
-                  for (int n = 0; n < 6; n++) {
-                    fine_arr(i, j, k, comp_m2_l + n) = Real(0.0);
-                  }
-                  fine_arr(i, j, k, comp_m2_g) =
-                      fine_vol * (fine_dx[0] * fine_dx[0] / 12.0 + x * x);
-                  fine_arr(i, j, k, comp_m2_g + 1) = fine_vol * x * y;
-                  fine_arr(i, j, k, comp_m2_g + 2) = fine_vol * x * z;
-                  fine_arr(i, j, k, comp_m2_g + 3) =
-                      fine_vol * (fine_dx[1] * fine_dx[1] / 12.0 + y * y);
-                  fine_arr(i, j, k, comp_m2_g + 4) = fine_vol * y * z;
-                  fine_arr(i, j, k, comp_m2_g + 5) =
-                      fine_vol * (fine_dx[2] * fine_dx[2] / 12.0 + z * z);
-                }
-              }
-            }
-          });
+    // looping over local boxes
+    for (MFIter mfi(refined_level_vf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      const Box& refined_box = mfi.tilebox();
+      auto refined_vf = refined_level_vf.array(mfi);
+      const auto lev_mom = moments_new[lev].const_array(mfi.index());
+      ParallelFor(refined_box,
+                  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    int ic;
+                    int jc;
+                    int kc;
+                    if (lev == finest_level) {
+                      // Already in finest-level index space
+                      ic = i;
+                      jc = j;
+                      kc = k;
+                    } else {
+                      // Map finest-level cell back to its parent cell
+                      // on AMR level lev
+                      ic = lev_lo_x + (i - fine_lo_x) / rx;
+                      jc = lev_lo_y + (j - fine_lo_y) / ry;
+                      kc = lev_lo_z + (k - fine_lo_z) / rz;
+                    }
+                    Real vf = lev_mom(ic, jc, kc, comp_vf);
+                    vf = amrex::max(Real(0.0), amrex::min(Real(1.0), vf));
+                    refined_vf(i, j, k, 0) = vf;
+                  });
     }
-
-    a_uniform_moments.ParallelCopy(lev_on_fine, 0, 0, ncomp, 0, 0,
-                                   Geom(finest).periodicity());
+    // Overlay this level onto the global uniform field
+    a_uniform_vf.ParallelCopy(refined_level_vf, 0, 0, 1, 0, 0,
+                              Geom(finest_level).periodicity());
   }
+}
+
+void AmrCoreAdv::BuildUniformFinestMoments(
+    amrex::MultiFab& a_uniform_moments) const {
+  // Construct the uniform finest-grid volume fraction
+  MultiFab uniform_vf;
+  BuildUniformFinestVolumeFractionField(uniform_vf);
+
+  // Constructing the output moment MultiFab
+  a_uniform_moments.define(uniform_vf.boxArray(), uniform_vf.DistributionMap(),
+                           ncomp_moments, 0);
+  a_uniform_moments.setVal(0.0);
+
+  const auto fine_dx = Geom(finest_level).CellSizeArray();
+  const auto problo = Geom(finest_level).ProbLoArray();
+  const Real fine_vol = fine_dx[0] * fine_dx[1] * fine_dx[2];
+
+  // Generate moments analytically for full/empty cells
+  for (MFIter mfi(a_uniform_moments, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    const Box& box = mfi.tilebox();
+
+    auto mom_arr = a_uniform_moments.array(mfi);
+    const auto vf_arr = uniform_vf.const_array(mfi);
+
+    ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      //  center of this finest-resolution cell.
+      const Real x =
+          problo[0] + (static_cast<Real>(i) + Real(0.5)) * fine_dx[0];
+      const Real y =
+          problo[1] + (static_cast<Real>(j) + Real(0.5)) * fine_dx[1];
+      const Real z =
+          problo[2] + (static_cast<Real>(k) + Real(0.5)) * fine_dx[2];
+
+      const Real vf = vf_arr(i, j, k, 0);
+
+      // liquid cell
+      if (vf > IRL::global_constants::VF_HIGH) {
+        mom_arr(i, j, k, comp_vf) = Real(1.0);
+        mom_arr(i, j, k, comp_m0) = fine_vol;
+        if (transport_m1) {
+          mom_arr(i, j, k, comp_m1_l) = fine_vol * x;
+          mom_arr(i, j, k, comp_m1_l + 1) = fine_vol * y;
+          mom_arr(i, j, k, comp_m1_l + 2) = fine_vol * z;
+          // Gas is empty
+          mom_arr(i, j, k, comp_m1_g) = Real(0.0);
+          mom_arr(i, j, k, comp_m1_g + 1) = Real(0.0);
+          mom_arr(i, j, k, comp_m1_g + 2) = Real(0.0);
+        }
+        if (transport_m2) {
+          // Liquid Mxx
+          mom_arr(i, j, k, comp_m2_l) =
+              fine_vol * (fine_dx[0] * fine_dx[0] / Real(12.0) + x * x);
+          // Liquid Mxy
+          mom_arr(i, j, k, comp_m2_l + 1) = fine_vol * x * y;
+          // Liquid Mxz
+          mom_arr(i, j, k, comp_m2_l + 2) = fine_vol * x * z;
+          // Liquid Myy
+          mom_arr(i, j, k, comp_m2_l + 3) =
+              fine_vol * (fine_dx[1] * fine_dx[1] / Real(12.0) + y * y);
+          // Liquid Myz
+          mom_arr(i, j, k, comp_m2_l + 4) = fine_vol * y * z;
+          // Liquid Mzz
+          mom_arr(i, j, k, comp_m2_l + 5) =
+              fine_vol * (fine_dx[2] * fine_dx[2] / Real(12.0) + z * z);
+          // Gas is empty
+          for (int n = 0; n < 6; ++n) {
+            mom_arr(i, j, k, comp_m2_g + n) = Real(0.0);
+          }
+        }
+
+        // gas cell
+      } else if (vf < IRL::global_constants::VF_LOW) {
+        mom_arr(i, j, k, comp_vf) = Real(0.0);
+        mom_arr(i, j, k, comp_m0) = Real(0.0);
+        if (transport_m1) {
+          // Liquid is empty
+          mom_arr(i, j, k, comp_m1_l) = Real(0.0);
+          mom_arr(i, j, k, comp_m1_l + 1) = Real(0.0);
+          mom_arr(i, j, k, comp_m1_l + 2) = Real(0.0);
+          // Gas occupies complete cell
+          mom_arr(i, j, k, comp_m1_g) = fine_vol * x;
+          mom_arr(i, j, k, comp_m1_g + 1) = fine_vol * y;
+          mom_arr(i, j, k, comp_m1_g + 2) = fine_vol * z;
+        }
+
+        if (transport_m2) {
+          // Liquid is empty
+          for (int n = 0; n < 6; ++n) {
+            mom_arr(i, j, k, comp_m2_l + n) = Real(0.0);
+          }
+          // Gas Mxx
+          mom_arr(i, j, k, comp_m2_g) =
+              fine_vol * (fine_dx[0] * fine_dx[0] / Real(12.0) + x * x);
+          // Gas Mxy
+          mom_arr(i, j, k, comp_m2_g + 1) = fine_vol * x * y;
+          // Gas Mxz
+          mom_arr(i, j, k, comp_m2_g + 2) = fine_vol * x * z;
+          // Gas Myy
+          mom_arr(i, j, k, comp_m2_g + 3) =
+              fine_vol * (fine_dx[1] * fine_dx[1] / Real(12.0) + y * y);
+          // Gas Myz
+          mom_arr(i, j, k, comp_m2_g + 4) = fine_vol * y * z;
+          // Gas Mzz
+          mom_arr(i, j, k, comp_m2_g + 5) =
+              fine_vol * (fine_dx[2] * fine_dx[2] / Real(12.0) + z * z);
+        }
+      } else {
+        // leave mixed cell zero for now
+      }
+    });
+  }
+  // copy the finest-level moments to the uniform finest moments MultiFab
+  a_uniform_moments.ParallelCopy(moments_new[finest_level], 0, 0, ncomp_moments,
+                                 0, 0, Geom(finest_level).periodicity());
 }
 
 amrex::Real AmrCoreAdv::ComputeCompositeM0() const {
