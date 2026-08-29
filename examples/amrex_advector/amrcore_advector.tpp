@@ -2366,11 +2366,9 @@ void AmrCoreAdv::SetFullAndEmptyCellMoments(int lev) {
 
       // zeroth moment
       if (empty) {
-        moments(i, j, k, comp_vf) = 0.0_rt;
-        moments(i, j, k, comp_m0) = 0.0_rt;
+        moments(i, j, k, comp_m0) = alpha * cell_vol;
       } else {
-        moments(i, j, k, comp_vf) = 1.0_rt;
-        moments(i, j, k, comp_m0) = cell_vol;
+        moments(i, j, k, comp_m0) = alpha * cell_vol;
       }
       // First moments
       // components:
