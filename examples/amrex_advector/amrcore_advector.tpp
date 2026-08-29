@@ -937,7 +937,7 @@ void AmrCoreAdv::AverageDownTo(int crse_lev) {
   const IntVect ratio = refRatio(crse_lev);
   const Real moment_scale = Real(ratio[0]) * Real(ratio[1]) * Real(ratio[2]);
   moments_new[crse_lev].mult(moment_scale, comp_m0,
-                             moments_new[crse_lev].nComp() - comp_m0, 0);
+                             moments_new[crse_lev].nComp() - 1, 0);
 }
 
 // compute a new multifab by coping in phi from valid region and filling ghost
