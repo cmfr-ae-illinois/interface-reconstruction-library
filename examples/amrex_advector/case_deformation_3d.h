@@ -64,8 +64,8 @@ struct Deformation3D {
           const auto cell_moments =
               IRL::getVolumeMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
                   cell, interface(i, j, k));
-          moments(i, j, k, comp_vf) = cell_moments[0].volume() /
-                                      IRL::getVolumeMoments<IRL::Volume>(cell);
+          moments(i, j, k, comp_vf) =
+              cell_moments[0].volume() / (dx[0] * dx[1] * dx[2]);
           moments(i, j, k, comp_m0) = cell_moments[0].volume();
           if (transport_m1) {
             moments(i, j, k, comp_m1_l) = cell_moments[0].centroid()[0];
