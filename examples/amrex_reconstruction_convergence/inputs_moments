@@ -1,0 +1,6 @@
+shape = sphere
+binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/temporary/initialization_test/sphere_1024/sphere_moments_Nx1024.bin
+nx_fine = 1024
+factor = 4
+max_grid_size = 32
+moment_order = 2
