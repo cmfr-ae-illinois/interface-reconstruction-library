@@ -22,7 +22,6 @@ struct MOF1 {
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
     const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
 
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
@@ -31,7 +30,7 @@ struct MOF1 {
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
         // Skip cell if vfrac ~0 or vfrac~1
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -51,17 +50,17 @@ struct MOF1 {
         const auto cell = IRL::RectangularCuboid::fromBoundingPts(
             lower_cell_pt, upper_cell_pt);
         // Compute gas and liquid moments (M0 and M1)
-        const double liq_m0 = moments_array(i, j, k, 0);
+        const double liq_m0 = moments_array(i, j, k, comp_m0);
         const double gas_m0 = vol - liq_m0;
         const IRL::Pt liq_m1 =
-            (1.0 / liq_m0) * IRL::Pt(moments_array(i, j, k, 1),
-                                     moments_array(i, j, k, 2),
-                                     moments_array(i, j, k, 3));
+            (1.0 / liq_m0) * IRL::Pt(moments_array(i, j, k, comp_m1_l),
+                                     moments_array(i, j, k, comp_m1_l + 1),
+                                     moments_array(i, j, k, comp_m1_l + 2));
         const IRL::Pt gas_m1 =
             (1.0 / gas_m0) *
-            (vol * cell_center - IRL::Pt(moments_array(i, j, k, 1),
-                                         moments_array(i, j, k, 2),
-                                         moments_array(i, j, k, 3)));
+            (vol * cell_center - IRL::Pt(moments_array(i, j, k, comp_m1_l),
+                                         moments_array(i, j, k, comp_m1_l + 1),
+                                         moments_array(i, j, k, comp_m1_l + 2)));
         const IRL::SeparatedMoments<IRL::VolumeMoments> svm(
             IRL::VolumeMoments(liq_m0, liq_m1),
             IRL::VolumeMoments(gas_m0, gas_m1));

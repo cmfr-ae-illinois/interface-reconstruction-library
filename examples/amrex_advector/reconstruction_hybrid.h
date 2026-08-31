@@ -182,7 +182,7 @@ struct HYBRID {
       const Box& bx = mfi.tilebox();
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double liq_vf = moments_array(i, j, k) * vol_inv;
+        const double liq_vf = moments_array(i, j, k, comp_vf);
 
         if (liq_vf < IRL::global_constants::VF_LOW ||
             liq_vf > IRL::global_constants::VF_HIGH) {
@@ -221,7 +221,7 @@ struct HYBRID {
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-              const double neighbor_vf = moments_array(ii, jj, kk) * vol_inv;
+              const double neighbor_vf = moments_array(ii, jj, kk, comp_vf);
 
               if (neighbor_vf < IRL::global_constants::VF_LOW ||
                   neighbor_vf > IRL::global_constants::VF_HIGH) {
@@ -343,7 +343,7 @@ struct HYBRID {
       const Box& bx = mfi.tilebox();
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double liq_vf = moments_array(i, j, k) * vol_inv;
+        const double liq_vf = moments_array(i, j, k, comp_vf);
 
         if (liq_vf < IRL::global_constants::VF_LOW ||
             liq_vf > IRL::global_constants::VF_HIGH) {
@@ -384,7 +384,7 @@ struct HYBRID {
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-              const double neighbor_vf = moments_array(ii, jj, kk) * vol_inv;
+              const double neighbor_vf = moments_array(ii, jj, kk, comp_vf);
 
               if (neighbor_vf < IRL::global_constants::VF_LOW ||
                   neighbor_vf > IRL::global_constants::VF_HIGH) {
@@ -507,7 +507,7 @@ struct HYBRID {
       const Box& bx = mfi.tilebox();
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double liq_vf = moments_array(i, j, k) * vol_inv;
+        const double liq_vf = moments_array(i, j, k, comp_vf);
 
         if (liq_vf < IRL::global_constants::VF_LOW ||
             liq_vf > IRL::global_constants::VF_HIGH) {
@@ -523,7 +523,7 @@ struct HYBRID {
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-              vf_supercell += moments_array(ii, jj, kk) * vol_inv;
+              vf_supercell += moments_array(ii, jj, kk, comp_vf);
             }
           }
         }
@@ -573,7 +573,7 @@ struct HYBRID {
       const Box& bx = mfi.tilebox();
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double liq_vf = moments_array(i, j, k) * vol_inv;
+        const double liq_vf = moments_array(i, j, k, comp_vf);
 
         if (liq_vf < IRL::global_constants::VF_LOW) {
           interface_array(i, j, k) = IRL::Paraboloid::createAlwaysBelow();

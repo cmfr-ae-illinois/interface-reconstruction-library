@@ -226,7 +226,6 @@ struct MOF2 {
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
     const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
 
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
@@ -235,7 +234,7 @@ struct MOF2 {
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
         // Skip cell if vfrac ~0 or vfrac~1
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -255,38 +254,38 @@ struct MOF2 {
         const auto cell = IRL::RectangularCuboid::fromBoundingPts(
             lower_cell_pt, upper_cell_pt);
         // Compute gas and liquid moments (M0 and M1)
-        const double liq_m0 = moments_array(i, j, k, 0);
+        const double liq_m0 = moments_array(i, j, k, comp_m0);
         const double gas_m0 = vol - liq_m0;
         const IRL::Pt liq_m1 =
-            (1.0 / liq_m0) * IRL::Pt(moments_array(i, j, k, 1),
-                                     moments_array(i, j, k, 2),
-                                     moments_array(i, j, k, 3));
+            (1.0 / liq_m0) * IRL::Pt(moments_array(i, j, k, comp_m1_l),
+                                     moments_array(i, j, k, comp_m1_l + 1),
+                                     moments_array(i, j, k, comp_m1_l + 2));
         const IRL::Pt gas_m1 =
-            (1.0 / gas_m0) * IRL::Pt(moments_array(i, j, k, 4),
-                                     moments_array(i, j, k, 5),
-                                     moments_array(i, j, k, 6));
+            (1.0 / gas_m0) * IRL::Pt(moments_array(i, j, k, comp_m1_g),
+                                     moments_array(i, j, k, comp_m1_g + 1),
+                                     moments_array(i, j, k, comp_m1_g + 2));
         auto centroid_line = IRL::Normal(gas_m1 - liq_m1);
         IRL::GeneralMoments3D<2> liquid_moments, gas_moments;
-        liquid_moments[0] = moments_array(i, j, k, 0);
-        liquid_moments[1] = moments_array(i, j, k, 1);
-        liquid_moments[2] = moments_array(i, j, k, 2);
-        liquid_moments[3] = moments_array(i, j, k, 3);
-        liquid_moments[4] = moments_array(i, j, k, 7);
-        liquid_moments[5] = moments_array(i, j, k, 8);
-        liquid_moments[6] = moments_array(i, j, k, 9);
-        liquid_moments[7] = moments_array(i, j, k, 10);
-        liquid_moments[8] = moments_array(i, j, k, 11);
-        liquid_moments[9] = moments_array(i, j, k, 12);
-        gas_moments[0] = vol - moments_array(i, j, k, 0);
-        gas_moments[1] = moments_array(i, j, k, 4);
-        gas_moments[2] = moments_array(i, j, k, 5);
-        gas_moments[3] = moments_array(i, j, k, 6);
-        gas_moments[4] = moments_array(i, j, k, 13);
-        gas_moments[5] = moments_array(i, j, k, 14);
-        gas_moments[6] = moments_array(i, j, k, 15);
-        gas_moments[7] = moments_array(i, j, k, 16);
-        gas_moments[8] = moments_array(i, j, k, 17);
-        gas_moments[9] = moments_array(i, j, k, 18);
+        liquid_moments[0] = moments_array(i, j, k, comp_m0);
+        liquid_moments[1] = moments_array(i, j, k, comp_m1_l);
+        liquid_moments[2] = moments_array(i, j, k, comp_m1_l + 1);
+        liquid_moments[3] = moments_array(i, j, k, comp_m1_l + 2);
+        liquid_moments[4] = moments_array(i, j, k, comp_m2_l);
+        liquid_moments[5] = moments_array(i, j, k, comp_m2_l + 1);
+        liquid_moments[6] = moments_array(i, j, k, comp_m2_l + 2);
+        liquid_moments[7] = moments_array(i, j, k, comp_m2_l + 3);
+        liquid_moments[8] = moments_array(i, j, k, comp_m2_l + 4);
+        liquid_moments[9] = moments_array(i, j, k, comp_m2_l + 5);
+        gas_moments[0] = vol - moments_array(i, j, k, comp_m0);
+        gas_moments[1] = moments_array(i, j, k, comp_m1_g);
+        gas_moments[2] = moments_array(i, j, k, comp_m1_g + 1);
+        gas_moments[3] = moments_array(i, j, k, comp_m1_g + 2);
+        gas_moments[4] = moments_array(i, j, k, comp_m2_g);
+        gas_moments[5] = moments_array(i, j, k, comp_m2_g + 1);
+        gas_moments[6] = moments_array(i, j, k, comp_m2_g + 2);
+        gas_moments[7] = moments_array(i, j, k, comp_m2_g + 3);
+        gas_moments[8] = moments_array(i, j, k, comp_m2_g + 4);
+        gas_moments[9] = moments_array(i, j, k, comp_m2_g + 5);
 
         MOF2Functor myMOF2Functor(5, 20, cell, liquid_moments, gas_moments,
                                   cell, vfrac);
@@ -345,7 +344,6 @@ struct SuperMOF2 {
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
     const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
 
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
@@ -354,7 +352,7 @@ struct SuperMOF2 {
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
         // Skip cell if vfrac ~0 or vfrac~1
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -378,26 +376,46 @@ struct SuperMOF2 {
         for (int ii = -1; ii <= 1; ++ii) {
           for (int jj = -1; jj <= 1; ++jj) {
             for (int kk = -1; kk <= 1; ++kk) {
-              super_l_mom[0] += moments_array(i + ii, j + jj, k + kk, 0);
-              super_l_mom[1] += moments_array(i + ii, j + jj, k + kk, 1);
-              super_l_mom[2] += moments_array(i + ii, j + jj, k + kk, 2);
-              super_l_mom[3] += moments_array(i + ii, j + jj, k + kk, 3);
-              super_l_mom[4] += moments_array(i + ii, j + jj, k + kk, 7);
-              super_l_mom[5] += moments_array(i + ii, j + jj, k + kk, 8);
-              super_l_mom[6] += moments_array(i + ii, j + jj, k + kk, 9);
-              super_l_mom[7] += moments_array(i + ii, j + jj, k + kk, 10);
-              super_l_mom[8] += moments_array(i + ii, j + jj, k + kk, 11);
-              super_l_mom[9] += moments_array(i + ii, j + jj, k + kk, 12);
-              super_g_mom[0] += vol - moments_array(i + ii, j + jj, k + kk, 0);
-              super_g_mom[1] += moments_array(i + ii, j + jj, k + kk, 4);
-              super_g_mom[2] += moments_array(i + ii, j + jj, k + kk, 5);
-              super_g_mom[3] += moments_array(i + ii, j + jj, k + kk, 6);
-              super_g_mom[4] += moments_array(i + ii, j + jj, k + kk, 13);
-              super_g_mom[5] += moments_array(i + ii, j + jj, k + kk, 14);
-              super_g_mom[6] += moments_array(i + ii, j + jj, k + kk, 15);
-              super_g_mom[7] += moments_array(i + ii, j + jj, k + kk, 16);
-              super_g_mom[8] += moments_array(i + ii, j + jj, k + kk, 17);
-              super_g_mom[9] += moments_array(i + ii, j + jj, k + kk, 18);
+              super_l_mom[0] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m0);
+              super_l_mom[1] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m1_l);
+              super_l_mom[2] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m1_l + 1);
+              super_l_mom[3] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m1_l + 2);
+              super_l_mom[4] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_l);
+              super_l_mom[5] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_l + 1);
+              super_l_mom[6] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_l + 2);
+              super_l_mom[7] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_l + 3);
+              super_l_mom[8] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_l + 4);
+              super_l_mom[9] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_l + 5);
+              super_g_mom[0] +=
+                  vol - moments_array(i + ii, j + jj, k + kk, comp_m0);
+              super_g_mom[1] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m1_g);
+              super_g_mom[2] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m1_g + 1);
+              super_g_mom[3] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m1_g + 2);
+              super_g_mom[4] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_g);
+              super_g_mom[5] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_g + 1);
+              super_g_mom[6] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_g + 2);
+              super_g_mom[7] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_g + 3);
+              super_g_mom[8] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_g + 4);
+              super_g_mom[9] +=
+                  moments_array(i + ii, j + jj, k + kk, comp_m2_g + 5);
             }
           }
         }

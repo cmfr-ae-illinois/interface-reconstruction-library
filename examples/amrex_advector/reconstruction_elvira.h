@@ -21,8 +21,6 @@ struct ELVIRA {
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
-    const Real vol = dx[0] * dx[1] * dx[2];
-    const Real vol_inv = 1.0 / vol;
 
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
@@ -31,7 +29,7 @@ struct ELVIRA {
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
         // Skip cell if vfrac ~0 or vfrac~1
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -57,7 +55,7 @@ struct ELVIRA {
               cells[neigh_id] = IRL::RectangularCuboid::fromBoundingPts(
                   IRL::Pt(xx, yy, zz),
                   IRL::Pt(xx + dx[0], yy + dx[1], zz + dx[2]));
-              cells_vfrac[neigh_id] = moments_array(ii, jj, kk, 0) * vol_inv;
+              cells_vfrac[neigh_id] = moments_array(ii, jj, kk, comp_vf);
               elvira_neighborhood.setMember(&cells[neigh_id],
                                             &cells_vfrac[neigh_id], ii - i,
                                             jj - j, kk - k);

@@ -178,7 +178,7 @@ struct iVF {
         kappa_rm1_array(i, j, k) = 0.0;
         kappa_rm2_array(i, j, k) = 0.0;
 
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
 
         if (vfrac < IRL::global_constants::VF_LOW) {
           interface_array(i, j, k) = IRL::Paraboloid::createAlwaysBelow();
@@ -223,7 +223,7 @@ struct iVF {
               return;
             }
 
-            const double vfrac = moments_array(i, j, k) * vol_inv;
+            const double vfrac = moments_array(i, j, k, comp_vf);
 
             const IRL::Normal n =
                 normalFromArray(current_normal_array, i, j, k);
@@ -265,7 +265,7 @@ struct iVF {
             return;
           }
 
-          const double vfrac = moments_array(i, j, k) * vol_inv;
+          const double vfrac = moments_array(i, j, k, comp_vf);
 
           const IRL::Normal init_n =
               normalFromArray(init_normal_array, i, j, k);
@@ -297,7 +297,7 @@ struct iVF {
           for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
             for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
               for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-                const double vfrac_local = moments_array(ii, jj, kk) * vol_inv;
+                const double vfrac_local = moments_array(ii, jj, kk, comp_vf);
 
                 if (vfrac_local < IRL::global_constants::VF_LOW ||
                     vfrac_local > IRL::global_constants::VF_HIGH) {
@@ -420,7 +420,7 @@ struct iVF {
       const Box& bx = mfi.tilebox();
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
 
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -461,7 +461,7 @@ struct iVF {
       const Box& bx = mfi.tilebox();
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double vfrac = moments_array(i, j, k) * vol_inv;
+        const double vfrac = moments_array(i, j, k, comp_vf);
 
         if (vfrac < IRL::global_constants::VF_LOW ||
             vfrac > IRL::global_constants::VF_HIGH) {
@@ -487,7 +487,7 @@ struct iVF {
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-              const double vfrac_local = moments_array(ii, jj, kk) * vol_inv;
+              const double vfrac_local = moments_array(ii, jj, kk, comp_vf);
 
               if (vfrac_local < IRL::global_constants::VF_LOW ||
                   vfrac_local > IRL::global_constants::VF_HIGH) {

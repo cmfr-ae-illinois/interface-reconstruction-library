@@ -12,6 +12,13 @@
 #include "irl/amrex/sepunion_multifab.h"
 #include "irl/generic_cutting/cut_polygon.h"
 
+static constexpr int comp_vf = 0;
+static constexpr int comp_m0 = 1;
+static constexpr int comp_m1_l = 2;
+static constexpr int comp_m1_g = 5;
+static constexpr int comp_m2_l = 8;
+static constexpr int comp_m2_g = 14;
+
 #include "examples/amrex_advector/advection_helpers.h"
 
 struct InterfaceScalarField {
@@ -216,6 +223,9 @@ class AmrCoreAdv : public amrex::AmrCore {
       const amrex::MultiFab& a_band_id, amrex::MultiFab& a_moments,
       const amrex::Geometry& a_geom, const double a_dt, const double a_time);
 
+  void BuildUniformFinestVolumeFractionField(
+      amrex::MultiFab& a_uniform_vf) const;
+
   void BuildUniformFinestMoments(amrex::MultiFab& a_uniform_moments) const;
 
   amrex::Real ComputeCompositeM0() const;
@@ -224,6 +234,8 @@ class AmrCoreAdv : public amrex::AmrCore {
                                     const amrex::MultiFab& a_final) const;
 
   amrex::Real ComputeL1ErrorM0() const;
+
+  void SetFullAndEmptyCellMoments(int lev);
 
   ////////////////
   // private data members

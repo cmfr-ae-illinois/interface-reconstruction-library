@@ -22,8 +22,6 @@ void AmrCoreAdv::ResetMoments(const SepUnionMultiFab& a_interface,
 
   const auto dx = a_geom.CellSizeArray();
   const auto problo = a_geom.ProbLoArray();
-  const Real vol = dx[0] * dx[1] * dx[2];
-  const Real vol_inv = 1.0 / vol;
 
   for (MFIter mfi(a_interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
     Array4<IRL::SeparatorUnion const> interface_array =
@@ -33,7 +31,7 @@ void AmrCoreAdv::ResetMoments(const SepUnionMultiFab& a_interface,
 
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
       // Compute cell volume fraction
-      const double vfrac = moments_array(i, j, k) * vol_inv;
+      const double vfrac = moments_array(i, j, k, comp_vf);
       // Skip cell if vfrac ~0 or vfrac~1
       if (vfrac < IRL::global_constants::VF_LOW ||
           vfrac > IRL::global_constants::VF_HIGH) {
@@ -50,28 +48,28 @@ void AmrCoreAdv::ResetMoments(const SepUnionMultiFab& a_interface,
       auto moments_exact =
           IRL::getVolumeMoments<IRL::SeparatedMoments<IRL::VolumeMoments>>(
               cell, interface_array(i, j, k));
-      moments_array(i, j, k, 1) = moments_exact[0].centroid()[0];
-      moments_array(i, j, k, 2) = moments_exact[0].centroid()[1];
-      moments_array(i, j, k, 3) = moments_exact[0].centroid()[2];
-      moments_array(i, j, k, 4) = moments_exact[1].centroid()[0];
-      moments_array(i, j, k, 5) = moments_exact[1].centroid()[1];
-      moments_array(i, j, k, 6) = moments_exact[1].centroid()[2];
+      moments_array(i, j, k, comp_m1_l) = moments_exact[0].centroid()[0];
+      moments_array(i, j, k, comp_m1_l + 1) = moments_exact[0].centroid()[1];
+      moments_array(i, j, k, comp_m1_l + 2) = moments_exact[0].centroid()[2];
+      moments_array(i, j, k, comp_m1_g) = moments_exact[1].centroid()[0];
+      moments_array(i, j, k, comp_m1_g + 1) = moments_exact[1].centroid()[1];
+      moments_array(i, j, k, comp_m1_g + 2) = moments_exact[1].centroid()[2];
       if (transport_m2) {
         auto moments_full = IRL::getVolumeMoments<
             IRL::SeparatedMoments<IRL::GeneralMoments3D<2>>>(
             cell, interface_array(i, j, k));
-        moments_array(i, j, k, 7) = moments_full[0][4];
-        moments_array(i, j, k, 8) = moments_full[0][5];
-        moments_array(i, j, k, 9) = moments_full[0][6];
-        moments_array(i, j, k, 10) = moments_full[0][7];
-        moments_array(i, j, k, 11) = moments_full[0][8];
-        moments_array(i, j, k, 12) = moments_full[0][9];
-        moments_array(i, j, k, 13) = moments_full[1][4];
-        moments_array(i, j, k, 14) = moments_full[1][5];
-        moments_array(i, j, k, 15) = moments_full[1][6];
-        moments_array(i, j, k, 16) = moments_full[1][7];
-        moments_array(i, j, k, 17) = moments_full[1][8];
-        moments_array(i, j, k, 18) = moments_full[1][9];
+        moments_array(i, j, k, comp_m2_l) = moments_full[0][4];
+        moments_array(i, j, k, comp_m2_l + 1) = moments_full[0][5];
+        moments_array(i, j, k, comp_m2_l + 2) = moments_full[0][6];
+        moments_array(i, j, k, comp_m2_l + 3) = moments_full[0][7];
+        moments_array(i, j, k, comp_m2_l + 4) = moments_full[0][8];
+        moments_array(i, j, k, comp_m2_l + 5) = moments_full[0][9];
+        moments_array(i, j, k, comp_m2_g) = moments_full[1][4];
+        moments_array(i, j, k, comp_m2_g + 1) = moments_full[1][5];
+        moments_array(i, j, k, comp_m2_g + 2) = moments_full[1][6];
+        moments_array(i, j, k, comp_m2_g + 3) = moments_full[1][7];
+        moments_array(i, j, k, comp_m2_g + 4) = moments_full[1][8];
+        moments_array(i, j, k, comp_m2_g + 5) = moments_full[1][9];
       }
     });
   }
