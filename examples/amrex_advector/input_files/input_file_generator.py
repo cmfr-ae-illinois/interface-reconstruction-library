@@ -1,47 +1,41 @@
 from pathlib import Path
 
-# params to change -------------------------------------------
 # ------------------------------------------------------------
-# case_name = "deformation3d"
-case_name = "rotation3d"
+# params to change 
+# ------------------------------------------------------------
+case_name = "deformation3d"
+# case_name = "rotation3d"
 reconstruction_names = [
-    "lvira",
-    "vf",
-    "vf2",
-    "cf",
-    "plicnet",
+    "pu",
 ]
 max_levels = [
     3,
-    4,
-    5,
-    6,
-    7,
 ]
-cfl = 0.25
+cfl = 1.00
 output_dir = Path(
     "/home/parinht2/Repositories/"
     "interface-reconstruction-library/"
     "examples/amrex_advector/input_files"
 )
-checkpoint_path = "."
-interface_output_path = "."
+checkpoint_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/temporary"
+interface_output_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/temporary"
+plot_times = [0.0, 0.25, 0.5, 0.75, 1.0]
+chk_times = [0.0, 0.25, 0.5, 0.75, 1.0]
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
-max_step = 100000
+max_step = 10000
 advection_name = "remap"
 is_periodic = [1, 1, 1]
-amr_v = 1 # verbosity
-n_cell = [2, 2, 2] # base resolution
-ref_ratio_value = 2 # Refinement ratio between every level
-blocking_factor_x = 2
-blocking_factor_y = 2
-blocking_factor_z = 2
-max_grid_size = 8
+amr_v = 1
+n_cell = [8, 8, 8]
+ref_ratio_value = 2
+blocking_factor_x = 8
+blocking_factor_y = 8
+blocking_factor_z = 8
+max_grid_size = 32
 regrid_int = 1
 do_reflux = 1
-# plot_file = "plt"
 plot_int = -1
 chk_int = -1
 
@@ -51,10 +45,12 @@ def get_case_settings(case):
         stop_time = 3.0
         prob_lo = [0.0, 0.0, 0.0,]
         prob_hi = [1.0, 1.0, 1.0,]
+        velocity_field = 1
     elif case == "rotation3d":
         stop_time = 1.0
         prob_lo = [-0.5, -0.5, -0.5,]
         prob_hi = [0.5, 0.5, 0.5,]
+        velocity_field = 1
     else:
         raise ValueError(
             f"Unknown case_name: '{case}'\n"
@@ -62,7 +58,7 @@ def get_case_settings(case):
             "  deformation3d\n"
             "  rotation3d"
         )
-    return stop_time, prob_lo, prob_hi
+    return stop_time, prob_lo, prob_hi, velocity_field
 
 
 
@@ -78,7 +74,13 @@ def format_cfl_for_filename(value):
     """
     Format CFL for use in filenames.
     """
-    return str(value)
+    return f"{value:.2f}"
+
+
+def format_optional_input(name, values):
+    if values is None:
+        return f"# {name} = 0.0 1.0"
+    return f"{name} = {format_list(values)}"
 
 
 # GENERATE INPUT FILE
@@ -88,6 +90,7 @@ def generate_input_file(
     stop_time,
     prob_lo,
     prob_hi,
+    velocity_field,
 ):
     ref_ratios = [ref_ratio_value] * max_level
     cfl_string = format_cfl_for_filename(cfl)
@@ -134,6 +137,7 @@ reconstruction.name = {reconstruction_name}
 # Which interface advection method to use?
 # *****************************************************************
 advection.name = {advection_name}
+adv.velocity_field = {velocity_field}  # 0 exact case velocity, 1 interpolated face velocity
 
 # *****************************************************************
 # Are we restarting from an existing checkpoint file?
@@ -192,37 +196,48 @@ adv.do_reflux = {do_reflux}
 # Plotfile name and frequency
 # *****************************************************************
 amr.plot_file  = {plot_filename}    # root name of plot file
+# amr.plot_dir = .
 amr.plot_int   = {plot_int}    # number of timesteps between plot files
                         # if negative then no plot files will be written
+{format_optional_input("amr.plot_times", plot_times)}
+                        # fractions of stop_time for plot files
+                        # ignored when amr.plot_int > 0
 amr.interface_output_path = {interface_output_path}
 
 # *****************************************************************
 # Checkpoint name and frequency
 # *****************************************************************
 amr.chk_file = {chk_filename}      # root name of checkpoint file
+# amr.chk_dir = .
 amr.chk_int  = {chk_int}       # number of timesteps between checkpoint files
                         # if negative then no checkpoint files will be written
+{format_optional_input("amr.chk_times", chk_times)}
+                        # fractions of stop_time for checkpoint files
+                        # ignored when amr.chk_int > 0
 amr.checkpoint_path = {checkpoint_path}
 """
 
     # Write file
     input_path.write_text(content)
     print(f"Generated: {input_path}")
-    print(f"  case             = {case_name}")
-    print(f"  reconstruction   = {reconstruction_name}")
-    print(f"  CFL              = {cfl}")
-    print(f"  max_level        = {max_level}")
-    print(f"  ref_ratio        = {format_list(ref_ratios)}")
-    print(f"  stop_time        = {stop_time}")
-    print(f"  prob_lo          = {format_list(prob_lo)}")
-    print(f"  prob_hi          = {format_list(prob_hi)}")
-    print(f"  checkpoint root  = {chk_filename}")
-    print(f"  checkpoint path  = {checkpoint_path}")
-    print(f"  interface path   = {interface_output_path}")
+    # print(f"  case             = {case_name}")
+    # print(f"  reconstruction   = {reconstruction_name}")
+    # print(f"  CFL              = {cfl}")
+    # print(f"  max_level        = {max_level}")
+    # print(f"  ref_ratio        = {format_list(ref_ratios)}")
+    # print(f"  stop_time        = {stop_time}")
+    # print(f"  prob_lo          = {format_list(prob_lo)}")
+    # print(f"  prob_hi          = {format_list(prob_hi)}")
+    # print(f"  velocity_field   = {velocity_field}")
+    # print(f"  plot_times       = {format_list(plot_times) if plot_times else None}")
+    # print(f"  chk_times        = {format_list(chk_times) if chk_times else None}")
+    # print(f"  checkpoint root  = {chk_filename}")
+    # print(f"  checkpoint path  = {checkpoint_path}")
+    # print(f"  interface path   = {interface_output_path}")
     print()
 
 def main():
-    stop_time, prob_lo, prob_hi = get_case_settings(case_name)
+    stop_time, prob_lo, prob_hi, velocity_field = get_case_settings(case_name)
     output_dir.mkdir(
         parents=True,
         exist_ok=True,
@@ -236,6 +251,7 @@ def main():
                 stop_time=stop_time,
                 prob_lo=prob_lo,
                 prob_hi=prob_hi,
+                velocity_field=velocity_field,
             )
             num_files += 1
 # RUN
