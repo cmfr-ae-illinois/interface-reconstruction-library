@@ -38,9 +38,11 @@ void InitializeSepUnionMultiFab(SepUnionMultiFab& mf) {
   for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
     Array4<IRL::SeparatorUnion> arr = mf.array(mfi);
     const Box& bx = mfi.growntilebox();
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-      arr(i, j, k) = IRL::SeparatorUnion();
-    });
+    const int ncomp = mf.nComp();
+    amrex::ParallelFor(bx, ncomp,
+                       [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) {
+                         arr(i, j, k, n) = IRL::SeparatorUnion();
+                       });
   }
 }
 
@@ -88,6 +90,11 @@ AmrCoreAdv::AmrCoreAdv() {
   // Compute number of moment components transported
   ncomp_moments = 2 + 3 * ((transport_m1 || transport_m2) ? 2 : 0) +
                   6 * (transport_m2 ? 2 : 0);
+  // Increase number of ghosts if transport_m2 == true because we need to be
+  // able to compute gradients on the fly
+  if (transport_m2) {
+    num_grow += 1;
+  }
 
   ParmParse ppcase("case");
   ppcase.get("name", case_name);
@@ -1719,8 +1726,8 @@ void AmrCoreAdv::UpdateBand() {
     }
     band_id[lev].FillBoundary(geom[lev].periodicity());
 
-    const int nlayers = static_cast<int>(static_cast<double>(num_grow) /
-                                         std::pow(2.0, finest_level - lev));
+    const int nlayers =
+        static_cast<int>(Math::ceil(cfl * std::max(1, regrid_int)) + 1);
     for (int n = 0; n < nlayers; ++n) {
       for (MFIter mfi(band_id[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         Array4<Real> band = band_id[lev].array(mfi);
