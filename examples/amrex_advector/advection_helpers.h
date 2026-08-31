@@ -25,16 +25,16 @@ enum class VelocityFieldType {
   Deformation
 };
 
-inline void RestrictPtToBBox(IRL::Pt& pt, const IRL::Pt& lo, const IRL::Pt& hi);
+template <class PtType>
+inline void RestrictPtToBBox(PtType& pt, const PtType& lo, const PtType& hi);
 
 // general velocity accessor (vx, vy, vz is only used if analytical velocity
 // is not used)
-IRL::Vec3<double> GetVelocity(const IRL::Pt& pt, const double time,
-                              const VelocityFieldType velocity_field_type,
-                              Array4<Real const> const& vx,
-                              Array4<Real const> const& vy,
-                              Array4<Real const> const& vz, const Box& bx,
-                              const Geometry& a_geom);
+inline IRL::Vec3<double> GetVelocity(
+    const IRL::Pt& pt, const double time,
+    const VelocityFieldType velocity_field_type, Array4<Real const> const& vx,
+    Array4<Real const> const& vy, Array4<Real const> const& vz, const Box& bx,
+    const Geometry& a_geom);
 
 inline IRL::Vec3<double> GetInterpolatedVelocity(const IRL::Pt& pt,
                                                  Array4<Real const> const& vx,
@@ -43,20 +43,23 @@ inline IRL::Vec3<double> GetInterpolatedVelocity(const IRL::Pt& pt,
                                                  const Box& bx,
                                                  const Geometry& a_geom);
 
-Eigen::Vector3d GetVelocity(const Eigen::Vector3d& pt, const double time,
-                            const VelocityFieldType velocity_field_type,
-                            Array4<Real const> const& vx,
-                            Array4<Real const> const& vy,
-                            Array4<Real const> const& vz, const Box& bx,
-                            const Geometry& a_geom);
+inline Eigen::Vector3d GetVelocity(const Eigen::Vector3d& pt, const double time,
+                                   const VelocityFieldType velocity_field_type,
+                                   Array4<Real const> const& vx,
+                                   Array4<Real const> const& vy,
+                                   Array4<Real const> const& vz, const Box& bx,
+                                   const Geometry& a_geom);
 
-Eigen::Matrix3d GetVelocityGradient(const Eigen::Vector3d& pt,
-                                    const double time,
-                                    const VelocityFieldType velocity_field_type,
-                                    Array4<Real const> const& vx,
-                                    Array4<Real const> const& vy,
-                                    Array4<Real const> const& vz, const Box& bx,
-                                    const Geometry& a_geom);
+inline Eigen::Matrix3d GetVelocityGradient(
+    const Eigen::Vector3d& pt, const double time,
+    const VelocityFieldType velocity_field_type, Array4<Real const> const& vx,
+    Array4<Real const> const& vy, Array4<Real const> const& vz, const Box& bx,
+    const Geometry& a_geom);
+
+inline Eigen::Matrix3d GetInterpolatedVelocityGradient(
+    const Eigen::Vector3d& pt, Array4<Real const> const& vx,
+    Array4<Real const> const& vy, Array4<Real const> const& vz, const Box& bx,
+    const Geometry& a_geom);
 
 inline IRL::Pt ProjectVertex(const IRL::Pt& pt, const double dt,
                              const double time,

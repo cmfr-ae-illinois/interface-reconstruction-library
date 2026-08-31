@@ -335,7 +335,7 @@ class AmrCoreAdv : public amrex::AmrCore {
   bool initial_checkpoint_file_written = false;
 
   // Number of ghost layers needed for advection
-  int num_grow = 1;
+  int num_grow = 2;
 
   amrex::Real initial_liquid_mass = 0.0;
   amrex::MultiFab uniform_initial_moments;

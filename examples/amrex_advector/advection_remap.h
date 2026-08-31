@@ -43,12 +43,21 @@ struct LagrangianRemap {
     const double half_time = a_time - 0.5 * a_dt;  // t^{n+1/2}
     const double cell_volume = dx[0] * dx[1] * dx[2];
     const int ncomp = a_moments.nComp();
+    const int ngrow = a_interface_with_ghost.nGrow();
 
     for (MFIter mfi(a_interface_with_ghost, TilingIfNotGPU()); mfi.isValid();
          ++mfi) {
       // Valid tile and tile including ghost cells.
       const Box& bx = mfi.tilebox();
-      const Box& grown_bx = mfi.growntilebox();
+      const Box& grown_bx = grow(bx, ngrow);
+      const auto boxlo =
+          Eigen::Vector3d({problo[0] + (grown_bx.smallEnd(0) + 1) * dx[0],
+                           problo[1] + (grown_bx.smallEnd(1) + 1) * dx[1],
+                           problo[2] + (grown_bx.smallEnd(2) + 1) * dx[2]});
+      const auto boxhi =
+          Eigen::Vector3d({problo[0] + grown_bx.bigEnd(0) * dx[0],
+                           problo[1] + grown_bx.bigEnd(1) * dx[1],
+                           problo[2] + grown_bx.bigEnd(2) * dx[2]});
 
       // only used when velocity field type is interpolated
       const Array4<Real const> velx = a_facevel[0].const_array(mfi);
@@ -86,33 +95,13 @@ struct LagrangianRemap {
               ProjectVertex(cell[n], -a_dt, new_time, velocity_field_type, velx,
                             vely, velz, grown_bx, a_geom);
         }
-        // face center locations
-        const IRL::Pt xlo_face(x, y + 0.5 * dx[1], z + 0.5 * dx[2]);
-        const IRL::Pt xhi_face(x + dx[0], y + 0.5 * dx[1], z + 0.5 * dx[2]);
-        const IRL::Pt ylo_face(x + 0.5 * dx[0], y, z + 0.5 * dx[2]);
-        const IRL::Pt yhi_face(x + 0.5 * dx[0], y + dx[1], z + 0.5 * dx[2]);
-        const IRL::Pt zlo_face(x + 0.5 * dx[0], y + 0.5 * dx[1], z);
-        const IRL::Pt zhi_face(x + 0.5 * dx[0], y + 0.5 * dx[1], z + dx[2]);
-        // Evaluate face velocities at t^{n+1/2}
-        const auto u_xlo = GetVelocity(xlo_face, half_time, velocity_field_type,
-                                       velx, vely, velz, grown_bx, a_geom);
-        const auto u_xhi = GetVelocity(xhi_face, half_time, velocity_field_type,
-                                       velx, vely, velz, grown_bx, a_geom);
-        const auto u_ylo = GetVelocity(ylo_face, half_time, velocity_field_type,
-                                       velx, vely, velz, grown_bx, a_geom);
-        const auto u_yhi = GetVelocity(yhi_face, half_time, velocity_field_type,
-                                       velx, vely, velz, grown_bx, a_geom);
-        const auto u_zlo = GetVelocity(zlo_face, half_time, velocity_field_type,
-                                       velx, vely, velz, grown_bx, a_geom);
-        const auto u_zhi = GetVelocity(zhi_face, half_time, velocity_field_type,
-                                       velx, vely, velz, grown_bx, a_geom);
         // Compute soleinoidal flux volumes
-        flux_volumes[0] = a_dt * u_xlo[0] * dx[1] * dx[2];
-        flux_volumes[1] = a_dt * u_xhi[0] * dx[1] * dx[2];
-        flux_volumes[2] = a_dt * u_ylo[1] * dx[0] * dx[2];
-        flux_volumes[3] = a_dt * u_yhi[1] * dx[0] * dx[2];
-        flux_volumes[4] = a_dt * u_zlo[2] * dx[0] * dx[1];
-        flux_volumes[5] = a_dt * u_zhi[2] * dx[0] * dx[1];
+        flux_volumes[0] = a_dt * velx(i, j, k) * dx[1] * dx[2];
+        flux_volumes[1] = a_dt * velx(i + 1, j, k) * dx[1] * dx[2];
+        flux_volumes[2] = a_dt * vely(i, j, k) * dx[0] * dx[2];
+        flux_volumes[3] = a_dt * vely(i, j + 1, k) * dx[0] * dx[2];
+        flux_volumes[4] = a_dt * velz(i, j, k) * dx[0] * dx[1];
+        flux_volumes[5] = a_dt * velz(i, j, k + 1) * dx[0] * dx[1];
         // Create face flux hexahedra to compute correction
         for (int f = 0; f < 6; ++f) {
           for (int n = 0; n < 4; ++n) {
@@ -130,12 +119,8 @@ struct LagrangianRemap {
             IRL::Polyhedron24::fromRawPtPointer(14, preimage.data());
 
         // Compute bounding box of the preimage polyhedron
-        Real xlo = preimage[0][0];
-        Real ylo = preimage[0][1];
-        Real zlo = preimage[0][2];
-        Real xhi = preimage[0][0];
-        Real yhi = preimage[0][1];
-        Real zhi = preimage[0][2];
+        Real xlo = preimage[0][0], ylo = preimage[0][1], zlo = preimage[0][2];
+        Real xhi = preimage[0][0], yhi = preimage[0][1], zhi = preimage[0][2];
         for (int n = 1; n < 14; ++n) {
           xlo = preimage[n][0] < xlo ? preimage[n][0] : xlo;
           ylo = preimage[n][1] < ylo ? preimage[n][1] : ylo;
@@ -157,6 +142,7 @@ struct LagrangianRemap {
         const int khi =
             static_cast<int>(amrex::Math::floor((zhi - problo[2]) / dx[2]));
 
+#ifndef NDEBUG
         if (!grown_bx.contains(ilo, jlo, klo)) {
           std::ostringstream oss;
           oss << "Cell " << i << " " << j << " " << k << " has lo " << ilo
@@ -169,6 +155,7 @@ struct LagrangianRemap {
               << " " << jhi << " " << khi << '\n';
           throw std::runtime_error(oss.str());
         }
+#endif
 
         // Intersect preimage
         for (int n = 0; n < ncomp; ++n) {
@@ -245,6 +232,7 @@ struct LagrangianRemap {
               (1.0 / IRL::safelyTiny(M0_l)) * IRL::Pt::fromEigenVector(M1_l);
           IRL::Pt gas_centroid =
               (1.0 / IRL::safelyTiny(M0_g)) * IRL::Pt::fromEigenVector(M1_g);
+          // Restrict centroids to preimage bounding box
           RestrictPtToBBox(liquid_centroid, IRL::Pt(xlo, ylo, zlo),
                            IRL::Pt(xhi, yhi, zhi));
           RestrictPtToBBox(gas_centroid, IRL::Pt(xlo, ylo, zlo),
@@ -255,6 +243,9 @@ struct LagrangianRemap {
           gas_centroid =
               ProjectVertex(gas_centroid, a_dt, old_time, velocity_field_type,
                             velx, vely, velz, grown_bx, a_geom);
+          // Restrict centroids to current cell
+          RestrictPtToBBox(liquid_centroid, cell[5], cell[3]);
+          RestrictPtToBBox(gas_centroid, cell[5], cell[3]);
           moments_array(i, j, k, comp_m1_l) = M0_l * liquid_centroid[0];
           moments_array(i, j, k, comp_m1_l + 1) = M0_l * liquid_centroid[1];
           moments_array(i, j, k, comp_m1_l + 2) = M0_l * liquid_centroid[2];
@@ -270,7 +261,8 @@ struct LagrangianRemap {
             const Eigen::Matrix3d M2 = (m == 0) ? M2_l : M2_g;
 
             // RK4 -- step 1
-            const auto X0_k1 = M1 / IRL::safelyTiny(M0);
+            Eigen::Vector3d X0_k1 = M1 / IRL::safelyTiny(M0);
+            RestrictPtToBBox(X0_k1, boxlo, boxhi);
             const auto XtX0_k1 = X0_k1 * X0_k1.transpose();
             const auto U0_k1 = GetVelocity(X0_k1, old_time, velocity_field_type,
                                            velx, vely, velz, grown_bx, a_geom);
@@ -283,7 +275,8 @@ struct LagrangianRemap {
             const auto dM2dt_k1 = M2t0_k1 + M2t1_k1 + M2t2_k1;
 
             // RK4 -- step 2
-            const auto X0_k2 = X0_k1 + 0.5 * a_dt * U0_k1;
+            Eigen::Vector3d X0_k2 = X0_k1 + 0.5 * a_dt * U0_k1;
+            RestrictPtToBBox(X0_k2, boxlo, boxhi);
             const auto I0_k2 =
                 M2 + 0.5 * a_dt * (dM2dt_k1 + dM2dt_k1.transpose());
             const auto XtX0_k2 = X0_k2 * X0_k2.transpose();
@@ -299,7 +292,8 @@ struct LagrangianRemap {
             const auto dM2dt_k2 = M2t0_k2 + M2t1_k2 + M2t2_k2;
 
             // RK4 -- step 3
-            const auto X0_k3 = X0_k1 + 0.5 * a_dt * U0_k2;
+            Eigen::Vector3d X0_k3 = X0_k1 + 0.5 * a_dt * U0_k2;
+            RestrictPtToBBox(X0_k3, boxlo, boxhi);
             const auto I0_k3 =
                 M2 + 0.5 * a_dt * (dM2dt_k2 + dM2dt_k2.transpose());
             const auto XtX0_k3 = X0_k3 * X0_k3.transpose();
@@ -315,7 +309,8 @@ struct LagrangianRemap {
             const auto dM2dt_k3 = M2t0_k3 + M2t1_k3 + M2t2_k3;
 
             // RK4 -- step 4
-            const auto X0_k4 = X0_k1 + a_dt * U0_k3;
+            Eigen::Vector3d X0_k4 = X0_k1 + a_dt * U0_k3;
+            RestrictPtToBBox(X0_k4, boxlo, boxhi);
             const auto I0_k4 = M2 + a_dt * (dM2dt_k3 + dM2dt_k3.transpose());
             const auto XtX0_k4 = X0_k4 * X0_k4.transpose();
             const auto U0_k4 =
