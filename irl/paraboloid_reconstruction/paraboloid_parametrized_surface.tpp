@@ -1047,7 +1047,7 @@ inline MixedPolygonBezierSurface
 ParaboloidParametrizedSurfaceOutput::getBezierTriangleApprox(
     const UnsignedIndex_t a_order) {
   // Initialize bezier surface
-  MixedPolygonBezierSurface bezier_surface;
+  auto bezier_surface = MixedPolygonBezierSurface();
 
   // First, let's generate list of closed curves
   const UnsignedIndex_t nArcs = arc_list_m.size();
@@ -1115,135 +1115,141 @@ ParaboloidParametrizedSurfaceOutput::getBezierTriangleApprox(
       npoints += nLocalArcs;
     }
 
-    // Compute earcut triangulation of region constrained by closed curves
-    std::vector<UnsignedIndex_t> indices =
-        mapbox::earcut<UnsignedIndex_t>(polygon);
+    // It seems that mapbox::earcut can get stuck when multiple curves are
+    // provided; so for now multiple-curve domains are not triangulated
+    if (nCurves == 1) {
+      // Compute earcut triangulation of region constrained by closed curves
+      std::vector<UnsignedIndex_t> indices =
+          mapbox::earcut<UnsignedIndex_t>(polygon);
 
-    // Convert flat triangles into quadratic rational Bezier triangle
-    const UnsignedIndex_t ntriangles = indices.size() / 3;
-    if (a_order == 2) {
-      std::vector<std::array<UnsignedIndex_t, 6>> bezier_triangles(ntriangles);
-      std::vector<std::array<UnsignedIndex_t, 3>> boundaries(npoints);
-      const auto& aligned_p = paraboloid_m.getAlignedParaboloid();
-      for (UnsignedIndex_t i = 0; i < indices.size() / 3; ++i) {
-        for (int j = 0; j < 3; j++) {
-          bezier_triangles[i][j] = indices[3 * i + j];
+      // Convert flat triangles into quadratic rational Bezier triangle
+      const UnsignedIndex_t ntriangles = indices.size() / 3;
+      if (a_order == 2) {
+        std::vector<std::array<UnsignedIndex_t, 6>> bezier_triangles(
+            ntriangles);
+        std::vector<std::array<UnsignedIndex_t, 3>> boundaries(npoints);
+        const auto& aligned_p = paraboloid_m.getAlignedParaboloid();
+        for (UnsignedIndex_t i = 0; i < indices.size() / 3; ++i) {
+          for (int j = 0; j < 3; j++) {
+            bezier_triangles[i][j] = indices[3 * i + j];
+          }
+          for (int j = 0; j < 3; j++) {
+            const int v0 = indices[3 * i + j];
+            const int v1 = indices[3 * i + (j + 1) % 3];
+            if (v1 == std::get<0>(info[v0])) {
+              const int i_id = std::get<1>(info[v0]);
+              const int j_id = std::get<2>(info[v0]);
+              const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
+              bezier_triangles[i][3 + j] = points.size();
+              boundaries[v0][0] = v0;
+              boundaries[v0][1] = v1;
+              boundaries[v0][2] = points.size();
+              points.push_back(arc_list_m[arc_id].control_point());
+              weights.push_back(arc_list_m[arc_id].weight());
+            } else {
+              const Pt& pt_0 = points[v0];
+              const Pt& pt_1 = points[v1];
+              const auto arc =
+                  computeVerticalRationalBezierArc(aligned_p, pt_0, pt_1);
+              bezier_triangles[i][3 + j] = points.size();
+              points.push_back(arc.control_point());
+              weights.push_back(arc.weight());
+            }
+          }
         }
-        for (int j = 0; j < 3; j++) {
-          const int v0 = indices[3 * i + j];
-          const int v1 = indices[3 * i + (j + 1) % 3];
-          if (v1 == std::get<0>(info[v0])) {
-            const int i_id = std::get<1>(info[v0]);
-            const int j_id = std::get<2>(info[v0]);
-            const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
-            bezier_triangles[i][3 + j] = points.size();
-            boundaries[v0][0] = v0;
-            boundaries[v0][1] = v1;
-            boundaries[v0][2] = points.size();
-            points.push_back(arc_list_m[arc_id].control_point());
-            weights.push_back(arc_list_m[arc_id].weight());
-          } else {
+
+        const auto& datum = paraboloid_m.getDatum();
+        const auto& frame = paraboloid_m.getReferenceFrame();
+        for (int i = 0; i < points.size(); i++) {
+          const Pt base_pt = points[i];
+          points[i] = Pt(0.0, 0.0, 0.0);
+          for (int d = 0; d < 3; ++d) {
+            for (int n = 0; n < 3; ++n) {
+              points[i][n] += frame[d][n] * base_pt[d];
+            }
+          }
+          points[i] += datum;
+        }
+
+        bezier_surface.addPoints(points, weights);
+        bezier_surface.addBezierTriangles(bezier_triangles);
+        bezier_surface.addBoundaries(boundaries);
+      } else if (a_order == 3) {
+        std::vector<std::array<UnsignedIndex_t, 10>> bezier_triangles(
+            ntriangles);
+        const auto& aligned_p = paraboloid_m.getAlignedParaboloid();
+        for (UnsignedIndex_t i = 0; i < indices.size() / 3; ++i) {
+          auto V = Pt(0.0, 0.0, 0.0);
+          auto E = Pt(0.0, 0.0, 0.0);
+          for (int j = 0; j < 3; j++) {
+            bezier_triangles[i][j] = indices[3 * i + j];
+            const Pt& pt = points[indices[3 * i + j]];
+            V += pt;
+          }
+          V *= 1.0 / 3.0;
+          for (int j = 0; j < 3; j++) {
+            const int v0 = indices[3 * i + j];
+            const int v1 = indices[3 * i + (j + 1) % 3];
             const Pt& pt_0 = points[v0];
-            const Pt& pt_1 = points[v1];
-            const auto arc =
-                computeVerticalRationalBezierArc(aligned_p, pt_0, pt_1);
-            bezier_triangles[i][3 + j] = points.size();
-            points.push_back(arc.control_point());
-            weights.push_back(arc.weight());
+            const Pt& pt_2 = points[v1];
+            if (v1 == std::get<0>(info[v0])) {
+              const int i_id = std::get<1>(info[v0]);
+              const int j_id = std::get<2>(info[v0]);
+              const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
+              const Pt& pt_1 = arc_list_m[arc_id].control_point();
+              const double w = arc_list_m[arc_id].weight();
+              const double w1 = (1.0 + 2.0 * w) / 3.0;
+              const double w1_inv = 1.0 / (3.0 * w1);
+              const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
+              const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
+              bezier_triangles[i][3 + 2 * j] = points.size();
+              points.push_back(pt_1_n);
+              weights.push_back(w1);
+              bezier_triangles[i][3 + 2 * j + 1] = points.size();
+              points.push_back(pt_2_n);
+              weights.push_back(w1);
+              E += pt_1_n + pt_2_n;
+            } else {
+              const auto arc =
+                  computeVerticalRationalBezierArc(aligned_p, pt_0, pt_2);
+              const Pt& pt_1 = arc.control_point();
+              const double w = arc.weight();
+              const double w1 = (1.0 + 2.0 * w) / 3.0;
+              const double w1_inv = 1.0 / (3.0 * w1);
+              const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
+              const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
+              bezier_triangles[i][3 + 2 * j] = points.size();
+              points.push_back(pt_1_n);
+              weights.push_back(w1);
+              bezier_triangles[i][3 + 2 * j + 1] = points.size();
+              points.push_back(pt_2_n);
+              weights.push_back(w1);
+              E += pt_1_n + pt_2_n;
+            }
           }
+          E *= 1.0 / 6.0;
+          Pt pt_ctrl = E + 0.5 * (E - V);
+          bezier_triangles[i][9] = points.size();
+          points.push_back(pt_ctrl);
+          weights.push_back(1.0);
         }
-      }
 
-      const auto& datum = paraboloid_m.getDatum();
-      const auto& frame = paraboloid_m.getReferenceFrame();
-      for (int i = 0; i < points.size(); i++) {
-        const Pt base_pt = points[i];
-        points[i] = Pt(0.0, 0.0, 0.0);
-        for (int d = 0; d < 3; ++d) {
-          for (int n = 0; n < 3; ++n) {
-            points[i][n] += frame[d][n] * base_pt[d];
+        const auto& datum = paraboloid_m.getDatum();
+        const auto& frame = paraboloid_m.getReferenceFrame();
+        for (int i = 0; i < points.size(); i++) {
+          const Pt base_pt = points[i];
+          points[i] = Pt(0.0, 0.0, 0.0);
+          for (int d = 0; d < 3; ++d) {
+            for (int n = 0; n < 3; ++n) {
+              points[i][n] += frame[d][n] * base_pt[d];
+            }
           }
+          points[i] += datum;
         }
-        points[i] += datum;
-      }
 
-      bezier_surface.addPoints(points, weights);
-      bezier_surface.addBezierTriangles(bezier_triangles);
-      bezier_surface.addBoundaries(boundaries);
-    } else if (a_order == 3) {
-      std::vector<std::array<UnsignedIndex_t, 10>> bezier_triangles(ntriangles);
-      const auto& aligned_p = paraboloid_m.getAlignedParaboloid();
-      for (UnsignedIndex_t i = 0; i < indices.size() / 3; ++i) {
-        auto V = Pt(0.0, 0.0, 0.0);
-        auto E = Pt(0.0, 0.0, 0.0);
-        for (int j = 0; j < 3; j++) {
-          bezier_triangles[i][j] = indices[3 * i + j];
-          const Pt& pt = points[indices[3 * i + j]];
-          V += pt;
-        }
-        V *= 1.0 / 3.0;
-        for (int j = 0; j < 3; j++) {
-          const int v0 = indices[3 * i + j];
-          const int v1 = indices[3 * i + (j + 1) % 3];
-          const Pt& pt_0 = points[v0];
-          const Pt& pt_2 = points[v1];
-          if (v1 == std::get<0>(info[v0])) {
-            const int i_id = std::get<1>(info[v0]);
-            const int j_id = std::get<2>(info[v0]);
-            const UnsignedIndex_t arc_id = list_of_closed_curves[i_id][j_id];
-            const Pt& pt_1 = arc_list_m[arc_id].control_point();
-            const double w = arc_list_m[arc_id].weight();
-            const double w1 = (1.0 + 2.0 * w) / 3.0;
-            const double w1_inv = 1.0 / (3.0 * w1);
-            const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
-            const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
-            bezier_triangles[i][3 + 2 * j] = points.size();
-            points.push_back(pt_1_n);
-            weights.push_back(w1);
-            bezier_triangles[i][3 + 2 * j + 1] = points.size();
-            points.push_back(pt_2_n);
-            weights.push_back(w1);
-            E += pt_1_n + pt_2_n;
-          } else {
-            const auto arc =
-                computeVerticalRationalBezierArc(aligned_p, pt_0, pt_2);
-            const Pt& pt_1 = arc.control_point();
-            const double w = arc.weight();
-            const double w1 = (1.0 + 2.0 * w) / 3.0;
-            const double w1_inv = 1.0 / (3.0 * w1);
-            const Pt pt_1_n = (pt_0 + w * 2.0 * pt_1) * w1_inv;
-            const Pt pt_2_n = (pt_2 + w * 2.0 * pt_1) * w1_inv;
-            bezier_triangles[i][3 + 2 * j] = points.size();
-            points.push_back(pt_1_n);
-            weights.push_back(w1);
-            bezier_triangles[i][3 + 2 * j + 1] = points.size();
-            points.push_back(pt_2_n);
-            weights.push_back(w1);
-            E += pt_1_n + pt_2_n;
-          }
-        }
-        E *= 1.0 / 6.0;
-        Pt pt_ctrl = E + 0.5 * (E - V);
-        bezier_triangles[i][9] = points.size();
-        points.push_back(pt_ctrl);
-        weights.push_back(1.0);
+        bezier_surface.addPoints(points, weights);
+        bezier_surface.addBezierTriangles(bezier_triangles);
       }
-
-      const auto& datum = paraboloid_m.getDatum();
-      const auto& frame = paraboloid_m.getReferenceFrame();
-      for (int i = 0; i < points.size(); i++) {
-        const Pt base_pt = points[i];
-        points[i] = Pt(0.0, 0.0, 0.0);
-        for (int d = 0; d < 3; ++d) {
-          for (int n = 0; n < 3; ++n) {
-            points[i][n] += frame[d][n] * base_pt[d];
-          }
-        }
-        points[i] += datum;
-      }
-
-      bezier_surface.addPoints(points, weights);
-      bezier_surface.addBezierTriangles(bezier_triangles);
     }
   }
 
