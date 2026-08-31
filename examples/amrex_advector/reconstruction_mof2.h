@@ -10,6 +10,7 @@
 #ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_MOF2_H_
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_MOF2_H_
 
+#include "examples/amrex_advector/reconstruction_hybrid.h"
 #include "examples/amrex_advector/reconstruction_pu.h"
 #include "examples/amrex_advector/reconstruction_vf2.h"
 #include "irl/amrex/sepunion_multifab.h"
@@ -220,8 +221,8 @@ struct MOF2 {
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
-    PU::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr);
+    HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr);
 
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
@@ -295,18 +296,19 @@ struct MOF2 {
         Eigen::LevenbergMarquardt<
             Eigen::NumericalDiff<MOF2Functor, Eigen::Forward>, double>
             MOF2LM(NDMOF2Functor);
-        MOF2LM.parameters.ftol = 1.0e-4;
-        MOF2LM.parameters.xtol = 1.0e-4;
-        // MOF2LM.parameters.factor = 1.0e6;
-        // MOF2LM.parameters.epsfcn = std::sqrt(1.0e-6);
-        MOF2LM.parameters.maxfev = 100;
+        MOF2LM.parameters.ftol =
+            std::sqrt(std::numeric_limits<double>::epsilon());
+        MOF2LM.parameters.xtol =
+            std::sqrt(std::numeric_limits<double>::epsilon());
+        MOF2LM.parameters.factor = 1.0e-3;
+        MOF2LM.parameters.maxfev = 500;
         Eigen::VectorXd x_vec(5);
         for (int ii = 0; ii < 5; ii++) x_vec(ii) = 1.0;
         Eigen::VectorXd fvec(20);
         myMOF2Functor.errorvec(x_vec, fvec);
         const double init_error_li = fvec.lpNorm<Eigen::Infinity>();
         double final_error_li = init_error_li;
-        int it = 0, itmax = 1;
+        int it = 0, itmax = 5;
         do {
           for (int ii = 0; ii < 5; ii++) x_vec(ii) = 1.0;
           Eigen::LevenbergMarquardtSpace::Status status =
@@ -338,8 +340,8 @@ struct SuperMOF2 {
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
-    PU::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr);
+    HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr);
 
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
@@ -376,8 +378,7 @@ struct SuperMOF2 {
         for (int ii = -1; ii <= 1; ++ii) {
           for (int jj = -1; jj <= 1; ++jj) {
             for (int kk = -1; kk <= 1; ++kk) {
-              super_l_mom[0] +=
-                  moments_array(i + ii, j + jj, k + kk, comp_m0);
+              super_l_mom[0] += moments_array(i + ii, j + jj, k + kk, comp_m0);
               super_l_mom[1] +=
                   moments_array(i + ii, j + jj, k + kk, comp_m1_l);
               super_l_mom[2] +=
@@ -435,11 +436,12 @@ struct SuperMOF2 {
         Eigen::LevenbergMarquardt<
             Eigen::NumericalDiff<MOF2Functor, Eigen::Forward>, double>
             MOF2LM(NDMOF2Functor);
-        MOF2LM.parameters.ftol = 1.0e-4;
-        MOF2LM.parameters.xtol = 1.0e-4;
-        // MOF2LM.parameters.factor = 1.0e6;
-        // MOF2LM.parameters.epsfcn = std::sqrt(1.0e-6);
-        MOF2LM.parameters.maxfev = 100;
+        MOF2LM.parameters.ftol =
+            std::sqrt(std::numeric_limits<double>::epsilon());
+        MOF2LM.parameters.xtol =
+            std::sqrt(std::numeric_limits<double>::epsilon());
+        MOF2LM.parameters.factor = 1.0e-3;
+        MOF2LM.parameters.maxfev = 500;
         Eigen::VectorXd x_vec(5);
         for (int ii = 0; ii < 5; ii++) x_vec(ii) = 1.0;
         // MOF2LM.minimize(x);
@@ -447,7 +449,7 @@ struct SuperMOF2 {
         myMOF2Functor.errorvec(x_vec, fvec);
         const double init_error_li = fvec.lpNorm<Eigen::Infinity>();
         double final_error_li = init_error_li;
-        int it = 0, itmax = 1;
+        int it = 0, itmax = 5;
         do {
           for (int ii = 0; ii < 5; ii++) x_vec(ii) = 1.0;
           Eigen::LevenbergMarquardtSpace::Status status =
