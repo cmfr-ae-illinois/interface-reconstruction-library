@@ -14,19 +14,76 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_ParmParse.H>
+#include <AMReX_Utility.H>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
 #include <sstream>
+#include <cstdio>
 #include <string>
+#include <vector>
 
+#include "irl/amrex/sepunion_multifab.h"
+#include "irl/generic_cutting/generic_cutting_definitions.h"
+#include "irl/interface_reconstruction_methods/reconstruction_interface.h"
+
+static constexpr int comp_vf = 0;
+static constexpr int comp_m0 = 1;
+static constexpr int comp_m1_l = 2;
+static constexpr int comp_m1_g = 5;
+static constexpr int comp_m2_l = 8;
+static constexpr int comp_m2_g = 14;
+
+struct InterfaceScalarField {
+  std::string name;
+  amrex::MultiFab polygon_scalar_data;
+  amrex::MultiFab paraboloid_scalar_data;
+  std::vector<double> flattened_polygon_scalar_data;
+  std::vector<double> flattened_paraboloid_scalar_data;
+
+  InterfaceScalarField() = default;
+
+  InterfaceScalarField(const std::string& a_name, const amrex::BoxArray& a_ba,
+                       const amrex::DistributionMapping& a_dm,
+                       const int a_ngrow = 0)
+      : name(a_name),
+        polygon_scalar_data(a_ba, a_dm, 1, a_ngrow),
+        paraboloid_scalar_data(a_ba, a_dm, 1, a_ngrow) {
+    polygon_scalar_data.setVal(0.0);
+    paraboloid_scalar_data.setVal(0.0);
+  }
+
+  void clearFlattenedData() {
+    flattened_polygon_scalar_data.clear();
+    flattened_paraboloid_scalar_data.clear();
+  }
+};
+
+#include "examples/amrex_advector/reconstruction_cf.h"
+#include "examples/amrex_advector/reconstruction_elvira.h"
+#include "examples/amrex_advector/reconstruction_hybrid.h"
+#include "examples/amrex_advector/reconstruction_hybrid2.h"
+#include "examples/amrex_advector/reconstruction_ivf.h"
+#include "examples/amrex_advector/reconstruction_lvira.h"
+#include "examples/amrex_advector/reconstruction_mof1.h"
+#include "examples/amrex_advector/reconstruction_mof2.h"
+#include "examples/amrex_advector/reconstruction_plicnet.h"
+#include "examples/amrex_advector/reconstruction_pu.h"
+#include "examples/amrex_advector/reconstruction_vf.h"
+#include "examples/amrex_advector/reconstruction_vf2.h"
 #include "examples/implicit_surface_reconstruction/binary.h"
 #include "examples/implicit_surface_reconstruction/surface_select.h"
 
 namespace {
 
-using ExactMomentData =
-    Data<std::pair<IRL::GeneralMoments3D<2>, IRL::GeneralSurfaceMoments3D<2>>>;
+constexpr int NUM_MOMENTS = 10;
+using MomentArray = std::array<double, NUM_MOMENTS>;
+
+enum class MomentType { Volume, Surface };
 
 int numberOfMomentComponents(const int moment_order) {
   if (moment_order < 0 || moment_order > 2) {
@@ -35,6 +92,18 @@ int numberOfMomentComponents(const int moment_order) {
     amrex::Abort(oss.str());
   }
   return (moment_order + 1) * (moment_order + 2) * (moment_order + 3) / 6;
+}
+
+int reconstructionRequiredVolumeOrder(const std::string& method) {
+  if (method == "mof2" || method == "supermof2") return 2;
+  if (method == "mof" || method == "mof1" || method == "plicnet") return 1;
+  return 0;
+}
+
+int advectorMomentComponents(const int volume_order) {
+  if (volume_order >= 2) return 20;
+  if (volume_order >= 1) return 8;
+  return 2;
 }
 
 amrex::Geometry makeGeometry(const BasicMesh& mesh) {
@@ -59,82 +128,749 @@ BasicMesh makeMesh(const int ncell, const std::string& shape) {
   return mesh;
 }
 
-void fillExactMomentMultiFabs(const ExactMomentData& exact_moments,
-                              amrex::MultiFab& exact_volume_moments,
-                              amrex::MultiFab& exact_surface_moments) {
-  const int volume_ncomp = exact_volume_moments.nComp();
-  const int surface_ncomp = exact_surface_moments.nComp();
+IRL::RectangularCuboid makeCell(const amrex::Geometry& geom, const int i,
+                                const int j, const int k) {
+  const auto dx = geom.CellSizeArray();
+  const auto problo = geom.ProbLoArray();
+  const double x = problo[0] + static_cast<double>(i) * dx[0];
+  const double y = problo[1] + static_cast<double>(j) * dx[1];
+  const double z = problo[2] + static_cast<double>(k) * dx[2];
+  return IRL::RectangularCuboid::fromBoundingPts(
+      IRL::Pt(x, y, z), IRL::Pt(x + dx[0], y + dx[1], z + dx[2]));
+}
 
-  for (amrex::MFIter mfi(exact_volume_moments); mfi.isValid(); ++mfi) {
-    const amrex::Box& bx = mfi.validbox();
-    auto volume_arr = exact_volume_moments.array(mfi);
-    auto surface_arr = exact_surface_moments.array(mfi);
-    const auto lo = amrex::lbound(bx);
-    const auto hi = amrex::ubound(bx);
+void copyVolumeMomentsToArray(const IRL::VolumeMoments& moments,
+                              MomentArray& result) {
+  result[0] = moments.volume();
+  result[1] = moments.centroid()[0];
+  result[2] = moments.centroid()[1];
+  result[3] = moments.centroid()[2];
+}
 
-    amrex::ParallelFor(
-        bx, [=, &exact_moments] AMREX_GPU_DEVICE(int i, int j, int k) {
-          const auto& volume_moments = exact_moments(i, j, k).first;
-          const auto& surface_moments = exact_moments(i, j, k).second;
-
-          for (int n = 0; n < volume_ncomp; ++n) {
-            volume_arr(i, j, k, n) = volume_moments[n];
-          }
-          for (int n = 0; n < surface_ncomp; ++n) {
-            surface_arr(i, j, k, n) = surface_moments[n];
-          }
-        });
+template <class MomentsType>
+void copyGeneralMomentsToArray(const MomentsType& moments,
+                               MomentArray& result) {
+  for (IRL::UnsignedIndex_t m = 0; m < moments.size(); ++m) {
+    result[m] = moments[m];
   }
 }
 
-void recenterMomentMultiFab(amrex::MultiFab& moments,
-                            const amrex::Geometry& geom) {
-  const int ncomp = moments.nComp();
-  if (ncomp != 1 && ncomp != 4 && ncomp != 10) {
-    std::ostringstream oss;
-    oss << "Moment MultiFab must have 1, 4, or 10 components; got " << ncomp;
-    amrex::Abort(oss.str());
+MomentArray getFullCellVolumeMoments(const IRL::RectangularCuboid& cell,
+                                     const int max_order) {
+  MomentArray result{};
+  if (max_order == 0) {
+    result[0] = IRL::getVolumeMoments<IRL::Volume>(cell);
+  } else if (max_order == 1) {
+    copyVolumeMomentsToArray(IRL::getVolumeMoments<IRL::VolumeMoments>(cell),
+                             result);
+  } else {
+    copyGeneralMomentsToArray(
+        IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell), result);
+  }
+  return result;
+}
+
+void coarsenMomentTypeFromBinaryToMultiFab(const std::string& binary_file,
+                                           const int factor,
+                                           const BasicMesh& mesh,
+                                           const MomentType moment_type,
+                                           amrex::MultiFab& exact_moments) {
+  const int ncomp = exact_moments.nComp();
+  if (ncomp > NUM_MOMENTS) {
+    amrex::Abort("Only moment orders up to 2 are supported.");
   }
 
-  if (ncomp == 1) return;
+  std::ifstream stream(binary_file, std::ios::binary);
+  if (!stream) {
+    amrex::Abort("Cannot open binary moment file: " + binary_file);
+  }
 
+  const auto header = sparse_moment_io::readHeader<2, 2>(&stream);
+  const InsideCellMask mask = sparse_moment_io::readMask(&stream, header);
+  const auto records = sparse_moment_io::readMixedCells<2, 2>(&stream, header);
+
+  if (header.nx != static_cast<std::uint32_t>(factor * mesh.getNx()) ||
+      header.ny != static_cast<std::uint32_t>(factor * mesh.getNy()) ||
+      header.nz != static_cast<std::uint32_t>(factor * mesh.getNz())) {
+    amrex::Abort(
+        "Fine binary dimensions must equal factor times coarse dimensions.");
+  }
+
+  exact_moments.setVal(0.0);
+
+  const double fine_dx = mesh.lx() / static_cast<double>(header.nx);
+  const double fine_dy = mesh.ly() / static_cast<double>(header.ny);
+  const double fine_dz = mesh.lz() / static_cast<double>(header.nz);
+  const double x_lower = mesh.x(mesh.imin());
+  const double y_lower = mesh.y(mesh.jmin());
+  const double z_lower = mesh.z(mesh.kmin());
+
+  for (amrex::MFIter mfi(exact_moments); mfi.isValid(); ++mfi) {
+    const amrex::Box& bx = mfi.validbox();
+    auto moment_arr = exact_moments.array(mfi);
+    const auto lo = amrex::lbound(bx);
+    const auto hi = amrex::ubound(bx);
+
+    if (moment_type == MomentType::Volume) {
+      // Full liquid fine cells are stored only in the mask, so rebuild their
+      // moments geometrically and accumulate them into the owning coarse cell.
+      for (int k = lo.z; k <= hi.z; ++k) {
+        for (int j = lo.y; j <= hi.y; ++j) {
+          for (int i = lo.x; i <= hi.x; ++i) {
+            for (int fi = i * factor; fi < (i + 1) * factor; ++fi) {
+              for (int fj = j * factor; fj < (j + 1) * factor; ++fj) {
+                for (int fk = k * factor; fk < (k + 1) * factor; ++fk) {
+                  const std::size_t fine_index = getLinearCellIndex(
+                      fi, fj, fk, static_cast<int>(header.ny),
+                      static_cast<int>(header.nz));
+                  if (!mask.get(fine_index)) continue;
+
+                  const IRL::Pt lower(x_lower + fi * fine_dx,
+                                      y_lower + fj * fine_dy,
+                                      z_lower + fk * fine_dz);
+                  const IRL::Pt upper(lower.x() + fine_dx, lower.y() + fine_dy,
+                                      lower.z() + fine_dz);
+                  const auto fine_cell =
+                      IRL::RectangularCuboid::fromBoundingPts(lower, upper);
+                  const auto moments =
+                      IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(
+                          fine_cell);
+                  for (int n = 0; n < ncomp; ++n) {
+                    moment_arr(i, j, k, n) += moments[n];
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Mixed cells carry explicit exact moments in the binary records.
+    for (const auto& record : records) {
+      int fine_i, fine_j, fine_k;
+      getCellIndicesFromLinearIndex(
+          record.linear_index, static_cast<int>(header.ny),
+          static_cast<int>(header.nz), &fine_i, &fine_j, &fine_k);
+      const int i = fine_i / factor;
+      const int j = fine_j / factor;
+      const int k = fine_k / factor;
+      if (!bx.contains(amrex::IntVect(AMREX_D_DECL(i, j, k)))) continue;
+
+      const double* source =
+          moment_type == MomentType::Volume ? record.volume : record.surface;
+      for (int n = 0; n < ncomp; ++n) {
+        moment_arr(i, j, k, n) += source[n];
+      }
+    }
+  }
+}
+
+void initializeSepUnionMultiFab(amrex::SepUnionMultiFab& mf) {
+  for (amrex::MFIter mfi(mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    auto arr = mf.array(mfi);
+    const amrex::Box& bx = mfi.growntilebox();
+    const int ncomp = mf.nComp();
+    amrex::ParallelFor(bx, ncomp,
+                       [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) {
+                         arr(i, j, k, n) = IRL::SeparatorUnion();
+                       });
+  }
+}
+
+void fillAdvectorMomentsFromExactVolume(const amrex::MultiFab& exact_volume,
+                                        const amrex::Geometry& geom,
+                                        amrex::MultiFab& adv_moments) {
+  const int exact_ncomp = exact_volume.nComp();
+  const int adv_ncomp = adv_moments.nComp();
+  const auto dx = geom.CellSizeArray();
+  const double cell_vol = dx[0] * dx[1] * dx[2];
+
+  adv_moments.setVal(0.0);
+
+  for (amrex::MFIter mfi(exact_volume); mfi.isValid(); ++mfi) {
+    const amrex::Box& bx = mfi.validbox();
+    const auto exact = exact_volume.const_array(mfi);
+    auto adv = adv_moments.array(mfi);
+    const auto lo = amrex::lbound(bx);
+    const auto hi = amrex::ubound(bx);
+
+    for (int k = lo.z; k <= hi.z; ++k) {
+      for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+          const double m0 = exact(i, j, k, 0);
+          adv(i, j, k, comp_vf) = m0 / cell_vol;
+          adv(i, j, k, comp_m0) = m0;
+
+          MomentArray full = getFullCellVolumeMoments(makeCell(geom, i, j, k),
+                                                      adv_ncomp >= 20  ? 2
+                                                      : adv_ncomp >= 8 ? 1
+                                                                       : 0);
+          if (adv_ncomp >= 8) {
+            if (exact_ncomp < 4) {
+              amrex::Abort(
+                  "Selected reconstruction requires first volume moments.");
+            }
+            for (int n = 0; n < 3; ++n) {
+              const double liquid = exact(i, j, k, 1 + n);
+              adv(i, j, k, comp_m1_l + n) = liquid;
+              adv(i, j, k, comp_m1_g + n) = full[1 + n] - liquid;
+            }
+          }
+          if (adv_ncomp >= 20) {
+            if (exact_ncomp < 10) {
+              amrex::Abort(
+                  "Selected reconstruction requires second volume moments.");
+            }
+            for (int n = 0; n < 6; ++n) {
+              const double liquid = exact(i, j, k, 4 + n);
+              adv(i, j, k, comp_m2_l + n) = liquid;
+              adv(i, j, k, comp_m2_g + n) = full[4 + n] - liquid;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  adv_moments.FillBoundary(geom.periodicity());
+}
+
+void reconstructInterface(const std::string& method,
+                          amrex::SepUnionMultiFab& interface,
+                          amrex::SepUnionMultiFab& interface_with_ghost,
+                          const amrex::MultiFab& moments,
+                          const amrex::Geometry& geom) {
+  if (method == "elvira" || method == "default") {
+    ELVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr);
+  } else if (method == "lvira") {
+    LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                             nullptr);
+  } else if (method == "plicnet") {
+    PLICNet::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                               nullptr);
+  } else if (method == "mof" || method == "mof1") {
+    MOF1::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                            nullptr);
+  } else if (method == "vf") {
+    VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                          nullptr);
+  } else if (method == "vf2") {
+    VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                           nullptr);
+  } else if (method == "ivf") {
+    iVF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                           nullptr);
+  } else if (method == "pu") {
+    PU::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                          nullptr);
+  } else if (method == "cf") {
+    CF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                          nullptr);
+  } else if (method == "mof2") {
+    MOF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                            nullptr);
+  } else if (method == "supermof2") {
+    SuperMOF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                                 nullptr);
+  } else if (method == "hybrid") {
+    HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr);
+  } else if (method == "hybrid2") {
+    HYBRID2::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                               nullptr);
+  } else {
+    amrex::Abort("Unknown reconstruction method: " + method);
+  }
+}
+
+MomentArray recenteredMoments(const MomentArray& moments, const IRL::Pt& xc) {
+  MomentArray centered{};
+
+  const double x = xc[0];
+  const double y = xc[1];
+  const double z = xc[2];
+  const double M0 = moments[0];
+  const double Mx = moments[1];
+  const double My = moments[2];
+  const double Mz = moments[3];
+
+  centered[0] = M0;
+  centered[1] = Mx - M0 * x;
+  centered[2] = My - M0 * y;
+  centered[3] = Mz - M0 * z;
+  centered[4] = moments[4] - 2.0 * x * Mx + M0 * x * x;
+  centered[5] = moments[5] - x * My - y * Mx + M0 * x * y;
+  centered[6] = moments[6] - x * Mz - z * Mx + M0 * x * z;
+  centered[7] = moments[7] - 2.0 * y * My + M0 * y * y;
+  centered[8] = moments[8] - y * Mz - z * My + M0 * y * z;
+  centered[9] = moments[9] - 2.0 * z * Mz + M0 * z * z;
+
+  return centered;
+}
+
+MomentArray calculatePolygonSurfaceMoments(const IRL::Polygon& polygon,
+                                           const int max_order) {
+  MomentArray moments{};
+  const int n = polygon.getNumberOfVertices();
+  if (n < 3) return moments;
+
+  const IRL::Pt& v0 = polygon[0];
+  for (int iv = 1; iv < n - 1; ++iv) {
+    const IRL::Pt& v1 = polygon[iv];
+    const IRL::Pt& v2 = polygon[iv + 1];
+
+    IRL::Polygon triangle;
+    triangle.addVertex(v0);
+    triangle.addVertex(v1);
+    triangle.addVertex(v2);
+    triangle.calculateAndSetPlaneOfExistence();
+
+    const double area = triangle.calculateVolume();
+    moments[0] += area;
+    if (max_order == 0) continue;
+
+    const IRL::Pt centroid = (v0 + v1 + v2) * (1.0 / 3.0);
+    moments[1] += centroid[0] * area;
+    moments[2] += centroid[1] * area;
+    moments[3] += centroid[2] * area;
+    if (max_order == 1) continue;
+
+    const auto a = v1 - v0;
+    const auto b = v2 - v0;
+    const double factor = 2.0 * area;
+
+    auto accumulate = [&](const IRL::Pt& u, const IRL::Pt& v,
+                          const double scale) {
+      moments[4] += scale * u[0] * v[0];
+      moments[5] += scale * u[0] * v[1];
+      moments[6] += scale * u[0] * v[2];
+      moments[7] += scale * u[1] * v[1];
+      moments[8] += scale * u[1] * v[2];
+      moments[9] += scale * u[2] * v[2];
+    };
+
+    accumulate(v0, v0, factor * 0.5);
+    accumulate(v0, a, factor / 6.0);
+    accumulate(a, v0, factor / 6.0);
+    accumulate(v0, b, factor / 6.0);
+    accumulate(b, v0, factor / 6.0);
+    accumulate(a, a, factor / 12.0);
+    accumulate(b, b, factor / 12.0);
+    accumulate(a, b, factor / 24.0);
+    accumulate(b, a, factor / 24.0);
+  }
+
+  return moments;
+}
+
+MomentArray getReconstructedVolumeMoments(const IRL::RectangularCuboid& cell,
+                                          const IRL::SeparatorUnion& interface,
+                                          const double vf,
+                                          const int max_order) {
+  MomentArray result{};
+  if (vf <= IRL::global_constants::VF_LOW) return result;
+  if (vf >= IRL::global_constants::VF_HIGH) {
+    return getFullCellVolumeMoments(cell, max_order);
+  }
+
+  if (interface.type() == IRL::SeparatorUnion::SeparatorType::OnePlane) {
+    const auto separator =
+        IRL::PlanarSeparator::fromOnePlane(interface.getPlane());
+    if (max_order == 0) {
+      result[0] = IRL::getVolumeMoments<IRL::Volume>(cell, separator);
+    } else if (max_order == 1) {
+      copyVolumeMomentsToArray(
+          IRL::getVolumeMoments<IRL::VolumeMoments>(cell, separator), result);
+    } else {
+      copyGeneralMomentsToArray(
+          IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, separator),
+          result);
+    }
+    return result;
+  }
+
+  if (interface.type() == IRL::SeparatorUnion::SeparatorType::Paraboloid) {
+    const auto paraboloid = interface.getParaboloid();
+    if (max_order == 0) {
+      result[0] = IRL::getVolumeMoments<IRL::Volume>(cell, paraboloid);
+    } else if (max_order == 1) {
+      copyVolumeMomentsToArray(
+          IRL::getVolumeMoments<IRL::VolumeMoments>(cell, paraboloid), result);
+    } else {
+      copyGeneralMomentsToArray(
+          IRL::getVolumeMoments<IRL::GeneralMoments3D<2>>(cell, paraboloid),
+          result);
+    }
+    return result;
+  }
+
+  amrex::Abort("Mixed cell has unsupported interface type.");
+  return result;
+}
+
+MomentArray getReconstructedSurfaceMoments(const IRL::RectangularCuboid& cell,
+                                           const IRL::SeparatorUnion& interface,
+                                           const double vf,
+                                           const int max_order) {
+  MomentArray result{};
+  if (vf <= IRL::global_constants::VF_LOW ||
+      vf >= IRL::global_constants::VF_HIGH) {
+    return result;
+  }
+
+  if (interface.type() == IRL::SeparatorUnion::SeparatorType::OnePlane) {
+    const auto separator =
+        IRL::PlanarSeparator::fromOnePlane(interface.getPlane());
+    IRL::Polygon polygon = IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+        cell, separator, separator[0]);
+    if (polygon.getNumberOfVertices() > 2) {
+      polygon.calculateAndSetPlaneOfExistence();
+      result = calculatePolygonSurfaceMoments(polygon, max_order);
+    }
+    return result;
+  }
+
+  if (interface.type() == IRL::SeparatorUnion::SeparatorType::Paraboloid) {
+    using VolumeMomentsAndSurface =
+        IRL::AddSurfaceOutput<IRL::Volume,
+                              IRL::ParaboloidParametrizedSurfaceOutput>;
+    const auto paraboloid = interface.getParaboloid();
+    auto volume_and_surface =
+        IRL::getVolumeMoments<VolumeMomentsAndSurface>(cell, paraboloid);
+    auto surface = volume_and_surface.getSurface();
+    if (max_order == 0) {
+      copyGeneralMomentsToArray(surface.getSurfaceMoments<0>(), result);
+    } else if (max_order == 1) {
+      copyGeneralMomentsToArray(surface.getSurfaceMoments<1>(), result);
+    } else {
+      copyGeneralMomentsToArray(surface.getSurfaceMoments<2>(), result);
+    }
+    return result;
+  }
+
+  amrex::Abort("Mixed cell has unsupported surface interface type.");
+  return result;
+}
+
+
+IRL::MixedPolygonBezierSurface buildInterfaceSurface(
+    const amrex::SepUnionMultiFab& interface, const amrex::MultiFab& moments,
+    const amrex::Geometry& geom) {
+  IRL::MixedPolygonBezierSurface surface;
+  const auto problo = geom.ProbLoArray();
+  const auto dx = geom.CellSizeArray();
+
+  for (amrex::MFIter mfi(moments, amrex::TilingIfNotGPU()); mfi.isValid();
+       ++mfi) {
+    const auto moments_fab = moments.const_array(mfi);
+    const auto interface_fab = interface.const_array(mfi);
+    const amrex::Box& box = mfi.tilebox();
+    const auto lo = amrex::lbound(box);
+    const auto hi = amrex::ubound(box);
+
+    for (int k = lo.z; k <= hi.z; ++k) {
+      const double z = problo[2] + k * dx[2];
+      for (int j = lo.y; j <= hi.y; ++j) {
+        const double y = problo[1] + j * dx[1];
+        for (int i = lo.x; i <= hi.x; ++i) {
+          const double vf = moments_fab(i, j, k, comp_vf);
+          if (vf <= IRL::global_constants::VF_LOW ||
+              vf >= IRL::global_constants::VF_HIGH) {
+            continue;
+          }
+
+          const double x = problo[0] + i * dx[0];
+          const auto cell = IRL::RectangularCuboid::fromBoundingPts(
+              IRL::Pt(x, y, z),
+              IRL::Pt(x + dx[0], y + dx[1], z + dx[2]));
+
+          if (interface_fab(i, j, k).type() ==
+              IRL::SeparatorUnion::SeparatorType::OnePlane) {
+            const auto planar_sep = IRL::PlanarSeparator::fromOnePlane(
+                interface_fab(i, j, k).getPlane());
+            const auto polygon =
+                IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
+                    cell, planar_sep, planar_sep[0]);
+            if (polygon.getNumberOfVertices() > 2) {
+              surface.addPolygon(polygon);
+            }
+          } else if (interface_fab(i, j, k).type() ==
+                     IRL::SeparatorUnion::SeparatorType::Paraboloid) {
+            using VolumeAndSurface =
+                IRL::AddSurfaceOutput<IRL::Volume,
+                                      IRL::ParaboloidParametrizedSurfaceOutput>;
+            const auto paraboloid = interface_fab(i, j, k).getParaboloid();
+            auto volume_and_surface =
+                IRL::getVolumeMoments<VolumeAndSurface>(cell, paraboloid);
+            const double area =
+                volume_and_surface.getSurface().getSurfaceArea();
+            const double cell_dx = std::cbrt(dx[0] * dx[1] * dx[2]);
+            if (area > 1.0e-4 * cell_dx * cell_dx &&
+                area < 10.0 * cell_dx * cell_dx) {
+              surface.addSurface(volume_and_surface.getSurface()
+                                     .getQuadraticBezierTriangleApprox());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return surface;
+}
+
+std::string joinPath(const std::string& directory, const std::string& name) {
+  if (directory.empty() || directory == "." || name.empty() ||
+      name.front() == '/') {
+    return name;
+  }
+  if (directory.back() == '/') {
+    return directory + name;
+  }
+  return directory + "/" + name;
+}
+
+void outputReconstructedInterface(
+    const amrex::SepUnionMultiFab& interface, const amrex::MultiFab& moments,
+    const amrex::Geometry& geom, const std::string& output_dir,
+    const std::string& output_name) {
+  IRL::MixedPolygonBezierSurface surface =
+      buildInterfaceSurface(interface, moments, geom);
+
+  std::string name = output_name;
+  const std::string suffix = ".vtu";
+  if (name.size() >= suffix.size() &&
+      name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+    name.resize(name.size() - suffix.size());
+  }
+
+  const std::string file_base = joinPath(output_dir, name);
+  const std::string filename = file_base + ".vtu";
+  const int rank = amrex::ParallelDescriptor::MyProc();
+  const int size = amrex::ParallelDescriptor::NProcs();
+
+  const auto& points = surface.getPointList();
+  const auto& polygons = surface.getPolygonList();
+  const auto& bezier_triangles = surface.getBezierTriangleList();
+  const int number_of_points = static_cast<int>(points.size());
+  const int number_of_polygons = static_cast<int>(polygons.first.size());
+  const int number_of_triangles = static_cast<int>(bezier_triangles.size());
+
+  if (amrex::ParallelDescriptor::IOProcessor()) {
+    amrex::UtilCreateDirectory(output_dir, 0755);
+    FILE* file = std::fopen(filename.c_str(), "w");
+    if (file == nullptr) {
+      amrex::FileOpenFailed(filename);
+    }
+    std::fprintf(file, "<?xml version=\"1.0\"?>\n");
+    std::fprintf(file,
+                 "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" "
+                 "byte_order=\"LittleEndian\">\n");
+    std::fprintf(file, "  <UnstructuredGrid>\n");
+    std::fclose(file);
+  }
+  amrex::ParallelDescriptor::Barrier();
+
+  for (int r = 0; r < size; ++r) {
+    if (rank == r) {
+      FILE* file = std::fopen(filename.c_str(), "a");
+      if (file == nullptr) {
+        amrex::FileOpenFailed(filename);
+      }
+      std::fprintf(file,
+                   "<Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\n",
+                   number_of_points,
+                   number_of_triangles + number_of_polygons);
+      std::fprintf(file,
+                   "<Points>\n<DataArray type=\"Float64\" "
+                   "NumberOfComponents=\"3\">\n");
+      for (IRL::UnsignedIndex_t i = 0; i < points.size(); ++i) {
+        std::fprintf(file, "%15.8E %15.8E %15.8E ",
+                     std::get<0>(points[i])[0], std::get<0>(points[i])[1],
+                     std::get<0>(points[i])[2]);
+      }
+      std::fprintf(file, "\n</DataArray>\n</Points>\n");
+      std::fprintf(file,
+                   "<PointData RationalWeights=\"RationalWeights\">\n"
+                   "<DataArray type=\"Float64\" Name=\"RationalWeights\" "
+                   "format=\"ascii\">\n");
+      for (IRL::UnsignedIndex_t i = 0; i < points.size(); ++i) {
+        std::fprintf(file, "%15.8E ", std::get<1>(points[i]));
+      }
+      std::fprintf(file, "\n</DataArray>\n</PointData>\n");
+
+      std::fprintf(file, "<Cells>\n");
+      std::fprintf(file,
+                   "<DataArray type=\"Int64\" Name=\"connectivity\" "
+                   "format=\"ascii\">\n");
+      for (IRL::UnsignedIndex_t i = 0; i < bezier_triangles.size(); ++i) {
+        for (IRL::UnsignedIndex_t j = 0; j < bezier_triangles[i].size(); ++j) {
+          std::fprintf(file, "%d ", bezier_triangles[i][j]);
+        }
+      }
+      for (IRL::UnsignedIndex_t i = 0; i < polygons.second.size(); ++i) {
+        std::fprintf(file, "%d ", polygons.second[i]);
+      }
+      std::fprintf(file, "\n</DataArray>\n");
+
+      std::fprintf(file,
+                   "<DataArray type=\"Int64\" Name=\"offsets\" "
+                   "format=\"ascii\">\n");
+      IRL::UnsignedIndex_t count = 0;
+      for (IRL::UnsignedIndex_t i = 0; i < bezier_triangles.size(); ++i) {
+        count += bezier_triangles[i].size();
+        std::fprintf(file, "%d ", count);
+      }
+      for (IRL::UnsignedIndex_t i = 0; i < polygons.first.size(); ++i) {
+        count += polygons.first[i];
+        std::fprintf(file, "%d ", count);
+      }
+      std::fprintf(file, "\n</DataArray>\n");
+      std::fprintf(file,
+                   "<DataArray type=\"UInt8\" Name=\"types\" "
+                   "format=\"ascii\">\n");
+      for (IRL::UnsignedIndex_t i = 0; i < bezier_triangles.size(); ++i) {
+        std::fprintf(file, "76 ");
+      }
+      for (IRL::UnsignedIndex_t i = 0; i < polygons.first.size(); ++i) {
+        std::fprintf(file, "7 ");
+      }
+      std::fprintf(file, "\n</DataArray>\n");
+      std::fprintf(file, "</Cells>\n");
+      std::fprintf(file, "</Piece>\n");
+      std::fclose(file);
+    }
+    amrex::ParallelDescriptor::Barrier();
+  }
+
+  if (amrex::ParallelDescriptor::IOProcessor()) {
+    FILE* file = std::fopen(filename.c_str(), "a");
+    if (file == nullptr) {
+      amrex::FileOpenFailed(filename);
+    }
+    std::fprintf(file, "  </UnstructuredGrid>\n</VTKFile>\n");
+    std::fclose(file);
+    amrex::Print() << "\nWrote reconstructed interface: " << filename
+                   << "\n";
+  }
+}
+
+void computeAndPrintMomentErrorNorms(
+    const amrex::MultiFab& exact_moments,
+    const amrex::SepUnionMultiFab& interface_with_ghost,
+    const amrex::MultiFab& adv_moments, const amrex::Geometry& geom,
+    const MomentType moment_type, const int moment_order,
+    const std::string& label) {
+  const int ncomp = numberOfMomentComponents(moment_order);
   const auto dx = geom.CellSizeArray();
   const auto problo = geom.ProbLoArray();
 
-  for (amrex::MFIter mfi(moments); mfi.isValid(); ++mfi) {
+  double local_linf_m0 = 0.0;
+  double local_linf_m1 = 0.0;
+  double local_linf_m2 = 0.0;
+  double local_l2_m0 = 0.0;
+  double local_l2_m1 = 0.0;
+  double local_l2_m2 = 0.0;
+
+  for (amrex::MFIter mfi(exact_moments); mfi.isValid(); ++mfi) {
     const amrex::Box& bx = mfi.validbox();
-    auto arr = moments.array(mfi);
+    const auto exact = exact_moments.const_array(mfi);
+    const auto moments = adv_moments.const_array(mfi);
+    const auto iface = interface_with_ghost.const_array(mfi);
+    const auto lo = amrex::lbound(bx);
+    const auto hi = amrex::ubound(bx);
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-      const double xc = problo[0] + (static_cast<double>(i) + 0.5) * dx[0];
-      const double yc = problo[1] + (static_cast<double>(j) + 0.5) * dx[1];
-      const double zc = problo[2] + (static_cast<double>(k) + 0.5) * dx[2];
+    for (int k = lo.z; k <= hi.z; ++k) {
+      for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+          const auto cell = makeCell(geom, i, j, k);
+          const double vf = moments(i, j, k, comp_vf);
+          MomentArray reconstructed =
+              moment_type == MomentType::Volume
+                  ? getReconstructedVolumeMoments(cell, iface(i, j, k), vf,
+                                                  moment_order)
+                  : getReconstructedSurfaceMoments(cell, iface(i, j, k), vf,
+                                                   moment_order);
 
-      const double m0 = arr(i, j, k, 0);
-      const double mx = arr(i, j, k, 1);
-      const double my = arr(i, j, k, 2);
-      const double mz = arr(i, j, k, 3);
+          MomentArray exact_array{};
+          for (int n = 0; n < ncomp; ++n) {
+            exact_array[n] = exact(i, j, k, n);
+          }
 
-      arr(i, j, k, 1) = mx - m0 * xc;
-      arr(i, j, k, 2) = my - m0 * yc;
-      arr(i, j, k, 3) = mz - m0 * zc;
+          const IRL::Pt center(
+              problo[0] + (static_cast<double>(i) + 0.5) * dx[0],
+              problo[1] + (static_cast<double>(j) + 0.5) * dx[1],
+              problo[2] + (static_cast<double>(k) + 0.5) * dx[2]);
+          exact_array = recenteredMoments(exact_array, center);
+          reconstructed = recenteredMoments(reconstructed, center);
 
-      if (ncomp == 4) return;
+          const double d0 = std::abs(reconstructed[0] - exact_array[0]);
+          local_linf_m0 = std::max(local_linf_m0, d0);
+          local_l2_m0 += d0 * d0;
 
-      const double mxx = arr(i, j, k, 4);
-      const double mxy = arr(i, j, k, 5);
-      const double mxz = arr(i, j, k, 6);
-      const double myy = arr(i, j, k, 7);
-      const double myz = arr(i, j, k, 8);
-      const double mzz = arr(i, j, k, 9);
+          if (moment_order >= 1) {
+            const double dx0 = reconstructed[1] - exact_array[1];
+            const double dy0 = reconstructed[2] - exact_array[2];
+            const double dz0 = reconstructed[3] - exact_array[3];
+            const double e1 = std::sqrt(dx0 * dx0 + dy0 * dy0 + dz0 * dz0);
+            local_linf_m1 = std::max(local_linf_m1, e1);
+            local_l2_m1 += e1 * e1;
+          }
 
-      arr(i, j, k, 4) = mxx - 2.0 * xc * mx + m0 * xc * xc;
-      arr(i, j, k, 5) = mxy - xc * my - yc * mx + m0 * xc * yc;
-      arr(i, j, k, 6) = mxz - xc * mz - zc * mx + m0 * xc * zc;
-      arr(i, j, k, 7) = myy - 2.0 * yc * my + m0 * yc * yc;
-      arr(i, j, k, 8) = myz - yc * mz - zc * my + m0 * yc * zc;
-      arr(i, j, k, 9) = mzz - 2.0 * zc * mz + m0 * zc * zc;
-    });
+          if (moment_order >= 2) {
+            const double dxx = reconstructed[4] - exact_array[4];
+            const double dxy = reconstructed[5] - exact_array[5];
+            const double dxz = reconstructed[6] - exact_array[6];
+            const double dyy = reconstructed[7] - exact_array[7];
+            const double dyz = reconstructed[8] - exact_array[8];
+            const double dzz = reconstructed[9] - exact_array[9];
+            const double e2_sq = dxx * dxx + dyy * dyy + dzz * dzz +
+                                 2.0 * (dxy * dxy + dxz * dxz + dyz * dyz);
+            local_linf_m2 = std::max(local_linf_m2, std::sqrt(e2_sq));
+            local_l2_m2 += e2_sq;
+          }
+        }
+      }
+    }
+  }
+
+  amrex::ParallelDescriptor::ReduceRealMax(
+      local_linf_m0, amrex::ParallelDescriptor::IOProcessorNumber());
+  amrex::ParallelDescriptor::ReduceRealSum(
+      local_l2_m0, amrex::ParallelDescriptor::IOProcessorNumber());
+  if (moment_order >= 1) {
+    amrex::ParallelDescriptor::ReduceRealMax(
+        local_linf_m1, amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::ReduceRealSum(
+        local_l2_m1, amrex::ParallelDescriptor::IOProcessorNumber());
+  }
+  if (moment_order >= 2) {
+    amrex::ParallelDescriptor::ReduceRealMax(
+        local_linf_m2, amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::ReduceRealSum(
+        local_l2_m2, amrex::ParallelDescriptor::IOProcessorNumber());
+  }
+
+  const double inv_ncells = 1.0 / static_cast<double>(geom.Domain().numPts());
+
+  amrex::Print() << "\n" << label << " reconstructed moment error norms\n";
+  amrex::Print() << "  M0 Linf = " << std::scientific << std::setprecision(16)
+                 << local_linf_m0 << "\n";
+  amrex::Print() << "  M0 L2   = " << std::scientific << std::setprecision(16)
+                 << std::sqrt(local_l2_m0 * inv_ncells) << "\n";
+  if (moment_order >= 1) {
+    amrex::Print() << "  M1 Linf = " << std::scientific << std::setprecision(16)
+                   << local_linf_m1 << "\n";
+    amrex::Print() << "  M1 L2   = " << std::scientific << std::setprecision(16)
+                   << std::sqrt(local_l2_m1 * inv_ncells) << "\n";
+  }
+  if (moment_order >= 2) {
+    amrex::Print() << "  M2 Linf = " << std::scientific << std::setprecision(16)
+                   << local_linf_m2 << "\n";
+    amrex::Print() << "  M2 L2   = " << std::scientific << std::setprecision(16)
+                   << std::sqrt(local_l2_m2 * inv_ncells) << "\n";
   }
 }
 
@@ -176,12 +912,18 @@ void printUsage() {
                  << "  binary_file = path/to/exact_moments.bin\n"
                  << "  shape = sphere|ellipsoid|genus|orthocircle\n"
                  << "  nx_fine = fine binary resolution\n"
+                 << "  reconstruction_method = vf\n"
                  << "Optional:\n"
                  << "  factor = 1\n"
                  << "  max_grid_size = 32\n"
                  << "  moment_order = 2\n"
                  << "  volume_moment_order = moment_order\n"
-                 << "  surface_moment_order = moment_order\n";
+                 << "  surface_moment_order = moment_order\n"
+                 << "  do_volume = 1\n"
+                 << "  do_surface = 1\n"
+                 << "  output_interface = 0\n"
+                 << "  interface_output_dir = .\n"
+                 << "  interface_output_name = interface_<shape>_<method>_f<factor>\n";
 }
 
 }  // namespace
@@ -192,12 +934,18 @@ int main(int argc, char* argv[]) {
   {
     std::string binary_file;
     std::string shape;
+    std::string reconstruction_method = "vf";
     int nx_fine = -1;
     int factor = 1;
     int max_grid_size = 32;
     int moment_order = 2;
     int volume_moment_order = -1;
     int surface_moment_order = -1;
+    int do_volume = 1;
+    int do_surface = 1;
+    int output_interface = 0;
+    std::string interface_output_dir = ".";
+    std::string interface_output_name;
 
     amrex::ParmParse pp;
     pp.query("binary_file", binary_file);
@@ -208,9 +956,26 @@ int main(int argc, char* argv[]) {
     pp.query("moment_order", moment_order);
     pp.query("volume_moment_order", volume_moment_order);
     pp.query("surface_moment_order", surface_moment_order);
+    pp.query("do_volume", do_volume);
+    pp.query("do_surface", do_surface);
+    pp.query("output_interface", output_interface);
+    pp.query("interface_output_dir", interface_output_dir);
+    pp.query("interface_output_name", interface_output_name);
+    pp.query("reconstruction_method", reconstruction_method);
+
+    amrex::ParmParse pprec("reconstruction");
+    pprec.query("name", reconstruction_method);
 
     if (volume_moment_order < 0) volume_moment_order = moment_order;
     if (surface_moment_order < 0) surface_moment_order = moment_order;
+    if (!do_volume && !do_surface && !output_interface) {
+      amrex::Abort(
+          "Enable at least one of do_volume, do_surface, or output_interface.");
+    }
+    if (interface_output_name.empty()) {
+      interface_output_name = shape + "_" + reconstruction_method + "_f" +
+                              std::to_string(factor) + "_interface";
+    }
 
     if (binary_file.empty() || shape.empty() || nx_fine <= 0 || factor <= 0 ||
         nx_fine % factor != 0) {
@@ -220,44 +985,68 @@ int main(int argc, char* argv[]) {
           "nx_fine.");
     }
 
-    // extracting exact moment data for choice of resolution
     const int ncell = nx_fine / factor;
     BasicMesh mesh = makeMesh(ncell, shape);
-    ExactMomentData exact_moments(&mesh);
-    coarsenMomentsFromBinary<2, 2>(binary_file, factor, &exact_moments);
-
-    // creating multifab for exact volumetric and surface moments
     const amrex::Geometry geom = makeGeometry(mesh);
     amrex::BoxArray ba(geom.Domain());
     ba.maxSize(max_grid_size);
     const amrex::DistributionMapping dm(ba);
-    const int volume_ncomp = numberOfMomentComponents(volume_moment_order);
-    const int surface_ncomp = numberOfMomentComponents(surface_moment_order);
-    amrex::MultiFab exact_volume_moments(ba, dm, volume_ncomp, 0);
-    amrex::MultiFab exact_surface_moments(ba, dm, surface_ncomp, 0);
-    exact_volume_moments.setVal(0.0);
-    exact_surface_moments.setVal(0.0);
 
-    // filling multifab with exact moments
-    fillExactMomentMultiFabs(exact_moments, exact_volume_moments,
-                             exact_surface_moments);
+    const int required_volume_order =
+        std::max(volume_moment_order,
+                 reconstructionRequiredVolumeOrder(reconstruction_method));
+    const int adv_ncomp = advectorMomentComponents(required_volume_order);
+    const int num_grow = required_volume_order >= 2 ? 2 : 1;
 
-    printMomentSums(exact_volume_moments, "Exact volume");
-    printMomentSums(exact_surface_moments, "Exact surface");
+    amrex::Print() << "\nAMReX reconstruction convergence setup\n"
+                   << "  method = " << reconstruction_method << "\n"
+                   << "  mesh = " << ncell << "^3\n"
+                   << "  factor = " << factor << "\n"
+                   << "  advector moment components = " << adv_ncomp << "\n";
 
-    // recentering moments about each cell center
-    recenterMomentMultiFab(exact_volume_moments, geom);
-    recenterMomentMultiFab(exact_surface_moments, geom);
+    amrex::SepUnionMultiFab interface(ba, dm, 1, 0);
+    amrex::SepUnionMultiFab interface_with_ghost(ba, dm, 1, num_grow);
+    initializeSepUnionMultiFab(interface);
+    initializeSepUnionMultiFab(interface_with_ghost);
 
-    amrex::Print() << "Filled and recentered exact moment MultiFabs on "
-                   << ncell << "^3 mesh\n"
-                   << "  volume components = " << volume_ncomp << "\n"
-                   << "  surface components = " << surface_ncomp << "\n"
-                   << "  domain = [" << mesh.x(mesh.imin()) << ", "
-                   << mesh.x(mesh.imax() + 1) << "] x [" << mesh.y(mesh.jmin())
-                   << ", " << mesh.y(mesh.jmax() + 1) << "] x ["
-                   << mesh.z(mesh.kmin()) << ", " << mesh.z(mesh.kmax() + 1)
-                   << "]\n";
+    amrex::MultiFab adv_moments(ba, dm, adv_ncomp, num_grow);
+
+    {
+      amrex::MultiFab exact_volume_for_reconstruction(
+          ba, dm, numberOfMomentComponents(required_volume_order), 0);
+      coarsenMomentTypeFromBinaryToMultiFab(binary_file, factor, mesh,
+                                            MomentType::Volume,
+                                            exact_volume_for_reconstruction);
+      fillAdvectorMomentsFromExactVolume(exact_volume_for_reconstruction, geom,
+                                         adv_moments);
+      reconstructInterface(reconstruction_method, interface,
+                           interface_with_ghost, adv_moments, geom);
+
+      if (output_interface) {
+        outputReconstructedInterface(interface, adv_moments, geom,
+                                     interface_output_dir,
+                                     interface_output_name);
+      }
+
+      if (do_volume) {
+        // printMomentSums(exact_volume_for_reconstruction, "Exact volume");
+        computeAndPrintMomentErrorNorms(
+            exact_volume_for_reconstruction, interface_with_ghost, adv_moments,
+            geom, MomentType::Volume, volume_moment_order, "Volume");
+      }
+    }
+
+    if (do_surface) {
+      amrex::MultiFab exact_surface_moments(
+          ba, dm, numberOfMomentComponents(surface_moment_order), 0);
+      coarsenMomentTypeFromBinaryToMultiFab(binary_file, factor, mesh,
+                                            MomentType::Surface,
+                                            exact_surface_moments);
+      // printMomentSums(exact_surface_moments, "Exact surface");
+      computeAndPrintMomentErrorNorms(
+          exact_surface_moments, interface_with_ghost, adv_moments, geom,
+          MomentType::Surface, surface_moment_order, "Surface");
+    }
   }
 
   amrex::Finalize();

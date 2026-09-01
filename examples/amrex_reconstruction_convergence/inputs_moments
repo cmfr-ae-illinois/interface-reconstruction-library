@@ -1,6 +1,12 @@
-shape = sphere
-binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/temporary/initialization_test/sphere_1024/sphere_moments_Nx1024.bin
-nx_fine = 1024
-factor = 4
+shape = orthocircle
+reconstruction_method = mof2
+binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/orthocircle_moments_Nx256.bin
+nx_fine = 256
+factor = 1
 max_grid_size = 32
 moment_order = 2
+do_volume = 1
+do_surface = 1
+output_interface = 1
+interface_output_dir = output
+interface_output_name = orthocircle_vf_Nx64_interface
