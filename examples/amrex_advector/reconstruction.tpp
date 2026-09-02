@@ -20,7 +20,6 @@
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
 #include "examples/amrex_advector/reconstruction_mof2.h"
-#include "examples/amrex_advector/reconstruction_mof2m.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
 #include "examples/amrex_advector/reconstruction_pu.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
@@ -78,12 +77,6 @@ void AmrCoreAdv::GetReconstruction(
   } else if (reconstruction_name == "supermof2") {
     SuperMOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                                  a_geom, scalar_fields);
-  } else if (reconstruction_name == "mof2m") {
-    MOF2M::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                             a_geom, scalar_fields);
-  } else if (reconstruction_name == "supermof2m") {
-    SuperMOF2M::GetReconstruction(a_interface, a_interface_with_ghost,
-                                  a_moments, a_geom, scalar_fields);
   } else if (reconstruction_name == "hybrid") {
     HYBRID::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                               a_geom, scalar_fields);

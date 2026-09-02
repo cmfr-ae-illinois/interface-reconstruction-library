@@ -222,8 +222,8 @@ struct MOF2 {
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
-    HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr);
+    MOF1::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                            nullptr);
 
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
@@ -341,8 +341,8 @@ struct SuperMOF2 {
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
-    HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr);
+    MOF1::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                            nullptr);
 
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
