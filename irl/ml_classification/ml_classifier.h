@@ -110,7 +110,7 @@ public:
     MLClassifier(
         int stencil = 5,
         float epsilon_connect_ = 1e-12f,
-        int no_symmetries_ = 0,
+        int no_symmetries_ = 48,
         float noise_stddev_ = 0.0f,
         int include_moments = 1,
         bool include_surface_area = false,

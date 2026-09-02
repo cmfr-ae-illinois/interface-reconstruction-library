@@ -15,6 +15,119 @@
 #include <iomanip>
 
 namespace fs = std::filesystem;
+struct SimulationFolders {
+    std::string name;
+    std::string dataDirectory;
+    std::string plicDirectory;
+    int downsample_factor;
+};
+
+static std::string read_next_nonempty_line(std::ifstream& input)
+{
+    std::string line;
+
+    while (std::getline(input, line)) {
+        // Remove possible Windows carriage return
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+
+        if (!line.empty()) {
+            return line;
+        }
+    }
+
+    throw std::runtime_error(
+        "Unexpected end of classification input file."
+    );
+}
+
+
+static void loadClassificationInput(
+    const std::string& input_file,
+    std::string& dataset_path,
+    std::vector<SimulationFolders>& simulations)
+{
+    std::ifstream input(input_file);
+
+    if (!input) {
+        throw std::runtime_error(
+            "Could not open classification input file: "
+            + input_file
+        );
+    }
+
+    // Dataset
+    dataset_path = read_next_nonempty_line(input);
+
+    // Number of simulations
+    const std::string no_simulations_line =
+        read_next_nonempty_line(input);
+
+    int no_simulations;
+
+    try {
+        no_simulations = std::stoi(no_simulations_line);
+    }
+    catch (...) {
+        throw std::runtime_error(
+            "Invalid number of simulations in input file: "
+            + no_simulations_line
+        );
+    }
+
+    if (no_simulations < 1) {
+        throw std::runtime_error(
+            "Number of simulations must be at least 1."
+        );
+    }
+
+    // Simulations
+
+    simulations.clear();
+    simulations.reserve(no_simulations);
+
+    for (int i = 0; i < no_simulations; ++i) {
+        SimulationFolders simulation;
+
+        simulation.name =
+            read_next_nonempty_line(input);
+
+        simulation.dataDirectory =
+            read_next_nonempty_line(input);
+
+        simulation.plicDirectory =
+            read_next_nonempty_line(input);
+
+        const std::string downsample_line =
+            read_next_nonempty_line(input);
+
+        try {
+            simulation.downsample_factor =
+                std::stoi(downsample_line);
+        }
+        catch (...) {
+            throw std::runtime_error(
+                "Invalid downsample factor for simulation "
+                + simulation.name
+                + ": "
+                + downsample_line
+            );
+        }
+
+        if (simulation.downsample_factor < 1) {
+            throw std::runtime_error(
+                "Downsample factor for simulation "
+                + simulation.name
+                + " must be at least 1."
+            );
+        }
+
+        simulations.push_back(
+            std::move(simulation)
+        );
+    }
+}
 
 // Fraction of equal entries between two prediction vectors
 static double agreement_fraction(const std::vector<int>& a, const std::vector<int>& b) {
@@ -30,43 +143,67 @@ static double agreement_fraction(const std::vector<int>& a, const std::vector<in
     return static_cast<double>(same) / static_cast<double>(a.size());
 }
 
-// Pick the run whose predictions have the highest mean agreement with all other runs
-static int pick_most_agreeing_model(const std::vector<std::vector<int>>& predictions, double* out_mean_agreement = nullptr) {
+static int pick_most_agreeing_model(
+    const std::vector<std::vector<int>>& predictions,
+    double* out_mean_agreement = nullptr)
+{
     const int R = static_cast<int>(predictions.size());
+
     if (R == 0) {
-        if (out_mean_agreement) *out_mean_agreement = 0.0;
+        if (out_mean_agreement) {
+            *out_mean_agreement = 0.0;
+        }
         return -1;
     }
+
     if (R == 1) {
-        if (out_mean_agreement) *out_mean_agreement = 1.0;
-        return 0;
+        if (out_mean_agreement) {
+            *out_mean_agreement = 1.0;
+        }
+        return 1;  // run 1
     }
 
     const size_t N = predictions[0].size();
-    for (int r = 1; r < R; ++r) {
-        if (predictions[r].size() != N) {
-            throw std::runtime_error("Prediction vectors differ in length!");
+
+    for (int run = 2; run <= R; ++run) {
+        if (predictions[run - 1].size() != N) {
+            throw std::runtime_error(
+                "Prediction vectors differ in length!"
+            );
         }
     }
 
-    int most_agreeing_run = 0;
+    int most_agreeing_run = 1;
     double best_score = -1.0;
 
-    for (int r = 0; r < R; ++r) {
+    // Run numbers are 1, ..., R
+    for (int run = 1; run <= R; ++run) {
         double sum_agree = 0.0;
-        for (int q = 0; q < R; ++q) {
-            if (q == r) continue;
-            sum_agree += agreement_fraction(predictions[r], predictions[q]);
+
+        for (int other_run = 1; other_run <= R; ++other_run) {
+            if (other_run == run) {
+                continue;
+            }
+
+            sum_agree += agreement_fraction(
+                predictions[run - 1],
+                predictions[other_run - 1]
+            );
         }
-        const double mean_agree = sum_agree / static_cast<double>(R - 1);
+
+        const double mean_agree =
+            sum_agree / static_cast<double>(R - 1);
 
         if (mean_agree > best_score) {
             best_score = mean_agree;
-            most_agreeing_run = r;
+            most_agreeing_run = run;
         }
     }
 
-    if (out_mean_agreement) *out_mean_agreement = best_score;
+    if (out_mean_agreement) {
+        *out_mean_agreement = best_score;
+    }
+
     return most_agreeing_run;
 }
 
@@ -84,13 +221,13 @@ static double compute_mean_instability(const std::vector<std::vector<int>>& pred
 
     double sum_u = 0.0;
     for (size_t t = 0; t < N; ++t) {
-        std::array<int,4> counts{0,0,0,0};
+        std::array<int,6> counts{0,0,0,0,0,0};
         for (int r = 0; r < R; ++r) {
             int c = predictions[r][t];
-            if (c < 0 || c >= 4) continue; // should not happen
+            if (c < 0 || c >= 6) continue; // should not happen
             counts[c]++;
         }
-        int max_count = std::max(std::max(counts[0], counts[1]), std::max(counts[2], counts[3]));
+        int max_count = *std::max_element(counts.begin(), counts.end());
         double u = 1.0 - static_cast<double>(max_count) / static_cast<double>(R);
         sum_u += u;
     }
@@ -103,31 +240,66 @@ int main (int argc, char* argv[]) {
     const int no_runs = 10; // Number of independent runs for stable classification, number of models to train and evaluate
     double pdistribution_step = 0.0; // Not needed for stable classification, but required by classify_simulation
 
-    // Simulations used for stable model selection
-    struct SimulationFolders {
-        std::string name;
-        std::string dataDirectory;
-        std::string plicDirectory;
-        int downsample_factor;
-    };
+    const std::string default_input_file =
+    "../../../examples/ml_stable_classification/stable_classification_input.txt";
 
-    std::vector<SimulationFolders> simulations = {
-        {
-            "Jet",
-            "/home/quirin/mlcfd/Repositories/round-jet/data",
-            "/home/quirin/mlcfd/Repositories/round-jet/plic",
-            2
-        },
-        {
-            "Bag",
-            "/home/quirin/mlcfd/Repositories/bag-breakup/data",
-            "/home/quirin/mlcfd/Repositories/bag-breakup/plic",
-            1
-        }
-    };
+    std::string input_file;
 
-    std::string dataset_path =
-        "/home/quirin/mlcfd/Datasets/SixClasses/NoEllipsoidLigTips/s5_2M/data/data.bin";
+    if (argc >= 2) {
+        input_file = argv[1];
+
+        std::cout
+            << "Using classification input file: "
+            << input_file
+            << "\n";
+    }
+    else {
+        input_file = default_input_file;
+
+        std::cout
+            << "No classification input file provided. "
+            << "Using default:\n"
+            << input_file
+            << "\n";
+    }
+
+    std::string dataset_path;
+    std::vector<SimulationFolders> simulations;
+
+    loadClassificationInput(
+        input_file,
+        dataset_path,
+        simulations
+    );
+
+    std::cout
+        << "\n========================================\n"
+        << "Classification input\n"
+        << "========================================\n";
+
+    std::cout
+        << "Dataset: "
+        << dataset_path
+        << "\n";
+
+    std::cout
+        << "Number of simulations: "
+        << simulations.size()
+        << "\n";
+
+    for (std::size_t i = 0; i < simulations.size(); ++i) {
+        const auto& simulation = simulations[i];
+
+        std::cout
+            << "\nSimulation " << (i + 1) << ":\n"
+            << "  Name       : " << simulation.name << "\n"
+            << "  Data       : " << simulation.dataDirectory << "\n"
+            << "  PLIC       : " << simulation.plicDirectory << "\n"
+            << "  Downsample : " << simulation.downsample_factor << "\n";
+    }
+
+    std::cout
+        << "========================================\n";
 
     const auto now = std::chrono::system_clock::now();
     const std::time_t currentTime =
@@ -426,7 +598,7 @@ int main (int argc, char* argv[]) {
 
     const fs::path most_agreeing_model_dir =
         run_dirs.at(
-            static_cast<std::size_t>(most_agreeing_run));
+            static_cast<std::size_t>(most_agreeing_run-1));
 
     const fs::path most_agreeing_model_path =
         most_agreeing_model_dir / "ml_model.pt";

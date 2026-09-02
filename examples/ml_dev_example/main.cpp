@@ -247,7 +247,7 @@ int main (int argc, char* argv[]) {
     //Training parameters
     double learning_rate = 0.001; //was 0.01 for SGD optimizer
     int batch_size = 64;
-    int max_epochs = 50;
+    int max_epochs = 10;
     int reduce_lr_patience = 4;
     int early_stop_patience = 8;
 
@@ -295,7 +295,7 @@ int main (int argc, char* argv[]) {
     //ml.trainModel();
     //ml.outputTrainingResults();
     //ml.saveModel("model/");
-    //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/new/s5_2M/stable_run_models/2026-08-03_225102/run_1/ml_model.pt");
+    ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/NoEllipsoidLigTips/s5_2M/stable_run_models/2026-08-29_032729/run_9/ml_model.pt"); 
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/ZerothMoments/stable_run_models/2026-07-15_164648/run_2/ml_model.pt"); //Thesis zeroth most agreeing
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMoments/stable_run_models/2026-07-01_014127/run_4/ml_model.pt"); // Thesis first moments most agreeing
     //ml.loadModel("/home/quirin/mlcfd/Datasets/SixClasses/Thesis2/FirstMomentsEigv/stable_run_models/2026-06-30_203023/run_0/ml_model.pt"); // Thesis first moments eigenvalues most agreeing

@@ -1,0 +1,10 @@
+/home/quirin/mlcfd/Datasets/SixClasses/NoEllipsoidLigTips/s5_2M/data/data.bin
+2
+Jet
+/home/quirin/mlcfd/Repositories/round-jet/data
+/home/quirin/mlcfd/Repositories/round-jet/plic
+2
+Bag
+/home/quirin/mlcfd/Repositories/bag-breakup/data
+/home/quirin/mlcfd/Repositories/bag-breakup/plic
+1
