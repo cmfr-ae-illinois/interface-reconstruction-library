@@ -8,7 +8,7 @@ There are two classifiers in working order right now:
 The focus of this example is the latter. 
 First, a whole bunch of parameters are defined. The definitions in this example are consistent with the standard values, but are assigned nevertheless to give a user an easy way to change them and experiment with them. The most important parameters for any classifier, regardless if inertia or ML-based, are:
 
-´
+```
     // Classifier parameters
     int stencil_size = 5; // sets the size of the neighbourhood of the classified cell
     int canonicalize_symmetries = 48; // Defines what rules of cannonicalization are used. Irellevant for inertia classifier
@@ -17,7 +17,7 @@ First, a whole bunch of parameters are defined. The definitions in this example 
     bool include_Surface_Area = false; // Option to include the surface area of each cell
     bool include_Eigenvalues = false; // Option to include the three inertia tensor eigenvalues of the whole stencil, calculated from the existing information, at the end of the vector
     float epsilon_connectivity = 1e-12f; // If a VOF fraction is below this, it is counted as 0, leading to potential disconnections from the central cell
-´
+```
 
 While the inertia classifier doesn't use some of this information, these parameters are pulled from the classifier when assembling the information that ultimately gets passed to it, in one big vector, based on which it performs the classification (see irl/ml_classification/vtk_in.h for example, where this vector is constructed from simulation data). The ml classifier further requires the net architecture as input. Data parameters are used purely for data generation, and training parameters for training. These two have to be updated before using the classifier when any value is different from the standard parameters.
 

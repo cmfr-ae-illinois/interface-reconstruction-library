@@ -8,7 +8,7 @@ After all classifiers are trained and all simulations classified, the agreement 
 
 The input to this function is set in stable_classification_input.txt. Replace the dataset and simulation paths with the correct ones in your filesystem. The format of the textfile is:
 
-`
+```
 dataset_path
 number_of_simulations
 simulation_1_name
@@ -19,6 +19,6 @@ simulation_2_name
 simulation_2_data_directory
 simulation_2_plic_directory
 simulation_2_downsample_factor
-`
+```
 
 More simulations can be added at the bottom of the textfile.
