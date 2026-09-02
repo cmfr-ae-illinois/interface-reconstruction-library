@@ -148,6 +148,9 @@ struct HYBRID {
 
       scalar_fields->emplace_back("interface_type", moments.boxArray(),
                                   moments.DistributionMap(), 0);
+
+      scalar_fields->emplace_back("volume_fraction", moments.boxArray(),
+                                  moments.DistributionMap(), 0);
     }
 
     // ---------------------------------------------------------------------
@@ -216,6 +219,7 @@ struct HYBRID {
         neighborhood.emptyNeighborhood();
 
         double vf_supercell = 0.0;
+        double gas_vf_supercell = 0.0;
         int jibben_count = 0;
 
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
@@ -252,6 +256,7 @@ struct HYBRID {
 
                 ++jibben_count;
                 vf_supercell += neighbor_vf;
+                gas_vf_supercell += 1.0 - neighbor_vf;
               }
             }
           }
@@ -264,6 +269,12 @@ struct HYBRID {
 
         // Small isolated VF check
         if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
+          underresolved_array(i, j, k) = 1;
+          return;
+        }
+
+        // Check for full cell
+        if ((1.0 - liq_vf) < 1.0e-2 && gas_vf_supercell < 1.0e-1) {
           underresolved_array(i, j, k) = 1;
           return;
         }
@@ -380,6 +391,8 @@ struct HYBRID {
         pu_neighborhood.emptyNeighborhood();
 
         int pu_count = 0;
+        double vf_supercell = 0.0;
+        double gas_vf_supercell = 0.0;
 
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
@@ -444,11 +457,22 @@ struct HYBRID {
               }
 
               ++pu_count;
+              vf_supercell += neighbor_vf;
+              gas_vf_supercell += 1.0 - neighbor_vf;
             }
           }
         }
 
         if (pu_count < 2) {
+          return;
+        }
+
+        if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
+          return;
+        }
+
+        // Check for full cell
+        if ((1.0 - liq_vf) < 1.0e-2 && gas_vf_supercell < 1.0e-1) {
           return;
         }
 
@@ -491,52 +515,6 @@ struct HYBRID {
     pu_interface.FillBoundaryWithPeriodicShift(geom);
 
     // ---------------------------------------------------------------------
-    // 7. PU cleanup for tiny isolated cells
-    // ---------------------------------------------------------------------
-
-    for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-      Array4<IRL::SeparatorUnion> pu_array = pu_interface.array(mfi);
-
-      Array4<IRL::SeparatorUnion const> interface_with_ghost_array =
-          interface_with_ghost.const_array(mfi);
-
-      Array4<Real const> moments_array = moments.const_array(mfi);
-
-      Array4<int const> underresolved_array = underresolved.const_array(mfi);
-
-      const Box& bx = mfi.tilebox();
-
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-        const double liq_vf = moments_array(i, j, k, comp_vf);
-
-        if (liq_vf < IRL::global_constants::VF_LOW ||
-            liq_vf > IRL::global_constants::VF_HIGH) {
-          return;
-        }
-
-        if (underresolved_array(i, j, k) == 0) {
-          return;
-        }
-
-        double vf_supercell = 0.0;
-
-        for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
-          for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
-            for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
-              vf_supercell += moments_array(ii, jj, kk, comp_vf);
-            }
-          }
-        }
-
-        if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
-          pu_array(i, j, k) = interface_with_ghost_array(i, j, k);
-        }
-      });
-    }
-
-    pu_interface.FillBoundaryWithPeriodicShift(geom);
-
-    // ---------------------------------------------------------------------
     // PU if underresolved, else Jibben
     // ---------------------------------------------------------------------
 
@@ -557,6 +535,8 @@ struct HYBRID {
       Array4<Real> is_underresolved_parab;
       Array4<Real> interface_type_poly;
       Array4<Real> interface_type_parab;
+      Array4<Real> volume_fraction_poly;
+      Array4<Real> volume_fraction_parab;
 
       if (scalar_fields) {
         is_underresolved_poly =
@@ -568,6 +548,11 @@ struct HYBRID {
             (*scalar_fields)[1].polygon_scalar_data.array(mfi);
         interface_type_parab =
             (*scalar_fields)[1].paraboloid_scalar_data.array(mfi);
+
+        volume_fraction_poly =
+            (*scalar_fields)[2].polygon_scalar_data.array(mfi);
+        volume_fraction_parab =
+            (*scalar_fields)[2].paraboloid_scalar_data.array(mfi);
       }
 
       const Box& bx = mfi.tilebox();
@@ -599,11 +584,15 @@ struct HYBRID {
             // 1 = accepted Jibben paraboloid
             // 2 = underresolved, using PU paraboloid
             interface_type_parab(i, j, k) = is_under ? 2.0 : 1.0;
+
+            volume_fraction_parab(i, j, k) = liq_vf;
           } else {
             is_underresolved_poly(i, j, k) = is_under ? 1.0 : 0.0;
 
             // 0 = PLIC/plane
             interface_type_poly(i, j, k) = 0.0;
+
+            volume_fraction_poly(i, j, k) = liq_vf;
           }
         }
       });
