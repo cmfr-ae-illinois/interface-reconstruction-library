@@ -20,7 +20,7 @@ output_dir = Path(
 checkpoint_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/temporary"
 interface_output_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/temporary"
 plot_times = [0.0, 0.25, 0.5, 0.75, 1.0]
-chk_times = [0.0, 0.25, 0.5, 0.75, 1.0]
+chk_times = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
@@ -112,6 +112,8 @@ def generate_input_file(
     chk_filename = f"chk_{case_identifier}"
     # plot file name
     plot_filename = f"plt_{case_identifier}"
+    # interface PVD name follows plot/checkpoint naming without the trailing factor-style underscore
+    interface_pvd_file = f"interface_{input_case_identifier}.pvd"
     # Full path
     input_path = output_dir / input_filename
 
@@ -202,7 +204,8 @@ amr.plot_int   = {plot_int}    # number of timesteps between plot files
 {format_optional_input("amr.plot_times", plot_times)}
                         # fractions of stop_time for plot files
                         # ignored when amr.plot_int > 0
-amr.interface_output_path = {interface_output_path}
+# amr.interface_output_path = {interface_output_path}
+amr.interface_pvd_file = {interface_pvd_file}
 
 # *****************************************************************
 # Checkpoint name and frequency
@@ -214,7 +217,7 @@ amr.chk_int  = {chk_int}       # number of timesteps between checkpoint files
 {format_optional_input("amr.chk_times", chk_times)}
                         # fractions of stop_time for checkpoint files
                         # ignored when amr.chk_int > 0
-amr.checkpoint_path = {checkpoint_path}
+# amr.checkpoint_path = {checkpoint_path}
 """
 
     # Write file
@@ -234,6 +237,7 @@ amr.checkpoint_path = {checkpoint_path}
     # print(f"  checkpoint root  = {chk_filename}")
     # print(f"  checkpoint path  = {checkpoint_path}")
     # print(f"  interface path   = {interface_output_path}")
+    # print(f"  interface pvd    = {interface_pvd_file}")
     print()
 
 def main():

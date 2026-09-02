@@ -287,6 +287,7 @@ class AmrCoreAdv : public amrex::AmrCore {
   std::string restart_chkfile = "";
   std::string checkpoint_path = "";
   std::string interface_output_path = "";
+  std::string interface_pvd_file = "interface.pvd";
 
   // case name
   std::string case_name = "default";

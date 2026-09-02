@@ -905,6 +905,9 @@ void AmrCoreAdv::ReadParameters() {
     pp.query("chk_dir", chk_dir);
     pp.query("chk_int", chk_int);
     pp.queryarr("chk_times", checkpoint_time_fractions);
+    pp.query("checkpoint_path", checkpoint_path);
+    pp.query("interface_output_path", interface_output_path);
+    pp.query("interface_pvd_file", interface_pvd_file);
     pp.query("restart", restart_chkfile);
   }
 
@@ -1254,7 +1257,7 @@ void AmrCoreAdv::WritePlotFile() {
     if (rank == 0) {
       // Write file header
       const std::string pvdfile =
-          JoinPath(interface_output_path, std::string("interface.pvd"));
+          JoinPath(interface_output_path, interface_pvd_file);
       if (istep[0] == 0) {
         std::ofstream outFile(pvdfile);
         outFile << "<?xml version=\"1.0\"?>\n";
