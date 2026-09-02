@@ -375,8 +375,8 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
           const auto cell =
               IRL::RectangularCuboid::fromBoundingPts(lower, upper);
 
-          const double initial_vf = initial_mom_arr(i, j, k, 0) / cell_volume;
-          const double final_vf = final_mom_arr(i, j, k, 0) / cell_volume;
+          const double initial_vf = initial_mom_arr(i, j, k, comp_vf);
+          const double final_vf = final_mom_arr(i, j, k, comp_vf);
 
           MomentArray initial_volume =
               getVolumeMoments(cell, initial_interface_arr(i, j, k), initial_vf,
@@ -390,7 +390,8 @@ void computeMomentErrors(const amrex::MultiFab& initial_moments,
           final_volume = recenterMoments(final_volume, center);
 
           if (compute_volume_M0) {
-            const double M0_error = std::abs(final_volume[0] - initial_volume[0]);
+            const double M0_error =
+                std::abs(final_volume[0] - initial_volume[0]);
             volume_L1_M0 += M0_error;
             volume_Linf_M0 = std::max(volume_Linf_M0, M0_error);
           }
