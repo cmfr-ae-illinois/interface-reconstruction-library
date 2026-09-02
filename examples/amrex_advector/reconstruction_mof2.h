@@ -121,7 +121,8 @@ struct MOF2Functor {
     const IRL::Pt datum = m_datum;
     IRL::ReferenceFrame newframe;
     IRL::Paraboloid paraboloid;
-    constexpr double vfrac_tol = 0.01;
+    // constexpr double vfrac_tol = 0.01;
+    constexpr double vfrac_tol = 0.0;
     // For almost empty of full cells (<1% andd > 99%), we only allow rotation
     // around x,y only and same a and b coefficients
     if (m_vfrac < vfrac_tol || m_vfrac > 1.0 - vfrac_tol) {
