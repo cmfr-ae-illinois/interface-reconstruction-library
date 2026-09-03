@@ -875,7 +875,8 @@ MomentErrorNorms computeAndPrintMomentErrorNorms(
 
   const double inv_ncells = 1.0 / static_cast<double>(geom.Domain().numPts());
   const double h = dx[0];
-  const double m0_scale = 1.0 / (h * h * h);
+  const double m0_scale =
+      moment_type == MomentType::Volume ? 1.0 / (h * h * h) : 1.0 / (h * h);
   const double m1_scale = m0_scale / h;
   const double m2_scale = m1_scale / h;
 
