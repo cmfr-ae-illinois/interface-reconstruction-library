@@ -93,10 +93,11 @@ struct iVF {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     // initial plic reconstruction
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             nullptr);
+                             nullptr, reconstruction_loop_time);
 
     // scalar field for interface type
     if (scalar_fields) {
@@ -151,6 +152,8 @@ struct iVF {
     kappa_rm2.setVal(0.0);
 
     // initializing fields using plic reconstruction
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<IRL::SeparatorUnion const> interface_with_ghost_array =
@@ -201,6 +204,7 @@ struct iVF {
     init_normal.FillBoundary(geom.periodicity());
     current_normal.FillBoundary(geom.periodicity());
 
+    loop_timer.stop();
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
     interface_with_ghost.FillBoundaryWithPeriodicShift(geom);
@@ -209,6 +213,7 @@ struct iVF {
     for (int iter = 1; iter <= max_iter; ++iter) {
       // if iter > 1 and cell is marked then use plic with updated normal
       if (iter > 1) {
+        loop_timer.start();
         for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
           Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
           Array4<Real const> moments_array = moments.const_array(mfi);
@@ -235,12 +240,14 @@ struct iVF {
           });
         }
 
+        loop_timer.stop();
         interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                        interface.nGrowVect());
         interface_with_ghost.FillBoundaryWithPeriodicShift(geom);
       }
 
       // build filtered stencil and update normal for each marked cell
+      loop_timer.start();
       for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
         Array4<IRL::SeparatorUnion const> interface_with_ghost_array =
@@ -403,12 +410,14 @@ struct iVF {
       }
       current_normal.FillBoundary(geom.periodicity());
 
+      loop_timer.stop();
       interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                      interface.nGrowVect());
       interface_with_ghost.FillBoundaryWithPeriodicShift(geom);
     }
 
     // final plic reconstruction with updated normals (if any)
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
 
@@ -441,11 +450,13 @@ struct iVF {
       });
     }
 
+    loop_timer.stop();
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
     interface_with_ghost.FillBoundaryWithPeriodicShift(geom);
 
     // final ppic reconstruction
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<IRL::SeparatorUnion const> interface_with_ghost_array =
@@ -552,6 +563,7 @@ struct iVF {
             cell, vfrac, &interface_array(i, j, k), 1.0e-14);
       });
     }
+    loop_timer.stop();
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
     interface_with_ghost.FillBoundaryWithPeriodicShift(geom);

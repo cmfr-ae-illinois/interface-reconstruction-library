@@ -1908,6 +1908,8 @@ void AmrCoreAdv::DefineVelocityAtLevel(int lev, Real time) {
 
 Real AmrCoreAdv::RecTime() { return reconstruction_time; }
 
+Real AmrCoreAdv::RecLoopTime() { return reconstruction_loop_time; }
+
 Real AmrCoreAdv::AdvTime() { return advection_time; }
 
 void AmrCoreAdv::BuildUniformCheckpointState(

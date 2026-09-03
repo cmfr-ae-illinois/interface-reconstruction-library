@@ -46,10 +46,11 @@ struct PU {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     // initial plic reconstruction
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             nullptr);
+                             nullptr, reconstruction_loop_time);
 
     // ---------------------------------------------------------------------
     // params
@@ -115,6 +116,8 @@ struct PU {
     // ---------------------------------------------------------------------
     // Jibben reconstruction
 
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface_with_ghost, TilingIfNotGPU()); mfi.isValid();
          ++mfi) {
       Array4<IRL::SeparatorUnion> jibben_array = jibben_interface.array(mfi);
@@ -250,12 +253,14 @@ struct PU {
       });
     }
 
+    loop_timer.stop();
     jibben_interface.FillBoundaryWithPeriodicShift(geom);
     pu_neighborhood_interface.FillBoundaryWithPeriodicShift(geom);
 
     // ---------------------------------------------------------------------
     // PU reconstruction
 
+    loop_timer.start();
     for (MFIter mfi(interface_with_ghost, TilingIfNotGPU()); mfi.isValid();
          ++mfi) {
       Array4<IRL::SeparatorUnion> pu_array = pu_interface.array(mfi);
@@ -400,11 +405,13 @@ struct PU {
       });
     }
 
+    loop_timer.stop();
     pu_interface.FillBoundaryWithPeriodicShift(geom);
 
     // ---------------------------------------------------------------------
     // pu clean up
 
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> pu_array = pu_interface.array(mfi);
 
@@ -439,11 +446,13 @@ struct PU {
       });
     }
 
+    loop_timer.stop();
     pu_interface.FillBoundaryWithPeriodicShift(geom);
 
     // ---------------------------------------------------------------------
     // storing final interface
 
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
 
@@ -466,6 +475,7 @@ struct PU {
       });
     }
 
+    loop_timer.stop();
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
 

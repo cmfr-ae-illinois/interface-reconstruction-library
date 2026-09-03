@@ -14,14 +14,37 @@
 
 using namespace amrex;
 
+class ReconstructionLoopTimer {
+ public:
+  explicit ReconstructionLoopTimer(amrex::Real* accumulator)
+      : accumulator_m(accumulator) {}
+
+  void start() {
+    if (accumulator_m != nullptr) start_m = amrex::second();
+  }
+
+  void stop() {
+    if (accumulator_m != nullptr) {
+      *accumulator_m += amrex::second() - start_m;
+    }
+  }
+
+ private:
+  amrex::Real* accumulator_m;
+  amrex::Real start_m = 0.0;
+};
+
 struct ELVIRA {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
 
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
@@ -67,6 +90,7 @@ struct ELVIRA {
             IRL::reconstructionWithELVIRA3D(elvira_neighborhood);
       });
     }  // end mfi
+    loop_timer.stop();
 
     // This copies the interface, update ghosts, and shifts datums across
     // periodic boundaries

@@ -21,18 +21,21 @@ struct VF {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     // Produce initial guess with PLICNet
     // PLICNet::GetReconstruction(interface, interface_with_ghost, moments,
     // geom);
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             nullptr);
+                             nullptr, reconstruction_loop_time);
 
     // Now compute Jibben's reconstruction
     const auto dx = geom.CellSizeArray();
     const auto dx_avg = std::cbrt(dx[0] * dx[1] * dx[2]);
     const auto problo = geom.ProbLoArray();
 
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<IRL::SeparatorUnion const> interface_with_ghost_array =
@@ -119,6 +122,7 @@ struct VF {
         // }
       });
     }  // end mfi
+    loop_timer.stop();
 
     // This copies the interface, update ghosts, and shifts datums across
     // periodic boundaries

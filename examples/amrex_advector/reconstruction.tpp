@@ -46,40 +46,41 @@ void AmrCoreAdv::GetReconstruction(
     std::vector<InterfaceScalarField>* scalar_fields) {
   if (reconstruction_name == "elvira" || reconstruction_name == "default") {
     ELVIRA::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                              a_geom, scalar_fields);
+                              a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "lvira") {
     LVIRA::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                             a_geom, scalar_fields);
+                             a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "plicnet") {
     PLICNet::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                               a_geom, scalar_fields);
+                               a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "mof" || reconstruction_name == "mof1") {
     MOF1::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                            a_geom, scalar_fields);
+                            a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "vf") {
     VF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                          a_geom, scalar_fields);
+                          a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "vf2") {
     VF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                           a_geom, scalar_fields);
+                           a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "ivf") {
     iVF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                           a_geom, scalar_fields);
+                           a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "pu") {
     PU::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                          a_geom, scalar_fields);
+                          a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "cf") {
     CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                          a_geom, scalar_fields);
+                          a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "mof2") {
     MOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                            a_geom, scalar_fields);
+                            a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "supermof2") {
     SuperMOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                                 a_geom, scalar_fields);
+                                 a_geom, scalar_fields,
+                                 &reconstruction_loop_time);
   } else if (reconstruction_name == "hybrid") {
     HYBRID::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                              a_geom, scalar_fields);
+                              a_geom, scalar_fields, &reconstruction_loop_time);
   } else {
     std::ostringstream oss;
     oss << "Unknown reconstruction method: " << reconstruction_name << '\n';

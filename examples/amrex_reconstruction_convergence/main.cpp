@@ -352,49 +352,75 @@ void reconstructInterface(const std::string& method,
                           amrex::SepUnionMultiFab& interface,
                           amrex::SepUnionMultiFab& interface_with_ghost,
                           const amrex::MultiFab& moments,
-                          const amrex::Geometry& geom) {
+                          const amrex::Geometry& geom,
+                          amrex::Real* reconstruction_loop_time) {
   if (method == "elvira" || method == "default") {
     ELVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr);
+                              nullptr, reconstruction_loop_time);
   } else if (method == "lvira") {
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             nullptr);
+                             nullptr, reconstruction_loop_time);
   } else if (method == "plicnet") {
     PLICNet::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                               nullptr);
+                               nullptr, reconstruction_loop_time);
   } else if (method == "mof" || method == "mof1") {
     MOF1::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                            nullptr);
+                            nullptr, reconstruction_loop_time);
   } else if (method == "vf") {
     VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr);
+                          nullptr, reconstruction_loop_time);
   } else if (method == "vf2") {
     VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                           nullptr);
+                           nullptr, reconstruction_loop_time);
   } else if (method == "ivf") {
     iVF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                           nullptr);
+                           nullptr, reconstruction_loop_time);
   } else if (method == "pu") {
     PU::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr);
+                          nullptr, reconstruction_loop_time);
   } else if (method == "cf") {
     CF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr);
+                          nullptr, reconstruction_loop_time);
   } else if (method == "mof2") {
     MOF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                            nullptr);
+                            nullptr, reconstruction_loop_time);
   } else if (method == "supermof2") {
     SuperMOF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                                 nullptr);
+                                 nullptr, reconstruction_loop_time);
   } else if (method == "hybrid") {
     HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr);
+                              nullptr, reconstruction_loop_time);
   } else if (method == "hybrid2") {
     HYBRID2::GetReconstruction(interface, interface_with_ghost, moments, geom,
                                nullptr);
   } else {
     amrex::Abort("Unknown reconstruction method: " + method);
   }
+}
+
+amrex::Long countLocalMixedCells(const amrex::MultiFab& moments) {
+  amrex::Long local_mixed_cells = 0;
+
+  for (amrex::MFIter mfi(moments); mfi.isValid(); ++mfi) {
+    const amrex::Box& box = mfi.validbox();
+    const auto moments_array = moments.const_array(mfi);
+    const auto lo = amrex::lbound(box);
+    const auto hi = amrex::ubound(box);
+
+    for (int k = lo.z; k <= hi.z; ++k) {
+      for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+          const double vf = moments_array(i, j, k, comp_vf);
+          if (vf > IRL::global_constants::VF_LOW &&
+              vf < IRL::global_constants::VF_HIGH) {
+            ++local_mixed_cells;
+          }
+        }
+      }
+    }
+  }
+
+  return local_mixed_cells;
 }
 
 MomentArray recenteredMoments(const MomentArray& moments, const IRL::Pt& xc) {
@@ -1119,8 +1145,41 @@ int main(int argc, char* argv[]) {
                                               exact_volume_for_reconstruction);
         fillAdvectorMomentsFromExactVolume(exact_volume_for_reconstruction,
                                            geom, adv_moments);
+        amrex::Real reconstruction_loop_time = 0.0;
         reconstructInterface(reconstruction_method, interface,
-                             interface_with_ghost, adv_moments, geom);
+                             interface_with_ghost, adv_moments, geom,
+                             &reconstruction_loop_time);
+
+        const amrex::Long local_mixed_cells =
+            countLocalMixedCells(adv_moments);
+        if (local_mixed_cells == 0) reconstruction_loop_time = 0.0;
+
+        amrex::Long global_mixed_cells = local_mixed_cells;
+        amrex::Real global_reconstruction_loop_time = reconstruction_loop_time;
+        amrex::ParallelDescriptor::ReduceLongSum(
+            global_mixed_cells,
+            amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::ReduceRealSum(
+            global_reconstruction_loop_time,
+            amrex::ParallelDescriptor::IOProcessorNumber());
+
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+          amrex::Print() << "  global mixed cells = " << global_mixed_cells
+                         << "\n"
+                         << "  summed reconstruction loop time = "
+                         << global_reconstruction_loop_time << " s\n";
+          if (global_mixed_cells > 0) {
+            amrex::Print()
+                << "  average reconstruction time per mixed cell = "
+                << global_reconstruction_loop_time /
+                       static_cast<double>(global_mixed_cells)
+                << " s\n";
+          } else {
+            amrex::Print()
+                << "  average reconstruction time per mixed cell = N/A"
+                << " (no mixed cells)\n";
+          }
+        }
 
         if (output_interface) {
           std::string current_interface_name = interface_output_name;

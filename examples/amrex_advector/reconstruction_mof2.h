@@ -221,14 +221,17 @@ struct MOF2 {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     MOF1::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                            nullptr);
+                            nullptr, reconstruction_loop_time);
 
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
     const Real vol = dx[0] * dx[1] * dx[2];
 
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
@@ -327,6 +330,7 @@ struct MOF2 {
         interface_array(i, j, k) = paraboloid;
       });
     }  // end mfi
+    loop_timer.stop();
 
     // This copies the interface, update ghosts, and shifts datums across
     // periodic boundaries
@@ -340,14 +344,17 @@ struct SuperMOF2 {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     MOF1::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                            nullptr);
+                            nullptr, reconstruction_loop_time);
 
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
     const Real vol = dx[0] * dx[1] * dx[2];
 
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
@@ -468,6 +475,7 @@ struct SuperMOF2 {
         interface_array(i, j, k) = paraboloid;
       });
     }  // end mfi
+    loop_timer.stop();
 
     // This copies the interface, update ghosts, and shifts datums across
     // periodic boundaries

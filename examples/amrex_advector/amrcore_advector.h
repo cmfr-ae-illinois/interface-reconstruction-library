@@ -115,6 +115,7 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Real EstTimeStep(int lev, amrex::Real time);
 
   amrex::Real RecTime();
+  amrex::Real RecLoopTime();
   amrex::Real AdvTime();
 
   void BuildUniformCheckpointState(const std::string& checkpoint,
@@ -308,6 +309,7 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   // timers
   amrex::Real reconstruction_time = 0.0;
+  amrex::Real reconstruction_loop_time = 0.0;
   amrex::Real advection_time = 0.0;
 
   // how often each level regrids the higher levels of refinement

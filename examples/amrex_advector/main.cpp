@@ -47,6 +47,8 @@ int main(int argc, char* argv[]) {
           end_total, amrex::ParallelDescriptor::IOProcessorNumber());
       amrex::Print() << "\nReconstruction Time: " << amr_core_adv.RecTime()
                      << '\n';
+      amrex::Print() << "Reconstruction Loop Time: "
+                     << amr_core_adv.RecLoopTime() << '\n';
       amrex::Print() << "     Advection Time: " << amr_core_adv.AdvTime()
                      << '\n';
       amrex::Print() << "         Total Time: " << end_total << '\n';

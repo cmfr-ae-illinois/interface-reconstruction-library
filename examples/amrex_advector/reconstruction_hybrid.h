@@ -68,13 +68,14 @@ struct HYBRID {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
-      std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
+      std::vector<InterfaceScalarField>* scalar_fields = nullptr,
+      Real* reconstruction_loop_time = nullptr) {
     // ---------------------------------------------------------------------
     // initial plic reconstruction
     // ---------------------------------------------------------------------
 
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             nullptr);
+                             nullptr, reconstruction_loop_time);
 
     // ---------------------------------------------------------------------
     // Some params
@@ -169,6 +170,8 @@ struct HYBRID {
     // and planes.
     // ---------------------------------------------------------------------
 
+    ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> jibben_array = jibben_interface.array(mfi);
 
@@ -331,6 +334,7 @@ struct HYBRID {
       });
     }
 
+    loop_timer.stop();
     jibben_interface.FillBoundaryWithPeriodicShift(geom);
     pu_neighborhood_interface.FillBoundaryWithPeriodicShift(geom);
 
@@ -338,6 +342,7 @@ struct HYBRID {
     // PU on underresolved cells only
     // ---------------------------------------------------------------------
 
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> pu_array = pu_interface.array(mfi);
 
@@ -512,12 +517,14 @@ struct HYBRID {
       });
     }
 
+    loop_timer.stop();
     pu_interface.FillBoundaryWithPeriodicShift(geom);
 
     // ---------------------------------------------------------------------
     // PU if underresolved, else Jibben
     // ---------------------------------------------------------------------
 
+    loop_timer.start();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
 
@@ -598,6 +605,7 @@ struct HYBRID {
       });
     }
 
+    loop_timer.stop();
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
 
