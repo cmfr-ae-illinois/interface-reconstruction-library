@@ -447,7 +447,7 @@ void AmrCoreAdv::Evolve() {
     // if (transport_m1) {
     //   ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
     // }
-    ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
+    // ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
   }
 
   {
@@ -1689,6 +1689,11 @@ void AmrCoreAdv::ReadCheckpointFile() {
     int nghost = 0;
     moments_old[lev].define(grids[lev], dmap[lev], ncomp, nghost);
     moments_new[lev].define(grids[lev], dmap[lev], ncomp, nghost);
+    band_id[lev].define(grids[lev], dmap[lev], 1, 1);
+    interface[lev].define(grids[lev], dmap[lev], 1, nghost);
+    band_id[lev].setVal(0.0);
+    InitializeSepUnionMultiFab(interface[lev]);
+    interface_scalar_fields[lev].clear();
 
     if (lev > 0 && do_reflux) {
       flux_reg[lev].reset(new FluxRegister(grids[lev], dmap[lev],
