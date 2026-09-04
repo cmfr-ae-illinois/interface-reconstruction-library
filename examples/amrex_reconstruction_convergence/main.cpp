@@ -948,6 +948,162 @@ MomentErrorNorms computeAndPrintMomentErrorNorms(
   return norms;
 }
 
+double relativeMomentError(const MomentArray& reconstructed,
+                           const MomentArray& exact, const int order) {
+  double error_squared = 0.0;
+  double exact_squared = 0.0;
+  int begin = 0;
+  int end = 1;
+  if (order == 1) {
+    begin = 1;
+    end = 4;
+  } else if (order == 2) {
+    begin = 4;
+    end = 10;
+  }
+
+  for (int n = begin; n < end; ++n) {
+    const double weight =
+        order == 2 && (n == 5 || n == 6 || n == 8) ? 2.0 : 1.0;
+    const double difference = reconstructed[n] - exact[n];
+    error_squared += weight * difference * difference;
+    exact_squared += weight * exact[n] * exact[n];
+  }
+
+  const double error = std::sqrt(error_squared);
+  const double denominator = std::sqrt(exact_squared);
+  if (denominator > std::numeric_limits<double>::epsilon()) {
+    return error / denominator;
+  }
+  return error <= std::numeric_limits<double>::epsilon()
+             ? 0.0
+             : std::numeric_limits<double>::infinity();
+}
+
+void outputMixedCellMomentErrors(
+    const std::string& filename, const amrex::MultiFab& exact_volume_moments,
+    const amrex::MultiFab* exact_surface_moments,
+    const amrex::SepUnionMultiFab& interface_with_ghost,
+    const amrex::MultiFab& adv_moments, const amrex::Geometry& geom,
+    const int volume_moment_order, const int surface_moment_order,
+    const bool output_volume, const bool output_surface) {
+  const int number_of_columns = 1 +
+                                (output_volume ? volume_moment_order + 1 : 0) +
+                                (output_surface ? surface_moment_order + 1 : 0);
+  const auto dx = geom.CellSizeArray();
+  const auto problo = geom.ProbLoArray();
+  std::vector<double> local_rows;
+
+  for (amrex::MFIter mfi(adv_moments); mfi.isValid(); ++mfi) {
+    const amrex::Box& box = mfi.validbox();
+    const auto adv = adv_moments.const_array(mfi);
+    const auto exact_volume = exact_volume_moments.const_array(mfi);
+    const auto iface = interface_with_ghost.const_array(mfi);
+    const auto exact_surface = output_surface
+                                   ? exact_surface_moments->const_array(mfi)
+                                   : amrex::Array4<const amrex::Real>{};
+    const auto lo = amrex::lbound(box);
+    const auto hi = amrex::ubound(box);
+
+    for (int k = lo.z; k <= hi.z; ++k) {
+      for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+          const double vf = adv(i, j, k, comp_vf);
+          if (vf <= IRL::global_constants::VF_LOW ||
+              vf >= IRL::global_constants::VF_HIGH) {
+            continue;
+          }
+
+          const auto cell = makeCell(geom, i, j, k);
+          const IRL::Pt center(
+              problo[0] + (static_cast<double>(i) + 0.5) * dx[0],
+              problo[1] + (static_cast<double>(j) + 0.5) * dx[1],
+              problo[2] + (static_cast<double>(k) + 0.5) * dx[2]);
+          local_rows.push_back(vf);
+
+          if (output_volume) {
+            MomentArray exact{};
+            for (int n = 0; n < numberOfMomentComponents(volume_moment_order);
+                 ++n) {
+              exact[n] = exact_volume(i, j, k, n);
+            }
+            MomentArray reconstructed = getReconstructedVolumeMoments(
+                cell, iface(i, j, k), vf, volume_moment_order);
+            exact = recenteredMoments(exact, center);
+            reconstructed = recenteredMoments(reconstructed, center);
+            for (int order = 0; order <= volume_moment_order; ++order) {
+              local_rows.push_back(
+                  relativeMomentError(reconstructed, exact, order));
+            }
+          }
+
+          if (output_surface) {
+            MomentArray exact{};
+            for (int n = 0; n < numberOfMomentComponents(surface_moment_order);
+                 ++n) {
+              exact[n] = exact_surface(i, j, k, n);
+            }
+            MomentArray reconstructed = getReconstructedSurfaceMoments(
+                cell, iface(i, j, k), vf, surface_moment_order);
+            exact = recenteredMoments(exact, center);
+            reconstructed = recenteredMoments(reconstructed, center);
+            for (int order = 0; order <= surface_moment_order; ++order) {
+              local_rows.push_back(
+                  relativeMomentError(reconstructed, exact, order));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (local_rows.size() >
+      static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    amrex::Abort("Too many local mixed-cell error values for MPI_Gatherv.");
+  }
+  const int local_count = static_cast<int>(local_rows.size());
+  const int root = amrex::ParallelDescriptor::IOProcessorNumber();
+  const std::vector<int> counts =
+      amrex::ParallelDescriptor::Gather(local_count, root);
+  std::vector<int> offsets;
+  std::vector<double> global_rows;
+  if (amrex::ParallelDescriptor::IOProcessor()) {
+    offsets.resize(counts.size(), 0);
+    for (std::size_t rank = 1; rank < counts.size(); ++rank) {
+      offsets[rank] = offsets[rank - 1] + counts[rank - 1];
+    }
+    const int global_count = offsets.back() + counts.back();
+    global_rows.resize(static_cast<std::size_t>(global_count));
+  }
+  amrex::ParallelDescriptor::Gatherv(local_rows.data(), local_count,
+                                     global_rows.data(), counts, offsets, root);
+
+  if (!amrex::ParallelDescriptor::IOProcessor()) return;
+  std::ofstream csv(filename, std::ios::trunc);
+  if (!csv) amrex::FileOpenFailed(filename);
+  csv << "volume_fraction";
+  if (output_volume) {
+    for (int order = 0; order <= volume_moment_order; ++order) {
+      csv << ",volume_M" << order << "_relative_error";
+    }
+  }
+  if (output_surface) {
+    for (int order = 0; order <= surface_moment_order; ++order) {
+      csv << ",surface_M" << order << "_relative_error";
+    }
+  }
+  csv << '\n' << std::scientific << std::setprecision(16);
+  for (std::size_t offset = 0; offset < global_rows.size();
+       offset += static_cast<std::size_t>(number_of_columns)) {
+    csv << global_rows[offset];
+    for (int column = 1; column < number_of_columns; ++column) {
+      csv << ',' << global_rows[offset + static_cast<std::size_t>(column)];
+    }
+    csv << '\n';
+  }
+  amrex::Print() << "  wrote mixed-cell moment errors: " << filename << "\n";
+}
+
 void appendMomentMetricsCsv(const std::string& csv_file,
                             const std::string& shape, const std::string& method,
                             const int nx_fine, const int factor, const int nx,
@@ -1029,7 +1185,10 @@ void printUsage() {
       << "  interface_output_dir = .\n"
       << "  interface_output_name = interface_<shape>_<method>_f<factor>\n"
       << "  output_csv = 0\n"
-      << "  csv_file = metrics.csv\n";
+      << "  csv_file = metrics.csv\n"
+      << "  output_cell_errors = 0\n"
+      << "  cell_error_output_dir = .\n"
+      << "  cell_error_output_name = <shape>_<method>_cell_errors\n";
 }
 
 }  // namespace
@@ -1052,9 +1211,12 @@ int main(int argc, char* argv[]) {
     int do_surface = 1;
     int output_interface = 0;
     int output_csv = 0;
+    int output_cell_errors = 0;
     std::string csv_file = "metrics.csv";
     std::string interface_output_dir = ".";
     std::string interface_output_name;
+    std::string cell_error_output_dir = ".";
+    std::string cell_error_output_name;
 
     amrex::ParmParse pp;
     pp.query("binary_file", binary_file);
@@ -1070,9 +1232,12 @@ int main(int argc, char* argv[]) {
     pp.query("do_surface", do_surface);
     pp.query("output_interface", output_interface);
     pp.query("output_csv", output_csv);
+    pp.query("output_cell_errors", output_cell_errors);
     pp.query("csv_file", csv_file);
     pp.query("interface_output_dir", interface_output_dir);
     pp.query("interface_output_name", interface_output_name);
+    pp.query("cell_error_output_dir", cell_error_output_dir);
+    pp.query("cell_error_output_name", cell_error_output_name);
     pp.query("reconstruction_method", reconstruction_method);
 
     amrex::ParmParse pprec("reconstruction");
@@ -1083,9 +1248,12 @@ int main(int argc, char* argv[]) {
     }
     if (volume_moment_order < 0) volume_moment_order = moment_order;
     if (surface_moment_order < 0) surface_moment_order = moment_order;
-    if (!do_volume && !do_surface && !output_interface) {
+    if (!do_volume && !do_surface && !output_interface && !output_cell_errors) {
+      amrex::Abort("Enable at least one output or error calculation.");
+    }
+    if (output_cell_errors && !do_volume && !do_surface) {
       amrex::Abort(
-          "Enable at least one of do_volume, do_surface, or output_interface.");
+          "output_cell_errors requires do_volume or do_surface to be enabled.");
     }
 
     if (binary_file.empty() || shape.empty() || nx_fine <= 0) {
@@ -1137,77 +1305,70 @@ int main(int argc, char* argv[]) {
 
       amrex::MultiFab adv_moments(ba, dm, adv_ncomp, num_grow);
 
-      {
-        amrex::MultiFab exact_volume_for_reconstruction(
-            ba, dm, numberOfMomentComponents(required_volume_order), 0);
-        coarsenMomentTypeFromBinaryToMultiFab(binary_file, current_factor, mesh,
-                                              MomentType::Volume,
-                                              exact_volume_for_reconstruction);
-        fillAdvectorMomentsFromExactVolume(exact_volume_for_reconstruction,
-                                           geom, adv_moments);
-        amrex::Real reconstruction_loop_time = 0.0;
-        reconstructInterface(reconstruction_method, interface,
-                             interface_with_ghost, adv_moments, geom,
-                             &reconstruction_loop_time);
+      amrex::MultiFab exact_volume_for_reconstruction(
+          ba, dm, numberOfMomentComponents(required_volume_order), 0);
+      coarsenMomentTypeFromBinaryToMultiFab(binary_file, current_factor, mesh,
+                                            MomentType::Volume,
+                                            exact_volume_for_reconstruction);
+      fillAdvectorMomentsFromExactVolume(exact_volume_for_reconstruction, geom,
+                                         adv_moments);
+      amrex::Real reconstruction_loop_time = 0.0;
+      reconstructInterface(reconstruction_method, interface,
+                           interface_with_ghost, adv_moments, geom,
+                           &reconstruction_loop_time);
 
-        const amrex::Long local_mixed_cells =
-            countLocalMixedCells(adv_moments);
-        if (local_mixed_cells == 0) reconstruction_loop_time = 0.0;
+      const amrex::Long local_mixed_cells = countLocalMixedCells(adv_moments);
+      if (local_mixed_cells == 0) reconstruction_loop_time = 0.0;
 
-        amrex::Long global_mixed_cells = local_mixed_cells;
-        amrex::Real global_reconstruction_loop_time = reconstruction_loop_time;
-        amrex::ParallelDescriptor::ReduceLongSum(
-            global_mixed_cells,
-            amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::ReduceRealSum(
-            global_reconstruction_loop_time,
-            amrex::ParallelDescriptor::IOProcessorNumber());
+      amrex::Long global_mixed_cells = local_mixed_cells;
+      amrex::Real global_reconstruction_loop_time = reconstruction_loop_time;
+      amrex::ParallelDescriptor::ReduceLongSum(
+          global_mixed_cells, amrex::ParallelDescriptor::IOProcessorNumber());
+      amrex::ParallelDescriptor::ReduceRealSum(
+          global_reconstruction_loop_time,
+          amrex::ParallelDescriptor::IOProcessorNumber());
 
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-          amrex::Print() << "  global mixed cells = " << global_mixed_cells
-                         << "\n"
-                         << "  summed reconstruction loop time = "
-                         << global_reconstruction_loop_time << " s\n";
-          if (global_mixed_cells > 0) {
-            amrex::Print()
-                << "  average reconstruction time per mixed cell = "
-                << global_reconstruction_loop_time /
-                       static_cast<double>(global_mixed_cells)
-                << " s\n";
-          } else {
-            amrex::Print()
-                << "  average reconstruction time per mixed cell = N/A"
-                << " (no mixed cells)\n";
-          }
-        }
-
-        if (output_interface) {
-          std::string current_interface_name = interface_output_name;
-          if (current_interface_name.empty()) {
-            current_interface_name = shape + "_" + reconstruction_method +
-                                     "_Nx" + std::to_string(ncell) +
-                                     "_interface";
-          }
-          outputReconstructedInterface(interface, adv_moments, geom,
-                                       interface_output_dir,
-                                       current_interface_name);
-        }
-
-        if (do_volume) {
-          const MomentErrorNorms volume_norms = computeAndPrintMomentErrorNorms(
-              exact_volume_for_reconstruction, interface_with_ghost,
-              adv_moments, geom, MomentType::Volume, volume_moment_order,
-              "Volume");
-          if (output_csv) {
-            appendMomentMetricsCsv(csv_file, shape, reconstruction_method,
-                                   nx_fine, current_factor, ncell, "volume",
-                                   volume_moment_order, volume_norms);
-          }
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "  global mixed cells = " << global_mixed_cells
+                       << "\n"
+                       << "  summed reconstruction loop time = "
+                       << global_reconstruction_loop_time << " s\n";
+        if (global_mixed_cells > 0) {
+          amrex::Print() << "  average reconstruction time per mixed cell = "
+                         << global_reconstruction_loop_time /
+                                static_cast<double>(global_mixed_cells)
+                         << " s\n";
+        } else {
+          amrex::Print() << "  average reconstruction time per mixed cell = N/A"
+                         << " (no mixed cells)\n";
         }
       }
 
+      if (output_interface) {
+        std::string current_interface_name = interface_output_name;
+        if (current_interface_name.empty()) {
+          current_interface_name = shape + "_" + reconstruction_method + "_Nx" +
+                                   std::to_string(ncell) + "_interface";
+        }
+        outputReconstructedInterface(interface, adv_moments, geom,
+                                     interface_output_dir,
+                                     current_interface_name);
+      }
+
+      if (do_volume) {
+        const MomentErrorNorms volume_norms = computeAndPrintMomentErrorNorms(
+            exact_volume_for_reconstruction, interface_with_ghost, adv_moments,
+            geom, MomentType::Volume, volume_moment_order, "Volume");
+        if (output_csv) {
+          appendMomentMetricsCsv(csv_file, shape, reconstruction_method,
+                                 nx_fine, current_factor, ncell, "volume",
+                                 volume_moment_order, volume_norms);
+        }
+      }
+
+      amrex::MultiFab exact_surface_moments;
       if (do_surface) {
-        amrex::MultiFab exact_surface_moments(
+        exact_surface_moments.define(
             ba, dm, numberOfMomentComponents(surface_moment_order), 0);
         coarsenMomentTypeFromBinaryToMultiFab(binary_file, current_factor, mesh,
                                               MomentType::Surface,
@@ -1220,6 +1381,23 @@ int main(int argc, char* argv[]) {
                                  nx_fine, current_factor, ncell, "surface",
                                  surface_moment_order, surface_norms);
         }
+      }
+
+      if (output_cell_errors) {
+        std::string output_name = cell_error_output_name;
+        if (output_name.empty()) {
+          output_name = shape + "_" + reconstruction_method + "_cell_errors";
+        }
+        std::string filename =
+            output_name + "_f" + std::to_string(current_factor) + ".csv";
+        if (!cell_error_output_dir.empty() && cell_error_output_dir != ".") {
+          filename = cell_error_output_dir + "/" + filename;
+        }
+        outputMixedCellMomentErrors(
+            filename, exact_volume_for_reconstruction,
+            do_surface ? &exact_surface_moments : nullptr, interface_with_ghost,
+            adv_moments, geom, volume_moment_order, surface_moment_order,
+            do_volume != 0, do_surface != 0);
       }
     }
   }
