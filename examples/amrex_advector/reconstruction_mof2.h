@@ -218,7 +218,7 @@ struct MOF2Functor {
 };
 
 struct MOF2 {
-  static void GetReconstruction(
+  static int GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr,
@@ -232,6 +232,8 @@ struct MOF2 {
 
     ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
     loop_timer.start();
+    amrex::Gpu::DeviceScalar<int> counter(0);
+    int* niter = counter.dataPtr();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
@@ -319,6 +321,7 @@ struct MOF2 {
               MOF2LM.minimizeInit(x_vec);
           do {
             status = MOF2LM.minimizeOneStep(x_vec);
+            amrex::Gpu::Atomic::Add(niter, 1);
           } while (status == Eigen::LevenbergMarquardtSpace::Running);
           myMOF2Functor.errorvec(x_vec, fvec);
           final_error_li = fvec.lpNorm<Eigen::Infinity>();
@@ -337,11 +340,12 @@ struct MOF2 {
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
     interface_with_ghost.FillBoundaryWithPeriodicShift(geom);
+    return counter.dataValue();
   }
 };
 
 struct SuperMOF2 {
-  static void GetReconstruction(
+  static int GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr,
@@ -355,6 +359,8 @@ struct SuperMOF2 {
 
     ReconstructionLoopTimer loop_timer(reconstruction_loop_time);
     loop_timer.start();
+    amrex::Gpu::DeviceScalar<int> counter(0);
+    int* niter = counter.dataPtr();
     for (MFIter mfi(interface, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       Array4<IRL::SeparatorUnion> interface_array = interface.array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
@@ -464,6 +470,7 @@ struct SuperMOF2 {
               MOF2LM.minimizeInit(x_vec);
           do {
             status = MOF2LM.minimizeOneStep(x_vec);
+            amrex::Gpu::Atomic::Add(niter, 1);
           } while (status == Eigen::LevenbergMarquardtSpace::Running);
           myMOF2Functor.errorvec(x_vec, fvec);
           final_error_li = fvec.lpNorm<Eigen::Infinity>();
@@ -482,6 +489,7 @@ struct SuperMOF2 {
     interface_with_ghost.LocalCopy(interface, 0, 0, interface.nComp(),
                                    interface.nGrowVect());
     interface_with_ghost.FillBoundaryWithPeriodicShift(geom);
+    return counter.dataValue();
   }
 };
 

@@ -1787,11 +1787,9 @@ void AmrCoreAdv::AdvanceAllLevels(Real time, Real dt_lev, int /*iteration*/) {
 
     // Reconstruct interface and update ghosts
     amrex::ParallelDescriptor::Barrier();
-    const auto rec_start = amrex::second();
     GetReconstruction(interface[lev], interface_with_ghost, moments_with_ghost,
                       geom[lev], &interface_scalar_fields[lev]);
     amrex::ParallelDescriptor::Barrier();
-    reconstruction_time += amrex::second() - rec_start;
 
     // Advect moments using reconstructed interface
     amrex::ParallelDescriptor::Barrier();
@@ -1911,6 +1909,57 @@ Real AmrCoreAdv::RecTime() { return reconstruction_time; }
 Real AmrCoreAdv::RecLoopTime() { return reconstruction_loop_time; }
 
 Real AmrCoreAdv::AdvTime() { return advection_time; }
+
+void AmrCoreAdv::RecordNumberMixedCells() {
+  for (MFIter mfi(moments_new[finest_level], TilingIfNotGPU()); mfi.isValid();
+       ++mfi) {
+    Array4<Real const> moments_array =
+        moments_new[finest_level].const_array(mfi);
+    const Box& bx = mfi.tilebox();
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+      const double vfrac = moments_array(i, j, k, comp_vf);
+      if (vfrac >= IRL::global_constants::VF_LOW &&
+          vfrac <= IRL::global_constants::VF_HIGH) {
+        number_mixed_cells++;
+      }
+    });
+  }
+}
+
+amrex::Real AmrCoreAdv::RecTimePerMixedCell() {
+  const double rec_time_per_core = reconstruction_loop_time;
+  double rec_time_total = 0.0;
+  MPI_Allreduce(&rec_time_per_core, &rec_time_total, 1, MPI_DOUBLE, MPI_SUM,
+                MPI_COMM_WORLD);
+
+  const int number_mixed_per_core = number_mixed_cells;
+  int number_mixed_total = 0;
+  MPI_Allreduce(&number_mixed_per_core, &number_mixed_total, 1, MPI_INT,
+                MPI_SUM, MPI_COMM_WORLD);
+
+  if (number_mixed_total > 0) {
+    return rec_time_total / static_cast<double>(number_mixed_total);
+  } else {
+    return 0.0;
+  }
+}
+
+amrex::Real AmrCoreAdv::MOF2IterPerMixedCell() {
+  const int niter_per_core = number_mof2_iterations;
+  int niter = 0;
+  MPI_Allreduce(&niter_per_core, &niter, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+  const int number_mixed_per_core = number_mixed_cells;
+  int number_mixed_total = 0;
+  MPI_Allreduce(&number_mixed_per_core, &number_mixed_total, 1, MPI_INT,
+                MPI_SUM, MPI_COMM_WORLD);
+
+  if (number_mixed_total > 0) {
+    return static_cast<double>(niter) / static_cast<double>(number_mixed_total);
+  } else {
+    return 0.0;
+  }
+}
 
 void AmrCoreAdv::BuildUniformCheckpointState(
     const std::string& checkpoint, amrex::MultiFab& uniform_moments,
@@ -2285,7 +2334,8 @@ void AmrCoreAdv::ComputeUniformMomentL1Errors(
     // Real fab_L1_M1mag = 0.0;
 
     // amrex::Loop(bx,
-    //             [=, &fab_L1_M0, &fab_L1_M1mag](int i, int j, int k) noexcept
+    //             [=, &fab_L1_M0, &fab_L1_M1mag](int i, int j, int k)
+    //             noexcept
     //             {
     amrex::Loop(bx, [=, &fab_L1_M0](int i, int j, int k) noexcept {
       const Real M0_i = init(i, j, k, comp_m0);

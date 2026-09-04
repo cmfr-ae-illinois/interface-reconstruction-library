@@ -44,6 +44,9 @@ void AmrCoreAdv::GetReconstruction(
     SepUnionMultiFab& a_interface, SepUnionMultiFab& a_interface_with_ghost,
     const MultiFab& a_moments, const Geometry& a_geom,
     std::vector<InterfaceScalarField>* scalar_fields) {
+  RecordNumberMixedCells();
+  ReconstructionLoopTimer loop_timer(&reconstruction_time);
+  loop_timer.start();
   if (reconstruction_name == "elvira" || reconstruction_name == "default") {
     ELVIRA::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                               a_geom, scalar_fields, &reconstruction_loop_time);
@@ -52,7 +55,8 @@ void AmrCoreAdv::GetReconstruction(
                              a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "plicnet") {
     PLICNet::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                               a_geom, scalar_fields, &reconstruction_loop_time);
+                               a_geom, scalar_fields,
+                               &reconstruction_loop_time);
   } else if (reconstruction_name == "mof" || reconstruction_name == "mof1") {
     MOF1::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                             a_geom, scalar_fields, &reconstruction_loop_time);
@@ -72,12 +76,13 @@ void AmrCoreAdv::GetReconstruction(
     CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                           a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "mof2") {
-    MOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                            a_geom, scalar_fields, &reconstruction_loop_time);
+    number_mof2_iterations += MOF2::GetReconstruction(
+        a_interface, a_interface_with_ghost, a_moments, a_geom, scalar_fields,
+        &reconstruction_loop_time);
   } else if (reconstruction_name == "supermof2") {
-    SuperMOF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                                 a_geom, scalar_fields,
-                                 &reconstruction_loop_time);
+    number_mof2_iterations += SuperMOF2::GetReconstruction(
+        a_interface, a_interface_with_ghost, a_moments, a_geom, scalar_fields,
+        &reconstruction_loop_time);
   } else if (reconstruction_name == "hybrid") {
     HYBRID::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                               a_geom, scalar_fields, &reconstruction_loop_time);
@@ -86,6 +91,7 @@ void AmrCoreAdv::GetReconstruction(
     oss << "Unknown reconstruction method: " << reconstruction_name << '\n';
     throw std::runtime_error(oss.str());
   }
+  loop_timer.stop();
 }
 
 #endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTIONS_H_

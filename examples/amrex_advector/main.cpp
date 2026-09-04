@@ -45,13 +45,32 @@ int main(int argc, char* argv[]) {
       // print wallclock time
       amrex::ParallelDescriptor::ReduceRealMax(
           end_total, amrex::ParallelDescriptor::IOProcessorNumber());
-      amrex::Print() << "\nReconstruction Time: " << amr_core_adv.RecTime()
-                     << '\n';
-      amrex::Print() << "Reconstruction Loop Time: "
-                     << amr_core_adv.RecLoopTime() << '\n';
-      amrex::Print() << "     Advection Time: " << amr_core_adv.AdvTime()
-                     << '\n';
-      amrex::Print() << "         Total Time: " << end_total << '\n';
+      amrex::Print() << "\n               Reconstruction Time: "
+                     << std::scientific << std::setprecision(2)
+                     << amr_core_adv.RecTime() << '\n';
+      double max_rec_time_loop = amr_core_adv.RecLoopTime();
+      amrex::ParallelDescriptor::ReduceRealMax(
+          max_rec_time_loop, amrex::ParallelDescriptor::IOProcessorNumber());
+      amrex::Print() << "      Max reconstruction Loop Time: "
+                     << std::scientific << std::setprecision(2)
+                     << max_rec_time_loop << '\n';
+      const double rec_time_per_mixed_cell = amr_core_adv.RecTimePerMixedCell();
+      amrex::Print() << "Reconstruction Time per Mixed cell: "
+                     << std::scientific << std::setprecision(2)
+                     << rec_time_per_mixed_cell << '\n';
+      const double niter_mof2_per_mixed_cell =
+          amr_core_adv.MOF2IterPerMixedCell();
+      if (niter_mof2_per_mixed_cell > 0.0) {
+        amrex::Print() << " MOF2 Num. of Iter. per Mixed cell: " << std::fixed
+                       << std::setprecision(2) << niter_mof2_per_mixed_cell
+                       << '\n';
+      }
+      amrex::Print() << "                    Advection Time: "
+                     << std::scientific << std::setprecision(2)
+                     << amr_core_adv.AdvTime() << '\n';
+      amrex::Print() << "                   Total Wall Time: "
+                     << std::scientific << std::setprecision(2) << end_total
+                     << "\n\n";
     }
   }
 

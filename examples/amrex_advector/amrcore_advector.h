@@ -118,6 +118,10 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Real RecLoopTime();
   amrex::Real AdvTime();
 
+  void RecordNumberMixedCells();
+  amrex::Real RecTimePerMixedCell();
+  amrex::Real MOF2IterPerMixedCell();
+
   void BuildUniformCheckpointState(const std::string& checkpoint,
                                    amrex::MultiFab& uniform_moments,
                                    amrex::SepUnionMultiFab& uniform_interface);
@@ -311,6 +315,8 @@ class AmrCoreAdv : public amrex::AmrCore {
   amrex::Real reconstruction_time = 0.0;
   amrex::Real reconstruction_loop_time = 0.0;
   amrex::Real advection_time = 0.0;
+  int number_mixed_cells = 0;
+  int number_mof2_iterations = 0;
 
   // how often each level regrids the higher levels of refinement
   // (after a level advances that many time steps)
