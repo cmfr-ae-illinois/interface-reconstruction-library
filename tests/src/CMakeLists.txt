@@ -60,3 +60,4 @@ target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/paraboloid_integrator_tes
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/gauss_legendre_integrator_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/arc_split_test.cpp)
 target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/coons_patch_test.cpp)
+target_sources(irl_test PRIVATE ${IRL_TEST_SOURCE_DIR}/ml_class_data_test.cpp)
