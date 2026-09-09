@@ -66,7 +66,6 @@ struct InterfaceScalarField {
 #include "examples/amrex_advector/reconstruction_cf.h"
 #include "examples/amrex_advector/reconstruction_elvira.h"
 #include "examples/amrex_advector/reconstruction_hybrid.h"
-#include "examples/amrex_advector/reconstruction_hybrid2.h"
 #include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
@@ -110,6 +109,10 @@ int reconstructionRequiredVolumeOrder(const std::string& method) {
   if (method == "mof2" || method == "supermof2") return 2;
   if (method == "mof" || method == "mof1" || method == "plicnet") return 1;
   return 0;
+}
+
+bool reportsMof2Iterations(const std::string& method) {
+  return method == "mof2" || method == "supermof2";
 }
 
 int advectorMomentComponents(const int volume_order) {
@@ -348,12 +351,12 @@ void fillAdvectorMomentsFromExactVolume(const amrex::MultiFab& exact_volume,
   adv_moments.FillBoundary(geom.periodicity());
 }
 
-void reconstructInterface(const std::string& method,
-                          amrex::SepUnionMultiFab& interface,
-                          amrex::SepUnionMultiFab& interface_with_ghost,
-                          const amrex::MultiFab& moments,
-                          const amrex::Geometry& geom,
-                          amrex::Real* reconstruction_loop_time) {
+int reconstructInterface(const std::string& method,
+                         amrex::SepUnionMultiFab& interface,
+                         amrex::SepUnionMultiFab& interface_with_ghost,
+                         const amrex::MultiFab& moments,
+                         const amrex::Geometry& geom,
+                         amrex::Real* reconstruction_loop_time) {
   if (method == "elvira" || method == "default") {
     ELVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
                               nullptr, reconstruction_loop_time);
@@ -382,20 +385,19 @@ void reconstructInterface(const std::string& method,
     CF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                           nullptr, reconstruction_loop_time);
   } else if (method == "mof2") {
-    MOF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                            nullptr, reconstruction_loop_time);
+    return MOF2::GetReconstruction(interface, interface_with_ghost, moments,
+                                   geom, nullptr, reconstruction_loop_time);
   } else if (method == "supermof2") {
-    SuperMOF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                                 nullptr, reconstruction_loop_time);
+    return SuperMOF2::GetReconstruction(interface, interface_with_ghost, moments,
+                                        geom, nullptr,
+                                        reconstruction_loop_time);
   } else if (method == "hybrid") {
     HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
                               nullptr, reconstruction_loop_time);
-  } else if (method == "hybrid2") {
-    HYBRID2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                               nullptr);
   } else {
     amrex::Abort("Unknown reconstruction method: " + method);
   }
+  return 0;
 }
 
 amrex::Long countLocalMixedCells(const amrex::MultiFab& moments) {
@@ -411,8 +413,8 @@ amrex::Long countLocalMixedCells(const amrex::MultiFab& moments) {
       for (int j = lo.y; j <= hi.y; ++j) {
         for (int i = lo.x; i <= hi.x; ++i) {
           const double vf = moments_array(i, j, k, comp_vf);
-          if (vf > IRL::global_constants::VF_LOW &&
-              vf < IRL::global_constants::VF_HIGH) {
+          if (vf >= IRL::global_constants::VF_LOW &&
+              vf <= IRL::global_constants::VF_HIGH) {
             ++local_mixed_cells;
           }
         }
@@ -1248,7 +1250,8 @@ int main(int argc, char* argv[]) {
     }
     if (volume_moment_order < 0) volume_moment_order = moment_order;
     if (surface_moment_order < 0) surface_moment_order = moment_order;
-    if (!do_volume && !do_surface && !output_interface && !output_cell_errors) {
+    if (!do_volume && !do_surface && !output_interface && !output_cell_errors &&
+        !reportsMof2Iterations(reconstruction_method)) {
       amrex::Abort("Enable at least one output or error calculation.");
     }
     if (output_cell_errors && !do_volume && !do_surface) {
@@ -1313,19 +1316,24 @@ int main(int argc, char* argv[]) {
       fillAdvectorMomentsFromExactVolume(exact_volume_for_reconstruction, geom,
                                          adv_moments);
       amrex::Real reconstruction_loop_time = 0.0;
-      reconstructInterface(reconstruction_method, interface,
-                           interface_with_ghost, adv_moments, geom,
-                           &reconstruction_loop_time);
+      const int local_mof2_iterations =
+          reconstructInterface(reconstruction_method, interface,
+                               interface_with_ghost, adv_moments, geom,
+                               &reconstruction_loop_time);
 
       const amrex::Long local_mixed_cells = countLocalMixedCells(adv_moments);
       if (local_mixed_cells == 0) reconstruction_loop_time = 0.0;
 
       amrex::Long global_mixed_cells = local_mixed_cells;
       amrex::Real global_reconstruction_loop_time = reconstruction_loop_time;
+      int global_mof2_iterations = local_mof2_iterations;
       amrex::ParallelDescriptor::ReduceLongSum(
           global_mixed_cells, amrex::ParallelDescriptor::IOProcessorNumber());
       amrex::ParallelDescriptor::ReduceRealSum(
           global_reconstruction_loop_time,
+          amrex::ParallelDescriptor::IOProcessorNumber());
+      amrex::ParallelDescriptor::ReduceIntSum(
+          global_mof2_iterations,
           amrex::ParallelDescriptor::IOProcessorNumber());
 
       if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -1341,6 +1349,21 @@ int main(int argc, char* argv[]) {
         } else {
           amrex::Print() << "  average reconstruction time per mixed cell = N/A"
                          << " (no mixed cells)\n";
+        }
+        if (reportsMof2Iterations(reconstruction_method)) {
+          amrex::Print() << "  total MOF2 iterations = "
+                         << global_mof2_iterations << "\n";
+          if (global_mixed_cells > 0) {
+            amrex::Print()
+                << "  average MOF2 iterations per mixed cell = "
+                << static_cast<double>(global_mof2_iterations) /
+                       static_cast<double>(global_mixed_cells)
+                << "\n";
+          } else {
+            amrex::Print()
+                << "  average MOF2 iterations per mixed cell = N/A"
+                << " (no mixed cells)\n";
+          }
         }
       }
 
