@@ -324,13 +324,12 @@ MomentArray getSurfaceMoments(const IRL::RectangularCuboid& cell,
 }
 
 // Error norms
-MomentErrorMetrics computeMomentErrors(const amrex::MultiFab& initial_moments,
-                         const amrex::MultiFab& final_moments,
-                         const amrex::SepUnionMultiFab& initial_interface,
-                         const amrex::SepUnionMultiFab& final_interface,
-                         const amrex::Geometry& geom,
-                         const int volume_moment_order,
-                         const int surface_moment_order) {
+MomentErrorMetrics computeMomentErrors(
+    const amrex::MultiFab& initial_moments,
+    const amrex::MultiFab& final_moments,
+    const amrex::SepUnionMultiFab& initial_interface,
+    const amrex::SepUnionMultiFab& final_interface, const amrex::Geometry& geom,
+    const int volume_moment_order, const int surface_moment_order) {
   using namespace amrex;
 
   if (initial_moments.boxArray() != final_moments.boxArray()) {
@@ -561,7 +560,6 @@ MomentErrorMetrics computeMomentErrors(const amrex::MultiFab& initial_moments,
     surface_Linf_M2 *= surface_m2_scale;
   }
 
-
   MomentErrorMetrics metrics;
   metrics.volume_m0_l1 = volume_L1_M0;
   metrics.volume_m0_l2 = volume_L2_M0;
@@ -589,16 +587,13 @@ MomentErrorMetrics computeMomentErrors(const amrex::MultiFab& initial_moments,
                  << "=============================================\n"
                  << std::scientific << std::setprecision(16);
   if (compute_volume_M0)
-    amrex::Print() << "M0  L1 = " << volume_L1_M0
-                   << "  L2 = " << volume_L2_M0
+    amrex::Print() << "M0  L1 = " << volume_L1_M0 << "  L2 = " << volume_L2_M0
                    << "  Linf = " << volume_Linf_M0 << "\n";
   if (compute_volume_M1)
-    amrex::Print() << "M1  L1 = " << volume_L1_M1
-                   << "  L2 = " << volume_L2_M1
+    amrex::Print() << "M1  L1 = " << volume_L1_M1 << "  L2 = " << volume_L2_M1
                    << "  Linf = " << volume_Linf_M1 << "\n";
   if (compute_volume_M2)
-    amrex::Print() << "M2  L1 = " << volume_L1_M2
-                   << "  L2 = " << volume_L2_M2
+    amrex::Print() << "M2  L1 = " << volume_L1_M2 << "  L2 = " << volume_L2_M2
                    << "  Linf = " << volume_Linf_M2 << "\n";
 
   amrex::Print() << "\n"
@@ -607,16 +602,13 @@ MomentErrorMetrics computeMomentErrors(const amrex::MultiFab& initial_moments,
                  << "=============================================\n"
                  << std::scientific << std::setprecision(16);
   if (compute_surface_M0)
-    amrex::Print() << "M0  L1 = " << surface_L1_M0
-                   << "  L2 = " << surface_L2_M0
+    amrex::Print() << "M0  L1 = " << surface_L1_M0 << "  L2 = " << surface_L2_M0
                    << "  Linf = " << surface_Linf_M0 << "\n";
   if (compute_surface_M1)
-    amrex::Print() << "M1  L1 = " << surface_L1_M1
-                   << "  L2 = " << surface_L2_M1
+    amrex::Print() << "M1  L1 = " << surface_L1_M1 << "  L2 = " << surface_L2_M1
                    << "  Linf = " << surface_Linf_M1 << "\n";
   if (compute_surface_M2)
-    amrex::Print() << "M2  L1 = " << surface_L1_M2
-                   << "  L2 = " << surface_L2_M2
+    amrex::Print() << "M2  L1 = " << surface_L1_M2 << "  L2 = " << surface_L2_M2
                    << "  Linf = " << surface_Linf_M2 << "\n";
 
   return metrics;
@@ -659,9 +651,8 @@ void writeCheckpointMetricsCsv(const std::string& csv_output_dir,
   amrex::UtilCreateDirectory(csv_output_dir, 0755);
 
   const std::string filename = joinPath(
-      csv_output_dir,
-      makeCheckpointMetricsCsvName(case_name, reconstruction_name, max_level,
-                                   cfl));
+      csv_output_dir, makeCheckpointMetricsCsvName(
+                          case_name, reconstruction_name, max_level, cfl));
 
   std::ofstream csv(filename, std::ios::trunc);
   if (!csv) {
@@ -669,8 +660,7 @@ void writeCheckpointMetricsCsv(const std::string& csv_output_dir,
   }
 
   csv << "case,method,max_level,factor,cfl,nx,volumetric_moment_order,"
-      << "surface_moment_order,"
-      << "volume_M0_L1,volume_M0_L2,volume_M0_Linf,"
+      << "surface_moment_order," << "volume_M0_L1,volume_M0_L2,volume_M0_Linf,"
       << "volume_M1_L1,volume_M1_L2,volume_M1_Linf,"
       << "volume_M2_L1,volume_M2_L2,volume_M2_Linf,"
       << "surface_M0_L1,surface_M0_L2,surface_M0_Linf,"
@@ -678,11 +668,10 @@ void writeCheckpointMetricsCsv(const std::string& csv_output_dir,
       << "surface_M2_L1,surface_M2_L2,surface_M2_Linf\n";
 
   csv << case_name << ',' << reconstruction_name << ',' << max_level << ','
-      << factor << ',' << std::fixed << std::setprecision(2) << cfl << ','
-      << nx << ','
-      << volume_moment_order << ',' << surface_moment_order << ','
-      << std::scientific << std::setprecision(16) << metrics.volume_m0_l1
-      << ',' << metrics.volume_m0_l2 << ',' << metrics.volume_m0_linf << ','
+      << factor << ',' << std::fixed << std::setprecision(2) << cfl << ',' << nx
+      << ',' << volume_moment_order << ',' << surface_moment_order << ','
+      << std::scientific << std::setprecision(16) << metrics.volume_m0_l1 << ','
+      << metrics.volume_m0_l2 << ',' << metrics.volume_m0_linf << ','
       << metrics.volume_m1_l1 << ',' << metrics.volume_m1_l2 << ','
       << metrics.volume_m1_linf << ',' << metrics.volume_m2_l1 << ','
       << metrics.volume_m2_l2 << ',' << metrics.volume_m2_linf << ','
@@ -786,14 +775,13 @@ int main(int argc, char* argv[]) {
     // Calculate error norms.
 
     const MomentErrorMetrics metrics = computeMomentErrors(
-        initial_uniform_moments, final_uniform_moments, initial_uniform_interface,
-        final_uniform_interface, final_geom, volume_moment_order,
-        surface_moment_order);
+        initial_uniform_moments, final_uniform_moments,
+        initial_uniform_interface, final_uniform_interface, final_geom,
+        volume_moment_order, surface_moment_order);
 
     const int nx = final_geom.Domain().length(0);
-    const int factor = !base_ncell.empty() && base_ncell[0] > 0
-                           ? nx / base_ncell[0]
-                           : 1;
+    const int factor =
+        !base_ncell.empty() && base_ncell[0] > 0 ? nx / base_ncell[0] : 1;
     writeCheckpointMetricsCsv(csv_output_dir, case_name, reconstruction_name,
                               max_level, factor, cfl, nx, volume_moment_order,
                               surface_moment_order, metrics);
