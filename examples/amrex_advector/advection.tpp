@@ -12,6 +12,7 @@
 
 #include "irl/amrex/sepunion_multifab.h"
 
+#include "examples/amrex_advector/advection_pamt.h"
 #include "examples/amrex_advector/advection_remap.h"
 
 using namespace amrex;
@@ -87,6 +88,10 @@ void AmrCoreAdv::TransportMoments(
     LagrangianRemap::TransportMoments(
         a_interface_with_ghost, a_facevel, a_band_id, a_moments, a_geom, a_dt,
         a_time, velocity_field_type, transport_m1, transport_m2);
+  } else if (advection_name == "pamt") {
+    PAMT::TransportMoments(a_interface_with_ghost, a_facevel, a_band_id,
+                           a_moments, a_geom, a_dt, a_time, velocity_field_type,
+                           transport_m1, transport_m2);
   } else {
     std::ostringstream oss;
     oss << "Unknown advection method: " << advection_name << '\n';
