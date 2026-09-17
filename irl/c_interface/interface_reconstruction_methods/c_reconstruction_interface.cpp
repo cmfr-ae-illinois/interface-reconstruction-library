@@ -24,6 +24,15 @@ void c_reconstructPU3D_RectCub_Variant(
       *a_pu_neighborhood->obj_ptr, *a_delta, *a_dx);
 }
 
+void c_reconstructPU3D_RectCub_Union_raw(
+    const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
+    const double* a_dx, IRL::SeparatorUnion& a_separator) {
+  assert(a_pu_neighborhood != nullptr);
+  assert(a_pu_neighborhood->obj_ptr != nullptr);
+  a_separator = IRL::reconstructionWithPU3D<IRL::RectangularCuboid>(
+      *a_pu_neighborhood->obj_ptr, *a_delta, *a_dx);
+}
+
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
                                      c_SeparatorVariant* a_separator) {
   assert(a_jibben_neighborhood != nullptr);
@@ -31,6 +40,15 @@ void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
   *a_separator->obj_ptr =
+      reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
+}
+
+void c_reconstructJibbenSq3D_Union_raw(
+    const c_JibbenNeigh* a_jibben_neighborhood,
+    IRL::SeparatorUnion& a_separator) {
+  assert(a_jibben_neighborhood != nullptr);
+  assert(a_jibben_neighborhood->obj_ptr != nullptr);
+  a_separator =
       reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
 }
 
@@ -89,6 +107,13 @@ void c_reconstructELVIRA3D_Variant(const c_ELVIRANeigh* a_elvira_neighborhood,
   assert(a_separator->obj_ptr != nullptr);
   *a_separator->obj_ptr =
       reconstructionWithELVIRA3D(*a_elvira_neighborhood->obj_ptr);
+}
+
+void c_reconstructELVIRA3D_Union_raw(const c_ELVIRANeigh* a_elvira_neighborhood,
+                                     IRL::SeparatorUnion& a_separator) {
+  assert(a_elvira_neighborhood != nullptr);
+  assert(a_elvira_neighborhood->obj_ptr != nullptr);
+  a_separator = reconstructionWithELVIRA3D(*a_elvira_neighborhood->obj_ptr);
 }
 
 void c_reconstructMOF2D_RectCub(const c_RectCub* a_cell,
@@ -418,6 +443,17 @@ void c_reconstructLVIRA3D_RectCub_Variant(
         "When LVIRA3D is provided with a guess of the SeparatorVariant type, "
         "this active type needs to be PlanarSeparator");
   }
+}
+
+void c_reconstructLVIRA3D_RectCub_Union_raw(
+    const c_LVIRANeigh_RectCub* a_neighborhood,
+    IRL::SeparatorUnion& a_separator) {
+  assert(a_neighborhood != nullptr);
+  assert(a_neighborhood->obj_ptr != nullptr);
+  IRL::PlanarSeparator separator_guess =
+      IRL::PlanarSeparator::fromOnePlane(a_separator.getPlane());
+  a_separator =
+      reconstructionWithLVIRA3D(*a_neighborhood->obj_ptr, separator_guess);
 }
 
 void c_reconstructLVIRA2D_Hex(const c_LVIRANeigh_Hex* a_neighborhood,

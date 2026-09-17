@@ -41,6 +41,9 @@ bool c_SeparatorUnion_isEmpty_raw(const IRL::SeparatorUnion& a_self);
 
 double c_SeparatorUnion_getMeanCurvature_raw(IRL::SeparatorUnion& a_self);
 
+void c_SeparatorUnion_getPrincipalCurvatures_raw(
+    IRL::SeparatorUnion& a_self, double* a_curvatures);
+
 }  // end extern C
 
 #endif  // IRL_C_INTERFACE_VARIANT_RECONSTRUCTION_C_SEPARATOR_UNION_H_

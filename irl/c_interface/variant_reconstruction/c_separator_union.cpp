@@ -13,6 +13,7 @@
 
 #include "irl/interface_reconstruction_methods/volume_fraction_matching.h"
 #include "irl/parameters/constants.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {
 
@@ -90,6 +91,15 @@ double c_SeparatorUnion_getMeanCurvature_raw(IRL::SeparatorUnion& a_self) {
     return aligned_cylinder.b() / aligned_cylinder.r();
   }
   return 0.0;
+}
+
+void c_SeparatorUnion_getPrincipalCurvatures_raw(
+    IRL::SeparatorUnion& a_self, double* a_curvatures) {
+  assert(a_curvatures != nullptr);
+  IRL::SeparatorVariant separator_variant(a_self);
+  const auto curv_pair = separator_variant.getPrincipalCurvatures();
+  a_curvatures[0] = curv_pair.first;
+  a_curvatures[1] = curv_pair.second;
 }
 
 }  // end extern C

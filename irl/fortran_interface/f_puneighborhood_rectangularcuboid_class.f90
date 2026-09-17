@@ -5,6 +5,7 @@
 module f_PUNeigh_RectCub_class
     use f_RectCub_class
     use f_SeparatorVariant_class
+    use f_SeparatorUnion_class
     use, intrinsic :: iso_c_binding
     use f_DefinedTypes
     implicit none
@@ -33,6 +34,7 @@ module f_PUNeigh_RectCub_class
     end interface
     interface addMember
         module procedure PUNeigh_RectCub_class_addMember
+        module procedure PUNeigh_RectCub_class_addMember_Union_raw
     end interface
     interface emptyNeighborhood
         module procedure PUNeigh_RectCub_class_emptyNeighborhood
@@ -96,6 +98,18 @@ module f_PUNeigh_RectCub_class
         type(c_SeparatorVariant) :: a_separator
         real(C_DOUBLE) :: a_scalar
     end subroutine F_PUNeigh_RectCub_addMember
+
+    subroutine F_PUNeigh_RectCub_addMember_Union_raw(this,a_centroid, a_weight, &
+            a_separator, a_scalar) &
+        bind(C, name = "c_PUNeigh_RectCub_addMember_Union_raw")
+        import
+        implicit none 
+        type(c_PUNeigh_RectCub) :: this
+        real(C_DOUBLE), dimension(*) :: a_centroid ! dimension(1:3)
+        real(C_DOUBLE) :: a_weight
+        type(SeparatorUnion_type_raw) :: a_separator
+        real(C_DOUBLE) :: a_scalar
+    end subroutine F_PUNeigh_RectCub_addMember_Union_raw
 
     subroutine F_PUNeigh_RectCub_emptyNeighborhood(this) &
         bind(C, name="c_PUNeigh_RectCub_emptyNeighborhood")
@@ -166,6 +180,18 @@ module f_PUNeigh_RectCub_class
         call F_PUNeigh_RectCub_addMember(this%c_object, a_centroid, a_weight, &
             a_separator%c_object,a_scalar)
     end subroutine PUNeigh_RectCub_class_addMember 
+
+    subroutine PUNeigh_RectCub_class_addMember_Union_raw(this, a_centroid, a_weight, &
+            a_separator,a_scalar)
+        implicit none
+        type(PUNeigh_RectCub_type), intent(in) :: this
+        real(IRL_double), dimension(1:3), intent(in) :: a_centroid
+        real(IRL_double), intent(in) :: a_weight
+        type(SeparatorUnion_type_raw), intent(in) :: a_separator
+        real(IRL_double), intent(in) :: a_scalar
+        call F_PUNeigh_RectCub_addMember_Union_raw(this%c_object, a_centroid, a_weight, &
+            a_separator,a_scalar)
+    end subroutine PUNeigh_RectCub_class_addMember_Union_raw
 
     subroutine PUNeigh_RectCub_class_emptyNeighborhood(this)
         implicit none

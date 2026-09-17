@@ -60,6 +60,20 @@ void c_PUNeigh_RectCub_addMember(c_PUNeigh_RectCub* a_self,
                              *a_scalar);
 }
 
+void c_PUNeigh_RectCub_addMember_Union_raw(
+    c_PUNeigh_RectCub* a_self, const double* __restrict__ a_centroid,
+    const double* a_weight, const IRL::SeparatorUnion& a_separator,
+    const double* a_scalar) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(a_centroid != nullptr);
+
+  IRL::Pt centroid = IRL::Pt::fromRawDoublePointer(a_centroid);
+  IRL::SeparatorVariant separator_variant(a_separator);
+  a_self->obj_ptr->addMember(&centroid, &separator_variant, *a_weight,
+                             *a_scalar);
+}
+
 void c_PUNeigh_RectCub_emptyNeighborhood(c_PUNeigh_RectCub* a_self) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);

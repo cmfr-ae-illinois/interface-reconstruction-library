@@ -55,6 +55,9 @@ module f_SeparatorUnion_class
   interface getMeanCurvature
     module procedure SeparatorUnion_class_getMeanCurvature_raw
   end interface
+  interface getPrincipalCurvatures
+    module procedure SeparatorUnion_class_getPrincipalCurvatures_raw
+  end interface
 
   interface
 
@@ -143,6 +146,14 @@ module f_SeparatorUnion_class
       real(C_DOUBLE) :: a_curvature
     end function F_SeparatorUnion_getMeanCurvature_raw
 
+    subroutine F_SeparatorUnion_getPrincipalCurvatures_raw(this, a_curvatures) &
+      bind(C, name="c_SeparatorUnion_getPrincipalCurvatures_raw")
+      import
+      implicit none
+      type(SeparatorUnion_type_raw) :: this
+      real(C_DOUBLE), dimension(2), intent(out) :: a_curvatures
+    end subroutine F_SeparatorUnion_getPrincipalCurvatures_raw
+
   end interface
 
   contains
@@ -230,5 +241,12 @@ module f_SeparatorUnion_class
       real(C_DOUBLE) :: a_curvature
       a_curvature = F_SeparatorUnion_getMeanCurvature_raw(this)
     end function SeparatorUnion_class_getMeanCurvature_raw
+
+    function SeparatorUnion_class_getPrincipalCurvatures_raw(this) result(a_curvatures)
+      implicit none
+      type(SeparatorUnion_type_raw), intent(inout) :: this
+      real(C_DOUBLE), dimension(2) :: a_curvatures
+      call F_SeparatorUnion_getPrincipalCurvatures_raw(this, a_curvatures)
+    end function SeparatorUnion_class_getPrincipalCurvatures_raw
 
 end module f_SeparatorUnion_class

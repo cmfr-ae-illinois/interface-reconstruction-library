@@ -3,8 +3,10 @@
 #define IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_PU_NEIGHBORHOOD_RECTANGULAR_CUBOID_H_
 
 #include "irl/c_interface/geometry/polyhedrons/c_rectangular_cuboid.h"
+#include "irl/c_interface/variant_reconstruction/c_separator_union.h"
 #include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
+#include "irl/variant_reconstruction/separator_union.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {
@@ -32,6 +34,11 @@ void c_PUNeigh_RectCub_addMember(c_PUNeigh_RectCub* a_self,
                                  const double* a_weight,
                                  const c_SeparatorVariant* a_separator,
                                  const double* a_scalar);
+
+void c_PUNeigh_RectCub_addMember_Union_raw(
+    c_PUNeigh_RectCub* a_self, const double* __restrict__ a_centroid,
+    const double* a_weight, const IRL::SeparatorUnion& a_separator,
+    const double* a_scalar);
 
 void c_PUNeigh_RectCub_emptyNeighborhood(c_PUNeigh_RectCub* a_self);
 

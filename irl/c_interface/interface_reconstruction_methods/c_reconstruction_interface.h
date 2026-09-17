@@ -33,6 +33,7 @@
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 #include "irl/variant_reconstruction/separator_variant.h"
+#include "irl/variant_reconstruction/separator_union.h"
 
 extern "C" {
 /// \file c_localizers.h
@@ -49,8 +50,16 @@ void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
     const double* a_dx, c_SeparatorVariant* a_separator);
 
+void c_reconstructPU3D_RectCub_Union_raw(
+    const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
+    const double* a_dx, IRL::SeparatorUnion& a_separator);
+
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
                                      c_SeparatorVariant* a_separator);
+
+void c_reconstructJibbenSq3D_Union_raw(
+    const c_JibbenNeigh* a_jibben_neighborhood,
+    IRL::SeparatorUnion& a_separator);
 
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
                                  c_Paraboloid* a_separator);
@@ -66,6 +75,10 @@ void c_reconstructELVIRA3D_Sep(const c_ELVIRANeigh* a_elvira_neighborhood,
 
 void c_reconstructELVIRA3D_Variant(const c_ELVIRANeigh* a_elvira_neighborhood,
                                    c_SeparatorVariant* a_separator);
+
+void c_reconstructELVIRA3D_Union_raw(
+    const c_ELVIRANeigh* a_elvira_neighborhood,
+    IRL::SeparatorUnion& a_separator);
 
 void c_reconstructMOF2D_RectCub(const c_RectCub* a_cell,
                                 const c_SepVM* a_separated_volume_moments,
@@ -169,6 +182,10 @@ void c_reconstructLVIRA3D_RectCub_Sep(
 void c_reconstructLVIRA3D_RectCub_Variant(
     const c_LVIRANeigh_RectCub* a_neighborhood,
     c_SeparatorVariant* a_separator);
+
+void c_reconstructLVIRA3D_RectCub_Union_raw(
+    const c_LVIRANeigh_RectCub* a_neighborhood,
+    IRL::SeparatorUnion& a_separator);
 
 void c_reconstructLVIRA2D_Hex(const c_LVIRANeigh_Hex* a_neighborhood,
                               c_PlanarSep* a_separator);

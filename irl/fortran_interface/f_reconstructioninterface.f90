@@ -42,10 +42,12 @@ module f_ReconstructionInterface
 
   interface reconstructPU3D
     module procedure reconstructPU3D_RectCub_Variant
+    module procedure reconstructPU3D_RectCub_Union_raw
   end interface reconstructPU3D
 
   interface reconstructJibbenSq3D
     module procedure reconstructJibbenSq3D_Variant
+    module procedure reconstructJibbenSq3D_Union_raw
   end interface reconstructJibbenSq3D
 
   interface reconstructJibben3D
@@ -58,6 +60,8 @@ module f_ReconstructionInterface
     module procedure reconstructELVIRA3D_Sep
     ! 3D ELVIRA for SeparatorVariant
     module procedure reconstructELVIRA3D_Variant
+    ! 3D ELVIRA for SeparatorUnion
+    module procedure reconstructELVIRA3D_Union_raw
   end interface reconstructELVIRA3D
 
   interface reconstructMOF2D
@@ -141,6 +145,8 @@ module f_ReconstructionInterface
     module procedure reconstructLVIRA3D_RectCub_Sep
     ! 3D LVIRA on a RectCub mesh
     module procedure reconstructLVIRA3D_RectCub_Variant
+    ! 3D LVIRA on a RectCub mesh
+    module procedure reconstructLVIRA3D_RectCub_Union_raw
     ! 3D LVIRA on a Hex mesh
     module procedure reconstructLVIRA3D_Hex
     ! 3D LVIRA on a Tet mesh
@@ -181,6 +187,17 @@ module f_ReconstructionInterface
   end interface
 
   interface
+    subroutine F_reconstructJibbenSq3D_Union_raw(a_JibbenNeigh, a_separator) &
+    bind(C, name="c_reconstructJibbenSq3D_Union_raw")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
+      type(SeparatorUnion_type_raw) :: a_separator
+    end subroutine F_reconstructJibbenSq3D_Union_raw
+  end interface
+
+  interface
     subroutine F_reconstructJibben3D_Variant(a_JibbenNeigh, a_separator) &
     bind(C, name="c_reconstructJibben3D_Variant")
       use, intrinsic :: iso_c_binding
@@ -205,6 +222,19 @@ module f_ReconstructionInterface
   end interface
 
   interface
+    subroutine F_reconstructPU3D_RectCub_Union_raw(a_PURectCubNeigh, a_delta, a_dx, a_separator) &
+    bind(C, name="c_reconstructPU3D_RectCub_Union_raw")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_PUNeigh_RectCub) :: a_PURectCubNeigh ! Pointer to a PUNeigh object
+      real(C_DOUBLE), intent(in) :: a_delta
+      real(C_DOUBLE), intent(in) :: a_dx
+      type(SeparatorUnion_type_raw) :: a_separator
+    end subroutine F_reconstructPU3D_RectCub_Union_raw
+  end interface
+
+  interface
     subroutine F_reconstructJibben3D_Union_raw(a_JibbenNeigh, a_separator) &
     bind(C, name="c_reconstructJibben3D_Union_raw")
       use, intrinsic :: iso_c_binding
@@ -224,6 +254,17 @@ module f_ReconstructionInterface
       type(c_ELVIRANeigh) :: a_ELVIRANeigh ! Pointer to a ELVIRANeigh object
       type(c_SeparatorVariant) :: a_variant ! Pointer for PlanarSep to set
     end subroutine F_reconstructELVIRA3D_Variant
+  end interface
+
+  interface
+    subroutine F_reconstructELVIRA3D_Union_raw(a_ELVIRANeigh, a_separator) &
+    bind(C, name="c_reconstructELVIRA3D_Union_raw")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_ELVIRANeigh) :: a_ELVIRANeigh ! Pointer to a ELVIRANeigh object
+      type(SeparatorUnion_type_raw) :: a_separator
+    end subroutine F_reconstructELVIRA3D_Union_raw
   end interface
 
   interface
@@ -541,6 +582,17 @@ module f_ReconstructionInterface
   end interface
 
   interface
+    subroutine F_reconstructLVIRA3D_RectCub_Union_raw(a_neighborhood, a_separator) &
+    bind(C, name="c_reconstructLVIRA3D_RectCub_Union_raw")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_LVIRANeigh_RectCub) :: a_neighborhood ! Pointer for LVIRANeigh<RectCub>
+      type(SeparatorUnion_type_raw) :: a_separator
+    end subroutine F_reconstructLVIRA3D_RectCub_Union_raw
+  end interface
+
+  interface
     subroutine F_reconstructLVIRA3D_Hex(a_neighborhood, a_planar_separator) &
     bind(C, name="c_reconstructLVIRA3D_Hex")
       use, intrinsic :: iso_c_binding
@@ -594,6 +646,16 @@ module f_ReconstructionInterface
 
   end subroutine reconstructJibbenSq3D_Variant
 
+  subroutine reconstructJibbenSq3D_Union_raw(a_jibben_neighborhood, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
+      type(SeparatorUnion_type_raw), intent(inout) :: a_separator
+
+      call F_reconstructJibbenSq3D_Union_raw(a_jibben_neighborhood%c_object, a_separator)
+
+  end subroutine reconstructJibbenSq3D_Union_raw
+
   subroutine reconstructJibben3D_Variant(a_jibben_neighborhood, a_separator)
     use, intrinsic :: iso_c_binding
     implicit none
@@ -616,6 +678,18 @@ module f_ReconstructionInterface
 
   end subroutine reconstructPU3D_RectCub_Variant
 
+  subroutine reconstructPU3D_RectCub_Union_raw(a_pu_neighborhood, a_delta, a_dx, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(PUNeigh_RectCub_type), intent(in) :: a_pu_neighborhood
+      real(IRL_double), intent(in) :: a_delta
+      real(IRL_double), intent(in) :: a_dx
+      type(SeparatorUnion_type_raw), intent(inout) :: a_separator
+
+      call F_reconstructPU3D_RectCub_Union_raw(a_pu_neighborhood%c_object, a_delta, a_dx, a_separator)
+
+  end subroutine reconstructPU3D_RectCub_Union_raw
+
   subroutine reconstructJibben3D_Union_raw(a_jibben_neighborhood, a_separator)
     use, intrinsic :: iso_c_binding
     implicit none
@@ -635,6 +709,16 @@ module f_ReconstructionInterface
       call F_reconstructELVIRA3D_Variant(a_elvira_neighborhood%c_object, a_variant%c_object)
 
   end subroutine reconstructELVIRA3D_Variant
+
+  subroutine reconstructELVIRA3D_Union_raw(a_elvira_neighborhood, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(ELVIRANeigh_type), intent(in) :: a_elvira_neighborhood
+      type(SeparatorUnion_type_raw), intent(inout) :: a_separator
+
+      call F_reconstructELVIRA3D_Union_raw(a_elvira_neighborhood%c_object, a_separator)
+
+  end subroutine reconstructELVIRA3D_Union_raw
 
   subroutine reconstructMOF2D_RectCub(a_rectangular_cuboid, a_separated_volume_moments, a_planar_separator)
     use, intrinsic :: iso_c_binding
@@ -907,6 +991,16 @@ module f_ReconstructionInterface
       type(SeparatorVariant_type), intent(inout) :: a_variant
       call F_reconstructLVIRA3D_RectCub_Variant(a_neighborhood%c_object, a_variant%c_object)
   end subroutine reconstructLVIRA3D_RectCub_Variant
+
+  subroutine reconstructLVIRA3D_RectCub_Union_raw(a_neighborhood, a_separator)
+    use, intrinsic :: iso_c_binding
+    implicit none
+      type(LVIRANeigh_RectCub_type), intent(in) :: a_neighborhood
+      type(SeparatorUnion_type_raw), intent(inout) :: a_separator
+
+      call F_reconstructLVIRA3D_RectCub_Union_raw(a_neighborhood%c_object, a_separator)
+
+  end subroutine reconstructLVIRA3D_RectCub_Union_raw
 
   subroutine reconstructLVIRA2D_Hex(a_neighborhood, a_planar_separator)
     use, intrinsic :: iso_c_binding
