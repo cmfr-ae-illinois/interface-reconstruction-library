@@ -1845,7 +1845,7 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
 
   // neighborhoods for jibben and pu reconstruction
   IRL::JibbenNeighborhood jibben_neighborhood;
-  IRL::PUNeighborhood pu_neighborhood;
+  IRL::PUNeighborhood<IRL::RectangularCuboid> pu_neighborhood;
   const int nlayers = 1;
   const int nstencil =
       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
@@ -1991,8 +1991,8 @@ void PU::getReconstruction(const Data<IRL::VolumeMoments>& a_liq_moments,
                 const double weight = area_weight * vfrac_weight;
                 const IRL::Pt centroid =
                     polygon(ii, jj, kk).calculateCentroid();
-                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
-                                          centroid, weight);
+                pu_neighborhood.addMember(
+                    &centroid, &pu_neighborhood_interface(ii, jj, kk), weight);
                 if (i == ii && j == jj && k == kk) {
                   pu_neighborhood.setCenterOfStencil(pu_count);
                 }
@@ -4903,7 +4903,7 @@ void JibbenPU::getReconstruction(
 
   // neighborhoods for jibben and pu reconstruction
   IRL::JibbenNeighborhood jibben_neighborhood;
-  IRL::PUNeighborhood pu_neighborhood;
+  IRL::PUNeighborhood<IRL::RectangularCuboid> pu_neighborhood;
   const int nlayers = 1;
   const int nstencil =
       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
@@ -5049,8 +5049,8 @@ void JibbenPU::getReconstruction(
                 const double weight = area_weight * vfrac_weight;
                 const IRL::Pt centroid =
                     polygon(ii, jj, kk).calculateCentroid();
-                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
-                                          centroid, weight);
+                pu_neighborhood.addMember(
+                    &centroid, &pu_neighborhood_interface(ii, jj, kk), weight);
                 if (i == ii && j == jj && k == kk) {
                   pu_neighborhood.setCenterOfStencil(pu_count);
                 }
@@ -5255,7 +5255,7 @@ void Testing::getReconstruction(
 
   // neighborhoods for jibben and pu reconstruction
   IRL::JibbenNeighborhood jibben_neighborhood;
-  IRL::PUNeighborhood pu_neighborhood;
+  IRL::PUNeighborhood<IRL::RectangularCuboid> pu_neighborhood;
   const int nlayers = 1;
   const int nstencil =
       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
@@ -5401,8 +5401,8 @@ void Testing::getReconstruction(
                 const double weight = area_weight * vfrac_weight;
                 const IRL::Pt centroid =
                     polygon(ii, jj, kk).calculateCentroid();
-                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
-                                          centroid, weight);
+                pu_neighborhood.addMember(
+                    &centroid, &pu_neighborhood_interface(ii, jj, kk), weight);
                 if (i == ii && j == jj && k == kk) {
                   pu_neighborhood.setCenterOfStencil(pu_count);
                 }
@@ -5608,7 +5608,7 @@ void JibbenSqPU::getReconstruction(
 
   // neighborhoods for jibben and pu reconstruction
   IRL::JibbenNeighborhood jibben_neighborhood;
-  IRL::PUNeighborhood pu_neighborhood;
+  IRL::PUNeighborhood<IRL::RectangularCuboid> pu_neighborhood;
   const int nlayers = 1;
   const int nstencil =
       (1 + 2 * nlayers) * (1 + 2 * nlayers) * (1 + 2 * nlayers);
@@ -5759,8 +5759,8 @@ void JibbenSqPU::getReconstruction(
                 const double weight = area_weight * vfrac_weight;
                 const IRL::Pt centroid =
                     polygon(ii, jj, kk).calculateCentroid();
-                pu_neighborhood.addMember(pu_neighborhood_interface(ii, jj, kk),
-                                          centroid, weight);
+                pu_neighborhood.addMember(
+                    &centroid, &pu_neighborhood_interface(ii, jj, kk), weight);
                 if (i == ii && j == jj && k == kk) {
                   pu_neighborhood.setCenterOfStencil(pu_count);
                 }
