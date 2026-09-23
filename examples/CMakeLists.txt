@@ -6,6 +6,7 @@ add_custom_target(examples_advector)
 add_custom_target(examples_paraboloid_advector)
 add_custom_target(examples_variant_advector)
 add_custom_target(examples_implicit_surface_reconstruction)
+add_custom_target(examples_level_set_reconstruction)
 
 include(${PROJECT_SOURCE_DIR}/cmake/Utils/IRLAddExample.cmake)
 
@@ -17,6 +18,7 @@ add_subdirectory("./advector")
 add_subdirectory("./paraboloid_advector")
 add_subdirectory("./variant_advector")
 add_subdirectory("./implicit_surface_reconstruction")
+add_subdirectory("./level_set_reconstruction")
 
 if(IRL_BUILD_AMREX_INTERFACE)
     add_custom_target(examples_amrex_advector)

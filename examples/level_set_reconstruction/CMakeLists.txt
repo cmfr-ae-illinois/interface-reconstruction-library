@@ -1,0 +1,16 @@
+find_package(MPI REQUIRED COMPONENTS CXX)
+
+IRLAddExample_cpp(
+  TARGET_NAME level_set_reconstruction
+  HDRS "level_set.h"
+  SRCS
+    "main.cpp"
+    "../variant_advector/basic_mesh.cpp"
+    "../variant_advector/reconstruction_types.cpp"
+    "../variant_advector/solver.cpp"
+    "../variant_advector/vof_advection.cpp"
+    "../variant_advector/vtk.cpp"
+  OUTPUT_DIR "${IRL_EXAMPLES_OUTPUT_DIR}/level_set_reconstruction"
+  COLLECTION examples_level_set_reconstruction
+)
+target_link_libraries(level_set_reconstruction PRIVATE MPI::MPI_CXX)
