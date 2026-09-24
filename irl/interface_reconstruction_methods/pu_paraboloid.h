@@ -43,6 +43,10 @@ class PUParaboloid : public PU<CellType> {
   // kernel size, and grid spacing
   Paraboloid solve(void);
 
+  // Use an explicit interface point as the projection seed without changing
+  // the PU support centers or weights.
+  Paraboloid solve(const Pt& a_projection_seed);
+
   // Replace the neighborhood and reconstruct
   Paraboloid solve(const PUNeighborhood<CellType>& a_neighborhood,
                    const double a_kernel_size, const double a_dx);

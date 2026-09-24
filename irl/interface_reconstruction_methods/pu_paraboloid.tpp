@@ -79,8 +79,14 @@ Paraboloid PUParaboloid<CellType>::solve(void) {
     return this->makeInvalidParaboloid();
   }
 
-  // centroid of target interface
-  const Pt center_centroid = neighborhood.getCentroid(center_index);
+  return this->solve(neighborhood.getCentroid(center_index));
+}
+
+template <class CellType>
+Paraboloid PUParaboloid<CellType>::solve(const Pt& a_projection_seed) {
+  if (this->getNeighborhood().size() == 0 || !std::isfinite(dx_m) || dx_m <= 0.0)
+    return this->makeInvalidParaboloid();
+  const Pt center_centroid = a_projection_seed;
 
   if (!std::isfinite(center_centroid[0]) ||
       !std::isfinite(center_centroid[1]) ||
