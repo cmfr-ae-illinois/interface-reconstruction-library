@@ -10,9 +10,9 @@
 
 #include "examples/level_set_reconstruction/level_set.h"
 #include "examples/level_set_reconstruction/visualization.h"
+#include "examples/level_set_reconstruction/weights/wu.h"
 #include "examples/variant_advector/solver.h"
 #include "irl/generic_cutting/implicit_surface_cutting/cut_implicit_surface.h"
-
 namespace {
 const std::vector<std::string> methods = {"LVIRA", "Jibben"};
 

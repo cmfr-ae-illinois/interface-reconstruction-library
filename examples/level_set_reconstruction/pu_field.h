@@ -6,11 +6,12 @@
 #include <limits>
 #include <stdexcept>
 
+#include "examples/level_set_reconstruction/weights/wu.h"
 #include "examples/variant_advector/data.h"
+#include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu.h"
-
 namespace LevelSetVisualization {
-using PU = IRL::PU<IRL::RectangularCuboid>;
+using PU = IRL::PU<IRL::RectangularCuboid, IRL::Wu>;
 
 inline double meanCurvature(const Eigen::Vector3d& gradient,
                             const Eigen::Matrix3d& hessian) {

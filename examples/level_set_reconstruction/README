@@ -1,0 +1,24 @@
+INPUTS
+nx = Base grid Size
+method = Jibben LVIRA
+output = Output Directory 
+sample_nx = PU grid 
+pu_radius_cells = PU radius as factor of dx 
+level_set = shape 
+
+Run example with 
+./compiled_examples/level_set_reconstronctuion/level_set_reconstruction [nx] [method] [output] [sample_nx] [pu_radius_cells] [level_set] 
+
+
+All new weight functions require:
+
+  static inline void evaluate(const Pt& xi, const double& delta,
+                              const Pt& x_eval, double* retVal);
+
+  static inline void evaluate(const Pt& xi, const double& delta,
+                              const Pt& x_eval,
+                              std::pair<double, Eigen::Vector3d>* retVal);
+
+  static inline void evaluate(
+      const Pt& xi, const double& delta, const Pt& x_eval,
+      std::tuple<double, Eigen::Vector3d, Eigen::Matrix3d>* retVal);
