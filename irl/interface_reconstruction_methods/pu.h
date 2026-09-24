@@ -10,16 +10,16 @@
 
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 
+#include "irl/geometry/general/normal.h"
+#include "irl/helpers/wendland.h"
 #include "irl/moments/cell_collection.h"
 #include "irl/moments/cell_grouped_moments.h"
-
-#include "irl/geometry/general/normal.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 namespace IRL {
 // This file contains all the functions for creating and using a partition of
 // unity based on wendland functions.
-template <class CellType>
+template <class CellType, class WeightFunction = Wendland>
 class PU {
  private:
   PUNeighborhood<CellType> neighborhood_m;
