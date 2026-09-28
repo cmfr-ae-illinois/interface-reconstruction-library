@@ -21,11 +21,13 @@ bool projectToZero(IRL::Pt* point, const double dx, Evaluate evaluate) {
   return false;
 }
 
+template <class WeightFunction>
 inline IRL::Pt interfacePoint(const IRL::SeparatorVariant& interface,
                               const IRL::Pt& center, const double dx) {
   IRL::Pt point = center;
   if (!projectToZero(&point, dx, [&](const IRL::Pt& p) {
-        return PU::implicitSeparatorValueandGrad(p, center, &interface);
+        return PU<WeightFunction>::implicitSeparatorValueandGrad(p, center,
+                                                                 &interface);
       }))
     throw std::runtime_error("Could not project onto reconstructed interface");
   return point;

@@ -8,14 +8,20 @@
 #include <string>
 #include <vector>
 
+#include "examples/level_set_reconstruction/diagnostics_writer.h"
 #include "examples/level_set_reconstruction/level_set.h"
 #include "examples/level_set_reconstruction/visualization.h"
-#include "examples/level_set_reconstruction/weights/wu.h"
+#include "examples/level_set_reconstruction/weights/wendland4.h"
+#include "examples/level_set_reconstruction/weights/wendland6.h"
+#include "examples/level_set_reconstruction/weights/wu2.h"
+#include "examples/level_set_reconstruction/weights/wu4.h"
 #include "examples/variant_advector/solver.h"
 #include "irl/generic_cutting/implicit_surface_cutting/cut_implicit_surface.h"
+#include "irl/helpers/wendland.h"
 namespace {
 const std::vector<std::string> methods = {"LVIRA", "Jibben"};
-
+const std::vector<std::string> weights = {"Wu2", "Wu4", "Wendland2",
+                                          "Wendland4", "Wendland6"};
 // error message when invalid command line arguments are provided
 void usage(const char* executable) {
   std::cout
@@ -28,10 +34,39 @@ void usage(const char* executable) {
     std::cout << ' ' << entry.name;
   std::cout << "\nAdd definitions in level_set.h to extend this list.\n";
 }
-
+template <class WeightFunction>
 void run(const int nx, const std::string& method,
          const std::string& output_directory, const int sample_nx,
          const double radius_cells, const LevelSet& surface) {
+  // Output Variables
+  int nx_out;
+  int sample_nx_out;
+  double radius_out;
+  double position_error;
+  double normal_error;
+  double curvature_error;
+  std::string shape;
+  // Initialize Output Variables
+  nx_out = nx;
+  sample_nx_out = sample_nx;
+  radius_out = radius_cells;
+  position_error = 0.0;
+  normal_error = 0.0;
+  curvature_error = 0.0;
+  shape = surface.name();
+  // Output Assignment
+  DiagnosticsWriter errors(output_directory + "/errors.txt");
+  errors.add("nx", nx);
+  errors.add("sample_nx", sample_nx);
+  errors.add("radius_cells", radius_cells);
+  errors.add("method", method);
+  errors.add("shape", shape);
+
+  errors.add("position_error", position_error);
+  errors.add("normal_error", normal_error);
+  errors.add("curvature_error", curvature_error);
+
+  errors.writeHeader();
   // cutting operation for generating volume fraction field for level set of
   // choice
   const int ghost_layers =
@@ -122,7 +157,7 @@ void run(const int nx, const std::string& method,
   interface.updateBorder();
   correctInterfaceBorders(&interface);
   // adding scalar field data on reconstructed interface
-  LevelSetVisualization::addInterfaceDiagnostics(
+  LevelSetVisualization::addInterfaceDiagnostics<WeightFunction>(
       volume_fraction, interface, surface, method, &scalar_fields);
   writeInterfaceWithScalarToFile(liquid, interface, &scalar_fields, 0.0,
                                  &output, true);
@@ -132,14 +167,17 @@ void run(const int nx, const std::string& method,
   // outputting actual PU field
   const LevelSetVisualization::ReconstructedPU pu(volume_fraction, interface,
                                                   radius_cells);
-  LevelSetVisualization::writePUField(pu, mesh, surface, sample_nx,
-                                      output_directory + "/pu_field.vtu");
+  LevelSetVisualization::writePUField<WeightFunction>(
+      pu, mesh, surface, sample_nx, output_directory + "/pu_field.vtu");
+  //---------------------------------
+  // Update Output Values for errors
+  // --------------------------------
 
   // reconstructed pu paraboloid interface and scalar fields
   Data<IRL::SeparatorVariant> pu_ppic(&mesh);
   LevelSetVisualization::reconstructPUPPIC(pu, volume_fraction, interface,
                                            representative_points, &pu_ppic);
-  LevelSetVisualization::addInterfaceDiagnostics(
+  LevelSetVisualization::addInterfaceDiagnostics<WeightFunction>(
       volume_fraction, pu_ppic, surface, "PU PPIC", &scalar_fields);
   VTKOutput ppic_output(output_directory, "pu_ppic", mesh);
   writeInterfaceWithScalarToFile(liquid, pu_ppic, &scalar_fields, 0.0,
@@ -155,35 +193,87 @@ int main(int argc, char** argv) {
       usage(argv[0]);
       return 0;
     }
-    if (argc > 7) throw std::invalid_argument("Too many arguments");
+    if (argc > 8) throw std::invalid_argument("Too many arguments");
+    // ------------------------------------------------------------
+    // Grid resolution
+    // ------------------------------------------------------------
     const std::string nx_text = argc > 1 ? argv[1] : "16";
     std::size_t consumed = 0;
     const int nx = std::stoi(nx_text, &consumed);
     if (consumed != nx_text.size() || nx < 4)
       throw std::invalid_argument("nx must be an integer >= 4");
+
+    // ------------------------------------------------------------
+    // Reconstruction method
+    // ------------------------------------------------------------
     const std::string method = argc > 2 ? argv[2] : "Jibben";
     if (std::find(methods.begin(), methods.end(), method) == methods.end())
       throw std::invalid_argument("Unsupported volume-fraction-only method: " +
                                   method);
+
+    // ------------------------------------------------------------
+    // Sampling resolution
+    // ------------------------------------------------------------
     const std::string sample_text = argc > 4 ? argv[4] : std::to_string(2 * nx);
     const int sample_nx = std::stoi(sample_text, &consumed);
     if (consumed != sample_text.size() || sample_nx < 1)
       throw std::invalid_argument("sample_nx must be a positive integer");
+
+    // ------------------------------------------------------------
+    // PU radius
+    // ------------------------------------------------------------
     const std::string radius_text = argc > 5 ? argv[5] : "2.5";
     const double radius_cells = std::stod(radius_text, &consumed);
     if (consumed != radius_text.size() || !std::isfinite(radius_cells) ||
         radius_cells <= 0.0 || radius_cells > 5.0)
       throw std::invalid_argument("pu_radius_cells must be > 0 and <= 5");
+
     // Periodic border filling copies from the physical domain in one pass.
     if (nx < std::max(3, static_cast<int>(std::ceil(radius_cells))))
       throw std::invalid_argument("nx must be at least ceil(pu_radius_cells)");
+
+    // ------------------------------------------------------------
+    // Shape
+    // ------------------------------------------------------------
     const std::string shape = argc > 6 ? argv[6] : "sphere";
 
-    // run
+    // ------------------------------------------------------------
+    // Weight function
+    // ------------------------------------------------------------
+    const std::string weight = argc > 7 ? argv[7] : "Wendland2";
+
+    if (std::find(weights.begin(), weights.end(), weight) == weights.end())
+      throw std::invalid_argument("Unsupported weighting function: " + weight);
+
+    // ------------------------------------------------------------
+    // Run
+    // ------------------------------------------------------------
     const LevelSet surface(shape);
     std::cout << "Selected level set: " << shape << '\n';
-    run(nx, method, argc > 3 ? argv[3] : "level_set_viz", sample_nx,
-        radius_cells, surface);
+    std::cout << "Selected weight: " << weight << '\n';
+    const std::string output = argc > 3 ? argv[3] : "level_set_viz";
+
+    if (weight == "Wu2") {
+      std::cout << "Running with Wu2 weight function\n";
+      run<IRL::Wu2>(nx, method, output, sample_nx, radius_cells, surface);
+
+    } else if (weight == "Wu4") {
+      std::cout << "Running with Wu4 weight function\n";
+      run<IRL::Wu4>(nx, method, output, sample_nx, radius_cells, surface);
+
+    } else if (weight == "Wendland2") {
+      std::cout << "Running with Wendland2 weight function\n";
+      run<IRL::Wendland>(nx, method, output, sample_nx, radius_cells, surface);
+
+    } else if (weight == "Wendland4") {
+      std::cout << "Running with Wendland4 weight function\n";
+      run<IRL::Wendland4>(nx, method, output, sample_nx, radius_cells, surface);
+
+    } else if (weight == "Wendland6") {
+      std::cout << "Running with Wendland6 weight function\n";
+      run<IRL::Wendland6>(nx, method, output, sample_nx, radius_cells, surface);
+    }
+
     return 0;
   } catch (const std::exception& error) {
     std::cerr << "Error: " << error.what() << '\n';

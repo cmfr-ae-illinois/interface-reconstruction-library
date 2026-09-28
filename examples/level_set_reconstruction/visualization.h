@@ -12,6 +12,7 @@ void storePolygonCentroids(const Data<double>& fractions,
                            Data<IRL::Pt>* centroids);
 
 // Replace diagnostics with mean curvature and signed reference error.
+template <class WeightFunction>
 void addInterfaceDiagnostics(const Data<double>& fractions,
                              const Data<IRL::SeparatorVariant>& interfaces,
                              const LevelSet& reference,
@@ -19,6 +20,7 @@ void addInterfaceDiagnostics(const Data<double>& fractions,
                              std::vector<InterfaceScalarField>* fields);
 
 // Supported sampling cells only; point data is ready for ParaView Contour.
+template <class WeightFunction>
 void writePUField(const ReconstructedPU& pu, const BasicMesh& mesh,
                   const LevelSet& reference, int sample_nx,
                   const std::string& filename);
@@ -28,4 +30,7 @@ void reconstructPUPPIC(const ReconstructedPU& pu, const Data<double>& fractions,
                        const Data<IRL::Pt>& representative_points,
                        Data<IRL::SeparatorVariant>* fitted);
 }  // namespace LevelSetVisualization
+
+#include "examples/level_set_reconstruction/visualization.tpp"
+
 #endif
