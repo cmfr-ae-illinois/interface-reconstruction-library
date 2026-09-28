@@ -6,12 +6,12 @@
 #include <limits>
 #include <stdexcept>
 
-#include "examples/level_set_reconstruction/weights/wu.h"
 #include "examples/variant_advector/data.h"
-#include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu.h"
 namespace LevelSetVisualization {
-using PU = IRL::PU<IRL::RectangularCuboid, IRL::Wu>;
+
+template <class WeightFunction>
+using PU = IRL::PU<IRL::RectangularCuboid, WeightFunction>;
 
 inline double meanCurvature(const Eigen::Vector3d& gradient,
                             const Eigen::Matrix3d& hessian) {
@@ -30,6 +30,14 @@ struct Sample {
   double curvature_error = 0.0;
   bool supported = false;
   bool curvature_valid = false;
+};
+
+struct InterfaceErrors {
+  std::size_t mixed_cells = 0;
+
+  double position_error = 0.0;
+  double normal_error = 0.0;
+  double curvature_error = 0.0;
 };
 
 class ReconstructedPU {
@@ -90,6 +98,7 @@ class ReconstructedPU {
     return neighborhood;
   }
 
+  template <class WeightFunction>
   Sample evaluate(const IRL::Pt& point) const {
     IRL::PUNeighborhood<IRL::RectangularCuboid> neighborhood;
     Sample sample;
@@ -124,7 +133,7 @@ class ReconstructedPU {
             continue;
           const IRL::Pt center(mesh_.xm(i), mesh_.ym(j), mesh_.zm(k));
           double weight;
-          IRL::Wendland::evaluate(center, radius_, point, &weight);
+          WeightFunction::evaluate(center, radius_, point, &weight);
           if (weight <= 0.0) continue;
           neighborhood.addMember(&center, &interfaces_(i, j, k));
           sample.weight += weight;
@@ -132,7 +141,7 @@ class ReconstructedPU {
     // getPU() alone returns zero when no support exists. Never interpret
     // that as a surface. Export only cells with supported corners.
     if (sample.weight <= 1.0e-12) return sample;
-    PU pu(neighborhood, radius_);
+    PU<WeightFunction> pu(neighborhood, radius_);
     const auto result = pu.getPUGradAndHess(point);
     sample.value = std::get<0>(result);
     sample.supported = std::isfinite(sample.value);
@@ -141,6 +150,36 @@ class ReconstructedPU {
     sample.curvature_valid = sample.supported && std::isfinite(curvature);
     if (sample.curvature_valid) sample.curvature = curvature;
     return sample;
+  }
+
+  template <class WeightFunction>
+  InterfaceErrors computeInterfaceErrors(const ReconstructedPU& pu,
+                                         const BasicMesh& mesh,
+                                         const LevelSet& reference) {
+    InterfaceErrors errors;
+
+    // Loop over computational cells
+    for (int k = 0; k < mesh.nz(); ++k) {
+      for (int j = 0; j < mesh.ny(); ++j) {
+        for (int i = 0; i < mesh.nx(); ++i) {
+          const auto& liquid_moments = liquid(i, j, k);
+
+          // Determine volume fraction
+          const double vf = fractions_(i, j, k);
+          if (vf <= 1e-12 || vf >= 1.0 - 1e-12) continue;
+
+          // Mixed cell
+          ++errors.mixed_cells;
+
+          // Now that we are in a mixed cell, find the center of the cell
+          const IRL::Pt cell_center(mesh.xm(i), mesh.ym(j), mesh.zm(k));
+          // Project onto Partition of unity
+        }
+      }
+    }
+    // return
+
+    return errors;
   }
 
  private:

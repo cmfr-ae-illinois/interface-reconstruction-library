@@ -63,12 +63,15 @@ struct LevelSet : IRL::GeneralImplicitSurface<double, 5> {
   explicit LevelSet(const std::string& name = "sphere") {
     for (const auto& entry : ExampleLevelSets::registry()) {
       if (name == entry.name) {
+        name_ = name;
         definition_ = entry.create();
         return;
       }
     }
     throw std::invalid_argument("Unknown level set: " + name);
   }
+  const std::string& name() const { return name_; }
+
   double F(const double& x, const double& y, const double& z) const override {
     return definition_->F(x, y, z);
   }
@@ -80,6 +83,7 @@ struct LevelSet : IRL::GeneralImplicitSurface<double, 5> {
   }
 
  private:
+  std::string name_;
   std::shared_ptr<const ExampleLevelSets::Definition> definition_;
 };
 #endif
