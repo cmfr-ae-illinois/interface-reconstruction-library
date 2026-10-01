@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 
+#include "examples/level_set_reconstruction/curvature.h"
 #include "examples/variant_advector/data.h"
 #include "irl/interface_reconstruction_methods/pu.h"
 namespace LevelSetVisualization {
@@ -153,32 +154,122 @@ class ReconstructedPU {
   }
 
   template <class WeightFunction>
-  InterfaceErrors computeInterfaceErrors(const ReconstructedPU& pu,
-                                         const BasicMesh& mesh,
-                                         const LevelSet& reference) {
+  InterfaceErrors computeInterfaceErrors(const LevelSet& reference) {
     InterfaceErrors errors;
+    IRL::PUNeighborhood<IRL::RectangularCuboid> neighborhood;
 
     // Loop over computational cells
-    for (int k = 0; k < mesh.nz(); ++k) {
-      for (int j = 0; j < mesh.ny(); ++j) {
-        for (int i = 0; i < mesh.nx(); ++i) {
-          const auto& liquid_moments = liquid(i, j, k);
-
+    for (int k = 0; k < mesh_.getNz(); ++k) {
+      for (int j = 0; j < mesh_.getNy(); ++j) {
+        for (int i = 0; i < mesh_.getNx(); ++i) {
           // Determine volume fraction
           const double vf = fractions_(i, j, k);
-          if (vf <= 1e-12 || vf >= 1.0 - 1e-12) continue;
+          if (vf > 1e-12 && vf < 1.0 - 1e-12) {
+            // Mixed cell
+            ++errors.mixed_cells;
 
-          // Mixed cell
-          ++errors.mixed_cells;
+            // Now that we are in a mixed cell, find the center of the cell
+            const IRL::Pt cell_center(mesh_.xm(i), mesh_.ym(j), mesh_.zm(k));
+            // Project onto Partition of unity
+            // Create Neighborhood
+            neighborhood.emptyNeighborhood();
+            for (int ii = -3; ii <= 3; ++ii) {
+              for (int jj = -3; jj <= 3; ++jj) {
+                for (int kk = -3; kk <= 3; ++kk) {
+                  const int ii_global = i + ii;
+                  const int jj_global = j + jj;
+                  const int kk_global = k + kk;
+                  if (ii_global < 0 || ii_global >= mesh_.getNx() ||
+                      jj_global < 0 || jj_global >= mesh_.getNy() ||
+                      kk_global < 0 || kk_global >= mesh_.getNz())
+                    continue;
+                  const IRL::Pt center(mesh_.xm(ii_global), mesh_.ym(jj_global),
+                                       mesh_.zm(kk_global));
+                  double vf_neighbor =
+                      fractions_(ii_global, jj_global, kk_global);
+                  if (vf_neighbor > 1e-12 && vf_neighbor < 1.0 - 1e-12) {
+                    neighborhood.addMember(
+                        &center, &interfaces_(ii_global, jj_global, kk_global));
+                  }
+                }
+              }
+            }
+            // Create PU object
+            PU<WeightFunction> pu(neighborhood, radius_);
+            // Project onto PU
+            IRL::Pt projected_point = cell_center;
+            if (!projectToZero(
+                    &projected_point, mesh_.dx(),
+                    [&](const IRL::Pt& p) { return pu.getPUAndGrad(p); })) {
+              std::cout << "Warning: Could not project onto PU for cell (" << i
+                        << ", " << j << ", " << k << ")\n";
+              continue;
+            }
+            // Project Onto reference level set
+            IRL::Pt reference_projected_point = cell_center;
+            if (!projectToZero(&reference_projected_point, mesh_.dx(),
+                               [&](const IRL::Pt& p) {
+                                 return std::make_pair(
+                                     reference.F(p[0], p[1], p[2]),
+                                     reference.gradF(p[0], p[1], p[2]));
+                               })) {
+              std::cout
+                  << "Warning: Could not project onto reference level set "
+                     "for cell ("
+                  << i << ", " << j << ", " << k << ")\n";
+              continue;
+            }
 
-          // Now that we are in a mixed cell, find the center of the cell
-          const IRL::Pt cell_center(mesh.xm(i), mesh.ym(j), mesh.zm(k));
-          // Project onto Partition of unity
+            // At the projected point, get the normal and mean curvature from
+            // the PU
+            IRL::Normal pu_normal = pu.getNormal(projected_point);
+            double pu_mean_curvature = pu.getMeanCurvature(projected_point);
+            // Reference
+            auto reference_normal_temp = reference.gradF(
+                reference_projected_point[0], reference_projected_point[1],
+                reference_projected_point[2]);
+            auto reference_hessian = reference.hessF(
+                reference_projected_point[0], reference_projected_point[1],
+                reference_projected_point[2]);
+            // Cast Normal to Eigen::Vector3d and IRL:Normal
+            Eigen::Vector3d reference_gradient_eigen(reference_normal_temp[0],
+                                                     reference_normal_temp[1],
+                                                     reference_normal_temp[2]);
+            IRL::Normal reference_normal_irl = {reference_normal_temp[0],
+                                                reference_normal_temp[1],
+                                                reference_normal_temp[2]};
+            reference_normal_irl.normalize();
+            // Get Reference Mean Curvature
+            double reference_mean_curvature =
+                LevelSetVisualization::referenceMeanCurvature(
+                    reference, reference_projected_point, mesh_.dx());
+            // Compute Errors
+            errors.mixed_cells++;
+            // Position Error
+            IRL::Pt dPOS = projected_point - reference_projected_point;
+            const double distance = IRL::magnitude(dPOS);
+            errors.position_error += distance * distance;
+            // Normal Error - Dot porudct to get angle between normals
+            pu_normal.normalize();
+            reference_normal_irl.normalize();
+            double DP = IRL::dotProduct(pu_normal, reference_normal_irl);
+            double angle = std::acos(DP);
+            errors.normal_error += angle * angle;
+            // Curvature Error
+            double dCURV = (std::abs(pu_mean_curvature) -
+                            std::abs(reference_mean_curvature)) /
+                           std::abs(reference_mean_curvature);
+            errors.curvature_error += dCURV * dCURV;
+          }
         }
       }
     }
     // return
-
+    errors.position_error =
+        std::sqrt(errors.position_error / errors.mixed_cells);
+    errors.normal_error = std::sqrt(errors.normal_error / errors.mixed_cells);
+    errors.curvature_error =
+        std::sqrt(errors.curvature_error / errors.mixed_cells);
     return errors;
   }
 

@@ -37,7 +37,8 @@ void usage(const char* executable) {
 template <class WeightFunction>
 void run(const int nx, const std::string& method,
          const std::string& output_directory, const int sample_nx,
-         const double radius_cells, const LevelSet& surface) {
+         const double radius_cells, const LevelSet& surface,
+         std::string weight) {
   // Output Variables
   int nx_out;
   int sample_nx_out;
@@ -55,18 +56,19 @@ void run(const int nx, const std::string& method,
   curvature_error = 0.0;
   shape = surface.name();
   // Output Assignment
-  DiagnosticsWriter errors(output_directory + "/errors.txt");
-  errors.add("nx", nx);
-  errors.add("sample_nx", sample_nx);
-  errors.add("radius_cells", radius_cells);
-  errors.add("method", method);
-  errors.add("shape", shape);
+  DiagnosticsWriter errorsFile(output_directory + "/errors.txt");
+  errorsFile.add("nx", nx);
+  errorsFile.add("sample_nx", sample_nx);
+  errorsFile.add("radius_cells", radius_cells);
+  errorsFile.add("method", method);
+  errorsFile.add("shape", shape);
+  errorsFile.add("weight", weight);
 
-  errors.add("position_error", position_error);
-  errors.add("normal_error", normal_error);
-  errors.add("curvature_error", curvature_error);
+  errorsFile.add("position_error", position_error);
+  errorsFile.add("normal_error", normal_error);
+  errorsFile.add("curvature_error", curvature_error);
 
-  errors.writeHeader();
+  errorsFile.writeHeader();
   // cutting operation for generating volume fraction field for level set of
   // choice
   const int ghost_layers =
@@ -145,44 +147,49 @@ void run(const int nx, const std::string& method,
   }
 
   // vtk outputs
-  std::filesystem::create_directories(output_directory);
+  // std::filesystem::create_directories(output_directory);
 
-  // outputting level set of choice
-  VTKOutput output(output_directory, "level_set", mesh);
-  output.addData("volume_fraction", volume_fraction);
-  output.addData("level_set", level_set);
-  output.writeVTKFile(0.0);
+  // // outputting level set of choice
+  // VTKOutput output(output_directory, "level_set", mesh);
+  // output.addData("volume_fraction", volume_fraction);
+  // output.addData("level_set", level_set);
+  // output.writeVTKFile(0.0);
 
-  // Outputting reconstructed interface and scalar fields
-  interface.updateBorder();
-  correctInterfaceBorders(&interface);
-  // adding scalar field data on reconstructed interface
-  LevelSetVisualization::addInterfaceDiagnostics<WeightFunction>(
-      volume_fraction, interface, surface, method, &scalar_fields);
-  writeInterfaceWithScalarToFile(liquid, interface, &scalar_fields, 0.0,
-                                 &output, true);
-  std::cout << "Sampling PU directly from reconstructed interfaces..."
-            << std::endl;
+  // // Outputting reconstructed interface and scalar fields
+  // interface.updateBorder();
+  // correctInterfaceBorders(&interface);
+  // // adding scalar field data on reconstructed interface
+  // LevelSetVisualization::addInterfaceDiagnostics<WeightFunction>(
+  //     volume_fraction, interface, surface, method, &scalar_fields);
+  // writeInterfaceWithScalarToFile(liquid, interface, &scalar_fields, 0.0,
+  //                                &output, true);
+  // std::cout << "Sampling PU directly from reconstructed interfaces..."
+  //           << std::endl;
 
   // outputting actual PU field
-  const LevelSetVisualization::ReconstructedPU pu(volume_fraction, interface,
-                                                  radius_cells);
-  LevelSetVisualization::writePUField<WeightFunction>(
-      pu, mesh, surface, sample_nx, output_directory + "/pu_field.vtu");
+  LevelSetVisualization::ReconstructedPU pu(volume_fraction, interface,
+                                            radius_cells);
+  // LevelSetVisualization::writePUField<WeightFunction>(
+  //     pu, mesh, surface, sample_nx, output_directory + "/pu_field.vtu");
   //---------------------------------
   // Update Output Values for errors
   // --------------------------------
-
-  // reconstructed pu paraboloid interface and scalar fields
-  Data<IRL::SeparatorVariant> pu_ppic(&mesh);
-  LevelSetVisualization::reconstructPUPPIC(pu, volume_fraction, interface,
-                                           representative_points, &pu_ppic);
-  LevelSetVisualization::addInterfaceDiagnostics<WeightFunction>(
-      volume_fraction, pu_ppic, surface, "PU PPIC", &scalar_fields);
-  VTKOutput ppic_output(output_directory, "pu_ppic", mesh);
-  writeInterfaceWithScalarToFile(liquid, pu_ppic, &scalar_fields, 0.0,
-                                 &ppic_output, true);
-  std::cout << "VTK output written to " << output_directory << std::endl;
+  LevelSetVisualization::InterfaceErrors errors =
+      pu.computeInterfaceErrors<WeightFunction>(surface);
+  position_error = errors.position_error;
+  normal_error = errors.normal_error;
+  curvature_error = errors.curvature_error;
+  errorsFile.write();
+  // // reconstructed pu paraboloid interface and scalar fields
+  // Data<IRL::SeparatorVariant> pu_ppic(&mesh);
+  // LevelSetVisualization::reconstructPUPPIC(pu, volume_fraction, interface,
+  //                                          representative_points, &pu_ppic);
+  // LevelSetVisualization::addInterfaceDiagnostics<WeightFunction>(
+  //     volume_fraction, pu_ppic, surface, "PU PPIC", &scalar_fields);
+  // VTKOutput ppic_output(output_directory, "pu_ppic", mesh);
+  // writeInterfaceWithScalarToFile(liquid, pu_ppic, &scalar_fields, 0.0,
+  //                                &ppic_output, true);
+  // std::cout << "VTK output written to " << output_directory << std::endl;
 }
 }  // namespace
 
@@ -255,23 +262,28 @@ int main(int argc, char** argv) {
 
     if (weight == "Wu2") {
       std::cout << "Running with Wu2 weight function\n";
-      run<IRL::Wu2>(nx, method, output, sample_nx, radius_cells, surface);
+      run<IRL::Wu2>(nx, method, output, sample_nx, radius_cells, surface,
+                    weight);
 
     } else if (weight == "Wu4") {
       std::cout << "Running with Wu4 weight function\n";
-      run<IRL::Wu4>(nx, method, output, sample_nx, radius_cells, surface);
+      run<IRL::Wu4>(nx, method, output, sample_nx, radius_cells, surface,
+                    weight);
 
     } else if (weight == "Wendland2") {
       std::cout << "Running with Wendland2 weight function\n";
-      run<IRL::Wendland>(nx, method, output, sample_nx, radius_cells, surface);
+      run<IRL::Wendland>(nx, method, output, sample_nx, radius_cells, surface,
+                         weight);
 
     } else if (weight == "Wendland4") {
       std::cout << "Running with Wendland4 weight function\n";
-      run<IRL::Wendland4>(nx, method, output, sample_nx, radius_cells, surface);
+      run<IRL::Wendland4>(nx, method, output, sample_nx, radius_cells, surface,
+                          weight);
 
     } else if (weight == "Wendland6") {
       std::cout << "Running with Wendland6 weight function\n";
-      run<IRL::Wendland6>(nx, method, output, sample_nx, radius_cells, surface);
+      run<IRL::Wendland6>(nx, method, output, sample_nx, radius_cells, surface,
+                          weight);
     }
 
     return 0;

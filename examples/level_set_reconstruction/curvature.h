@@ -2,7 +2,7 @@
 #define EXAMPLES_LEVEL_SET_RECONSTRUCTION_CURVATURE_H_
 
 #include "examples/level_set_reconstruction/pu_field.h"
-
+#include "irl/interface_reconstruction_methods/pu.h"
 namespace LevelSetVisualization {
 
 template <class Evaluate>
@@ -12,9 +12,18 @@ bool projectToZero(IRL::Pt* point, const double dx, Evaluate evaluate) {
     const double value = result.first;
     const auto& gradient = result.second;
     const double norm = gradient.norm();
-    if (!std::isfinite(value) || !gradient.allFinite() || norm < 1.0e-12)
+    if (!std::isfinite(value) || !gradient.allFinite() || norm < 1.0e-12) {
+      std::cout << "isfinite: " << std::isfinite(value)
+                << ", allFinite: " << gradient.allFinite() << ", norm: " << norm
+                << "iteration: " << iteration << std::endl;
+      // Print out f,gradient, norm, and point
+      std::cout << "f: " << value << ", gradient: " << gradient
+                << ", norm: " << norm << ", point: " << *point << std::endl;
       return false;
-    if (std::abs(value) / norm < 1.0e-10 * dx) return true;
+    }
+
+    if (std::abs(value) / norm < 1.0e-6 * dx) return true;
+
     for (int d = 0; d < 3; ++d)
       (*point)[d] -= value * gradient[d] / (norm * norm);
   }
@@ -26,8 +35,8 @@ inline IRL::Pt interfacePoint(const IRL::SeparatorVariant& interface,
                               const IRL::Pt& center, const double dx) {
   IRL::Pt point = center;
   if (!projectToZero(&point, dx, [&](const IRL::Pt& p) {
-        return PU<WeightFunction>::implicitSeparatorValueandGrad(p, center,
-                                                                 &interface);
+        return IRL::PU<WeightFunction>::implicitSeparatorValueandGrad(
+            p, center, &interface);
       }))
     throw std::runtime_error("Could not project onto reconstructed interface");
   return point;

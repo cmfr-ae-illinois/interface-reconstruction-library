@@ -59,7 +59,7 @@ inline const std::vector<Entry>& registry() {
 // Copyable runtime-selected surface for ImplicitSurfaceCutter. The same
 // selected definition supplies initialization, projection, and reference
 // curvature.
-struct LevelSet : IRL::GeneralImplicitSurface<double, 5> {
+struct LevelSet : IRL::GeneralImplicitSurface<double, 3> {
   explicit LevelSet(const std::string& name = "sphere") {
     for (const auto& entry : ExampleLevelSets::registry()) {
       if (name == entry.name) {
