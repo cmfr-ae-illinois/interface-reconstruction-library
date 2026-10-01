@@ -14,7 +14,7 @@
 #include "examples/variant_advector/solver.h"
 #include "irl/generic_cutting/implicit_surface_cutting/cut_implicit_surface.h"
 namespace {
-const std::vector<std::string> methods = {"LVIRA", "Jibben"};
+const std::vector<std::string> methods = {"LVIRA", "Jibben", "SlicesTaubin"};
 
 // error message when invalid command line arguments are provided
 void usage(const char* executable) {
@@ -100,13 +100,17 @@ void run(const int nx, const std::string& method,
   std::vector<InterfaceScalarField> scalar_fields;
   LVIRA::getReconstruction(liquid, gas, 0.0, zero_velocity, zero_velocity,
                            zero_velocity, &interface, &scalar_fields);
-  // Preserve the clipped LVIRA polygon centroids before Jibben replaces planes.
+  // Preserve LVIRA polygon centroids before either curved method replaces planes.
   Data<IRL::Pt> representative_points(&mesh);
   LevelSetVisualization::storePolygonCentroids(volume_fraction, interface,
                                                &representative_points);
   if (method == "Jibben") {
     Jibben::getReconstruction(liquid, gas, 0.0, zero_velocity, zero_velocity,
                               zero_velocity, &interface, &scalar_fields, true);
+  } else if (method == "SlicesTaubin") {
+    SlicesTaubin::getReconstruction(liquid, gas, 0.0, zero_velocity,
+                                    zero_velocity, zero_velocity, &interface,
+                                    &scalar_fields, true);
   }
 
   // vtk outputs
