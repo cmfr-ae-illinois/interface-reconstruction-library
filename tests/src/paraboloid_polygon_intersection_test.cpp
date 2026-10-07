@@ -18,7 +18,7 @@ namespace {
 
 using namespace IRL;
 
-TEST(ParaboloidPolygonIntersection, TestWithoutNudge) {
+TEST(ParaboloidPolygonIntersection, ArcLengthPolygon) {
   const auto datum = Pt(0, 0, 0);
   const auto frame =
       ReferenceFrame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
@@ -42,12 +42,68 @@ TEST(ParaboloidPolygonIntersection, TestWithoutNudge) {
 
   EXPECT_EQ(arcs.size(), 1);
 
+  // Integrate arc length with quadrature rule and compare to expected value
+  constexpr int QuadRuleOrder = 100;
+  const auto& abscissea = AbscissaeGauss<double, QuadRuleOrder>();
+  const auto& weights = WeightsGauss<double, QuadRuleOrder>();
+  const auto& arc = arcs[0];
+  double arc_length = 0.0;
+  for (int k = 0; k < QuadRuleOrder; k++) {
+    const double t = 0.5 * (1.0 + abscissea[k]);
+    const double w = 0.5 * weights[k];
+    const Pt Cp = arc.derivative(t);
+    const double Jac = std::sqrt(Cp[0] * Cp[0] + Cp[1] * Cp[1] + Cp[2] * Cp[2]);
+    arc_length += w * Jac;
+  }
+
+  // Exact expected value
   const double expected_arc_length =
       std::sqrt(2.0) / 2.0 + std::log(1.0 + std::sqrt(2.0)) / 2.0;
-  EXPECT_NEAR(arcs[0].arc_length(), expected_arc_length, 1e-3);
+
+  EXPECT_NEAR(arc_length, expected_arc_length, 1.0e-14);
 }
 
-TEST(ParaboloidPolygonIntersection, TestWithNudge) {
+TEST(ParaboloidPolygonIntersection, ArcLengthTriangle) {
+  const auto datum = Pt(0, 0, 0);
+  const auto frame =
+      ReferenceFrame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
+
+  const auto paraboloid = Paraboloid(datum, frame, 0.5, 0.5);
+
+  Tri triangle({Pt(0, 0, -1), Pt(2, 0, 0), Pt(0, 0, 1)});
+
+  auto intersection = intersectPolygonWithParaboloid(triangle, paraboloid);
+  const auto arcs = intersection.getArcs();
+
+  std::cout << "Intersection contains " << arcs.size() << " arcs." << std::endl;
+  for (const auto& arc : arcs) {
+    std::cout << "Arc: " << arc << std::endl;
+  }
+
+  EXPECT_EQ(arcs.size(), 1);
+
+  // Integrate arc length with quadrature rule and compare to expected value
+  constexpr int QuadRuleOrder = 100;
+  const auto& abscissea = AbscissaeGauss<double, QuadRuleOrder>();
+  const auto& weights = WeightsGauss<double, QuadRuleOrder>();
+  const auto& arc = arcs[0];
+  double arc_length = 0.0;
+  for (int k = 0; k < QuadRuleOrder; k++) {
+    const double t = 0.5 * (1.0 + abscissea[k]);
+    const double w = 0.5 * weights[k];
+    const Pt Cp = arc.derivative(t);
+    const double Jac = std::sqrt(Cp[0] * Cp[0] + Cp[1] * Cp[1] + Cp[2] * Cp[2]);
+    arc_length += w * Jac;
+  }
+
+  // Exact expected value
+  const double expected_arc_length =
+      std::sqrt(2.0) / 2.0 + std::log(1.0 + std::sqrt(2.0)) / 2.0;
+
+  EXPECT_NEAR(arc_length, expected_arc_length, 1.0e-14);
+}
+
+TEST(ParaboloidPolygonIntersection, ArcLengthWithNudge) {
   const auto datum = Pt(0, 0, 0);
   const auto frame =
       ReferenceFrame(Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1));
@@ -64,14 +120,29 @@ TEST(ParaboloidPolygonIntersection, TestWithNudge) {
   const auto arcs = intersection.getArcs();
 
   std::cout << "Intersection contains " << arcs.size() << " arcs." << std::endl;
+
+  // Integrate arc length with quadrature rule and compare to expected value
+  constexpr int QuadRuleOrder = 100;
+  const auto& abscissea = AbscissaeGauss<double, QuadRuleOrder>();
+  const auto& weights = WeightsGauss<double, QuadRuleOrder>();
   double arc_length = 0.0;
   for (const auto& arc : arcs) {
     std::cout << "Arc: " << arc << std::endl;
-    arc_length += arc.arc_length();
+    for (int k = 0; k < QuadRuleOrder; k++) {
+      const double t = 0.5 * (1.0 + abscissea[k]);
+      const double w = 0.5 * weights[k];
+      const Pt Cp = arc.derivative(t);
+      const double Jac =
+          std::sqrt(Cp[0] * Cp[0] + Cp[1] * Cp[1] + Cp[2] * Cp[2]);
+      arc_length += w * Jac;
+    }
   }
+
+  // Exact expected value
   const double expected_arc_length =
       std::sqrt(5.0) + std::log(2.0 + std::sqrt(5.0)) / 2.0;
-  EXPECT_NEAR(arc_length, expected_arc_length, 1e-3);
+
+  EXPECT_NEAR(arc_length, expected_arc_length, 1.0e-14);
 }
 
 }  // namespace
