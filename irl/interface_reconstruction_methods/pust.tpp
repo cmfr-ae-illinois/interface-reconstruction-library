@@ -12,6 +12,7 @@
 #include "irl/helpers/wendland.h"
 #include "irl/interface_reconstruction_methods/pu_neighborhood.h"
 #include "irl/moments/general_moments.h"
+#include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 #include "irl/variant_reconstruction/separator_variant.h"
 
 #include <Eigen/Dense>
@@ -33,7 +34,6 @@ PUST<CellType>::PUST(const PUNeighborhood<CellType>& stencil_,
                      const double kernel_size)
     : PU<CellType>(stencil_, kernel_size) {}
 
-// Solve Edge
 template <class CellType>
 Normal PUST<CellType>::solveEdge(const double STin, const Pt& P0, const Pt& P1,
                                  const double delta, const double Pressure,
@@ -485,6 +485,198 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
               averageSurfaceTension * averageCurvature * area * inwardsNormal;
     }
   }
+  return total;
+}
+
+template <class CellType>
+Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
+                                           const Pt& P1, const Pt& P2,
+                                           const Pt& P3,
+                                           const SeparatorVariant* a_separator,
+                                           const double Pressure,
+                                           const Normal& Marangoni) {
+  // std::cout << "=========================== Solve Face \n" << std::endl;
+  const double EPSILON = machine_epsilon<double>();
+  // The Marangoni normal object holds the Xgradient, then the Y gradient, then
+  // the temperature gradient of ST Marangoni = [Gx,Gy,sigma_T] Make Implicit
+  // Surface std::cout << "In Solve Edge\n";
+
+  // Something is up with paraboloids because they take like 8x the time to run.
+  double STCoeff = STIn;
+  // The Pressure Option tells us if we should include the pressure terms or
+  // not.
+  // Calculate some edge and plane properties
+  Pt dP1 = P1 - P0;
+  Pt dP2 = P2 - P1;
+  double D = std::sqrt(dP1[0] * dP1[0] + dP1[1] * dP1[1] + dP1[2] * dP1[2]);
+  double denom = 1.0 / (safelyEpsilon(D));
+  Normal edge1 = {dP1[0], dP1[1], dP1[2]};
+  Normal edge2 = {dP2[0], dP2[1], dP2[2]};
+  Normal faceNormal = IRL::crossProduct(edge1, edge2);
+  faceNormal.normalize();
+  double L1 = std::sqrt(dP1[0] * dP1[0] + dP1[1] * dP1[1] + dP1[2] * dP1[2]);
+  double L2 = std::sqrt(dP2[0] * dP2[0] + dP2[1] * dP2[1] + dP2[2] * dP2[2]);
+  double faceArea = L1 * L2;
+
+  // Give space for working variables
+  Normal normal1, normal2, tangentStart, tangentEnd;
+  Pt startPoint, endPoint, controlPoint;
+  double weight = 1;  // Make Nonrational for now, but can add later if we want
+  Normal total = {0.0, 0.0, 0.0};  // Total force
+  double averageCurvature, averageSurfaceTension, arcLength;
+  averageCurvature = 0.0;
+  averageSurfaceTension = 0.0;
+  arcLength = 0.0;
+  double area = 0.0;
+  // Calculate the parametric surface from the face polygon and the paraboloid
+  ParaboloidParametrizedSurfaceOutput paramSurface;
+  const auto SeparatorPointer = std::get_if<Paraboloid>(a_separator);
+  if (const auto sepPtr = std::get_if<Paraboloid>(a_separator)) {
+    // Do something with the paraboloid
+    std::cout << "Using Paraboloid\n";
+    // Make Polygon
+    Polygon poly;
+    poly.setNumberOfVertices(4);
+    poly[0] = P0;
+    poly[1] = P1;
+    poly[2] = P2;
+    poly[3] = P3;
+    // Make the parametric surface
+    paramSurface = intersectPolygonWithParaboloid(poly, *sepPtr);
+    std::cout << "Parametric surface created\n";
+  } else {
+    std::cout << "Error: Invalid separator type\n";
+    return Normal(-1.0, -2.0, -3.0);
+  }
+  // At this point, we have the parametric surface, so get the arcs
+  const std::vector<RationalBezierArc> arcs = paramSurface.getArcs();
+  std::cout << "Number of arcs: " << arcs.size() << "\n";
+  // Loop over arcs and integrate
+  constexpr int QuadRuleOrder = 5;
+  const auto& abscissea = AbscissaeGauss<double, QuadRuleOrder>();
+  const auto& weights = WeightsGauss<double, QuadRuleOrder>();
+  for (const RationalBezierArc& arc : arcs) {  // Loop over each arc
+    for (int j = 0; j < QuadRuleOrder; ++j) {
+      const double t = 0.5 * (1.0 + abscissea[j]);
+      const double w = weights[j];
+
+      // Evaluation Points
+      Pt pt = arc.point(t);
+      // get normal,tangent, and surface tension at each point.
+      Pt tangent = arc.derivative(t);
+      Normal tan = Normal(tangent[0], tangent[1], tangent[2]);
+      double speed =
+          std::sqrt(tan[0] * tan[0] + tan[1] * tan[1] + tan[2] * tan[2]);
+      tan.normalize();
+
+      Normal normal = SeparatorPointer->getNormal(pt);
+      normal.normalize();
+
+      // here is where we get the surface tension coefficient
+      // double ST = stencil_m.getScalar(pt);
+      double ST = STCoeff +
+                  Marangoni[2] * (Marangoni[0] * pt[0] + Marangoni[1] * pt[1]);
+      if (Marangoni[2] == -1.0 &&
+          (Marangoni[0] != 0.0 ||
+           Marangoni[1] != 0.0)) {  // Force droplet breakup
+        double gamma0 = 1.0;        // Base surface tension coefficient
+        double R = 0.5;             // Characteristic length scale
+
+        // Linear decrease in surface tension with x-coordinate - Al-Saud
+        // Style
+        ST = gamma0 * std::max(1 - 1.25 * std::abs(pt[0]) / R, 0.1);
+      }
+      Normal f = IRL::crossProduct(tan, normal);
+      f.normalize();
+      f = f * ST;
+      total = total + 0.5 * w * f * denom * speed;
+
+      // if (Pressure >= 0.5) {
+      //   // Integrate the curvature and surface tension along the arc to get
+      //   // the average values for Pressure Term
+      //   // std::cout << "Pressure Terms\n";
+      //   double curv = this->getMeanCurvature(pt);
+      //   arcLength += 0.5 * w * speed;
+      //   averageCurvature += 0.5 * w * curv * speed;
+      //   averageSurfaceTension += 0.5 * w * ST * speed;
+
+      //   // Also need the area contribution of the spline wth F = {x,0,0}
+      //   // First, get outward pointing normal to spline.
+      //   Normal tangentVector = Normal(tangent[0], tangent[1], tangent[2]);
+      //   tangentVector.normalize();
+      //   Normal outwardNormal = IRL::crossProduct(tangentVector, faceNormal);
+      //   outwardNormal.normalize();
+      //   // Now get F
+      //   Normal F = {pt[0] / 3.0, pt[1] / 3.0, pt[2] / 3.0};
+      //   // Now get the integrand
+      //   double integrand = outwardNormal * F;
+      //   area += 0.5 * w * integrand * speed;
+      // }
+    }
+
+    // Debug Prints
+    // if (false) {  // False added as a toggle for the debug. Make true to
+    //               // turn on debug.
+    //   // Arc Setup Info
+    //   std::cout << "Start Point: " << startPoint << "\n";
+    //   std::cout << "End Point: " << endPoint << "\n";
+    //   std::cout << "Control Point 1: " << arc.control_point_1() << "\n";
+    //   std::cout << "Control Point 2: " << arc.control_point_2() << "\n";
+    //   std::cout << "pairs[j][0]: " << pairs[j][0] << "\n";
+    //   std::cout << "pairs[j][1]: " << pairs[j][1] << "\n";
+    //   for (int i = 0; i < intersectionsSet.size(); i++) {
+    //     std::cout << "intersectionsSet[" << i << "]: ";
+    //     if (!intersectionsSet[i].empty()) {
+    //       std::cout << "(" << intersectionsSet[i][0] << ")";
+    //     } else {
+    //       std::cout << "(empty)";
+    //     }
+    //     std::cout << "\n";
+    //   }
+    //   std::cout << "P0: " << P0 << "\n";
+    //   std::cout << "P1: " << P1 << "\n";
+    //   std::cout << "P2: " << P2 << "\n";
+    //   std::cout << "P3: " << P3 << "\n\n";
+    //   // Output Info
+    //   std::cout << "Total: " << total << "\n";
+    //   std::cout << "Area: " << area << "\n";
+    //   std::cout << "=====================================================
+    //   \n";
+    // }
+  }
+  total = -total;
+  // if (Pressure >= 0.5 && std::abs(arcLength) > 1e-12) {
+  //   averageCurvature = averageCurvature / safelyTiny(arcLength);
+  //   averageSurfaceTension = averageSurfaceTension / safelyTiny(arcLength);
+  //   // std::cout << "Average Curvature: " << averageCurvature << "\n";
+  //   Normal inwardsNormal = -faceNormal;
+  //   inwardsNormal.normalize();
+  //   // Next, we want to complete the area integral for the pressure term.
+  //   // We already have the contribution of the spline so far, so we just
+  //   // need to traverse the straight lines along the cell. This is done
+  //   // automatically below
+  //   area += this->computeFaceAreaContribution(P0, P1, P2, P3, caseValue,
+  //                                             intersectionsSet);
+  //   // std::cout << "Area Contribution: " << area << "\n";
+  //   // PressureTermFactor tells us to add or subtract pressure term based on
+  //   // if the wetted area includes or excludes the center of the cell face.
+  //   // To do this, we want to do an orientation test with the center of the
+  //   // cell face and the two points at the start and end of the arc. if the
+  //   // center is to the left of the arc, then we add, else we subtract.
+  //   if (val4 > 0.0) {  // Outside
+  //     total = total +
+  //             averageSurfaceTension * averageCurvature * area *
+  //             inwardsNormal;
+  //     // Subtract since pressure acts inwards and the pressure is increasing,
+  //     // and the normal is outwards
+
+  //   } else {                   // Inside
+  //     area = faceArea - area;  // Get the area of the other side of the face
+  //     total = total -
+  //             averageSurfaceTension * averageCurvature * area *
+  //             inwardsNormal;
+  //   }
+  // }
   return total;
 }
 

@@ -33,6 +33,13 @@ void c_PUST_RectCub_solveFace(c_PUST_RectCub* a_self, double* STCoeff,
                               double* P0, double* P1, double* P2, double* P3,
                               double* delta, double* Pressure,
                               double* Marangoni, double* a_force);
+// Paraboloid Surface Tension Methods
+void c_PUST_RectCub_solveFaceParaboloid(c_PUST_RectCub* a_self, double* STCoeff,
+                                        double* P0, double* P1, double* P2,
+                                        double* P3,
+                                        c_SeparatorVariant* a_separator,
+                                        double* Pressure, double* Marangoni,
+                                        double* a_force);
 
 void c_PUST_RectCub_getValue(c_PUST_RectCub* a_self, double* x, double* y,
                              double* z, double* delta, double* value);

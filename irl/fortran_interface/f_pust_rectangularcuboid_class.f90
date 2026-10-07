@@ -26,6 +26,9 @@ module f_PUST_RectCub_class
     interface solveFace
         module procedure PUST_RectCub_class_solveFace
     end interface
+    interface solveFaceParaboloid
+        module procedure PUST_RectCub_class_solveFaceParaboloid
+    end interface
     interface setNeighborhood
         module procedure PUST_RectCub_class_setNeighborhood
     end interface
@@ -123,6 +126,22 @@ module f_PUST_RectCub_class
             real(C_DOUBLE) :: Pressure
             real(C_DOUBLE), dimension(*), intent(out) :: a_force
         end subroutine F_PUST_RectCub_solveFace
+
+        subroutine F_PUST_RectCub_solveFaceParaboloid(this,surface_tension_coefficient, P0, P1,P2,P3,a_separator,&
+             Pressure, Marangoni, a_force) bind(C, name = "c_PUST_RectCub_solveFaceParaboloid")
+            import
+            implicit none
+            type(c_PUST_RectCub) :: this
+            real(C_DOUBLE) :: surface_tension_coefficient
+            type(c_SeparatorVariant) :: a_separator
+            real(C_DOUBLE), dimension(*), intent(in) :: P0 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P1 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P2 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: P3 ! dimension(1:3)
+            real(C_DOUBLE), dimension(*), intent(in) :: Marangoni ! dimension(1:3)
+            real(C_DOUBLE) :: Pressure
+            real(C_DOUBLE), dimension(*), intent(out) :: a_force
+        end subroutine F_PUST_RectCub_solveFaceParaboloid
 
         subroutine F_PUST_RectCub_getValue(this,x,y,z,delta,value)&
             bind(C, name="c_PUST_RectCub_getValue")
@@ -313,6 +332,24 @@ module f_PUST_RectCub_class
             P2,P3,delta,Pressure,Marangoni, a_force)
             return
         end subroutine PUST_RectCub_class_solveFace
+
+        subroutine PUST_RectCub_class_solveFaceParaboloid(this,surface_tension_coefficient, P0, P1, &
+            P2,P3,a_separator,Pressure,Marangoni, a_force)
+            implicit none
+            type(PUST_RectCub_Type) :: this
+            real(C_DOUBLE) :: surface_tension_coefficient
+            type(SeparatorVariant_type), intent(in) :: a_separator
+            real(IRL_double), dimension(1:3), intent(in) :: P0
+            real(IRL_double), dimension(1:3), intent(in) :: P1
+            real(IRL_double), dimension(1:3), intent(in) :: P2
+            real(IRL_double), dimension(1:3), intent(in) :: P3
+            real(C_DOUBLE), dimension(*), intent(in) :: Marangoni ! dimension(1:3)
+            real(C_DOUBLE) :: Pressure
+            real(IRL_double), dimension(1:3), intent(out) :: a_force
+            call F_PUST_RectCub_solveFaceParaboloid(this%c_object, surface_tension_coefficient,P0,P1,&
+            P2,P3,a_separator%c_object,Pressure,Marangoni, a_force)
+            return
+        end subroutine PUST_RectCub_class_solveFaceParaboloid
 
         subroutine PUST_RectCub_class_getValue(this,x,y,z,delta,value)
             implicit none 
