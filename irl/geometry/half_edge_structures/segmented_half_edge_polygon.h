@@ -69,7 +69,9 @@ template <
         segmented_half_edge_polytope::default_sizes::segemented_max_faces,
     UnsignedIndex_t kMaxVertices =
         segmented_half_edge_polytope::default_sizes::segmented_max_vertices>
-class SegmentedHalfEdgePolygonSpecificPt;
+class SegmentedHalfEdgePolygonSpecificPt
+    : public SegmentedHalfEdgePolygonCommon<FaceType, VertexType, kMaxFaces,
+                                            kMaxVertices> {};
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
@@ -103,4 +105,4 @@ class SegmentedHalfEdgePolygon
 
 #include "irl/geometry/half_edge_structures/segmented_half_edge_polygon.tpp"
 
-#endif // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYGON_H_
+#endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYGON_H_

@@ -312,6 +312,105 @@ ReturnType computeNewEdgeSegmentContribution(
   return full_moments;
 }
 
+template <class PolygonType, class ParaboloidType>
+enable_if_t<is_polygon<PolygonType>::value, ParaboloidParametrizedSurfaceOutput>
+intersectPolygonWithParaboloid(const PolygonType& a_polygon,
+                               const ParaboloidType& a_paraboloid) {
+  auto complete_polytope = a_polygon.generateHalfEdgeVersion();
+  auto polytope = complete_polytope.generateSegmentedPolygon();
+  return intersectPolygonWithParaboloid(&polytope, &complete_polytope,
+                                        a_paraboloid);
+}
+
+/************* Calculate surface from non-aligned paraboloid **********/
+template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
+          class ParaboloidType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value,
+            ParaboloidParametrizedSurfaceOutput>
+intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
+                               HalfEdgePolytopeType* a_complete_polytope,
+                               const ParaboloidType& a_paraboloid) {
+  // Defining type aliases (needed to ensure precision is consistent)
+  // Definining scalar container: This can be a double/__float128, or a
+  // scalar with embedded derivatives
+  using ScalarType = typename ParaboloidType::value_type;
+  using FloatType = float_type<ScalarType>;
+  using PtType = typename SegmentedHalfEdgePolygonType::pt_type;
+  static_assert(std::is_same_v<typename PtType::value_type, ScalarType>);
+  using Pt = PtBase<ScalarType>;
+  using Normal = NormalBase<ScalarType>;
+  using ReferenceFrame = ReferenceFrameBase<ScalarType>;
+  using Plane = PlaneBase<ScalarType>;
+  using AlignedParaboloid = AlignedParaboloidBase<ScalarType>;
+
+  // Defining constants
+  const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+
+  // Shortcuts if we already now that the paraboloid is entirely above or
+  // below the polytope
+  ParaboloidParametrizedSurfaceOutput surface;
+  surface.setParaboloid(a_paraboloid);
+  if (a_paraboloid.isAlwaysAbove() || a_paraboloid.isAlwaysBelow()) {
+    return surface;
+  }
+
+  // Move into reference frame of the paraboloid and compute and approximate
+  // length-scale of the polytope
+  const UnsignedIndex_t original_number_of_vertices =
+      a_polytope->getNumberOfVertices();
+  const auto& datum = a_paraboloid.getDatum();
+  const auto& ref_frame = a_paraboloid.getReferenceFrame();
+  const Pt start_pt = a_polytope->getVertex(0)->getLocation().getPt() - datum;
+  ScalarType max_dist_sq = ZERO;
+  for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
+    const Pt original_pt =
+        a_polytope->getVertex(v)->getLocation().getPt() - datum;
+    if (v > 0) {
+      max_dist_sq =
+          maximum(max_dist_sq, squaredMagnitude(original_pt - start_pt));
+    }
+    PtType projected_location;
+    auto& pt = projected_location.getPt();
+    for (UnsignedIndex_t n = 0; n < 3; ++n) {
+      pt[n] = ref_frame[n] * original_pt;
+    }
+    a_polytope->getVertex(v)->setLocation(projected_location);
+  }
+
+  // Define scale so that the polyhedron's volume is O(1)
+  const ScalarType inv_scale =
+      maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
+  const ScalarType scale = ScalarType(ONE) / inv_scale;
+
+  // Normalized polygon
+  for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
+    auto& pt = a_polytope->getVertex(v)->getLocation().getPt();
+    pt *= scale;
+  }
+
+  // Normalized paraboloid
+  auto scaled_aligned_paraboloid = AlignedParaboloid(std::array<ScalarType, 2>{
+      a_paraboloid.getAlignedParaboloid().a() * inv_scale,
+      a_paraboloid.getAlignedParaboloid().b() * inv_scale});
+
+  // Compute moments of intersection
+  intersectPolygonWithAlignedParaboloid(a_polytope, a_complete_polytope,
+                                        scaled_aligned_paraboloid, inv_scale,
+                                        &surface);
+
+  // Un-normalized moments
+  auto& arc_list = surface.getArcs();
+  for (std::size_t i = 0; i < arc_list.size(); ++i) {
+    arc_list[i].start_point() *= static_cast<double>(inv_scale);
+    arc_list[i].control_point() *= static_cast<double>(inv_scale);
+    arc_list[i].end_point() *= static_cast<double>(inv_scale);
+  }
+
+  return surface;
+}
+
 /************* Calculate moments from non-aligned paraboloid **********/
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class ParaboloidType>
@@ -545,6 +644,21 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
   }
 
   return moments;
+}
+
+/*********** Calculate surface from aligned paraboloid *************/
+template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
+          class AlignedParaboloidType, class ScalarType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, void>
+intersectPolygonWithAlignedParaboloid(
+    SegmentedHalfEdgePolygonType* a_polytope,
+    HalfEdgePolytopeType* a_complete_polytope,
+    const AlignedParaboloidType& a_paraboloid, const ScalarType a_scale,
+    ParaboloidParametrizedSurfaceOutput* a_surface) {
+  // Below function computes the entire integration (nudge counter
+  // initialized to 0)
+  Volume dummy = formParaboloidIntersectionBases<Volume>(
+      a_polytope, a_complete_polytope, a_paraboloid, 0, a_surface);
 }
 
 /*********** Calculate moments from aligned paraboloid *************/
@@ -925,40 +1039,72 @@ ReturnType reformParaboloidIntersectionBases(
     const UnsignedIndex_t QP_kMaxHalfEdges = HalfEdgePolytopeType::maxHalfEdges;
     const UnsignedIndex_t QP_kMaxVertices = HalfEdgePolytopeType::maxVertices;
     const UnsignedIndex_t QP_kMaxFaces = HalfEdgePolytopeType::maxFaces;
-    using QP_complete_polytope_type =
-        HalfEdgePolyhedron<QP_pt_type, QP_vertex_type, QP_halfedge_type,
-                           QP_face_type, QP_kMaxHalfEdges, QP_kMaxVertices,
-                           QP_kMaxFaces>;
 
     // Convert aligned paraboloid to QP
     const auto QP_aligned_paraboloid =
         AlignedParaboloidBase<QP_scalar_type>(a_aligned_paraboloid);
 
-    // Convert polytope to QP
-    QP_complete_polytope_type QP_polytope_paraboloid;
-    convertPolytopeFromDoubleToQuadPrecision(a_polytope, a_complete_polytope,
-                                             &QP_polytope_paraboloid);
-    auto QP_segmented_paraboloid =
-        QP_polytope_paraboloid.generateSegmentedPolyhedron();
+    if constexpr (is_polygon<SegmentedHalfEdgePolyhedronType>::value) {
+      using QP_complete_polytope_type =
+          HalfEdgePolygon<QP_pt_type, QP_vertex_type, QP_halfedge_type,
+                          QP_face_type, QP_kMaxHalfEdges, QP_kMaxVertices,
+                          QP_kMaxFaces>;
+      // Convert polytope to QP
+      QP_complete_polytope_type QP_polytope_paraboloid;
+      convertPolytopeFromDoubleToQuadPrecision(a_polytope, a_complete_polytope,
+                                               &QP_polytope_paraboloid);
+      auto QP_segmented_paraboloid =
+          QP_polytope_paraboloid.generateSegmentedPolygon();
 
-    if (!QP_segmented_paraboloid.checkValidHalfEdgeStructure()) {
-      std::cout << "Polytope is not valid after conversion to QP!" << std::endl;
-      std::cout << "PolytopeDP:" << std::endl;
-      std::cout << *a_polytope << std::endl;
-      std::cout << "PolytopeQP:" << std::endl;
-      std::cout << QP_segmented_paraboloid << std::endl;
-      exit(-1);
+      if (!QP_segmented_paraboloid.checkValidHalfEdgeStructure()) {
+        std::cout << "Polytope is not valid after conversion to QP!"
+                  << std::endl;
+        exit(-1);
+      }
+
+      assert(QP_segmented_paraboloid.checkValidHalfEdgeStructure());
+
+      // Nudge polytope and reset surface
+      nudgePolyhedron(&QP_segmented_paraboloid, &QP_polytope_paraboloid,
+                      a_nudge_iter, a_surface);
+
+      // Try again!
+      return formParaboloidIntersectionBases<ReturnType>(
+          &QP_segmented_paraboloid, &QP_polytope_paraboloid,
+          QP_aligned_paraboloid, a_nudge_iter + 1, a_surface);
+
+    } else {
+      using QP_complete_polytope_type =
+          HalfEdgePolyhedron<QP_pt_type, QP_vertex_type, QP_halfedge_type,
+                             QP_face_type, QP_kMaxHalfEdges, QP_kMaxVertices,
+                             QP_kMaxFaces>;
+      // Convert polytope to QP
+      QP_complete_polytope_type QP_polytope_paraboloid;
+      convertPolytopeFromDoubleToQuadPrecision(a_polytope, a_complete_polytope,
+                                               &QP_polytope_paraboloid);
+      auto QP_segmented_paraboloid =
+          QP_polytope_paraboloid.generateSegmentedPolyhedron();
+
+      if (!QP_segmented_paraboloid.checkValidHalfEdgeStructure()) {
+        std::cout << "Polytope is not valid after conversion to QP!"
+                  << std::endl;
+        std::cout << "PolytopeDP:" << std::endl;
+        std::cout << *a_polytope << std::endl;
+        std::cout << "PolytopeQP:" << std::endl;
+        std::cout << QP_segmented_paraboloid << std::endl;
+        exit(-1);
+      }
+
+      assert(QP_segmented_paraboloid.checkValidHalfEdgeStructure());
+
+      // Nudge polytope and reset surface
+      nudgePolyhedron(&QP_segmented_paraboloid, &QP_polytope_paraboloid,
+                      a_nudge_iter, a_surface);
+      // Try again!
+      return formParaboloidIntersectionBases<ReturnType>(
+          &QP_segmented_paraboloid, &QP_polytope_paraboloid,
+          QP_aligned_paraboloid, a_nudge_iter + 1, a_surface);
     }
-
-    assert(QP_segmented_paraboloid.checkValidHalfEdgeStructure());
-
-    // Nudge polytope and reset surface
-    nudgePolyhedron(&QP_segmented_paraboloid, &QP_polytope_paraboloid,
-                    a_nudge_iter, a_surface);
-    // Try again!
-    return formParaboloidIntersectionBases<ReturnType>(
-        &QP_segmented_paraboloid, &QP_polytope_paraboloid,
-        QP_aligned_paraboloid, a_nudge_iter + 1, a_surface);
   } else {
     // Nudge polytope (already QP) and reset surface
     nudgePolyhedron(a_polytope, a_complete_polytope, a_nudge_iter, a_surface);
@@ -975,7 +1121,9 @@ ReturnType reformParaboloidIntersectionBases(
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneParaboloidType,
           class SurfaceOutputType>
-enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
+enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value ||
+                is_polygon<SegmentedHalfEdgePolyhedronType>::value,
+            ReturnType>
 formParaboloidIntersectionBases(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,

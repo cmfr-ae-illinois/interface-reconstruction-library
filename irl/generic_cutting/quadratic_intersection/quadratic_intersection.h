@@ -53,7 +53,9 @@ inline bool isPtBeforeIntersectionWithEdgeWithComponent(
     const PtBase<ScalarType>& a_vertex_1, const UnsignedIndex_t a_index);
 
 template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType>
-enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, void>
+enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value ||
+                is_polygon<SegmentedHalfEdgePolyhedronType>::value,
+            void>
 resetPolyhedron(SegmentedHalfEdgePolyhedronType* a_polytope,
                 HalfEdgePolytopeType* a_complete_polytope);
 

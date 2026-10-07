@@ -231,7 +231,9 @@ inline bool isPtBeforeIntersectionWithEdgeWithComponent(
 // This should not be a problem unless resetPolyhedron is called
 // many times for the same polyhedron intersection operation
 template <class SegmentedHalfEdgePolyhedronType, class HalfEdgePolytopeType>
-enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, void>
+enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value ||
+                is_polygon<SegmentedHalfEdgePolyhedronType>::value,
+            void>
 resetPolyhedron(SegmentedHalfEdgePolyhedronType* a_polytope,
                 HalfEdgePolytopeType* a_complete_polytope) {
   UnsignedIndex_t original_verts = 0;
@@ -478,6 +480,14 @@ void convertPolytopeFromDoubleToQuadPrecision(
     auto current_half_edge = starting_half_edge;
     do {
       number_of_half_edges++;
+      if constexpr (is_polygon<DoubleSegmentedHalfEdgePolytopeType>::value) {
+        const auto opposite_half_edge =
+            current_half_edge->getOppositeHalfEdge();
+        if (opposite_half_edge->getFace() ==
+            &getOpenBoundaryFace<face_type>()) {
+          number_of_half_edges++;
+        }
+      }
       current_half_edge = current_half_edge->getNextHalfEdge();
     } while (current_half_edge != starting_half_edge);
   }
@@ -494,6 +504,20 @@ void convertPolytopeFromDoubleToQuadPrecision(
       current_half_edge = current_half_edge->getNextHalfEdge();
     } while (current_half_edge != starting_half_edge);
   }
+
+  // Polygons contain an outer loop of half edges which belongto an "open
+  // bondary face". Let's map them
+  if constexpr (is_polygon<DoubleSegmentedHalfEdgePolytopeType>::value) {
+    const auto map_size = hald_edge_mapping.size();
+    for (UnsignedIndex_t i = 0; i < map_size; ++i) {
+      const auto half_edge = hald_edge_mapping[i];
+      const auto opposite_half_edge = half_edge->getOppositeHalfEdge();
+      if (opposite_half_edge->getFace() == &getOpenBoundaryFace<face_type>()) {
+        hald_edge_mapping.push_back(opposite_half_edge);
+      }
+    }
+  }
+
   for (UnsignedIndex_t v = 0; v < number_of_vertices; ++v) {
     vertex_mapping[v] = a_polytope->getVertex(v);
   }
@@ -514,8 +538,14 @@ void convertPolytopeFromDoubleToQuadPrecision(
 
     // Find QP face on which it lies
     const auto face_DP = half_edge_DP->getFace();
-    const UnsignedIndex_t index_face = positionInMapping(face_mapping, face_DP);
-    converted_face_type* face_QP = &a_converted_polytope->getFace(index_face);
+    converted_face_type* face_QP;
+    if (face_DP == &getOpenBoundaryFace<face_type>()) {
+      face_QP = &getOpenBoundaryFace<converted_face_type>();
+    } else {
+      const UnsignedIndex_t index_face =
+          positionInMapping(face_mapping, face_DP);
+      face_QP = &a_converted_polytope->getFace(index_face);
+    }
 
     // Find end-point vertex
     const auto vertex_DP = half_edge_DP->getVertex();

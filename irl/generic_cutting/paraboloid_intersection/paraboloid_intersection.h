@@ -29,12 +29,34 @@
 
 namespace IRL {
 
+template <class PolygonType, class ParaboloidType>
+enable_if_t<is_polygon<PolygonType>::value, ParaboloidParametrizedSurfaceOutput>
+intersectPolygonWithParaboloid(const PolygonType& a_polygon,
+                               const ParaboloidType& a_paraboloid);
+
+template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
+          class ParaboloidType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value,
+            ParaboloidParametrizedSurfaceOutput>
+intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
+                               HalfEdgePolytopeType* a_complete_polytope,
+                               const ParaboloidType& a_paraboloid);
+
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class ParaboloidType>
 enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
 intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
                                   HalfEdgePolytopeType* a_complete_polytope,
                                   const ParaboloidType& a_paraboloid);
+
+template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
+          class AlignedParaboloidType, class ScalarType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, void>
+intersectPolygonWithAlignedParaboloid(
+    SegmentedHalfEdgePolygonType* a_polytope,
+    HalfEdgePolytopeType* a_complete_polytope,
+    const AlignedParaboloidType& a_paraboloid, const ScalarType a_scale,
+    ParaboloidParametrizedSurfaceOutput* a_surface);
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AlignedParaboloidType,
@@ -50,7 +72,9 @@ intersectPolyhedronWithAlignedParaboloid(
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AligneParaboloidType,
           class ScalarType, class SurfaceOutputType = NoSurfaceOutput>
-enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value, ReturnType>
+enable_if_t<is_polyhedron<SegmentedHalfEdgePolyhedronType>::value ||
+                is_polygon<SegmentedHalfEdgePolyhedronType>::value,
+            ReturnType>
 formParaboloidIntersectionBases(
     SegmentedHalfEdgePolyhedronType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
