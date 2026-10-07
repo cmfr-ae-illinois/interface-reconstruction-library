@@ -131,6 +131,27 @@ ParaboloidBase<ScalarType>::getAlignedParaboloid(void) const {
 }
 
 template <class ScalarType>
+inline const NormalBase<ScalarType>& ParaboloidBase<ScalarType>::getNormal(
+    const PtBase<ScalarType>& a_location) const {
+  const ScalarType ZERO = ScalarType(0);
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType TWO = ScalarType(2);
+  const PtBase<ScalarType> pt_diff = PtBase<ScalarType>(a_location - datum_m);
+  const ScalarType ptx = frame_m[0] * pt_diff;
+  const ScalarType pty = frame_m[1] * pt_diff;
+  const NormalBase<ScalarType> normal_local = NormalBase<ScalarType>(
+      TWO * paraboloid_m.a() * ptx, TWO * paraboloid_m.b() * pty, ONE);
+  NormalBase<ScalarType> normal = NormalBase<ScalarType>(ZERO, ZERO, ZERO);
+  for (UnsignedIndex_t d = 0; d < 3; ++d) {
+    for (UnsignedIndex_t n = 0; n < 3; ++n) {
+      normal[n] += frame_m[d][n] * normal_local[d];
+    }
+  }
+  normal.normalize();
+  return normal;
+}
+
+template <class ScalarType>
 inline void ParaboloidBase<ScalarType>::markAsRealReconstruction(void) {
   place_infinite_shortcut_m[0] = false;
   place_infinite_shortcut_m[1] = false;
