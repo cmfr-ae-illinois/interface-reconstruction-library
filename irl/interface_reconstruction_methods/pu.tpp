@@ -247,7 +247,7 @@ std::vector<Pt> PU<CellType>::intersectEdge(const Pt& x0, const Pt& x1,
         intersections.push_back(midX);
       } else {
         // If the weight is too low, we consider the intersection to be blocked.
-        std::cout << "Blocked = " << weight << "," << thresh << "\n";
+        // std::cout << "Blocked = " << weight << "," << thresh << "\n";
         blocked = true;
       }
     }
