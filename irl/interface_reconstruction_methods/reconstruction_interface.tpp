@@ -32,6 +32,12 @@ Paraboloid reconstructionWithJibben3D(
   return jibben_solver.solve(&a_neighborhood_geometry, a_delta);
 }
 
+Paraboloid reconstructionWithCF3D(
+    const JibbenNeighborhood& a_neighborhood_geometry, const double a_dx) {
+  CircleFit_3D cf_solver;
+  return cf_solver.solve(&a_neighborhood_geometry, a_dx);
+}
+
 template <class CellType>
 PlanarSeparator reconstructionWithR2P2D(
     const R2PNeighborhood<CellType>& a_neighborhood_geometry,

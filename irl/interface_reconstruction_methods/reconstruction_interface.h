@@ -11,6 +11,7 @@
 #define IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_INTERFACE_H_
 
 #include "irl/interface_reconstruction_methods/advected_plane_reconstruction.h"
+#include "irl/interface_reconstruction_methods/cf.h"
 #include "irl/interface_reconstruction_methods/elvira.h"
 #include "irl/interface_reconstruction_methods/jibben.h"
 #include "irl/interface_reconstruction_methods/jibben_neighborhood.h"
@@ -43,6 +44,11 @@ inline Paraboloid reconstructionWithJibbenSq3D(
 inline Paraboloid reconstructionWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry,
     const double a_delta = -1.0);
+
+/// \brief Perform circle-fit reconstruction for a 3D problem.
+inline Paraboloid reconstructionWithCF3D(
+    const JibbenNeighborhood& a_neighborhood_geometry,
+    const double a_dx = -1.0);
 
 /// \brief Perform R2P reconstruction for a 2D problem in the x-y plane.
 template <class CellType>

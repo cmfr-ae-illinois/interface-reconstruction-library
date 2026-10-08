@@ -32,8 +32,8 @@
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
 #include "irl/planar_reconstruction/planar_separator.h"
-#include "irl/variant_reconstruction/separator_variant.h"
 #include "irl/variant_reconstruction/separator_union.h"
+#include "irl/variant_reconstruction/separator_variant.h"
 
 extern "C" {
 /// \file c_localizers.h
@@ -67,6 +67,17 @@ void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
 void c_reconstructJibben3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
                                    c_SeparatorVariant* a_separator);
 
+// void c_reconstructCF3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
+//                              const double* a_dx, c_Paraboloid* a_separator);
+
+void c_reconstructCF3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                               const double* a_dx,
+                               c_SeparatorVariant* a_separator);
+
+// void c_reconstructCF3D_Union_raw(
+//     const c_JibbenNeigh* a_jibben_neighborhood, const double* a_dx,
+//     IRL::SeparatorUnion& a_separator);
+
 void c_reconstructELVIRA2D(const c_ELVIRANeigh* a_elvira_neighborhood,
                            c_PlanarSep* a_separator);
 
@@ -76,9 +87,8 @@ void c_reconstructELVIRA3D_Sep(const c_ELVIRANeigh* a_elvira_neighborhood,
 void c_reconstructELVIRA3D_Variant(const c_ELVIRANeigh* a_elvira_neighborhood,
                                    c_SeparatorVariant* a_separator);
 
-void c_reconstructELVIRA3D_Union_raw(
-    const c_ELVIRANeigh* a_elvira_neighborhood,
-    IRL::SeparatorUnion& a_separator);
+void c_reconstructELVIRA3D_Union_raw(const c_ELVIRANeigh* a_elvira_neighborhood,
+                                     IRL::SeparatorUnion& a_separator);
 
 void c_reconstructMOF2D_RectCub(const c_RectCub* a_cell,
                                 const c_SepVM* a_separated_volume_moments,

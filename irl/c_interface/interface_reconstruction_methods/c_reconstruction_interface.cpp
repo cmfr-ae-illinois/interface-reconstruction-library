@@ -48,8 +48,7 @@ void c_reconstructJibbenSq3D_Union_raw(
     IRL::SeparatorUnion& a_separator) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
-  a_separator =
-      reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
+  a_separator = reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
 }
 
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
@@ -78,6 +77,39 @@ void c_reconstructJibben3D_Union_raw(const c_JibbenNeigh* a_jibben_neighborhood,
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
   a_separator = reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr);
 }
+
+// void c_reconstructCF3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
+//                              const double* a_dx, c_Paraboloid* a_separator) {
+//   assert(a_jibben_neighborhood != nullptr);
+//   assert(a_jibben_neighborhood->obj_ptr != nullptr);
+//   assert(a_dx != nullptr);
+//   assert(a_separator != nullptr);
+//   assert(a_separator->obj_ptr != nullptr);
+//   *a_separator->obj_ptr =
+//       reconstructionWithCF3D(*a_jibben_neighborhood->obj_ptr, *a_dx);
+// }
+
+void c_reconstructCF3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
+                               const double* a_dx,
+                               c_SeparatorVariant* a_separator) {
+  assert(a_jibben_neighborhood != nullptr);
+  assert(a_jibben_neighborhood->obj_ptr != nullptr);
+  assert(a_dx != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  *a_separator->obj_ptr =
+      reconstructionWithCF3D(*a_jibben_neighborhood->obj_ptr, *a_dx);
+}
+
+// void c_reconstructCF3D_Union_raw(
+//     const c_JibbenNeigh* a_jibben_neighborhood, const double* a_dx,
+//     IRL::SeparatorUnion& a_separator) {
+//   assert(a_jibben_neighborhood != nullptr);
+//   assert(a_jibben_neighborhood->obj_ptr != nullptr);
+//   assert(a_dx != nullptr);
+//   a_separator = reconstructionWithCF3D(*a_jibben_neighborhood->obj_ptr,
+//   *a_dx);
+// }
 
 void c_reconstructELVIRA2D(const c_ELVIRANeigh* a_elvira_neighborhood,
                            c_PlanarSep* a_separator) {
