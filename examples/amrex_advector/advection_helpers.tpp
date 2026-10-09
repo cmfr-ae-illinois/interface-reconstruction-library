@@ -34,6 +34,8 @@ inline IRL::Vec3<double> GetVelocity(
     return Rotation3D::get_velocity(pt[0], pt[1], pt[2], time);
   } else if (velocity_field_type == VelocityFieldType::Translation) {
     return Translation3D::get_velocity(pt[0], pt[1], pt[2], time);
+  } else if (velocity_field_type == VelocityFieldType::Shear) {
+    return Shear3D::get_velocity(pt[0], pt[1], pt[2], time);
   } else {
     return GetInterpolatedVelocity(pt, vx, vy, vz, bx, a_geom);
   }
@@ -187,6 +189,8 @@ inline Eigen::Matrix3d GetVelocityGradient(
     return Rotation3D::get_velocity_gradient(pt[0], pt[1], pt[2], time);
   } else if (velocity_field_type == VelocityFieldType::Translation) {
     return Translation3D::get_velocity_gradient(pt[0], pt[1], pt[2], time);
+  } else if (velocity_field_type == VelocityFieldType::Shear) {
+    return Shear3D::get_velocity_gradient(pt[0], pt[1], pt[2], time);
   } else {
     return GetInterpolatedVelocityGradient(pt, vx, vy, vz, bx, a_geom);
   }

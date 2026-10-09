@@ -14,6 +14,7 @@
 
 #include "examples/amrex_advector/case_deformation_3d.h"
 #include "examples/amrex_advector/case_rotation_3d.h"
+#include "examples/amrex_advector/case_shear_3d.h"
 #include "examples/amrex_advector/case_translation_3d.h"
 
 using namespace amrex;
@@ -22,7 +23,8 @@ enum class VelocityFieldType {
   Interpolated,
   Rotation,
   Translation,
-  Deformation
+  Deformation,
+  Shear
 };
 
 template <class PtType>

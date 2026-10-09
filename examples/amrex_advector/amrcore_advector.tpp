@@ -162,6 +162,8 @@ void AmrCoreAdv::SetVelocityFieldType() {
       velocity_field_type = VelocityFieldType::Translation;
     } else if (case_name == "deformation3d") {
       velocity_field_type = VelocityFieldType::Deformation;
+    } else if (case_name == "shear3d") {
+      velocity_field_type = VelocityFieldType::Shear;
     } else {
       std::ostringstream oss;
       oss << "Exact velocity field is not available for case: " << case_name;
@@ -832,6 +834,11 @@ void AmrCoreAdv::MakeNewLevelFromScratch(int lev, Real time, const BoxArray& ba,
         Rotation3D::initialize_case(tbx, moments_fab, interface_fab, problo, dx,
                                     transport_m1, transport_m2);
       });
+    } else if (case_name == "shear3d") {
+      amrex::launch(box, [=] AMREX_GPU_DEVICE(const Box& tbx) {
+        Shear3D::initialize_case(tbx, moments_fab, interface_fab, problo, dx,
+                                 transport_m1, transport_m2);
+      });
     } else {
       throw std::runtime_error("Unknown case");
     }
@@ -1161,6 +1168,8 @@ Real AmrCoreAdv::EstTimeStep(int lev, Real time) {
     max_vel = Translation3D::get_max_vel();
   } else if (case_name == "rotation3d") {
     max_vel = Rotation3D::get_max_vel();
+  } else if (case_name == "shear3d") {
+    max_vel = Shear3D::get_max_vel();
   }
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -1897,6 +1906,31 @@ void AmrCoreAdv::DefineVelocityAtLevel(int lev, Real time) {
                 Real z = prob_lo[2] + k * dx[2];
                 vel[2](i, j, k) =
                     Rotation3D::get_face_velocity_z(x, y, z, time);
+              }));
+    } else if (case_name == "shear3d") {
+      amrex::ParallelFor(
+          AMREX_D_DECL(ngbxx, ngbxy, ngbxz),
+          AMREX_D_DECL(
+              // X-faces
+              [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                Real x = prob_lo[0] + i * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+                Real z = prob_lo[2] + (k + 0.5) * dx[2];
+                vel[0](i, j, k) = Shear3D::get_face_velocity_x(x, y, z, time);
+              },
+              // Y-faces
+              [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + j * dx[1];
+                Real z = prob_lo[2] + (k + 0.5) * dx[2];
+                vel[1](i, j, k) = Shear3D::get_face_velocity_y(x, y, z, time);
+              },
+              // Z-faces
+              [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+                Real z = prob_lo[2] + k * dx[2];
+                vel[2](i, j, k) = Shear3D::get_face_velocity_z(x, y, z, time);
               }));
     } else {
       throw std::runtime_error("Unknown case");
