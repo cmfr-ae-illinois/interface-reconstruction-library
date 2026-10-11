@@ -28,6 +28,9 @@ inline double angularVarianceMetricWithJibben3D(
 inline double volumeErrorSquaredWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry, const double& a_dx);
 
+inline Normal globalAveragedNormalWithJibben3D(
+    const JibbenNeighborhood& a_neighborhood_geometry);
+
 }  // namespace IRL
 
 #include "irl/interface_reconstruction_methods/reconstruction_metrics_interface.tpp"

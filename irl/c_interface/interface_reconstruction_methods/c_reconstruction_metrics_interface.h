@@ -34,6 +34,9 @@ double c_angularVarianceMetricWithJibben3D(
 double c_volumeErrorSquaredWithJibben3D(
     const c_JibbenNeigh* a_jibben_neighborhood, const double* a_dx);
 
+void c_globalAveragedNormalWithJibben3D(
+    const c_JibbenNeigh* a_jibben_neighborhood, double* a_normal);
+
 }  // end extern C
 
 #endif  // IRL_C_INTERFACE_INTERFACE_RECONSTRUCTION_METHODS_C_RECONSTRUCTION_METRICS_INTERFACE_H_

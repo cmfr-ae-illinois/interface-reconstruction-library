@@ -31,4 +31,13 @@ double c_volumeErrorSquaredWithJibben3D(
                                              *a_dx);
 }
 
+void c_globalAveragedNormalWithJibben3D(
+    const c_JibbenNeigh* a_jibben_neighborhood, double* a_normal) {
+  const IRL::Normal normal = IRL::globalAveragedNormalWithJibben3D(
+      *(a_jibben_neighborhood->obj_ptr));
+  a_normal[0] = normal[0];
+  a_normal[1] = normal[1];
+  a_normal[2] = normal[2];
+}
+
 }  // end extern C

@@ -870,6 +870,58 @@ const double Jibben_3D::getAngularVariance(void) const {
   return std_theta;
 }
 
+const Normal Jibben_3D::getAveragedNormal(void) const {
+  const auto& polygon = neighborhood_m->getCenterPolygon();
+
+  const UnsignedIndex_t nvertices = polygon.getNumberOfVertices();
+
+  Normal normal(0.0, 0.0, 1.0);
+
+  if (nvertices == 0) {
+    return normal;
+  }
+
+  Normal normal_sum(0.0, 0.0, 0.0);
+
+  for (UnsignedIndex_t v = 0; v < nvertices; ++v) {
+    const double xi = polygon[v][0];
+    const double eta = polygon[v][1];
+
+    const double zeta_xi = coefficients_m[1] + 2.0 * coefficients_m[3] * xi +
+                           coefficients_m[4] * eta;
+
+    const double zeta_eta = coefficients_m[2] + coefficients_m[4] * xi +
+                            2.0 * coefficients_m[5] * eta;
+
+    normal_sum[0] += -zeta_xi;
+    normal_sum[1] += -zeta_eta;
+    normal_sum[2] += 1.0;
+  }
+
+  normal_sum.normalize();
+
+  return normal_sum;
+}
+
+const Normal Jibben_3D::getGlobalAveragedNormal(void) const {
+  const Normal averaged_local_normal = this->getAveragedNormal();
+  const ReferenceFrame& frame = neighborhood_m->getReferenceFrame();
+
+  Normal averaged_global_normal(
+      averaged_local_normal[0] * frame[0][0] +
+          averaged_local_normal[1] * frame[1][0] +
+          averaged_local_normal[2] * frame[2][0],
+      averaged_local_normal[0] * frame[0][1] +
+          averaged_local_normal[1] * frame[1][1] +
+          averaged_local_normal[2] * frame[2][1],
+      averaged_local_normal[0] * frame[0][2] +
+          averaged_local_normal[1] * frame[1][2] +
+          averaged_local_normal[2] * frame[2][2]);
+  averaged_global_normal.normalize();
+
+  return averaged_global_normal;
+}
+
 Paraboloid Jibben_3D::solve2(const JibbenNeighborhood* a_neighborhood_pointer,
                              const double a_delta) {
   assert(a_neighborhood_pointer != nullptr);

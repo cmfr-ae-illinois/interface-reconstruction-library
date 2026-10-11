@@ -31,6 +31,13 @@ double volumeErrorSquaredWithJibben3D(
   return jibben_solver.getVolumeErrorSquared(a_dx);
 }
 
+Normal globalAveragedNormalWithJibben3D(
+    const JibbenNeighborhood& a_neighborhood_geometry) {
+  Jibben_3D jibben_solver(&a_neighborhood_geometry);
+  jibben_solver.solve2(&a_neighborhood_geometry, -1.0);
+  return jibben_solver.getGlobalAveragedNormal();
+}
+
 }  // namespace IRL
 
 #endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_RECONSTRUCTION_METRICS_INTERFACE_TPP_

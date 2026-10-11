@@ -52,6 +52,10 @@ class Jibben_3D {
 
   const double getAngularVariance(void) const;
 
+  const Normal getAveragedNormal(void) const;
+
+  const Normal getGlobalAveragedNormal(void) const;
+
   /// \brief Jibben formulation with squared difference in volume
   Paraboloid solve2(const JibbenNeighborhood* a_neighborhood_pointer,
                     const double a_delta = -1.0);
