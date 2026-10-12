@@ -478,6 +478,293 @@ std::tuple<double, double, double, bool> CircleFit_3D::getPrincipalCurvatures(
   return {k1, k2, phi, true};
 }
 
+IRL::Normal CircleFit_3D::getHermiteNormal(
+    const IRL::Pt& datum, const IRL::ReferenceFrame& initial_frame) {
+  const double h = h_m;
+
+  if (!std::isfinite(h) || h <= std::numeric_limits<double>::epsilon()) {
+    return initial_frame[2];
+  }
+
+  const UnsignedIndex_t npolygons = neighborhood_m->size();
+
+  // Base strength of the Hermite normal constraints.
+  constexpr double lambda0 = 1.0;
+
+  const double angle_threshold_degrees = 60.0;
+  const double cos_angle_threshold =
+      std::cos(angle_threshold_degrees * M_PI / 180.0);
+
+  // Compute weighted neighborhood-average normal and coherence R.
+  IRL::Normal normal_sum(0.0, 0.0, 0.0);
+  double weight_sum = 0.0;
+
+  for (UnsignedIndex_t p = 0; p < npolygons; ++p) {
+    const IRL::Polygon polygon = neighborhood_m->getPolygon(p);
+
+    if (polygon.getNumberOfVertices() <= 2) {
+      continue;
+    }
+
+    const IRL::Pt centroid = polygon.calculateCentroid();
+
+    if (!std::isfinite(centroid[0]) || !std::isfinite(centroid[1]) ||
+        !std::isfinite(centroid[2])) {
+      continue;
+    }
+
+    IRL::Normal normal = calculatePolygonNormal(polygon);
+
+    const double normal_mag = IRL::magnitude(normal);
+
+    if (!std::isfinite(normal_mag) || normal_mag <= 100.0 * DBL_EPSILON) {
+      continue;
+    }
+
+    normal /= normal_mag;
+
+    // Keep all normals consistently oriented relative to the
+    // original center PLIC normal.
+    const double orientation = normal[0] * initial_frame[2][0] +
+                               normal[1] * initial_frame[2][1] +
+                               normal[2] * initial_frame[2][2];
+
+    // if (orientation < 0.0) {
+    //   normal = -normal;
+    // }
+
+    if (orientation < cos_angle_threshold || !std::isfinite(orientation)) {
+      continue;
+    }
+
+    const double vfrac = neighborhood_m->getWeight(p);
+
+    const double vf_weight = getVfWeight(vfrac);
+    const double distance_weight = getDistanceWeight(datum, centroid);
+
+    const double w = vf_weight * distance_weight;
+
+    if (!std::isfinite(w) || w <= 0.0) {
+      continue;
+    }
+
+    normal_sum += w * normal;
+    weight_sum += w;
+  }
+
+  if (!std::isfinite(weight_sum) ||
+      weight_sum <= std::numeric_limits<double>::epsilon()) {
+    return initial_frame[2];
+  }
+
+  const double normal_sum_mag = IRL::magnitude(normal_sum);
+
+  if (!std::isfinite(normal_sum_mag) || normal_sum_mag <= 100.0 * DBL_EPSILON) {
+    return initial_frame[2];
+  }
+
+  IRL::Normal average_normal = normal_sum / normal_sum_mag;
+
+  // Neighborhood normal coherence:
+  //
+  // R ~ 1   -> normals strongly agree
+  // R << 1  -> normals are scattered
+  //
+  double R = normal_sum_mag / weight_sum;
+
+  R = std::max(0.0, std::min(1.0, R));
+
+  // Global normal-confidence factor.
+  const double global_confidence = R * R;
+
+  // Assemble the weighted Hermite least-squares system.
+  Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
+  Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
+
+  int usable_members = 0;
+
+  for (UnsignedIndex_t p = 0; p < npolygons; ++p) {
+    const IRL::Polygon polygon = neighborhood_m->getPolygon(p);
+
+    if (polygon.getNumberOfVertices() <= 2) {
+      continue;
+    }
+
+    const IRL::Pt centroid = polygon.calculateCentroid();
+
+    if (!std::isfinite(centroid[0]) || !std::isfinite(centroid[1]) ||
+        !std::isfinite(centroid[2])) {
+      continue;
+    }
+
+    IRL::Normal normal = calculatePolygonNormal(polygon);
+
+    const double normal_mag = IRL::magnitude(normal);
+
+    if (!std::isfinite(normal_mag) || normal_mag <= 100.0 * DBL_EPSILON) {
+      continue;
+    }
+
+    normal /= normal_mag;
+
+    // Consistent orientation.
+    const double orientation = normal[0] * initial_frame[2][0] +
+                               normal[1] * initial_frame[2][1] +
+                               normal[2] * initial_frame[2][2];
+
+    // if (orientation < 0.0) {
+    //   normal = -normal;
+    // }
+
+    if (orientation < cos_angle_threshold || !std::isfinite(orientation)) {
+      continue;
+    }
+
+    // Local centroid coordinates relative to original PLIC frame
+    // Nondimensionalized by h
+    const IRL::Pt dr = centroid - datum;
+    const double x =
+        (dr[0] * initial_frame[0][0] + dr[1] * initial_frame[0][1] +
+         dr[2] * initial_frame[0][2]) /
+        h;
+    const double y =
+        (dr[0] * initial_frame[1][0] + dr[1] * initial_frame[1][1] +
+         dr[2] * initial_frame[1][2]) /
+        h;
+    const double z =
+        (dr[0] * initial_frame[2][0] + dr[1] * initial_frame[2][1] +
+         dr[2] * initial_frame[2][2]) /
+        h;
+
+    // Normal in same local frame.
+    const double nx = normal[0] * initial_frame[0][0] +
+                      normal[1] * initial_frame[0][1] +
+                      normal[2] * initial_frame[0][2];
+    const double ny = normal[0] * initial_frame[1][0] +
+                      normal[1] * initial_frame[1][1] +
+                      normal[2] * initial_frame[1][2];
+    const double nz = normal[0] * initial_frame[2][0] +
+                      normal[1] * initial_frame[2][1] +
+                      normal[2] * initial_frame[2][2];
+
+    if (!std::isfinite(nz)) {
+      continue;
+    }
+
+    const double px = -nx / nz;
+    const double py = -ny / nz;
+
+    if (!std::isfinite(px) || !std::isfinite(py)) {
+      continue;
+    }
+
+    const double vfrac = neighborhood_m->getWeight(p);
+    const double vf_weight = getVfWeight(vfrac);
+    const double distance_weight = getDistanceWeight(datum, centroid);
+    const double w = vf_weight * distance_weight;
+
+    if (!std::isfinite(w) || w <= 0.0) {
+      continue;
+    }
+
+    // ----------------------------------------------------------
+    // Position constraint:
+    //
+    // c0 + cx*x + cy*y = z
+    //
+    // This is always included.
+    // ----------------------------------------------------------
+
+    const Eigen::Vector3d A_position(1.0, x, y);
+
+    ATA += w * A_position * A_position.transpose();
+
+    ATb += w * A_position * z;
+
+    // ----------------------------------------------------------
+    // Do NOT use the center PLIC normal as a slope constraint.
+    //
+    // The center still contributes its position constraint,
+    // but does not force cx=cy=0.
+    // ----------------------------------------------------------
+
+    const double r_ndim = std::sqrt(x * x + y * y + z * z);
+
+    if (r_ndim > 1.0e-12) {
+      // Per-neighbor normal agreement with the average normal
+      double agreement = normal[0] * average_normal[0] +
+                         normal[1] * average_normal[1] +
+                         normal[2] * average_normal[2];
+
+      agreement = std::max(0.0, std::min(1.0, agreement));
+
+      const double local_confidence = agreement * agreement;
+
+      // Adaptive Hermite weight: lambda_i = lambda0 * R^2 * agreement^2
+      const double lambda_i = lambda0 * global_confidence * local_confidence;
+
+      // cx = px
+      ATA(1, 1) += lambda_i * w;
+      ATb(1) += lambda_i * w * px;
+
+      // cy = py
+      ATA(2, 2) += lambda_i * w;
+      ATb(2) += lambda_i * w * py;
+    }
+
+    ++usable_members;
+  }
+
+  if (usable_members < 2 || !ATA.allFinite() || !ATb.allFinite()) {
+    return initial_frame[2];
+  }
+
+  Eigen::ColPivHouseholderQR<Eigen::Matrix3d> qr(ATA);
+
+  if (qr.rank() < 3) {
+    return initial_frame[2];
+  }
+
+  const Eigen::Vector3d coeff = qr.solve(ATb);
+
+  if (!coeff.allFinite()) {
+    return initial_frame[2];
+  }
+
+  const double cx = coeff(1);
+  const double cy = coeff(2);
+
+  // Convert fitted slopes into corrected global normal
+  IRL::Normal improved_normal(
+      -cx * initial_frame[0][0] - cy * initial_frame[1][0] +
+          initial_frame[2][0],
+
+      -cx * initial_frame[0][1] - cy * initial_frame[1][1] +
+          initial_frame[2][1],
+
+      -cx * initial_frame[0][2] - cy * initial_frame[1][2] +
+          initial_frame[2][2]);
+
+  const double improved_mag = IRL::magnitude(improved_normal);
+
+  if (!std::isfinite(improved_mag) || improved_mag <= 100.0 * DBL_EPSILON) {
+    return initial_frame[2];
+  }
+
+  improved_normal /= improved_mag;
+
+  // Keep same orientation as original center PLIC
+  const double improved_orientation = improved_normal[0] * initial_frame[2][0] +
+                                      improved_normal[1] * initial_frame[2][1] +
+                                      improved_normal[2] * initial_frame[2][2];
+
+  if (improved_orientation < 0.0) {
+    improved_normal = -improved_normal;
+  }
+
+  return improved_normal;
+}
+
 Paraboloid CircleFit_3D::solve(void) {
   const UnsignedIndex_t npolygons = neighborhood_m->size();
 
@@ -498,8 +785,17 @@ Paraboloid CircleFit_3D::solve(void) {
     return invalid_paraboloid;
   }
 
-  const IRL::ReferenceFrame polygon_frame =
+  // Temporary frame from the original center PLIC normal.
+  const IRL::ReferenceFrame initial_polygon_frame =
       referenceFrameFromNormal(polygon_normal);
+
+  // Hermite neighborhood fit gives improved center normal.
+  const IRL::Normal improved_normal =
+      getHermiteNormal(datum, initial_polygon_frame);
+
+  // This is now the frame used by CircleFit.
+  const IRL::ReferenceFrame polygon_frame =
+      referenceFrameFromNormal(improved_normal);
 
   if (npolygons < 2 || center_polygon.getNumberOfVertices() <= 2) {
     return IRL::Paraboloid(datum, polygon_frame, 0.0, 0.0);

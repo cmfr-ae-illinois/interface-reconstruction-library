@@ -92,6 +92,9 @@ class CircleFit_3D {
   std::tuple<double, double, double, bool> getPrincipalCurvatures(
       const std::vector<double>& a_theta, const std::vector<double>& a_k_theta);
 
+  IRL::Normal getHermiteNormal(const IRL::Pt& datum,
+                               const IRL::ReferenceFrame& initial_frame);
+
   /// \brief Storage of the stencil information
   const JibbenNeighborhood* neighborhood_m = nullptr;
 
