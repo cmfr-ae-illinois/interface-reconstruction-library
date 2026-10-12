@@ -19,7 +19,9 @@ template <class ImplicitSurfaceType, class ReturnType, class CellType>
 ImplicitSurfaceCutter<ImplicitSurfaceType, ReturnType, CellType>::
     ImplicitSurfaceCutter(const ImplicitSurfaceType& surface,
                           const CellType& base_cell)
-    : m_surface(surface), m_cell(base_cell) {
+    : maxRefineLevel(surface.getMaxRefineLevel()),
+      m_surface(surface),
+      m_cell(base_cell) {
   root_ = std::make_unique<Node>(base_cell, 0);
   divideCell(root_.get());
   collectLeaves(root_.get());

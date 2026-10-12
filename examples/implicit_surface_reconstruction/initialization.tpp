@@ -20,6 +20,16 @@ struct ZeroRefineSurface : S {
   static constexpr std::size_t getMaxRefineLevel() { return 0; }
 };
 
+template <class S>
+struct RuntimeRefineSurface : S {
+  RuntimeRefineSurface(const S& surface, std::size_t level)
+      : S(surface), level_(level) {}
+  std::size_t getMaxRefineLevel() const { return level_; }
+
+ private:
+  std::size_t level_;
+};
+
 struct SizeRange {
   std::size_t begin;
   std::size_t end;
@@ -353,7 +363,7 @@ std::size_t initializeMomentsAndWriteBin(const BasicMesh& mesh,
 // running initialization for generic shape ---------------------------
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void run_initialization(const std::string& shape, int Nx,
-                        const std::string& output_dir) {
+                        const std::string& output_dir, int refine_level) {
   int rank = 0, size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -365,15 +375,21 @@ void run_initialization(const std::string& shape, int Nx,
   std::visit(
       [&](const auto& surface) {
         using S = std::decay_t<decltype(surface)>;
+        const std::size_t level = refine_level < 0
+                                      ? S::getMaxRefineLevel()
+                                      : static_cast<std::size_t>(refine_level);
+        const RuntimeRefineSurface<S> refined_surface(surface, level);
 
         auto t0 = std::chrono::steady_clock::now();
         if (rank == 0) {
           std::cout << "[init] starting shape=" << shape << " Nx=" << Nx
-                    << " ranks=" << size << " file=" << bin_path << "\n";
+                    << " refine_level=" << level << " ranks=" << size
+                    << " file=" << bin_path << "\n";
         }
         const std::size_t mixed_cell_count =
-            initializeMomentsAndWriteBin<S, VM_ORDER, SM_ORDER>(mesh, surface,
-                                                                bin_path);
+            initializeMomentsAndWriteBin<RuntimeRefineSurface<S>, VM_ORDER,
+                                         SM_ORDER>(mesh, refined_surface,
+                                                   bin_path);
         auto t1 = std::chrono::steady_clock::now();
         if (rank == 0) {
           const double dt = std::chrono::duration<double>(t1 - t0).count();

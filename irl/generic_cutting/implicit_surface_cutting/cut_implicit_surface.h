@@ -65,8 +65,7 @@ class ImplicitSurfaceCutter {
  private:
   enum class CellStatus { Above, Below, Mixed };
 
-  static constexpr size_t maxRefineLevel =
-      ImplicitSurfaceType::getMaxRefineLevel();
+  const size_t maxRefineLevel;
 
   struct Node {
     CellType cell;

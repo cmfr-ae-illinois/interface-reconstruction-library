@@ -72,7 +72,8 @@ std::size_t initializeMomentsAndWriteBin(const BasicMesh& mesh,
 
 template <std::size_t VM_ORDER, std::size_t SM_ORDER>
 void run_initialization(const std::string& shape, int Nx,
-                        const std::string& output_dir);
+                        const std::string& output_dir,
+                        int refine_level = -1);
 
 #include "examples/implicit_surface_reconstruction/initialization.tpp"
 
