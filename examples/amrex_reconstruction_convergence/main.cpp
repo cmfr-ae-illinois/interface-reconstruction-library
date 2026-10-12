@@ -388,8 +388,8 @@ int reconstructInterface(const std::string& method,
     return MOF2::GetReconstruction(interface, interface_with_ghost, moments,
                                    geom, nullptr, reconstruction_loop_time);
   } else if (method == "supermof2") {
-    return SuperMOF2::GetReconstruction(interface, interface_with_ghost, moments,
-                                        geom, nullptr,
+    return SuperMOF2::GetReconstruction(interface, interface_with_ghost,
+                                        moments, geom, nullptr,
                                         reconstruction_loop_time);
   } else if (method == "hybrid") {
     HYBRID::GetReconstruction(interface, interface_with_ghost, moments, geom,
@@ -1171,7 +1171,7 @@ void printUsage() {
   amrex::Print()
       << "amrex_reconstruction_convergence inputs:\n"
       << "  binary_file = path/to/exact_moments.bin\n"
-      << "  shape = sphere|ellipsoid|genus|orthocircle\n"
+      << "  shape = sphere|ellipsoid|genus|orthocircle|perturbed_sphere\n"
       << "  nx_fine = fine binary resolution\n"
       << "  reconstruction_method = vf\n"
       << "Optional:\n"
@@ -1316,10 +1316,9 @@ int main(int argc, char* argv[]) {
       fillAdvectorMomentsFromExactVolume(exact_volume_for_reconstruction, geom,
                                          adv_moments);
       amrex::Real reconstruction_loop_time = 0.0;
-      const int local_mof2_iterations =
-          reconstructInterface(reconstruction_method, interface,
-                               interface_with_ghost, adv_moments, geom,
-                               &reconstruction_loop_time);
+      const int local_mof2_iterations = reconstructInterface(
+          reconstruction_method, interface, interface_with_ghost, adv_moments,
+          geom, &reconstruction_loop_time);
 
       const amrex::Long local_mixed_cells = countLocalMixedCells(adv_moments);
       if (local_mixed_cells == 0) reconstruction_loop_time = 0.0;
@@ -1354,15 +1353,13 @@ int main(int argc, char* argv[]) {
           amrex::Print() << "  total MOF2 iterations = "
                          << global_mof2_iterations << "\n";
           if (global_mixed_cells > 0) {
-            amrex::Print()
-                << "  average MOF2 iterations per mixed cell = "
-                << static_cast<double>(global_mof2_iterations) /
-                       static_cast<double>(global_mixed_cells)
-                << "\n";
+            amrex::Print() << "  average MOF2 iterations per mixed cell = "
+                           << static_cast<double>(global_mof2_iterations) /
+                                  static_cast<double>(global_mixed_cells)
+                           << "\n";
           } else {
-            amrex::Print()
-                << "  average MOF2 iterations per mixed cell = N/A"
-                << " (no mixed cells)\n";
+            amrex::Print() << "  average MOF2 iterations per mixed cell = N/A"
+                           << " (no mixed cells)\n";
           }
         }
       }
