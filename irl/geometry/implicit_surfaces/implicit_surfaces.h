@@ -14,6 +14,7 @@
 #include "irl/geometry/implicit_surfaces/ellipsoid.tpp"
 #include "irl/geometry/implicit_surfaces/genus.tpp"
 #include "irl/geometry/implicit_surfaces/orthocircle.tpp"
+#include "irl/geometry/implicit_surfaces/perturbed_sphere.tpp"
 #include "irl/geometry/implicit_surfaces/sphere.tpp"
 
 #endif  // IRL_GEOMETRY_IMPLICIT_SURFACES_ALL_IMPLICIT_SURFACES_H_
