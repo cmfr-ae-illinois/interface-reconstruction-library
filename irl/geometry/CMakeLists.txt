@@ -140,4 +140,5 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/implicit_surfaces/sphere.t
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/implicit_surfaces/ellipsoid.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/implicit_surfaces/genus.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/implicit_surfaces/orthocircle.tpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/implicit_surfaces/perturbed_sphere.tpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/geometry/spline/rational_cubic_bezier_arc.tpp)
