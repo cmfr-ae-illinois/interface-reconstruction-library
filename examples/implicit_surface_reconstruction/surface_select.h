@@ -23,14 +23,18 @@ constexpr std::size_t SPHERE_MAX_REFINE = 4;
 constexpr std::size_t ELLIPSOID_MAX_REFINE = 4;
 constexpr std::size_t GENUS_MAX_REFINE = 4;
 constexpr std::size_t ORTHOCIRCLE_MAX_REFINE = 4;
+constexpr std::size_t PERTURBED_SPHERE_MAX_REFINE = 4;
 
 using SphereVariant = IRL::Sphere<double, SPHERE_MAX_REFINE>;
 using EllipsoidVariant = IRL::Ellipsoid<double, ELLIPSOID_MAX_REFINE>;
 using GenusVariant = IRL::Genus<double, GENUS_MAX_REFINE>;
 using OrthocircleVariant = IRL::Orthocircle<double, ORTHOCIRCLE_MAX_REFINE>;
+using PerturbedSphereVariant =
+    IRL::PerturbedSphere<double, PERTURBED_SPHERE_MAX_REFINE>;
 
-using SurfaceVariant = std::variant<SphereVariant, EllipsoidVariant,
-                                    GenusVariant, OrthocircleVariant>;
+using SurfaceVariant =
+    std::variant<SphereVariant, EllipsoidVariant, GenusVariant,
+                 OrthocircleVariant, PerturbedSphereVariant>;
 
 inline SurfaceVariant makeSurface(const std::string& name, BasicMesh& mesh) {
   if (name == "sphere") {
@@ -47,9 +51,13 @@ inline SurfaceVariant makeSurface(const std::string& name, BasicMesh& mesh) {
   } else if (name == "orthocircle") {
     mesh.setCellBoundaries(IRL::Pt(-1.9, -1.9, -1.9), IRL::Pt(1.9, 1.9, 1.9));
     return OrthocircleVariant{};
+  } else if (name == "perturbed_sphere") {
+    mesh.setCellBoundaries(IRL::Pt(-1.1, -1.1, -1.1), IRL::Pt(1.1, 1.1, 1.1));
+    return PerturbedSphereVariant{};
   }
   throw std::runtime_error("Unknown surface: " + name +
-                           " (expected: sphere|ellipsoid|genus|orthocircle)");
+                           " (expected: sphere|ellipsoid|genus|orthocircle|"
+                           "perturbed_sphere)");
 }
 
 inline std::string binary_filename(const std::string& outdir,

@@ -31,7 +31,9 @@ static void print_usage_and_exit(int rank) {
     std::cerr
         << "Usage:\n"
            "  mpirun -n P app --mode=init        "
-           "--shape=<sphere|ellipsoid|...> --nx=<N>  --outdir=<dir>\n"
+           "--shape=<sphere|ellipsoid|genus|orthocircle|perturbed_sphere> "
+           "--nx=<N> --outdir=<dir> "
+           "[--refine-level=<L>]\n"
            "  mpirun -n P app --mode=metrics     --shape=<...>                 "
            "  --nx=<N>  --factor=<F> --outdir=<dir> --method=<Jibben|...>\n"
            "  mpirun -n P app --mode=convergence --shape=<...>                 "
@@ -47,7 +49,7 @@ int main(int argc, char** argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   std::string mode, shape, method, outdir;
-  int Nx, factor;
+  int Nx = 0, factor = 1, refine_level = -1;
 
   // parsing inputs
   for (int i = 1; i < argc; ++i) {
@@ -64,7 +66,10 @@ int main(int argc, char** argv) {
       outdir = a + 9;
     else if (std::strncmp(a, "--method=", 9) == 0)
       method = a + 9;
-    else {
+    else if (std::strncmp(a, "--refine-level=", 15) == 0) {
+      refine_level = std::stoi(a + 15);
+      if (refine_level < 0) print_usage_and_exit(rank);
+    } else {
       if (rank == 0) std::cerr << "Unknown arg: " << a << "\n";
       print_usage_and_exit(rank);
     }
@@ -73,11 +78,13 @@ int main(int argc, char** argv) {
   constexpr std::size_t VM_ORDER = 2;
   constexpr std::size_t SM_ORDER = 2;
 
+  if (Nx <= 0 || shape.empty() || outdir.empty()) print_usage_and_exit(rank);
+
   auto t0 = std::chrono::steady_clock::now();
 
   if (mode == "init") {
     // generating binary file with implicit surface moments
-    run_initialization<VM_ORDER, SM_ORDER>(shape, Nx, outdir);
+    run_initialization<VM_ORDER, SM_ORDER>(shape, Nx, outdir, refine_level);
   } else if (mode == "metrics") {
     // only for paraboloids
     // reading binary file and computing metrics for one coarse mesh
