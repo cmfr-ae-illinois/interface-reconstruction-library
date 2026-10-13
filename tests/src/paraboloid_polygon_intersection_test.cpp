@@ -31,7 +31,7 @@ TEST(ParaboloidPolygonIntersection, ArcLengthPolygon) {
   polygon[1] = Pt(1, 0, -1);
   polygon[2] = Pt(1, 0, 1);
   polygon[3] = Pt(0, 0, 1);
-
+  std::cout << "Paraboloid: " << paraboloid << std::endl;
   auto intersection = intersectPolygonWithParaboloid(polygon, paraboloid);
   const auto arcs = intersection.getArcs();
 

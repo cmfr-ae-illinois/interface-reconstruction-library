@@ -67,7 +67,7 @@ class ParaboloidBase {
   const ReferenceFrameBase<ScalarType>& getReferenceFrame(void) const;
   const AlignedParaboloidBase<ScalarType>& getAlignedParaboloid(void) const;
 
-  const NormalBase<ScalarType>& getNormal(
+  const NormalBase<ScalarType> getNormal(
       const PtBase<ScalarType>& a_location) const;
 
   /// Indicates that the intersection should actually be performed.

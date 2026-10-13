@@ -131,7 +131,7 @@ ParaboloidBase<ScalarType>::getAlignedParaboloid(void) const {
 }
 
 template <class ScalarType>
-inline const NormalBase<ScalarType>& ParaboloidBase<ScalarType>::getNormal(
+inline const NormalBase<ScalarType> ParaboloidBase<ScalarType>::getNormal(
     const PtBase<ScalarType>& a_location) const {
   const ScalarType ZERO = ScalarType(0);
   const ScalarType ONE = ScalarType(1);

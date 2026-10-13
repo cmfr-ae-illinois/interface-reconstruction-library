@@ -406,6 +406,33 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
     arc_list[i].start_point() *= static_cast<double>(inv_scale);
     arc_list[i].control_point() *= static_cast<double>(inv_scale);
     arc_list[i].end_point() *= static_cast<double>(inv_scale);
+    // Start to Global
+    Pt local_pt = arc_list[i].start_point();
+    Pt global_pt = Pt(0, 0, 0);
+    for (UnsignedIndex_t n = 0; n < 3; ++n) {
+      for (UnsignedIndex_t d = 0; d < 3; ++d) {
+        global_pt[n] += ref_frame[d][n] * local_pt[d];
+      }
+    }
+    arc_list[i].start_point() = global_pt + datum;
+    // Control to Global
+    local_pt = arc_list[i].control_point();
+    global_pt = Pt(0, 0, 0);
+    for (UnsignedIndex_t n = 0; n < 3; ++n) {
+      for (UnsignedIndex_t d = 0; d < 3; ++d) {
+        global_pt[n] += ref_frame[d][n] * local_pt[d];
+      }
+    }
+    arc_list[i].control_point() = global_pt + datum;
+    // End to Global
+    local_pt = arc_list[i].end_point();
+    global_pt = Pt(0, 0, 0);
+    for (UnsignedIndex_t n = 0; n < 3; ++n) {
+      for (UnsignedIndex_t d = 0; d < 3; ++d) {
+        global_pt[n] += ref_frame[d][n] * local_pt[d];
+      }
+    }
+    arc_list[i].end_point() = global_pt + datum;
   }
 
   return surface;
