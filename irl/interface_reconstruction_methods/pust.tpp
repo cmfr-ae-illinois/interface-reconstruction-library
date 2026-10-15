@@ -399,7 +399,7 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
         Normal f = IRL::crossProduct(tan, normal);
         f.normalize();
         f = f * ST;
-        total = total + 0.5 * w * f * denom * speed;
+        total = total + 0.5 * w * f * speed;
 
         if (Pressure >= 0.5) {
           // Integrate the curvature and surface tension along the arc to get
@@ -603,7 +603,7 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
       // std::cout << "--------------------------\n";
       f.normalize();
       f = f * ST;
-      total = total + 0.5 * w * f * denom * speed;
+      total = total + 0.5 * w * f * speed;
     }
   }
   // std::cout << "Total force: " << total << "\n";
@@ -1180,7 +1180,7 @@ Normal PUST<CellType>::solveFaceEllipsoid(
       Normal f = IRL::crossProduct(tan, normal);
       f.normalize();
       f = f * ST;
-      total = total + 0.5 * w * f * denom * speed;
+      total = total + 0.5 * w * f * speed;
       // std::cout << " ========================== \n";
       // std::cout << "Normal: " << normal << "\n";
       // std::cout << "Tangent: " << tan << "\n";
