@@ -34,7 +34,7 @@ GeneralImplicitSurface<ScalarType, MAX_REFINE_LEVEL>::gaussianCurvature(
     const ScalarType& x, const ScalarType& y, const ScalarType& z) const {
   const Vec3 g = this->gradF(x, y, z);
   const ScalarType norm_g = g.norm();
-  const ScalarType eps = ScalarType(1e-30);
+  const ScalarType eps = ScalarType(1e-15);
   if (norm_g <= eps) return std::numeric_limits<ScalarType>::quiet_NaN();
 
   const Mat3 Hf = this->hessF(x, y, z);
