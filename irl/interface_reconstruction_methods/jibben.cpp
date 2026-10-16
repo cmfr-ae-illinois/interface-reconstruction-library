@@ -907,16 +907,15 @@ const Normal Jibben_3D::getGlobalAveragedNormal(void) const {
   const Normal averaged_local_normal = this->getAveragedNormal();
   const ReferenceFrame& frame = neighborhood_m->getReferenceFrame();
 
-  Normal averaged_global_normal(
-      averaged_local_normal[0] * frame[0][0] +
-          averaged_local_normal[1] * frame[1][0] +
-          averaged_local_normal[2] * frame[2][0],
-      averaged_local_normal[0] * frame[0][1] +
-          averaged_local_normal[1] * frame[1][1] +
-          averaged_local_normal[2] * frame[2][1],
-      averaged_local_normal[0] * frame[0][2] +
-          averaged_local_normal[1] * frame[1][2] +
-          averaged_local_normal[2] * frame[2][2]);
+  Normal averaged_global_normal(averaged_local_normal[0] * frame[0][0] +
+                                    averaged_local_normal[1] * frame[1][0] +
+                                    averaged_local_normal[2] * frame[2][0],
+                                averaged_local_normal[0] * frame[0][1] +
+                                    averaged_local_normal[1] * frame[1][1] +
+                                    averaged_local_normal[2] * frame[2][1],
+                                averaged_local_normal[0] * frame[0][2] +
+                                    averaged_local_normal[1] * frame[1][2] +
+                                    averaged_local_normal[2] * frame[2][2]);
   averaged_global_normal.normalize();
 
   return averaged_global_normal;
