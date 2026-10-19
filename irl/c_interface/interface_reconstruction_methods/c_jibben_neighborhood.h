@@ -29,6 +29,10 @@ void c_JibbenNeigh_setSize(c_JibbenNeigh* a_self, const int* a_size);
 
 void c_JibbenNeigh_localize(c_JibbenNeigh* a_self);
 
+void c_JibbenNeigh_localizeWithDatumAndNormal(
+    c_JibbenNeigh* a_self, const double* __restrict__ a_datum,
+    const double* __restrict__ a_normal);
+
 void c_JibbenNeigh_setDelta(c_JibbenNeigh* a_self, const double* a_delta);
 
 void c_JibbenNeigh_addMember(c_JibbenNeigh* a_self, const c_Poly* a_polygon,

@@ -60,6 +60,38 @@ void JibbenNeighborhood::localize(void) {
   }
 }
 
+void JibbenNeighborhood::localize(const Pt& a_datum, const Normal& a_normal) {
+  if ((not is_localized_m) && polygons_m.size() > 2) {
+    datum_m = a_datum;
+    frame_m = ReferenceFrame::fromNormal(a_normal);
+    // std::cout << "Localizing neighborhood with datum: " << datum_m
+    //           << " and normal: " << a_normal << std::endl;
+    for (auto& polygon : polygons_m) {
+      // Move vertices
+      for (auto& pt : polygon) {
+        const Pt tmp_pt = pt - datum_m;
+        for (UnsignedIndex_t d = 0; d < 3; ++d) {
+          pt[d] = frame_m[d] * tmp_pt;
+        }
+      }
+      // std::cout << "Moved Vertices: " << polygon << std::endl;
+      if (polygon.getNumberOfVertices() > 0) {
+        // Reorient plane of polygon
+        const auto& plane = polygon.getPlaneOfExistence();
+        Normal normal = plane.normal();
+        const Normal tmp_normal = plane.normal();
+        for (UnsignedIndex_t d = 0; d < 3; ++d) {
+          normal[d] = frame_m[d] * tmp_normal;
+        }
+        polygon.setPlaneOfExistence(Plane(normal, normal * polygon[0]));
+      }
+      // std::cout << "Reoriented Plane: " << polygon << std::endl;
+    }
+    is_localized_m = true;
+  }
+  // std::cout << "Localize Done" << std::endl;
+}
+
 void JibbenNeighborhood::setCenterOfStencil(const UnsignedIndex_t a_index) {
   this->checkIndex(a_index);
   center_cell_index_m = a_index;

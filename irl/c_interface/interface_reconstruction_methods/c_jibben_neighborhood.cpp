@@ -41,6 +41,17 @@ void c_JibbenNeigh_localize(c_JibbenNeigh* a_self) {
   a_self->obj_ptr->localize();
 }
 
+void c_JibbenNeigh_localizeWithDatumAndNormal(
+    c_JibbenNeigh* a_self, const double* __restrict__ a_datum,
+    const double* __restrict__ a_normal) {
+  assert(a_self != nullptr);
+  assert(a_self->obj_ptr != nullptr);
+  assert(a_datum != nullptr);
+  assert(a_normal != nullptr);
+  a_self->obj_ptr->localize(IRL::Pt(a_datum[0], a_datum[1], a_datum[2]),
+                            IRL::Normal(a_normal[0], a_normal[1], a_normal[2]));
+}
+
 void c_JibbenNeigh_setDelta(c_JibbenNeigh* a_self, const double* a_delta) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);

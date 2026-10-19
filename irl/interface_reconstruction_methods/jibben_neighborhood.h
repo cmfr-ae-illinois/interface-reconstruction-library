@@ -29,6 +29,8 @@ class JibbenNeighborhood {
 
   void localize(void);
 
+  void localize(const Pt& a_datum, const Normal& a_normal);
+
   void resize(const UnsignedIndex_t a_size);
 
   void reserve(const UnsignedIndex_t a_size);

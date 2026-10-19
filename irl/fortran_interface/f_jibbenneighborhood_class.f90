@@ -34,6 +34,7 @@ module f_JibbenNeigh_class
   end interface
   interface localize
     module procedure JibbenNeigh_class_localize
+      module procedure JibbenNeigh_class_localizeWithFrame
   end interface
   interface setDelta
     module procedure JibbenNeigh_class_setDelta
@@ -86,6 +87,15 @@ module f_JibbenNeigh_class
       implicit none
       type(c_JibbenNeigh) :: this
     end subroutine F_JibbenNeigh_localize
+
+    subroutine F_JibbenNeigh_localizeWithFrame(this,a_datum,a_normal) &
+      bind(C, name="c_JibbenNeigh_localizeWithDatumAndNormal")
+      import
+      implicit none
+      type(c_JibbenNeigh) :: this
+      real(C_DOUBLE), dimension(*), intent(in) :: a_datum ! dimension(1:3)
+      real(C_DOUBLE), dimension(*), intent(in) :: a_normal ! dimension(1:3)
+    end subroutine F_JibbenNeigh_localizeWithFrame
 
     subroutine F_JibbenNeigh_setDelta(this, a_delta) &
       bind(C, name="c_JibbenNeigh_setDelta")
@@ -155,6 +165,14 @@ module f_JibbenNeigh_class
       type(JibbenNeigh_type), intent(in) :: this
       call F_JibbenNeigh_localize(this%c_object)
     end subroutine JibbenNeigh_class_localize
+
+    subroutine JibbenNeigh_class_localizeWithFrame(this,a_datum,a_normal)
+      implicit none
+      type(JibbenNeigh_type), intent(in) :: this
+      real(IRL_double), dimension(1:3), intent(out) :: a_datum
+      real(IRL_double), dimension(1:3), intent(out) :: a_normal
+      call F_JibbenNeigh_localizeWithFrame(this%c_object,a_datum,a_normal)
+    end subroutine JibbenNeigh_class_localizeWithFrame
 
     subroutine JibbenNeigh_class_setDelta(this, a_delta)
       implicit none
