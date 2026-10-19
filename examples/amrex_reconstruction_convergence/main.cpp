@@ -1319,6 +1319,9 @@ int main(int argc, char* argv[]) {
       const int local_mof2_iterations = reconstructInterface(
           reconstruction_method, interface, interface_with_ghost, adv_moments,
           geom, &reconstruction_loop_time);
+      if (!output_interface) {
+        interface.clear();
+      }
 
       const amrex::Long local_mixed_cells = countLocalMixedCells(adv_moments);
       if (local_mixed_cells == 0) reconstruction_loop_time = 0.0;
