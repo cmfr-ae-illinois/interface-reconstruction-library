@@ -12,6 +12,7 @@
 
 #include "irl/geometry/general/moment_calculation_through_simplices.h"
 #include "irl/geometry/general/pt.h"
+#include "irl/moments/area.h"
 #include "irl/moments/volume.h"
 #include "irl/moments/volume_moments.h"
 #include "irl/parameters/defined_types.h"
@@ -33,6 +34,8 @@ class PolygonMomentsCalculationCommon {
   UnsignedIndex_t getNumberOfVertices(void) const;
 
   const Plane& getPlaneOfExistence(void) const;
+
+  inline Area calculateArea(void) const;
 
   /// \brief Calculate and return volume of the tri.
   inline Volume calculateVolume(void) const;

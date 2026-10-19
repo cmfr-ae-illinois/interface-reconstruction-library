@@ -26,6 +26,7 @@
 #include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
+#include "irl/moments/area.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 
 namespace IRL {
@@ -312,7 +313,10 @@ ReturnType computeType2Contribution(
     const AlignedParaboloidBase<ScalarType>& a_aligned_paraboloid,
     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1) {
   using ReturnScalarType = typename ReturnType::value_type;
-  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
+  if constexpr (std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+    return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeBase<ReturnScalarType>>) {
     const ScalarType ONETWELVTH = ScalarType(1) / ScalarType(12);
     return ReturnType::fromScalarConstant(ReturnScalarType(
         ONETWELVTH * (a_pt_0[0] * a_pt_1[1] - a_pt_1[0] * a_pt_0[1]) *
@@ -371,6 +375,26 @@ ReturnType computeType2Contribution(
               << std::endl;
     return ReturnType::fromScalarConstant(ReturnScalarType(0));
   }
+}
+
+template <class ContainerType, class ScalarType>
+inline ContainerType coeffA3SeriesOne(const ContainerType& a_weight) {
+  ContainerType coeff(ScalarType(0));
+  ContainerType x(ScalarType(1));
+  UnsignedIndex_t i = 0;
+  ScalarType max_diff;
+  while (i <= 40) {
+    max_diff = ScalarType(0);
+    ContainerType add_to_coeff = ScalarType(a3Series[i]) * x;
+    coeff += add_to_coeff;
+    max_diff = maximum(max_diff, fabs(add_to_coeff));
+    if (max_diff < ScalarType(DBL_EPSILON)) {
+      break;
+    }
+    x *= a_weight - ContainerType(ScalarType(1));
+    i++;
+  }
+  return coeff;
 }
 
 template <class ContainerType, class ScalarType>
@@ -574,7 +598,31 @@ ReturnType computeType3Contribution(
     const RationalBezierArcBase<ScalarType>& a_arc,
     const NormalBase<ScalarType>& a_face_normal) {
   using ReturnScalarType = typename ReturnType::value_type;
-  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
+  if constexpr (std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+    const NormalBase<ScalarType> tri_area_vector =
+        crossProduct(a_arc.end_point(), a_arc.control_point()) +
+        crossProduct(a_arc.control_point(), a_arc.start_point()) +
+        crossProduct(a_arc.start_point(), a_arc.end_point());
+    const auto w = a_arc.weight();
+    const auto w2 = w * w;
+    ScalarType factor = ScalarType(0);
+    if (w < ScalarType(0.35)) {
+      const auto J = atan(sqrt(ScalarType(1) - w) / (ScalarType(1) + w)) /
+                     sqrt(ScalarType(1) - w2);
+      factor =
+          w * (ScalarType(2) * J - w) / (ScalarType(2) * (ScalarType(1) - w2));
+    } else if (w < ScalarType(1.7)) {
+      factor = coeffA3SeriesOne<ScalarType, ScalarType>(w);
+    } else {
+      const auto J = atanh(sqrt(ScalarType(1) - w) / (ScalarType(1) + w)) /
+                     sqrt(w2 - ScalarType(1));
+      factor =
+          w * (ScalarType(2) * J - w) / (ScalarType(2) * (ScalarType(1) - w2));
+    }
+    return ReturnType::fromScalarConstant(
+        ReturnScalarType(factor * (tri_area_vector * a_face_normal)));
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeBase<ReturnScalarType>>) {
     /* Defining constants and types */
     const ScalarType ZERO = ScalarType(0);
     const ScalarType ONE = ScalarType(1);
@@ -871,9 +919,28 @@ ReturnType computeFaceOnlyContribution(
     const AlignedParaboloidBase<ScalarType>& a_paraboloid,
     const PlaneBase<ScalarType>& a_face_plane,
     const PtBase<ScalarType>& a_pt_ref) {
+  /* Defining constants and types */
   using ReturnScalarType = typename ReturnType::value_type;
-  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
-    /* Defining constants and types */
+  if constexpr (std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+    assert(a_paraboloid.a() * a_paraboloid.b() > ScalarType(0));
+    assert(fabs(a_face_plane.normal()[2]) > machine_epsilon<ScalarType>());
+    const ScalarType FOUR = ScalarType(4);
+    const ScalarType a =
+        -a_face_plane.normal()[0] / safelyEpsilon(a_face_plane.normal()[2]);
+    const ScalarType b =
+        -a_face_plane.normal()[1] / safelyEpsilon(a_face_plane.normal()[2]);
+    const ScalarType c =
+        a_face_plane.distance() / safelyEpsilon(a_face_plane.normal()[2]);
+    const ScalarType factor = -FOUR * a_paraboloid.a() * a_paraboloid.b() * c +
+                              a_paraboloid.a() * b * b +
+                              a_paraboloid.b() * a * a;
+    return ReturnType::fromScalarConstant(ReturnScalarType(copysign(
+        machine_pi<ScalarType>() * abs(factor) /
+            (FOUR * pow(a_paraboloid.a() * a_paraboloid.b(), ScalarType(1.5)) *
+             abs(a_face_plane.normal()[2])),
+        a_paraboloid.a())));
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeBase<ReturnScalarType>>) {
     const ScalarType EPSILON = machine_epsilon<ScalarType>();
     const ScalarType ZERO = ScalarType(0);
     const ScalarType FOUR = ScalarType(4);
@@ -1009,7 +1076,10 @@ ReturnType computeTriangleCorrection(
     const PtBase<ScalarType>& a_pt_0, const PtBase<ScalarType>& a_pt_1,
     const PtBase<ScalarType>& a_pt_2) {
   using ReturnScalarType = typename ReturnType::value_type;
-  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
+  if constexpr (std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+    return ReturnType::fromScalarConstant(ReturnScalarType(0));
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeBase<ReturnScalarType>>) {
     return ReturnType::fromScalarConstant(ReturnScalarType(
         (-a_paraboloid.a() * (a_pt_0[0] + a_pt_1[0]) * (a_pt_1[0] + a_pt_2[0]) +
          -a_paraboloid.b() * (a_pt_0[1] + a_pt_1[1]) * (a_pt_1[1] + a_pt_2[1]) -

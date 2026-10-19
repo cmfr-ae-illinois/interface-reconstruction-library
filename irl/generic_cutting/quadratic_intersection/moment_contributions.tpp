@@ -25,6 +25,7 @@
 #include "irl/geometry/general/scalar_with_gradient.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
+#include "irl/moments/area.h"
 
 namespace IRL {
 
@@ -723,8 +724,8 @@ class MomentLineIntegrator {
   using Pt = PtBase<ScalarType>;
   using Normal = NormalBase<ScalarType>;
   MomentLineIntegrator(const Pt& a_pt_start, const Pt& a_pt_end,
-                                 const Normal& a_face_normal,
-                                 const UnsignedIndex_t a_proj_dir)
+                       const Normal& a_face_normal,
+                       const UnsignedIndex_t a_proj_dir)
       : lower_limit_m(ScalarType(0)),
         upper_limit_m(ScalarType(1)),
         start_m(a_pt_start),
@@ -799,8 +800,7 @@ class MomentLineIntegrator {
   const ScalarType face_distance_m;
   ScalarType lower_limit_m, upper_limit_m;
   ScalarType norm_weight_m;
-  ReturnType (*integrand_m)(const ScalarType,
-                            const MomentLineIntegrator&);
+  ReturnType (*integrand_m)(const ScalarType, const MomentLineIntegrator&);
 };
 
 /******************************************************************************/
@@ -818,7 +818,13 @@ ReturnType computeType1Contribution(const PtBase<ScalarType>& a_ref_pt,
                                     const NormalBase<ScalarType>& a_face_normal,
                                     const UnsignedIndex_t a_proj_dir) {
   using ReturnScalarType = typename ReturnType::value_type;
-  if constexpr (std::is_same_v<ReturnType, VolumeBase<ReturnScalarType>>) {
+  if constexpr (std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+    const NormalBase<ScalarType> area_vector_contribution =
+        NormalBase<ScalarType>(ScalarType(0.5) * crossProduct(a_pt_0, a_pt_1));
+    return ReturnType::fromScalarConstant(
+        ReturnScalarType(area_vector_contribution * a_face_normal));
+  } else if constexpr (std::is_same_v<ReturnType,
+                                      VolumeBase<ReturnScalarType>>) {
     if (*a_skip_first) {
       *a_skip_first = false;
       return ReturnType::fromScalarConstant(ReturnScalarType(0));

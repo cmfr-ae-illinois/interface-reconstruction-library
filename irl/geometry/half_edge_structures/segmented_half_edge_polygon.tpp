@@ -55,9 +55,8 @@ template <class GeometryType, class CalculationFunctor>
 auto calculateMoments(GeometryType* a_geometry,
                       CalculationFunctor a_moment_accumulator) ->
     typename CalculationFunctor::ReturnType {
-
-  if(a_geometry->getNumberOfFaces() == 0){
-	return a_moment_accumulator.getMoments();
+  if (a_geometry->getNumberOfFaces() == 0) {
+    return a_moment_accumulator.getMoments();
   }
 
   segmented_half_edge_polygon_detail::TriPtReferenceWrapper<
@@ -101,6 +100,13 @@ SegmentedHalfEdgePolygonCommon<FaceType, VertexType, kMaxFaces,
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
+Area SegmentedHalfEdgePolygonCommon<FaceType, VertexType, kMaxFaces,
+                                    kMaxVertices>::calculateArea(void) const {
+  return std::fabs(this->calculateVolume());
+}
+
+template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
+          UnsignedIndex_t kMaxVertices>
 Volume SegmentedHalfEdgePolygonCommon<FaceType, VertexType, kMaxFaces,
                                       kMaxVertices>::calculateVolume(void)
     const {
@@ -110,9 +116,9 @@ Volume SegmentedHalfEdgePolygonCommon<FaceType, VertexType, kMaxFaces,
 
 template <class FaceType, class VertexType, UnsignedIndex_t kMaxFaces,
           UnsignedIndex_t kMaxVertices>
-Volume SegmentedHalfEdgePolygonCommon<FaceType, VertexType, kMaxFaces,
-                                      kMaxVertices>::calculateAbsoluteVolume(void)
-    const {
+Volume SegmentedHalfEdgePolygonCommon<
+    FaceType, VertexType, kMaxFaces,
+    kMaxVertices>::calculateAbsoluteVolume(void) const {
   return std::fabs(this->calculateVolume());
 }
 
@@ -226,4 +232,4 @@ bool SegmentedHalfEdgePolygonCommon<
 
 }  // namespace IRL
 
-#endif // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYGON_TPP_
+#endif  // IRL_GEOMETRY_HALF_EDGE_STRUCTURES_SEGMENTED_HALF_EDGE_POLYGON_TPP_

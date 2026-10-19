@@ -312,21 +312,20 @@ ReturnType computeNewEdgeSegmentContribution(
   return full_moments;
 }
 
-template <class PolygonType, class ParaboloidType>
-enable_if_t<is_polygon<PolygonType>::value, ParaboloidParametrizedSurfaceOutput>
+template <class ReturnType, class PolygonType, class ParaboloidType>
+enable_if_t<is_polygon<PolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(const PolygonType& a_polygon,
                                const ParaboloidType& a_paraboloid) {
   auto complete_polytope = a_polygon.generateHalfEdgeVersion();
   auto polytope = complete_polytope.generateSegmentedPolygon();
-  return intersectPolygonWithParaboloid(&polytope, &complete_polytope,
-                                        a_paraboloid);
+  return intersectPolygonWithParaboloid<ReturnType>(
+      &polytope, &complete_polytope, a_paraboloid);
 }
 
 /************* Calculate surface from non-aligned paraboloid **********/
-template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
-          class ParaboloidType>
-enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value,
-            ParaboloidParametrizedSurfaceOutput>
+template <class ReturnType, class SegmentedHalfEdgePolygonType,
+          class HalfEdgePolytopeType, class ParaboloidType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
                                HalfEdgePolytopeType* a_complete_polytope,
                                const ParaboloidType& a_paraboloid) {
@@ -343,6 +342,14 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
   using Plane = PlaneBase<ScalarType>;
   using AlignedParaboloid = AlignedParaboloidBase<ScalarType>;
 
+  // Current implementation only support area as output
+  if constexpr (has_paraboloid_surface<ReturnType>::value) {
+    static_assert(
+        std::is_same_v<typename ReturnType::moment_type, AreaBase<ScalarType>>);
+  } else {
+    static_assert(std::is_same_v<ReturnType, AreaBase<ScalarType>>);
+  }
+
   // Defining constants
   const ScalarType DISTANCE_EPSILON = distance_epsilon<ScalarType>();
   const ScalarType ZERO = ScalarType(0);
@@ -350,12 +357,27 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
 
   // Shortcuts if we already now that the paraboloid is entirely above or
   // below the polytope
-  ParaboloidParametrizedSurfaceOutput surface;
-  surface.setParaboloid(a_paraboloid);
-  if (a_paraboloid.isAlwaysAbove() || a_paraboloid.isAlwaysBelow()) {
-    return surface;
+  ReturnType moments;
+  if constexpr (has_paraboloid_surface<ReturnType>::value) {
+    moments.getSurface().setParaboloid(a_paraboloid);
+  }
+  if (a_paraboloid.isAlwaysAbove()) {
+    if constexpr (has_paraboloid_surface<ReturnType>::value) {
+      moments.getMoments() = a_polytope->calculateArea();
+    } else {
+      moments = a_polytope->calculateArea();
+    }
+    return moments;
+  } else if (a_paraboloid.isAlwaysBelow()) {
+    if constexpr (has_paraboloid_surface<ReturnType>::value) {
+      moments.getMoments() = ReturnType::moment_type::fromScalarConstant(ZERO);
+    } else {
+      moments = ReturnType::fromScalarConstant(ZERO);
+    }
+    return moments;
   }
 
+  auto paraboloid = a_paraboloid;
   // Move into reference frame of the paraboloid and compute and approximate
   // length-scale of the polytope
   const UnsignedIndex_t original_number_of_vertices =
@@ -382,7 +404,7 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
   // Define scale so that the polyhedron's volume is O(1)
   const ScalarType inv_scale =
       maximum(ScalarType(1.0e6) * DISTANCE_EPSILON, sqrt(max_dist_sq));
-  const ScalarType scale = ScalarType(ONE) / inv_scale;
+  const ScalarType scale = ONE / inv_scale;
 
   // Normalized polygon
   for (UnsignedIndex_t v = 0; v < original_number_of_vertices; ++v) {
@@ -396,46 +418,60 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
       a_paraboloid.getAlignedParaboloid().b() * inv_scale});
 
   // Compute moments of intersection
-  intersectPolygonWithAlignedParaboloid(a_polytope, a_complete_polytope,
-                                        scaled_aligned_paraboloid, inv_scale,
-                                        &surface);
-
-  // Un-normalized moments
-  auto& arc_list = surface.getArcs();
-  for (std::size_t i = 0; i < arc_list.size(); ++i) {
-    arc_list[i].start_point() *= static_cast<double>(inv_scale);
-    arc_list[i].control_point() *= static_cast<double>(inv_scale);
-    arc_list[i].end_point() *= static_cast<double>(inv_scale);
-    // Start to Global
-    Pt local_pt = arc_list[i].start_point();
-    Pt global_pt = Pt(0, 0, 0);
-    for (UnsignedIndex_t n = 0; n < 3; ++n) {
-      for (UnsignedIndex_t d = 0; d < 3; ++d) {
-        global_pt[n] += ref_frame[d][n] * local_pt[d];
-      }
-    }
-    arc_list[i].start_point() = global_pt + datum;
-    // Control to Global
-    local_pt = arc_list[i].control_point();
-    global_pt = Pt(0, 0, 0);
-    for (UnsignedIndex_t n = 0; n < 3; ++n) {
-      for (UnsignedIndex_t d = 0; d < 3; ++d) {
-        global_pt[n] += ref_frame[d][n] * local_pt[d];
-      }
-    }
-    arc_list[i].control_point() = global_pt + datum;
-    // End to Global
-    local_pt = arc_list[i].end_point();
-    global_pt = Pt(0, 0, 0);
-    for (UnsignedIndex_t n = 0; n < 3; ++n) {
-      for (UnsignedIndex_t d = 0; d < 3; ++d) {
-        global_pt[n] += ref_frame[d][n] * local_pt[d];
-      }
-    }
-    arc_list[i].end_point() = global_pt + datum;
+  if constexpr (has_paraboloid_surface<ReturnType>::value) {
+    moments.getSurface().setParaboloid(paraboloid);
+    moments.getMoments() =
+        intersectPolygonWithAlignedParaboloid<typename ReturnType::moment_type>(
+            a_polytope, a_complete_polytope, scaled_aligned_paraboloid,
+            inv_scale, &moments.getSurface());
+  } else {
+    NoSurfaceOutput* surf = nullptr;
+    moments = intersectPolygonWithAlignedParaboloid<ReturnType>(
+        a_polytope, a_complete_polytope, scaled_aligned_paraboloid, inv_scale,
+        surf);
   }
 
-  return surface;
+  // Un-normalized moments
+  if constexpr (has_paraboloid_surface<ReturnType>::value) {
+    moments.getMoments().area() *= inv_scale * inv_scale;
+    auto& arc_list = moments.getSurface().getArcs();
+    for (std::size_t i = 0; i < arc_list.size(); ++i) {
+      arc_list[i].start_point() *= static_cast<double>(inv_scale);
+      arc_list[i].control_point() *= static_cast<double>(inv_scale);
+      arc_list[i].end_point() *= static_cast<double>(inv_scale);
+      // Start to Global
+      Pt local_pt = arc_list[i].start_point();
+      Pt global_pt = Pt(0, 0, 0);
+      for (UnsignedIndex_t n = 0; n < 3; ++n) {
+        for (UnsignedIndex_t d = 0; d < 3; ++d) {
+          global_pt[n] += ref_frame[d][n] * local_pt[d];
+        }
+      }
+      arc_list[i].start_point() = global_pt + datum;
+      // Control to Global
+      local_pt = arc_list[i].control_point();
+      global_pt = Pt(0, 0, 0);
+      for (UnsignedIndex_t n = 0; n < 3; ++n) {
+        for (UnsignedIndex_t d = 0; d < 3; ++d) {
+          global_pt[n] += ref_frame[d][n] * local_pt[d];
+        }
+      }
+      arc_list[i].control_point() = global_pt + datum;
+      // End to Global
+      local_pt = arc_list[i].end_point();
+      global_pt = Pt(0, 0, 0);
+      for (UnsignedIndex_t n = 0; n < 3; ++n) {
+        for (UnsignedIndex_t d = 0; d < 3; ++d) {
+          global_pt[n] += ref_frame[d][n] * local_pt[d];
+        }
+      }
+      arc_list[i].end_point() = global_pt + datum;
+    }
+  } else {
+    moments.area() *= inv_scale * inv_scale;
+  }
+
+  return moments;
 }
 
 /************* Calculate moments from non-aligned paraboloid **********/
@@ -674,9 +710,10 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
 }
 
 /*********** Calculate surface from aligned paraboloid *************/
-template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
-          class AlignedParaboloidType, class ScalarType>
-enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, void>
+template <class ReturnType, class SegmentedHalfEdgePolygonType,
+          class HalfEdgePolytopeType, class AlignedParaboloidType,
+          class ScalarType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
 intersectPolygonWithAlignedParaboloid(
     SegmentedHalfEdgePolygonType* a_polytope,
     HalfEdgePolytopeType* a_complete_polytope,
@@ -684,7 +721,7 @@ intersectPolygonWithAlignedParaboloid(
     ParaboloidParametrizedSurfaceOutput* a_surface) {
   // Below function computes the entire integration (nudge counter
   // initialized to 0)
-  Volume dummy = formParaboloidIntersectionBases<Volume>(
+  return formParaboloidIntersectionBases<ReturnType>(
       a_polytope, a_complete_polytope, a_paraboloid, 0, a_surface);
 }
 
@@ -1160,6 +1197,8 @@ formParaboloidIntersectionBases(
   using pt_type = typename vertex_type::pt_type;
   using face_type = typename SegmentedHalfEdgePolyhedronType::face_type;
   using half_edge_type = typename HalfEdgePolytopeType::half_edge_type;
+  constexpr bool polytope_is_polygon =
+      is_polygon<SegmentedHalfEdgePolyhedronType>::value;
 
   // Defining type aliases (needed to ensure precision is consistent)
   using ScalarType = typename pt_type::value_type;
@@ -1262,7 +1301,12 @@ formParaboloidIntersectionBases(
     if (elliptic && a_aligned_paraboloid.a() > ZERO &&
         number_of_vertices_above == 0) {
       // Whole volume below
-      return ReturnType::calculateMoments(a_polytope);
+      if constexpr (polytope_is_polygon &&
+                    std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+        return a_polytope->calculateArea();
+      } else {
+        return ReturnType::calculateMoments(a_polytope);
+      }
     }
 
     if (elliptic && a_aligned_paraboloid.a() < ZERO &&
@@ -1680,7 +1724,12 @@ formParaboloidIntersectionBases(
       return full_moments;
     } else if (number_of_vertices_above == 0) {
       // All points below
-      return ReturnType::calculateMoments(a_polytope) + full_moments;
+      if constexpr (polytope_is_polygon &&
+                    std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+        return a_polytope->calculateArea() + full_moments;
+      } else {
+        return ReturnType::calculateMoments(a_polytope) + full_moments;
+      }
     }
     // ELSE: The polytope has 0 intersections, but a number of clipped
     // vertices > 0 and a number of unclipped vertices > 0. This is very
@@ -2464,7 +2513,12 @@ formParaboloidIntersectionBases(
         a_surface);
   }
 
-  return full_moments;
+  if constexpr (is_polygon<SegmentedHalfEdgePolyhedronType>::value &&
+                std::is_same_v<ReturnType, AreaBase<ReturnScalarType>>) {
+    return abs(full_moments.area());
+  } else {
+    return full_moments;
+  }
 }
 }  // namespace IRL
 

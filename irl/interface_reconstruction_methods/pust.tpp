@@ -495,6 +495,8 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
                                            const SeparatorVariant* a_separator,
                                            const double Pressure,
                                            const Normal& Marangoni) {
+  using AreaAndSurface =
+      AddSurfaceOutput<Area, ParaboloidParametrizedSurfaceOutput>;
   // std::cout << "=========================== Solve Face \n" << std::endl;
   const double EPSILON = machine_epsilon<double>();
   // The Marangoni normal object holds the Xgradient, then the Y gradient, then
@@ -541,8 +543,11 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
     poly[1] = P1;
     poly[2] = P2;
     poly[3] = P3;
+    poly.calculateAndSetPlaneOfExistence();
     // Make the parametric surface
-    paramSurface = intersectPolygonWithParaboloid(poly, *sepPtr);
+    auto area_and_surf =
+        intersectPolygonWithParaboloid<AreaAndSurface>(poly, *sepPtr);
+    paramSurface = area_and_surf.getSurface();
     // std::cout << "Parametric surface created\n";
   } else {
     std::cout << "Error: Invalid separator type\n";

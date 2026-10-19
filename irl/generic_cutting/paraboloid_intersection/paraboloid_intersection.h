@@ -24,20 +24,20 @@
 #include "irl/geometry/general/rotations.h"
 #include "irl/geometry/general/unit_quaternion.h"
 #include "irl/helpers/mymath.h"
+#include "irl/moments/area.h"
 #include "irl/paraboloid_reconstruction/paraboloid.h"
 #include "irl/quadratic_reconstruction/rational_bezier_arc.h"
 
 namespace IRL {
 
-template <class PolygonType, class ParaboloidType>
-enable_if_t<is_polygon<PolygonType>::value, ParaboloidParametrizedSurfaceOutput>
+template <class ReturnType, class PolygonType, class ParaboloidType>
+enable_if_t<is_polygon<PolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(const PolygonType& a_polygon,
                                const ParaboloidType& a_paraboloid);
 
-template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
-          class ParaboloidType>
-enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value,
-            ParaboloidParametrizedSurfaceOutput>
+template <class ReturnType, class SegmentedHalfEdgePolygonType,
+          class HalfEdgePolytopeType, class ParaboloidType>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
                                HalfEdgePolytopeType* a_complete_polytope,
                                const ParaboloidType& a_paraboloid);
@@ -49,14 +49,15 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
                                   HalfEdgePolytopeType* a_complete_polytope,
                                   const ParaboloidType& a_paraboloid);
 
-template <class SegmentedHalfEdgePolygonType, class HalfEdgePolytopeType,
-          class AlignedParaboloidType, class ScalarType>
-enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, void>
-intersectPolygonWithAlignedParaboloid(
-    SegmentedHalfEdgePolygonType* a_polytope,
-    HalfEdgePolytopeType* a_complete_polytope,
-    const AlignedParaboloidType& a_paraboloid, const ScalarType a_scale,
-    ParaboloidParametrizedSurfaceOutput* a_surface);
+template <class ReturnType, class SegmentedHalfEdgePolygonType,
+          class HalfEdgePolytopeType, class AlignedParaboloidType,
+          class ScalarType, class SurfaceOutputType = NoSurfaceOutput>
+enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
+intersectPolygonWithAlignedParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
+                                      HalfEdgePolytopeType* a_complete_polytope,
+                                      const AlignedParaboloidType& a_paraboloid,
+                                      const ScalarType a_scale,
+                                      SurfaceOutputType* a_surface = nullptr);
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class AlignedParaboloidType,

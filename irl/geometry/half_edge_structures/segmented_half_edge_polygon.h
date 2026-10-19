@@ -14,6 +14,7 @@
 
 #include "irl/geometry/half_edge_structures/half_edge.h"
 #include "irl/geometry/half_edge_structures/segmented_half_edge_polytope.h"
+#include "irl/moments/area.h"
 #include "irl/moments/volume.h"
 #include "irl/moments/volume_moments.h"
 #include "irl/moments/volume_moments_and_normal.h"
@@ -43,6 +44,8 @@ class SegmentedHalfEdgePolygonCommon
   // from a different Polygon class).
   void setPlaneOfExistence(const Plane* a_plane);
   const Plane& getPlaneOfExistence(void) const;
+
+  inline Area calculateArea(void) const;
 
   inline Volume calculateVolume(void) const;
 

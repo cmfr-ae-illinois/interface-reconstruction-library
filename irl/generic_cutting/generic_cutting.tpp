@@ -12,6 +12,7 @@
 
 #include "irl/generic_cutting/analytic/rectangular_cuboid.h"
 #include "irl/generic_cutting/analytic/tet.h"
+#include "irl/moments/area.h"
 #include "irl/moments/volume.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 

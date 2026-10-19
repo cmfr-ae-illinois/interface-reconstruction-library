@@ -55,6 +55,12 @@ const Plane& PolygonMomentsCalculationCommon<
 }
 
 template <class Derived, class VertexType, class SimplexType>
+inline Area PolygonMomentsCalculationCommon<
+    Derived, VertexType, SimplexType>::calculateArea(void) const {
+  return this->calculateAbsoluteVolume();
+}
+
+template <class Derived, class VertexType, class SimplexType>
 inline Volume PolygonMomentsCalculationCommon<
     Derived, VertexType, SimplexType>::calculateVolume(void) const {
   return IRL::calculateMoments((*this), Volume2D_Functor());
