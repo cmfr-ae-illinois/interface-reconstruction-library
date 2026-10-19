@@ -70,6 +70,8 @@ class ParaboloidBase {
   const NormalBase<ScalarType> getNormal(
       const PtBase<ScalarType>& a_location) const;
 
+  const ScalarType getMeanCurvature(const PtBase<ScalarType>& a_location) const;
+
   /// Indicates that the intersection should actually be performed.
   void markAsRealReconstruction(void);
 

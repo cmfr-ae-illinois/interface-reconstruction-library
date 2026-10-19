@@ -152,6 +152,24 @@ inline const NormalBase<ScalarType> ParaboloidBase<ScalarType>::getNormal(
 }
 
 template <class ScalarType>
+inline const ScalarType ParaboloidBase<ScalarType>::getMeanCurvature(
+    const PtBase<ScalarType>& a_location) const {
+  const ScalarType ONE = ScalarType(1);
+  const ScalarType ONEANDHALF = ScalarType(1.5);
+  const ScalarType TWO = ScalarType(2);
+  const ScalarType FOUR = ScalarType(4);
+  const PtBase<ScalarType> pt_diff = PtBase<ScalarType>(a_location - datum_m);
+  const ScalarType ptx = frame_m[0] * pt_diff;
+  const ScalarType pty = frame_m[1] * pt_diff;
+  const ScalarType A = paraboloid_m.a();
+  const ScalarType B = paraboloid_m.b();
+  return (TWO * (A + B + FOUR * (A * A) * B * (ptx * ptx) +
+                 FOUR * A * (B * B) * (pty * pty))) /
+         pow(ONE + FOUR * (A * A) * (ptx * ptx) + FOUR * (B * B) * (pty * pty),
+             ONEANDHALF);
+}
+
+template <class ScalarType>
 inline void ParaboloidBase<ScalarType>::markAsRealReconstruction(void) {
   place_infinite_shortcut_m[0] = false;
   place_infinite_shortcut_m[1] = false;
