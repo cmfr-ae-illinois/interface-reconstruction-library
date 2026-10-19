@@ -361,7 +361,7 @@ struct iVF {
           neighborhood.localize();
 
           IRL::iJibben_3D ijibben(&neighborhood);
-          ijibben.getParaboloidCoefficients2();
+          ijibben.getParaboloidCoefficients();
 
           const std::pair<double, IRL::Normal> fit_result =
               ijibben.computeAveragedCurvatureAndNormal();
