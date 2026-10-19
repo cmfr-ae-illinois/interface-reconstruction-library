@@ -1,0 +1,35 @@
+# implicit surface
+shape = perturbed_sphere
+
+# reconstruction method
+reconstruction_method = lvira
+
+# binary file containing the true moments at the finest resolution
+binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/reconstruction_binary_files/perturbed_sphere_moments_Nx1024.bin
+
+# base grid size
+nx_fine = 1024
+# refinement factors 
+factors = 2 4 8 16 32 64
+
+max_grid_size = 16
+
+# moment orders for reconstruction
+moment_order = 2
+volume_moment_order = 1
+surface_moment_order = 0
+do_volume = 1
+do_surface = 0
+
+# to output reconstructed interface
+output_interface = 0
+interface_output_dir = "/home/parinht2/Repositories/interface-reconstruction-library/build"
+
+# to output csv with error norms for volumetric and surface moments
+output_csv = 0
+#csv_file = "/home/parinht2/Documents/Conferences/MULTIMAT_2026/data/static_reconstruction/orthocircle/orthocircle_mof2_hybrid_metrics.csv"
+
+# to output cell errors for volumetric and surface moments
+output_cell_errors = 0
+#cell_error_output_dir = "/home/parinht2/Documents/Conferences/MULTIMAT_2026/data/static_reconstruction/orthocircle/cell_errors_new"
+#cell_error_output_name = orthocircle_mof2_hybrid_cell_errors
