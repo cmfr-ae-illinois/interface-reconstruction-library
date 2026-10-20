@@ -71,6 +71,7 @@ class ParaboloidBase {
       const PtBase<ScalarType>& a_location) const;
 
   const ScalarType getMeanCurvature(const PtBase<ScalarType>& a_location) const;
+  const ScalarType getLevelsetValue(const PtBase<ScalarType>& a_location) const;
 
   /// Indicates that the intersection should actually be performed.
   void markAsRealReconstruction(void);

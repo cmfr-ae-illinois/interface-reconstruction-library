@@ -410,7 +410,7 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
           averageCurvature += 0.5 * w * curv * speed;
           averageSurfaceTension += 0.5 * w * ST * speed;
 
-          // Also need the area contribution of the spline wth F = {x,0,0}
+          // Also need the area contribution of the spline wth F = {x/3,y/3,z/3}
           // First, get outward pointing normal to spline.
           Normal tangentVector = Normal(tangent[0], tangent[1], tangent[2]);
           tangentVector.normalize();
@@ -532,6 +532,7 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
   double area = 0.0;
   // Calculate the parametric surface from the face polygon and the paraboloid
   ParaboloidParametrizedSurfaceOutput paramSurface;
+  AreaAndSurface area_and_surf;
   const auto SeparatorPointer = std::get_if<Paraboloid>(a_separator);
   if (const auto sepPtr = std::get_if<Paraboloid>(a_separator)) {
     // Do something with the paraboloid
@@ -545,7 +546,7 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
     poly[3] = P3;
     poly.calculateAndSetPlaneOfExistence();
     // Make the parametric surface
-    auto area_and_surf =
+    area_and_surf =
         intersectPolygonWithParaboloid<AreaAndSurface>(poly, *sepPtr);
     paramSurface = area_and_surf.getSurface();
     // std::cout << "Parametric surface created\n";
@@ -609,9 +610,53 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
       f.normalize();
       f = f * ST;
       total = total + 0.5 * w * f * speed;
+      if (Pressure >= 0.5) {
+        double curv = SeparatorPointer->getMeanCurvature(pt);
+        arcLength += 0.5 * w * speed;
+        averageCurvature += 0.5 * w * curv * speed;
+        averageSurfaceTension += 0.5 * w * ST * speed;
+
+        Normal tangentVector = Normal(tangent[0], tangent[1], tangent[2]);
+        tangentVector.normalize();
+        Normal outwardNormal = IRL::crossProduct(tangentVector, faceNormal);
+        outwardNormal.normalize();
+
+        // This area might need to be deleted ***
+        // Also need the area contribution of the spline wth F = {x/3,y/3,z/3}
+        // First, get outward pointing normal to spline.
+        // Now get F
+        // Normal F = {pt[0] / 3.0, pt[1] / 3.0, pt[2] / 3.0};
+        // // Now get the integrand
+        // double integrand = outwardNormal * F;
+        // area += 0.5 * w * integrand * speed;
+      }
     }
   }
   // std::cout << "Total force: " << total << "\n";
+  // Ensure Total is facing in face Normal direction
+  if (total * faceNormal < 0) {
+    total = -total;
+  }
+  // Now add pressure term
+  area = area_and_surf.getMoments().area();
+  if (Pressure >= 0.5 && std::abs(arcLength) > 1e-12) {
+    averageCurvature = averageCurvature / safelyTiny(arcLength);
+    averageSurfaceTension = averageSurfaceTension / safelyTiny(arcLength);
+    Normal inwardsNormal = -faceNormal;
+    inwardsNormal.normalize();
+
+    // Determine if center point inside or outside
+    Pt faceCenter = (P0 + P1 + P2 + P3) * 0.25;
+    double levelsetValue = SeparatorPointer->getLevelsetValue(faceCenter);
+    if (levelsetValue > 0.0) {
+      total = total +
+              averageSurfaceTension * averageCurvature * area * inwardsNormal;
+    } else {
+      area = faceArea - area;
+      total = total -
+              averageSurfaceTension * averageCurvature * area * inwardsNormal;
+    }
+  }
   return total;
 }
 
