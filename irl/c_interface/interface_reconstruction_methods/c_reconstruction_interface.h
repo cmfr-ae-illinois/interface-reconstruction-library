@@ -46,6 +46,15 @@ extern "C" {
 /// the individual needs of each reconstruction method,
 /// it is best to constult its specific documentation.
 
+// The neighborhood must be localized before either iJibben operation.
+// The averaged normal is returned in global coordinates.
+void c_fitIterativeJibben3D(const c_JibbenNeigh* neighborhood,
+                           double* curvature, double* normal);
+void c_reconstructIterativeJibben3D_Variant(const c_JibbenNeigh* neighborhood,
+                                           c_SeparatorVariant* separator);
+void c_reconstructIterativeJibben3D_Union_raw(const c_JibbenNeigh* neighborhood,
+                                             IRL::SeparatorUnion& separator);
+
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
     const double* a_dx, c_SeparatorVariant* a_separator);

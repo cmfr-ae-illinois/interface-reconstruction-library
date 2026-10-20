@@ -41,6 +41,11 @@ module f_ReconstructionInterface
   use f_R2PWeighting_class
   implicit none
 
+  interface reconstructIterativeJibben3D
+    module procedure reconstructIterativeJibben3D_Variant
+    module procedure reconstructIterativeJibben3D_Union_raw
+  end interface
+
   interface reconstructPU3D
     module procedure reconstructPU3D_RectCub_Variant
     module procedure reconstructPU3D_RectCub_Union_raw
@@ -159,6 +164,28 @@ module f_ReconstructionInterface
     ! 3D LVIRA on a Tet mesh
     module procedure reconstructLVIRA3D_Tet        
   end interface reconstructLVIRA3D  
+
+  interface
+    subroutine F_fitIterativeJibben3D(neighborhood, curvature, normal) &
+    bind(C, name="c_fitIterativeJibben3D")
+      use, intrinsic :: iso_c_binding
+      import
+      type(c_JibbenNeigh), intent(in) :: neighborhood
+      real(C_DOUBLE), intent(out) :: curvature, normal(3)
+    end subroutine
+    subroutine F_reconstructIterativeJibben3D_Variant(neighborhood, separator) &
+    bind(C, name="c_reconstructIterativeJibben3D_Variant")
+      import
+      type(c_JibbenNeigh), intent(in) :: neighborhood
+      type(c_SeparatorVariant), intent(inout) :: separator
+    end subroutine
+    subroutine F_reconstructIterativeJibben3D_Union_raw(neighborhood, separator) &
+    bind(C, name="c_reconstructIterativeJibben3D_Union_raw")
+      import
+      type(c_JibbenNeigh), intent(in) :: neighborhood
+      type(SeparatorUnion_type_raw), intent(inout) :: separator
+    end subroutine
+  end interface
 
   interface
     subroutine F_reconstructELVIRA2D(a_ELVIRANeigh, a_planar_separator) &
@@ -658,6 +685,27 @@ module f_ReconstructionInterface
   end interface
   
   contains
+
+  ! Fit a localized neighborhood and return curvature and a global unit normal.
+  subroutine fitIterativeJibben3D(neighborhood, curvature, normal)
+    use, intrinsic :: iso_c_binding
+    type(JibbenNeigh_type), intent(in) :: neighborhood
+    real(C_DOUBLE), intent(out) :: curvature, normal(3)
+    call F_fitIterativeJibben3D(neighborhood%c_object, curvature, normal)
+  end subroutine
+
+  subroutine reconstructIterativeJibben3D_Variant(neighborhood, separator)
+    type(JibbenNeigh_type), intent(in) :: neighborhood
+    type(SeparatorVariant_type), intent(inout) :: separator
+    call F_reconstructIterativeJibben3D_Variant(neighborhood%c_object, separator%c_object)
+  end subroutine
+
+  subroutine reconstructIterativeJibben3D_Union_raw(neighborhood, separator)
+    type(JibbenNeigh_type), intent(in) :: neighborhood
+    type(SeparatorUnion_type_raw), intent(inout) :: separator
+    call F_reconstructIterativeJibben3D_Union_raw(neighborhood%c_object, separator)
+  end subroutine
+
 
   subroutine reconstructELVIRA2D(a_elvira_neighborhood, a_planar_separator)
     use, intrinsic :: iso_c_binding

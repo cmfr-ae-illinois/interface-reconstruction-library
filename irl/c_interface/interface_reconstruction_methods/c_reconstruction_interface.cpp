@@ -10,8 +10,43 @@
 #include "irl/c_interface/interface_reconstruction_methods/c_reconstruction_interface.h"
 
 #include <cassert>
+#include "irl/interface_reconstruction_methods/iterative_jibben.h"
 
 extern "C" {
+
+void c_fitIterativeJibben3D(const c_JibbenNeigh* neighborhood,
+                           double* curvature, double* normal) {
+  assert(neighborhood != nullptr && neighborhood->obj_ptr != nullptr);
+  assert(curvature != nullptr && normal != nullptr);
+  IRL::iJibben_3D fit(neighborhood->obj_ptr);
+  fit.getParaboloidCoefficients();
+  const auto result = fit.computeAveragedCurvatureAndNormal();
+  *curvature = result.first;
+  const auto& frame = neighborhood->obj_ptr->getReferenceFrame();
+  IRL::Normal global(0.0, 0.0, 0.0);
+  for (IRL::UnsignedIndex_t d = 0; d < 3; ++d)
+    for (IRL::UnsignedIndex_t q = 0; q < 3; ++q)
+      global[d] += result.second[q] * frame[q][d];
+  global.normalize();
+  for (IRL::UnsignedIndex_t d = 0; d < 3; ++d) normal[d] = global[d];
+}
+
+void c_reconstructIterativeJibben3D_Variant(const c_JibbenNeigh* neighborhood,
+                                           c_SeparatorVariant* separator) {
+  assert(neighborhood != nullptr && neighborhood->obj_ptr != nullptr);
+  assert(separator != nullptr && separator->obj_ptr != nullptr);
+  IRL::iJibben_3D fit(neighborhood->obj_ptr);
+  fit.getParaboloidCoefficients();
+  *separator->obj_ptr = fit.makeParaboloid2(neighborhood->obj_ptr);
+}
+
+void c_reconstructIterativeJibben3D_Union_raw(const c_JibbenNeigh* neighborhood,
+                                             IRL::SeparatorUnion& separator) {
+  assert(neighborhood != nullptr && neighborhood->obj_ptr != nullptr);
+  IRL::iJibben_3D fit(neighborhood->obj_ptr);
+  fit.getParaboloidCoefficients();
+  separator = fit.makeParaboloid2(neighborhood->obj_ptr);
+}
 
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
