@@ -89,16 +89,14 @@ double CircleFit_3D::getDistanceWeight(const IRL::Pt& a_pref,
   return (1.0 + 4.0 * distance_ndim) * std::pow(1.0 - distance_ndim, 4.0);
 }
 
-double CircleFit_3D::getTotalWeight(const double& a_vfrac,
-                                    const IRL::Normal& a_nref,
-                                    const IRL::Normal& a_nloc,
-                                    const IRL::Pt& a_pref,
-                                    const IRL::Pt& a_ploc) {
+double CircleFit_3D::getTotalWeight(
+    const double& a_vfrac, const IRL::Normal& a_nref, const IRL::Normal& a_nloc,
+    const IRL::Pt& a_pref, const IRL::Pt& a_ploc, const double& a_area_weight) {
   const double vf_weight = getVfWeight(a_vfrac);
   const double normal_weight = getNormalWeight(a_nref, a_nloc);
   const double distance_weight = getDistanceWeight(a_pref, a_ploc);
 
-  return vf_weight * normal_weight * distance_weight;
+  return a_area_weight * vf_weight * normal_weight * distance_weight;
 }
 
 IRL::Normal CircleFit_3D::calculatePolygonNormal(
@@ -491,7 +489,7 @@ IRL::Normal CircleFit_3D::getHermiteNormal(
   // Base strength of the Hermite normal constraints.
   constexpr double lambda0 = 1.0;
 
-  const double angle_threshold_degrees = 60.0;
+  const double angle_threshold_degrees = 90.0;
   const double cos_angle_threshold =
       std::cos(angle_threshold_degrees * M_PI / 180.0);
 
@@ -661,7 +659,8 @@ IRL::Normal CircleFit_3D::getHermiteNormal(
     const double vfrac = neighborhood_m->getWeight(p);
     const double vf_weight = getVfWeight(vfrac);
     const double distance_weight = getDistanceWeight(datum, centroid);
-    const double w = vf_weight * distance_weight;
+    const double area_weight = polygon.calculateVolume() / (h * h);
+    const double w = area_weight * vf_weight * distance_weight;
 
     if (!std::isfinite(w) || w <= 0.0) {
       continue;
@@ -847,9 +846,9 @@ Paraboloid CircleFit_3D::solve(void) {
       const IRL::Normal neighbor_normal = calculatePolygonNormal(polygon);
       const IRL::Pt neighbor_centroid = polygon.calculateCentroid();
 
-      const double weight =
-          getTotalWeight(vfrac, rotated_polygon_frame[2], neighbor_normal,
-                         datum, neighbor_centroid);
+      const double weight = getTotalWeight(
+          vfrac, rotated_polygon_frame[2], neighbor_normal, datum,
+          neighbor_centroid, polygon.calculateVolume() / (h_m * h_m));
 
       weights.push_back(weight);
     }

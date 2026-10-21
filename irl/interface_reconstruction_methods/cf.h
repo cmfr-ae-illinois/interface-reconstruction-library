@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef IRL_INTERFACE_RECONSTRUCTION_METHODS_CIRCLE_FIT_H_
-#define IRL_INTERFACE_RECONSTRUCTION_METHODS_CIRCLE_FIT_H_
+#ifndef IRL_INTERFACE_RECONSTRUCTION_METHODS_CF_H_
+#define IRL_INTERFACE_RECONSTRUCTION_METHODS_CF_H_
 
 #include <Eigen/Dense>
 
@@ -61,7 +61,7 @@ class CircleFit_3D {
   /// \brief Total weight
   double getTotalWeight(const double& a_vfrac, const IRL::Normal& a_nref,
                         const IRL::Normal& a_nloc, const IRL::Pt& a_pref,
-                        const IRL::Pt& a_ploc);
+                        const IRL::Pt& a_ploc, const double& a_area_weight);
 
   /// \brief Calculate polygon normal
   IRL::Normal calculatePolygonNormal(const IRL::Polygon& a_polygon);
@@ -107,4 +107,4 @@ class CircleFit_3D {
 
 }  // namespace IRL
 
-#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_CIRCLE_FIT_H_
+#endif  // IRL_INTERFACE_RECONSTRUCTION_METHODS_CF_H_
