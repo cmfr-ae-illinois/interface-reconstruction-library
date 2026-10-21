@@ -20,8 +20,6 @@ int main (int argc, char* argv[]) {
     
     // Classifier parameters
     int stencil_size = 5;
-    int canonicalize_symmetries = 48;
-    float noise_stddev = 0.0f;
     int include_Moments = 1;
     bool include_Surface_Area = false;
     bool include_Eigenvalues = false;
@@ -31,11 +29,19 @@ int main (int argc, char* argv[]) {
     int canonicalize_symmetries = 48;
     float noise_stddev = 0.0f;
 
+    // Net Parameters
+    int hidden_size1 = 256;
+    int hidden_size2 = 64;
+    int hidden_size3 = 32;
+    int output_size = 6; //CHANGED 4 to 6
+
     // Study parameters
     const int small_batch_increment = 16;       
     const int large_batch_increment = 128;
     const int switch_to_large_after_no_batches = 128;
     const int max_total_large_increments = 20; //= total 4*1024k *64 = 262k
+    int no_batches = 0;
+    int batch_size = 64;
                                         
     const int small_steps =
         switch_to_large_after_no_batches / small_batch_increment;
@@ -45,7 +51,7 @@ int main (int argc, char* argv[]) {
 
     const double min_improvement = 0.005; // absolute accuracy improvement
 
-    const std::string base_dir = "/home/quirin/mlcfd/Datasets/SixClasses/Thesis/DatasetSizeStudy/";
+    const std::string base_dir = "/home/quirin/mlcfd/Datasets/SixClasses/NoEllipsoidLigTips/s5_2M/DatasetStudy/";
     
     fs::create_directories(base_dir);
 
@@ -88,7 +94,7 @@ int main (int argc, char* argv[]) {
 
         {
             IRL::MLClassifier ml(stencil_size, epsilon_connectivity, canonicalize_symmetries, noise_stddev, include_Moments, include_Surface_Area, include_Eigenvalues, hidden_size1, hidden_size2, hidden_size3, output_size);
-
+            ml.setNoBatches(no_batches);
             if (step == 1) {
                 ml.generateDataset();        // generates 2048 * 64 samples
             } else {

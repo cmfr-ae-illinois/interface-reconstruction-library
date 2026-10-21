@@ -197,6 +197,11 @@ public:
         class0_max_characteristic = class0_max_characteristic_in;
     }
 
+    void setNoBatches(int no_batches_in) {
+        no_batches = no_batches_in;
+        no_datapoints = no_batches * batch_size;
+    }
+
     void setSeed(uint64_t seed_in) {
         seed = seed_in;
 
