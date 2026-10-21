@@ -20,6 +20,7 @@ static constexpr int comp_m2_l = 8;
 static constexpr int comp_m2_g = 14;
 
 #include "examples/amrex_advector/advection_helpers.h"
+#include "examples/amrex_advector/connected_components_labeling.h"
 
 struct InterfaceScalarField {
   std::string name;

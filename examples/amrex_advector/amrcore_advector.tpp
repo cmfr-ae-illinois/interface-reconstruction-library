@@ -450,6 +450,21 @@ void AmrCoreAdv::Evolve() {
     //   ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
     // }
     // ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
+
+    // Build uniform finest-resolution volume fraction field.
+    amrex::MultiFab uniform_final_vf;
+
+    BuildUniformFinestVolumeFractionField(uniform_final_vf);
+
+    // Count connected liquid structures.
+    const int ncomponents = CCL::CountConnectedComponents(
+        uniform_final_vf, Geom(finest_level), 1.0e-10);
+
+    amrex::Print() << "\n-----------------------------------------\n"
+                   << "Final connected component count\n"
+                   << "Time       = " << t_new[0] << "\n"
+                   << "Components = " << ncomponents << "\n"
+                   << "-----------------------------------------\n";
   }
 
   {
@@ -507,6 +522,21 @@ void AmrCoreAdv::InitData() {
       // const std::string initial_filename =
       //     UniformMomentsBinaryFileName("initial");
       // WriteUniformMomentsBinary(uniform_initial_moments, initial_filename);
+
+      // Build uniform finest-resolution volume fraction field.
+      amrex::MultiFab uniform_initial_vf;
+
+      BuildUniformFinestVolumeFractionField(uniform_initial_vf);
+
+      // Count connected liquid structures.
+      const int ncomponents = CCL::CountConnectedComponents(
+          uniform_initial_vf, Geom(finest_level), 1.0e-10);
+
+      amrex::Print() << "\n-----------------------------------------\n"
+                     << "Initial connected component count\n"
+                     << "Time       = " << t_new[0] << "\n"
+                     << "Components = " << ncomponents << "\n"
+                     << "-----------------------------------------\n";
     }
 
     if (UsingCheckpointInterval() || ShouldWriteInitialCheckpointTime()) {

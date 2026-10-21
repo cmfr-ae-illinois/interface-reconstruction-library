@@ -25,6 +25,7 @@ IRLAddExample_cpp(
   "advection_pamt.h"
   "advection_remap.h"
   "advection_helpers.h"
+  "connected_components_labeling.h"
   SRCS
   "main.cpp"
   "vtk.cpp"
@@ -60,6 +61,7 @@ IRLAddExample_cpp(
   "advection_pamt.h"
   "advection_remap.h"
   "advection_helpers.h"
+  "connected_components_labeling.h"
   SRCS
   "checkpoint_postprocess.cpp"
   "vtk.cpp"
