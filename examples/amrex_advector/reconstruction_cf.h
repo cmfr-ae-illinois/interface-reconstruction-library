@@ -164,6 +164,13 @@ struct CF {
           return;
         }
 
+        const auto& aligned_paraboloid = paraboloid.getAlignedParaboloid();
+
+        if (std::fabs(aligned_paraboloid.a()) * dx_avg > 4.0 ||
+            std::fabs(aligned_paraboloid.b()) * dx_avg > 4.0) {
+          return;
+        }
+
         interface_array(i, j, k) = paraboloid;
 
         const auto cell = makeCell(i, j, k, problo, dx);
