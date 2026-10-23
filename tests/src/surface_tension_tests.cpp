@@ -94,7 +94,7 @@ TEST(SurfaceTension, solveFaceParaboloid_Nudge) {
 TEST(SurfaceTension, areaComputation) {
   using AreaAndSurface =
       AddSurfaceOutput<Area, ParaboloidParametrizedSurfaceOutput>;
-
+  // ============================================ TAKEN FROM SIMULATION
   const auto datum =
       Pt(-0.00764114344206871, 0.100706330883016, 0.476561469895421);
   const auto frame = ReferenceFrame(
@@ -111,6 +111,12 @@ TEST(SurfaceTension, areaComputation) {
       Pt(-1.5625000000000000E-002, 0.10156250000000000, 0.48437500000000000);
   Pt P2 = Pt(0.0000000000000000, 0.10156250000000000, 0.48437500000000000);
   Pt P3 = Pt(0.0000000000000000, 0.10156250000000000, 0.46875000000000000);
+  // ST
+  double ST = 7.1999999999999995E-002;
+  double Pressure = 1.0;
+  Normal Marangoni = Normal(0.0, 0.0, 0.0);
+
+  // ======================================= Construct Problem
   Polygon polygon;
   polygon.setNumberOfVertices(4);
   polygon[0] = P0;
@@ -118,27 +124,21 @@ TEST(SurfaceTension, areaComputation) {
   polygon[2] = P2;
   polygon[3] = P3;
   polygon.calculateAndSetPlaneOfExistence();
-
-  // ST
-  double ST = 7.1999999999999995E-002;
-  double Pressure = 1.0;
-  Normal Marangoni = Normal(0.0, 0.0, 0.0);
-
   // Filler Solver
   PUNeighborhood<RectangularCuboid> neighborhood;
   PUST<RectangularCuboid> solver(neighborhood, 2.0);
 
+  // ===================================== Run results
   // Solve Face Output
   Normal result;
   result = solver.solveFaceParaboloid(ST, P0, P1, P2, P3, &para, Pressure,
                                       Marangoni, true);
-
+  // Area Isolation
   AreaAndSurface area_and_surf =
       intersectPolygonWithParaboloid<AreaAndSurface>(polygon, paraboloid, true);
-  const auto arcs = area_and_surf.getSurface().getArcs();
+  double area = area_and_surf.getMoments().area();
 
   // Compute Area
-  double area = area_and_surf.getMoments().area();
   std::cout << "===========================\n";
   std::cout << "solveFaceParaboloid RESULT = " << result << std::endl;
   std::cout << "areaResult " << area << std::endl;
