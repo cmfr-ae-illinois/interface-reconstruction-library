@@ -53,12 +53,10 @@ void c_PUST_RectCub_solveFace(c_PUST_RectCub* a_self, double* STCoeff,
     *(a_force + n) = force[n];
   }
 }
-void c_PUST_RectCub_solveFaceParaboloid(c_PUST_RectCub* a_self, double* STCoeff,
-                                        double* P0, double* P1, double* P2,
-                                        double* P3,
-                                        c_SeparatorVariant* a_separator,
-                                        double* Pressure, double* Marangoni,
-                                        double* a_force) {
+void c_PUST_RectCub_solveFaceParaboloid(
+    c_PUST_RectCub* a_self, double* STCoeff, double* P0, double* P1, double* P2,
+    double* P3, c_SeparatorVariant* a_separator, double* Pressure,
+    double* Marangoni, double* a_force, const int* debug_flag) {
   assert(a_self != nullptr);
   assert(a_self->obj_ptr != nullptr);
 
@@ -69,9 +67,11 @@ void c_PUST_RectCub_solveFaceParaboloid(c_PUST_RectCub* a_self, double* STCoeff,
 
   IRL::Normal MarangoniTemp = IRL::Normal::fromRawDoublePointer(Marangoni);
 
+  const bool debug = (debug_flag != nullptr && *debug_flag != 0);
+
   IRL::Normal force = a_self->obj_ptr->solveFaceParaboloid(
       *STCoeff, P0temp, P1temp, P2temp, P3temp, a_separator->obj_ptr, *Pressure,
-      MarangoniTemp);
+      MarangoniTemp, debug);
 
   for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
     *(a_force + n) = force[n];

@@ -43,7 +43,8 @@ class PUST : public PU<CellType> {
   Normal solveFaceParaboloid(const double STCoeff, const Pt& P0, const Pt& P1,
                              const Pt& P2, const Pt& P3,
                              const SeparatorVariant* a_separator,
-                             const double Pressure, const Normal& Marangoni);
+                             const double Pressure, const Normal& Marangoni,
+                             const bool debug = false);
   // Compute face contribution to area
   double computeFaceAreaContribution(
       const Pt& P0, const Pt& P1, const Pt& P2, const Pt& P3, int caseValue,

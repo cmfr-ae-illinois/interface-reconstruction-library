@@ -315,11 +315,12 @@ ReturnType computeNewEdgeSegmentContribution(
 template <class ReturnType, class PolygonType, class ParaboloidType>
 enable_if_t<is_polygon<PolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(const PolygonType& a_polygon,
-                               const ParaboloidType& a_paraboloid) {
+                               const ParaboloidType& a_paraboloid,
+                               const bool debug) {
   auto complete_polytope = a_polygon.generateHalfEdgeVersion();
   auto polytope = complete_polytope.generateSegmentedPolygon();
   return intersectPolygonWithParaboloid<ReturnType>(
-      &polytope, &complete_polytope, a_paraboloid);
+      &polytope, &complete_polytope, a_paraboloid, debug);
 }
 
 /************* Calculate surface from non-aligned paraboloid **********/
@@ -328,7 +329,8 @@ template <class ReturnType, class SegmentedHalfEdgePolygonType,
 enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
                                HalfEdgePolytopeType* a_complete_polytope,
-                               const ParaboloidType& a_paraboloid) {
+                               const ParaboloidType& a_paraboloid,
+                               const bool debug) {
   // Defining type aliases (needed to ensure precision is consistent)
   // Definining scalar container: This can be a double/__float128, or a
   // scalar with embedded derivatives
@@ -418,6 +420,9 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
       a_paraboloid.getAlignedParaboloid().b() * inv_scale});
 
   // Compute moments of intersection
+  if (debug) {
+    std::cout << "Before Moments: " << moments.getMoments() << std::endl;
+  }
   if constexpr (has_paraboloid_surface<ReturnType>::value) {
     moments.getSurface().setParaboloid(paraboloid);
     moments.getMoments() =
@@ -431,6 +436,9 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
         surf);
   }
 
+  if (debug) {
+    std::cout << "After Moments: " << moments.getMoments() << std::endl;
+  }
   // Un-normalized moments
   if constexpr (has_paraboloid_surface<ReturnType>::value) {
     moments.getMoments().area() *= inv_scale * inv_scale;

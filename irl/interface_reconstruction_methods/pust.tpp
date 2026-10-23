@@ -489,12 +489,10 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
 }
 
 template <class CellType>
-Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
-                                           const Pt& P1, const Pt& P2,
-                                           const Pt& P3,
-                                           const SeparatorVariant* a_separator,
-                                           const double Pressure,
-                                           const Normal& Marangoni) {
+Normal PUST<CellType>::solveFaceParaboloid(
+    const double STIn, const Pt& P0, const Pt& P1, const Pt& P2, const Pt& P3,
+    const SeparatorVariant* a_separator, const double Pressure,
+    const Normal& Marangoni, const bool debug) {
   using AreaAndSurface =
       AddSurfaceOutput<Area, ParaboloidParametrizedSurfaceOutput>;
   // std::cout << "=========================== Solve Face \n" << std::endl;
@@ -547,7 +545,7 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
     poly.calculateAndSetPlaneOfExistence();
     // Make the parametric surface
     area_and_surf =
-        intersectPolygonWithParaboloid<AreaAndSurface>(poly, *sepPtr);
+        intersectPolygonWithParaboloid<AreaAndSurface>(poly, *sepPtr, debug);
     paramSurface = area_and_surf.getSurface();
     // std::cout << "Parametric surface created\n";
   } else {
@@ -655,6 +653,14 @@ Normal PUST<CellType>::solveFaceParaboloid(const double STIn, const Pt& P0,
       area = faceArea - area;
       total = total -
               averageSurfaceTension * averageCurvature * area * inwardsNormal;
+    }
+
+    if (debug) {
+      std::cout << "Average Curvature: " << averageCurvature << "\n";
+      std::cout << "Average Surface Tension: " << averageSurfaceTension << "\n";
+      std::cout << "Area: " << area << "\n";
+      std::cout << "Arc Length: " << arcLength << "\n";
+      std::cout << "Total Force: " << total << "\n";
     }
   }
   return total;

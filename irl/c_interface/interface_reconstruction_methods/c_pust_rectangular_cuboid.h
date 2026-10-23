@@ -39,7 +39,7 @@ void c_PUST_RectCub_solveFaceParaboloid(c_PUST_RectCub* a_self, double* STCoeff,
                                         double* P3,
                                         c_SeparatorVariant* a_separator,
                                         double* Pressure, double* Marangoni,
-                                        double* a_force);
+                                        double* a_force, const int* debug_flag);
 
 void c_PUST_RectCub_getValue(c_PUST_RectCub* a_self, double* x, double* y,
                              double* z, double* delta, double* value);

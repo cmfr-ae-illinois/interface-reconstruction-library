@@ -33,14 +33,16 @@ namespace IRL {
 template <class ReturnType, class PolygonType, class ParaboloidType>
 enable_if_t<is_polygon<PolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(const PolygonType& a_polygon,
-                               const ParaboloidType& a_paraboloid);
+                               const ParaboloidType& a_paraboloid,
+                               const bool debug = false);
 
 template <class ReturnType, class SegmentedHalfEdgePolygonType,
           class HalfEdgePolytopeType, class ParaboloidType>
 enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
                                HalfEdgePolytopeType* a_complete_polytope,
-                               const ParaboloidType& a_paraboloid);
+                               const ParaboloidType& a_paraboloid,
+                               const bool debug = false);
 
 template <class ReturnType, class SegmentedHalfEdgePolyhedronType,
           class HalfEdgePolytopeType, class ParaboloidType>

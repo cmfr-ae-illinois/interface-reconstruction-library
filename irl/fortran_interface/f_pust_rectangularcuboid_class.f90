@@ -128,7 +128,7 @@ module f_PUST_RectCub_class
         end subroutine F_PUST_RectCub_solveFace
 
         subroutine F_PUST_RectCub_solveFaceParaboloid(this,surface_tension_coefficient, P0, P1,P2,P3,a_separator,&
-             Pressure, Marangoni, a_force) bind(C, name = "c_PUST_RectCub_solveFaceParaboloid")
+             Pressure, Marangoni, a_force,debug_flag) bind(C, name = "c_PUST_RectCub_solveFaceParaboloid")
             import
             implicit none
             type(c_PUST_RectCub) :: this
@@ -141,6 +141,7 @@ module f_PUST_RectCub_class
             real(C_DOUBLE), dimension(*), intent(in) :: Marangoni ! dimension(1:3)
             real(C_DOUBLE) :: Pressure
             real(C_DOUBLE), dimension(*), intent(out) :: a_force
+            integer(C_INT), intent(in) :: debug_flag
         end subroutine F_PUST_RectCub_solveFaceParaboloid
 
         subroutine F_PUST_RectCub_getValue(this,x,y,z,delta,value)&
@@ -334,7 +335,7 @@ module f_PUST_RectCub_class
         end subroutine PUST_RectCub_class_solveFace
 
         subroutine PUST_RectCub_class_solveFaceParaboloid(this,surface_tension_coefficient, P0, P1, &
-            P2,P3,a_separator,Pressure,Marangoni, a_force)
+            P2,P3,a_separator,Pressure,Marangoni, a_force,debug)
             implicit none
             type(PUST_RectCub_Type) :: this
             real(C_DOUBLE) :: surface_tension_coefficient
@@ -346,8 +347,19 @@ module f_PUST_RectCub_class
             real(C_DOUBLE), dimension(*), intent(in) :: Marangoni ! dimension(1:3)
             real(C_DOUBLE) :: Pressure
             real(IRL_double), dimension(1:3), intent(out) :: a_force
+            ! Optional debug argument
+            logical, optional, intent(in) :: debug
+            integer(C_INT) :: debug_flag
+
+            ! Default: debugging disabled
+            debug_flag = 0_C_INT
+
+            if (present(debug)) then
+                if (debug) debug_flag = 1_C_INT
+            endif
+
             call F_PUST_RectCub_solveFaceParaboloid(this%c_object, surface_tension_coefficient,P0,P1,&
-            P2,P3,a_separator%c_object,Pressure,Marangoni, a_force)
+                P2,P3,a_separator%c_object,Pressure,Marangoni,a_force,debug_flag)
             return
         end subroutine PUST_RectCub_class_solveFaceParaboloid
 
