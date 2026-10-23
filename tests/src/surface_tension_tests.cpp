@@ -91,4 +91,59 @@ TEST(SurfaceTension, solveFaceParaboloid_Nudge) {
   EXPECT_NEAR(result[2], -0.658478948462, 1e-8);
 }
 
+TEST(SurfaceTension, areaComputation) {
+  using AreaAndSurface =
+      AddSurfaceOutput<Area, ParaboloidParametrizedSurfaceOutput>;
+
+  const auto datum =
+      Pt(-0.00764114344206871, 0.100706330883016, 0.476561469895421);
+  const auto frame = ReferenceFrame(
+      Normal(0.974019255888702, 0.226455957217311, -0.00204660665759728),
+      Normal(-0.00233572054042677, 0.00100874691917091, -0.999996763414367),
+      Normal(-0.226453159765053, 0.974020883693181, 0.00151147675436535));
+  const auto paraboloid =
+      Paraboloid(datum, frame, 15.3235133743669, -0.0935337715595459);
+  const SeparatorVariant para = paraboloid;
+  // Face
+  Pt P0 =
+      Pt(-1.5625000000000000E-002, 0.10156250000000000, 0.46875000000000000);
+  Pt P1 =
+      Pt(-1.5625000000000000E-002, 0.10156250000000000, 0.48437500000000000);
+  Pt P2 = Pt(0.0000000000000000, 0.10156250000000000, 0.48437500000000000);
+  Pt P3 = Pt(0.0000000000000000, 0.10156250000000000, 0.46875000000000000);
+  Polygon polygon;
+  polygon[0] = P0;
+  polygon[1] = P1;
+  polygon[2] = P2;
+  polygon[3] = P3;
+  polygon.calculateAndSetPlaneOfExistence();
+
+  // ST
+  double ST = 7.1999999999999995E-002;
+  double Pressure = 1.0;
+  Normal Marangoni = Normal(0.0, 0.0, 0.0);
+
+  // Filler Solver
+  PUNeighborhood<RectangularCuboid> neighborhood;
+  PUST<RectangularCuboid> solver(neighborhood, 2.0);
+
+  // Solve Face Output
+  Normal result;
+  result = solver.solveFaceParaboloid(ST, P0, P1, P2, P3, &para, Pressure,
+                                      Marangoni);
+  std::cout << "solveFaceParaboloid RESULT = " << result << std::endl;
+
+  auto area_and_surf =
+      intersectPolygonWithParaboloid<AreaAndSurface>(polygon, paraboloid, true);
+  double area = 0;
+  std::cout << "Area = " << area << std::endl;
+  const auto arcs = area_and_surf.getSurface().getArcs();
+
+  // Compute Area
+
+  area = area_and_surf.getMoments().area();
+
+  std::cout << "areaResult " << area << std::endl;
+}
+
 }  // namespace
