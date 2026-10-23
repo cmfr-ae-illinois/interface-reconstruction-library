@@ -112,6 +112,7 @@ TEST(SurfaceTension, areaComputation) {
   Pt P2 = Pt(0.0000000000000000, 0.10156250000000000, 0.48437500000000000);
   Pt P3 = Pt(0.0000000000000000, 0.10156250000000000, 0.46875000000000000);
   Polygon polygon;
+  polygon.setNumberOfVertices(4);
   polygon[0] = P0;
   polygon[1] = P1;
   polygon[2] = P2;
@@ -130,20 +131,18 @@ TEST(SurfaceTension, areaComputation) {
   // Solve Face Output
   Normal result;
   result = solver.solveFaceParaboloid(ST, P0, P1, P2, P3, &para, Pressure,
-                                      Marangoni);
-  std::cout << "solveFaceParaboloid RESULT = " << result << std::endl;
+                                      Marangoni, true);
 
-  auto area_and_surf =
+  AreaAndSurface area_and_surf =
       intersectPolygonWithParaboloid<AreaAndSurface>(polygon, paraboloid, true);
-  double area = 0;
-  std::cout << "Area = " << area << std::endl;
   const auto arcs = area_and_surf.getSurface().getArcs();
 
   // Compute Area
-
-  area = area_and_surf.getMoments().area();
-
+  double area = area_and_surf.getMoments().area();
+  std::cout << "===========================\n";
+  std::cout << "solveFaceParaboloid RESULT = " << result << std::endl;
   std::cout << "areaResult " << area << std::endl;
+  std::cout << "===========================\n";
 }
 
 }  // namespace
