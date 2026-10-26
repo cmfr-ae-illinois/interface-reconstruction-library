@@ -60,10 +60,10 @@ class UnionFind {
   std::vector<int> size_;
 };
 
-inline int CountConnectedComponents(const amrex::MultiFab& vf,
-                                    const amrex::Geometry& geom,
-                                    amrex::Real threshold = 1.0e-10,
-                                    int vf_comp = 0) {
+inline int CountConnectedComponents(
+    const amrex::MultiFab& vf, const amrex::Geometry& geom,
+    amrex::Real threshold = 1.0e-10, int vf_comp = 0,
+    amrex::MultiFab* component_labels = nullptr) {
   using namespace amrex;
 
   if (vf_comp < 0 || vf_comp >= vf.nComp()) {
@@ -324,6 +324,7 @@ inline int CountConnectedComponents(const amrex::MultiFab& vf,
 
   // Global Union-Find and final component count
   int ncomponents = 0;
+  std::vector<int> final_labels(total + 1, 0);
 
   if (rank == 0) {
     // IDs are 1,...,total.
@@ -339,11 +340,59 @@ inline int CountConnectedComponents(const amrex::MultiFab& vf,
         --ncomponents;
       }
     }
+
+    std::vector<int> root_to_component(total + 1, 0);
+    int next_component = 0;
+    for (int id = 1; id <= total; ++id) {
+      const int root = global_uf.find(id);
+      if (root_to_component[root] == 0) {
+        root_to_component[root] = ++next_component;
+      }
+      final_labels[id] = root_to_component[root];
+    }
   }
 
 #ifdef AMREX_USE_MPI
   MPI_Bcast(&ncomponents, 1, MPI_INT, 0, ParallelDescriptor::Communicator());
+  MPI_Bcast(final_labels.data(), total + 1, MPI_INT, 0,
+            ParallelDescriptor::Communicator());
+#else
+  for (int id = 1; id <= total; ++id) {
+    final_labels[id] = id;
+  }
 #endif
+
+  for (MFIter mfi(labels); mfi.isValid(); ++mfi) {
+    const Box& bx = mfi.validbox();
+    const auto lab = labels.array(mfi);
+    for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+      for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+          const int provisional_label = lab(i, j, k);
+          if (provisional_label > 0) {
+            lab(i, j, k) = final_labels[provisional_label];
+          }
+        }
+      }
+    }
+  }
+
+  if (component_labels != nullptr) {
+    component_labels->define(vf.boxArray(), vf.DistributionMap(), 1, 0);
+    component_labels->setVal(0.0);
+    for (MFIter mfi(*component_labels); mfi.isValid(); ++mfi) {
+      const Box& bx = mfi.validbox();
+      const auto lab = labels.const_array(mfi);
+      const auto output = component_labels->array(mfi);
+      for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+        for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+          for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+            output(i, j, k, 0) = static_cast<amrex::Real>(lab(i, j, k));
+          }
+        }
+      }
+    }
+  }
 
   return ncomponents;
 }

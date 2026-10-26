@@ -420,11 +420,14 @@ void AmrCoreAdv::Evolve() {
       t_new[lev] = cur_time;
     }
 
-    if (UsingPlotInterval() && (step + 1) % plot_int == 0) {
+    const bool is_final_step =
+        cur_time >= stop_time - 1.e-6 * dt[0] || step + 1 >= max_step;
+
+    if (!is_final_step && UsingPlotInterval() && (step + 1) % plot_int == 0) {
       last_plot_file_step = step + 1;
       UpdateBand();
       WritePlotFile();
-    } else if (write_intermediate_after_step &&
+    } else if (write_intermediate_after_step && !is_final_step &&
                istep[0] > last_plot_file_step) {
       last_plot_file_step = istep[0];
       UpdateBand();
@@ -443,27 +446,30 @@ void AmrCoreAdv::Evolve() {
     if (cur_time >= stop_time - 1.e-6 * dt[0]) break;
   }
 
+  amrex::MultiFab uniform_final_vf;
+  amrex::MultiFab uniform_component_labels;
+  int final_ncomponents = 0;
+
   {
     amrex::MultiFab uniform_final;
     BuildUniformFinestMoments(uniform_final);
     // if (transport_m1) {
     //   ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
     // }
-    // ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
+    ComputeUniformMomentL1Errors(uniform_initial_moments, uniform_final);
 
     // Build uniform finest-resolution volume fraction field.
-    amrex::MultiFab uniform_final_vf;
-
     BuildUniformFinestVolumeFractionField(uniform_final_vf);
 
     // Count connected liquid structures.
-    const int ncomponents = CCL::CountConnectedComponents(
-        uniform_final_vf, Geom(finest_level), 1.0e-10);
+    final_ncomponents =
+        CCL::CountConnectedComponents(uniform_final_vf, Geom(finest_level),
+                                      1.0e-10, 0, &uniform_component_labels);
 
     amrex::Print() << "\n-----------------------------------------\n"
                    << "Final connected component count\n"
                    << "Time       = " << t_new[0] << "\n"
-                   << "Components = " << ncomponents << "\n"
+                   << "Components = " << final_ncomponents << "\n"
                    << "-----------------------------------------\n";
   }
 
@@ -486,9 +492,20 @@ void AmrCoreAdv::Evolve() {
                    << relative_change_liquid_mass << "\n";
   }
 
-  if (UsingPlotInterval() && istep[0] > last_plot_file_step) {
+  if (UsingPlotInterval() || UsingPlotTimes()) {
     UpdateBand();
     GetReconstruction(finest_level);
+
+    interface_scalar_fields[finest_level].emplace_back(
+        "component_id", grids[finest_level], dmap[finest_level], 0);
+    auto& component_field = interface_scalar_fields[finest_level].back();
+    component_field.polygon_scalar_data.ParallelCopy(
+        uniform_component_labels, 0, 0, 1, 0, 0,
+        Geom(finest_level).periodicity());
+    component_field.paraboloid_scalar_data.ParallelCopy(
+        uniform_component_labels, 0, 0, 1, 0, 0,
+        Geom(finest_level).periodicity());
+
     WritePlotFile();
   }
 }
@@ -1376,7 +1393,8 @@ void AmrCoreAdv::WritePlotFile() {
                   IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
                       cell, planar_sep, planar_sep[0]);
               surface.addPolygon(polygon);
-              if (scalar_fields && !scalar_fields->empty()) {
+              if (polygon.getNumberOfVertices() > 0 && scalar_fields &&
+                  !scalar_fields->empty()) {
                 for (auto& f : *scalar_fields) {
                   auto const arr = f.polygon_scalar_data.const_array(mfi);
                   f.flattened_polygon_scalar_data.push_back(arr(i, j, k));
