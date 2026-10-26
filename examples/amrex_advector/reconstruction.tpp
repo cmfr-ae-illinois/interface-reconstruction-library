@@ -22,6 +22,8 @@
 #include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
 #include "examples/amrex_advector/reconstruction_pu.h"
+#include "examples/amrex_advector/reconstruction_pu_cf.h"
+#include "examples/amrex_advector/reconstruction_pu_plic.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
 #include "examples/amrex_advector/reconstruction_vf2.h"
 
@@ -72,9 +74,16 @@ void AmrCoreAdv::GetReconstruction(
   } else if (reconstruction_name == "pu") {
     PU::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                           a_geom, scalar_fields, &reconstruction_loop_time);
+  } else if (reconstruction_name == "pu_plic") {
+    PU_PLIC::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                               a_geom, scalar_fields,
+                               &reconstruction_loop_time);
   } else if (reconstruction_name == "cf") {
     CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                           a_geom, scalar_fields, &reconstruction_loop_time);
+  } else if (reconstruction_name == "pu_cf") {
+    PU_CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                             a_geom, scalar_fields, &reconstruction_loop_time);
   } else if (reconstruction_name == "mof2") {
     number_mof2_iterations += MOF2::GetReconstruction(
         a_interface, a_interface_with_ghost, a_moments, a_geom, scalar_fields,
