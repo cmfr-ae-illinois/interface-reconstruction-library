@@ -613,11 +613,13 @@ ReturnType computeType3Contribution(
           w * (ScalarType(2) * J - w) / (ScalarType(2) * (ScalarType(1) - w2));
     } else if (w < ScalarType(1.7)) {
       factor = coeffA3SeriesOne<ScalarType, ScalarType>(w);
-    } else {
-      const auto J = atanh(sqrt(ScalarType(1) - w) / (ScalarType(1) + w)) /
+    } else if (w < ScalarType(1.0e9)) {
+      const auto J = atanh(sqrt(w - ScalarType(1)) / (ScalarType(1) + w)) /
                      sqrt(w2 - ScalarType(1));
       factor =
           w * (ScalarType(2) * J - w) / (ScalarType(2) * (ScalarType(1) - w2));
+    } else {
+      factor = ScalarType(0.5);
     }
     return ReturnType::fromScalarConstant(
         ReturnScalarType(factor * (tri_area_vector * a_face_normal)));

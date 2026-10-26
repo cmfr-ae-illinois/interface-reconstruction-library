@@ -135,7 +135,7 @@ TEST(SurfaceTension, areaComputation) {
                                       Marangoni, true);
   // Area Isolation
   AreaAndSurface area_and_surf =
-      intersectPolygonWithParaboloid<AreaAndSurface>(polygon, paraboloid, true);
+      intersectPolygonWithParaboloid<AreaAndSurface>(polygon, paraboloid);
   double area = area_and_surf.getMoments().area();
 
   // Compute Area

@@ -315,12 +315,11 @@ ReturnType computeNewEdgeSegmentContribution(
 template <class ReturnType, class PolygonType, class ParaboloidType>
 enable_if_t<is_polygon<PolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(const PolygonType& a_polygon,
-                               const ParaboloidType& a_paraboloid,
-                               const bool debug) {
+                               const ParaboloidType& a_paraboloid) {
   auto complete_polytope = a_polygon.generateHalfEdgeVersion();
   auto polytope = complete_polytope.generateSegmentedPolygon();
   return intersectPolygonWithParaboloid<ReturnType>(
-      &polytope, &complete_polytope, a_paraboloid, debug);
+      &polytope, &complete_polytope, a_paraboloid);
 }
 
 /************* Calculate surface from non-aligned paraboloid **********/
@@ -329,8 +328,7 @@ template <class ReturnType, class SegmentedHalfEdgePolygonType,
 enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
 intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
                                HalfEdgePolytopeType* a_complete_polytope,
-                               const ParaboloidType& a_paraboloid,
-                               const bool debug) {
+                               const ParaboloidType& a_paraboloid) {
   // Defining type aliases (needed to ensure precision is consistent)
   // Definining scalar container: This can be a double/__float128, or a
   // scalar with embedded derivatives
@@ -420,9 +418,6 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
       a_paraboloid.getAlignedParaboloid().b() * inv_scale});
 
   // Compute moments of intersection
-  if (debug) {
-    std::cout << "Before Moments: " << moments.getMoments() << std::endl;
-  }
   if constexpr (has_paraboloid_surface<ReturnType>::value) {
     moments.getSurface().setParaboloid(paraboloid);
     moments.getMoments() =
@@ -436,9 +431,6 @@ intersectPolygonWithParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
         surf);
   }
 
-  if (debug) {
-    std::cout << "After Moments: " << moments.getMoments() << std::endl;
-  }
   // Un-normalized moments
   if constexpr (has_paraboloid_surface<ReturnType>::value) {
     moments.getMoments().area() *= inv_scale * inv_scale;
@@ -720,13 +712,13 @@ intersectPolyhedronWithParaboloid(SegmentedHalfEdgePolyhedronType* a_polytope,
 /*********** Calculate surface from aligned paraboloid *************/
 template <class ReturnType, class SegmentedHalfEdgePolygonType,
           class HalfEdgePolytopeType, class AlignedParaboloidType,
-          class ScalarType>
+          class ScalarType, class SurfaceOutputType>
 enable_if_t<is_polygon<SegmentedHalfEdgePolygonType>::value, ReturnType>
-intersectPolygonWithAlignedParaboloid(
-    SegmentedHalfEdgePolygonType* a_polytope,
-    HalfEdgePolytopeType* a_complete_polytope,
-    const AlignedParaboloidType& a_paraboloid, const ScalarType a_scale,
-    ParaboloidParametrizedSurfaceOutput* a_surface) {
+intersectPolygonWithAlignedParaboloid(SegmentedHalfEdgePolygonType* a_polytope,
+                                      HalfEdgePolytopeType* a_complete_polytope,
+                                      const AlignedParaboloidType& a_paraboloid,
+                                      const ScalarType a_scale,
+                                      SurfaceOutputType* a_surface) {
   // Below function computes the entire integration (nudge counter
   // initialized to 0)
   return formParaboloidIntersectionBases<ReturnType>(

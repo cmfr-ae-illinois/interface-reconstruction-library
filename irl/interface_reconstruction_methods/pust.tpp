@@ -545,7 +545,7 @@ Normal PUST<CellType>::solveFaceParaboloid(
     poly.calculateAndSetPlaneOfExistence();
     // Make the parametric surface
     area_and_surf =
-        intersectPolygonWithParaboloid<AreaAndSurface>(poly, *sepPtr, debug);
+        intersectPolygonWithParaboloid<AreaAndSurface>(poly, *sepPtr);
     paramSurface = area_and_surf.getSurface();
     // std::cout << "Parametric surface created\n";
   } else {
