@@ -50,6 +50,8 @@ class Jibben_3D {
 
   const double getNormalScatterMetric(void) const;
 
+  double getNormalCoherenceMetric(void) const;
+
   const double getAngularVariance(void) const;
 
   const Normal getAveragedNormal(void) const;

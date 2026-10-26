@@ -840,6 +840,40 @@ const double Jibben_3D::getNormalScatterMetric(void) const {
   return E;
 }
 
+double Jibben_3D::getNormalCoherenceMetric(void) const {
+  const UnsignedIndex_t n_polygons = neighborhood_m->size();
+
+  Eigen::Vector3d normal_sum = Eigen::Vector3d::Zero();
+
+  UnsignedIndex_t count = 0;
+
+  for (UnsignedIndex_t n = 0; n < n_polygons; ++n) {
+    const auto& polygon = neighborhood_m->getPolygon(n);
+    const Normal& normal = polygon.getPlaneOfExistence().normal();
+
+    Eigen::Vector3d ni(normal[0], normal[1], normal[2]);
+
+    const double norm = ni.norm();
+
+    if (!std::isfinite(norm) ||
+        norm <= std::numeric_limits<double>::epsilon()) {
+      continue;
+    }
+
+    ni /= norm;
+
+    normal_sum += ni;
+    ++count;
+  }
+
+  if (count == 0) return 0.0;
+
+  // Coherence: 0 (strong cancellation) -> 1 (perfect alignment)
+  const double R = normal_sum.norm() / static_cast<double>(count);
+
+  return std::max(0.0, std::min(1.0, R));
+}
+
 const double Jibben_3D::getAngularVariance(void) const {
   const UnsignedIndex_t n_polygons = neighborhood_m->size();
   double mean = 0.0;
