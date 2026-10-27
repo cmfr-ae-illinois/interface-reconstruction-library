@@ -350,10 +350,10 @@ struct PU_VF2 {
 
               double vfrac_weight = 1.0;
 
-              if (liq_vf_neighbor < 0.1) {
+              if (liq_vf_neighbor < 0.05) {
                 vfrac_weight =
                     0.5 - 0.5 * std::cos(10.0 * M_PI * liq_vf_neighbor);
-              } else if (liq_vf_neighbor > 0.9) {
+              } else if (liq_vf_neighbor > 0.95) {
                 vfrac_weight =
                     0.5 - 0.5 * std::cos(10.0 * M_PI * (1.0 - liq_vf_neighbor));
               }
