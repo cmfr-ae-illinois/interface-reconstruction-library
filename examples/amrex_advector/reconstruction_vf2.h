@@ -35,6 +35,8 @@ struct VF2 {
 
       scalar_fields->emplace_back("normal_scatter", moments.boxArray(),
                                   moments.DistributionMap(), 0);
+      scalar_fields->emplace_back("volume_error_squared", moments.boxArray(),
+                                  moments.DistributionMap(), 0);
     }
 
     // Now compute Jibben's reconstruction
@@ -53,9 +55,12 @@ struct VF2 {
 
       // for scalar output
       Array4<Real> normal_scatter_parab;
+      Array4<Real> volume_error_squared_parab;
       if (scalar_fields) {
         normal_scatter_parab =
             (*scalar_fields)[0].paraboloid_scalar_data.array(mfi);
+        volume_error_squared_parab =
+            (*scalar_fields)[1].paraboloid_scalar_data.array(mfi);
       }
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
@@ -99,7 +104,16 @@ struct VF2 {
                   IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
                       cell, planar_separator, planar_separator[0]);
               if (polygon.getNumberOfVertices() > 0) {
-                neighborhood.addMember(polygon);
+                constexpr double limit_vfrac = 0.05;
+                double vf_weight = 1.0;
+                if (vfrac_local < limit_vfrac) {
+                  vf_weight =
+                      0.5 - 0.5 * std::cos(M_PI * vfrac_local / limit_vfrac);
+                } else if (vfrac_local > 1.0 - limit_vfrac) {
+                  vf_weight = 0.5 - 0.5 * std::cos(M_PI * (1.0 - vfrac_local) /
+                                                   limit_vfrac);
+                }
+                neighborhood.addMember(polygon, vf_weight);
                 if (i == ii && j == jj && k == kk) {
                   neighborhood.setCenterOfStencil(count);
                 }
@@ -111,12 +125,14 @@ struct VF2 {
         neighborhood.localize();
         // Reconstruct interface with Jibben and store result in
         // interface_array
-        auto paraboloid = IRL::reconstructionWithJibbenSq3D(neighborhood);
-
-        // normal scatter metric
         IRL::Jibben_3D jibben(&neighborhood);
+        auto paraboloid = jibben.solve2(&neighborhood);
+
+        // Scalar diagnostics for the fitted paraboloid
         if (scalar_fields) {
           normal_scatter_parab(i, j, k) = jibben.getNormalScatterMetric();
+          volume_error_squared_parab(i, j, k) =
+              jibben.getVolumeErrorSquared(dx_avg);
         }
 
         // Construct local cell

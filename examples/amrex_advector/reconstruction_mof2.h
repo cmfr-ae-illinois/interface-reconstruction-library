@@ -11,7 +11,7 @@
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_MOF2_H_
 
 #include "examples/amrex_advector/reconstruction_hybrid.h"
-#include "examples/amrex_advector/reconstruction_pu.h"
+#include "examples/amrex_advector/reconstruction_pu_vf2.h"
 #include "examples/amrex_advector/reconstruction_vf2.h"
 #include "irl/amrex/sepunion_multifab.h"
 

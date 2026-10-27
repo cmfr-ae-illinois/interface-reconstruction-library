@@ -29,6 +29,13 @@ struct VF {
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
                              nullptr, reconstruction_loop_time);
 
+    // Scalar fields
+    if (scalar_fields) {
+      scalar_fields->clear();
+      scalar_fields->emplace_back("volume_error_squared", moments.boxArray(),
+                                  moments.DistributionMap(), 0);
+    }
+
     // Now compute Jibben's reconstruction
     const auto dx = geom.CellSizeArray();
     const auto dx_avg = std::cbrt(dx[0] * dx[1] * dx[2]);
@@ -42,6 +49,12 @@ struct VF {
           interface_with_ghost.const_array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
       const Box& bx = mfi.tilebox();
+
+      Array4<Real> volume_error_squared_parab;
+      if (scalar_fields) {
+        volume_error_squared_parab =
+            (*scalar_fields)[0].paraboloid_scalar_data.array(mfi);
+      }
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
@@ -84,7 +97,17 @@ struct VF {
                   IRL::getPlanePolygonFromReconstruction<IRL::Polygon>(
                       cell, planar_separator, planar_separator[0]);
               if (polygon.getNumberOfVertices() > 0) {
-                neighborhood.addMember(polygon);
+                constexpr double limit_vfrac = 0.05;
+                double vf_weight = 1.0;
+                if (vfrac_local < limit_vfrac) {
+                  vf_weight =
+                      0.5 - 0.5 * std::cos(M_PI * vfrac_local / limit_vfrac);
+                } else if (vfrac_local > 1.0 - limit_vfrac) {
+                  vf_weight = 0.5 - 0.5 * std::cos(M_PI * (1.0 - vfrac_local) /
+                                                   limit_vfrac);
+                }
+                vf_weight = 1.0;
+                neighborhood.addMember(polygon, vf_weight);
                 if (i == ii && j == jj && k == kk) {
                   neighborhood.setCenterOfStencil(count);
                 }
@@ -96,7 +119,14 @@ struct VF {
         neighborhood.localize();
         // Reconstruct interface with Jibben and store result in
         // interface_array
-        auto paraboloid = IRL::reconstructionWithJibben3D(neighborhood);
+        IRL::Jibben_3D jibben(&neighborhood);
+        auto paraboloid = jibben.solve(&neighborhood);
+
+        // Scalar diagnostic for the fitted paraboloid
+        if (scalar_fields) {
+          volume_error_squared_parab(i, j, k) =
+              jibben.getVolumeErrorSquared(dx_avg);
+        }
 
         // Construct local cell
         const double x = problo[0] + i * dx[0];

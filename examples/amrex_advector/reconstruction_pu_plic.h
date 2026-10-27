@@ -114,6 +114,7 @@ struct PU_PLIC {
         const auto center_polygon =
             polygonFromPLIC(i, j, k, center_planar_separator, problo, dx);
         const double center_area = center_polygon.calculateVolume();
+        const IRL::Normal center_normal = center_planar_separator[0].normal();
 
         if (center_polygon.getNumberOfVertices() <= 2 ||
             !std::isfinite(center_area) ||
@@ -171,12 +172,18 @@ struct PU_PLIC {
               }
 
               const double weight = area_weight * vfrac_weight;
+              const IRL::Normal neighbor_normal = planar_separator[0].normal();
+              const double normal_weight =
+                  std::max(0.0, center_normal[0] * neighbor_normal[0] +
+                                    center_normal[1] * neighbor_normal[1] +
+                                    center_normal[2] * neighbor_normal[2]);
               const IRL::Pt centroid = polygon.calculateCentroid();
 
               const IRL::SeparatorVariant neighbor_interface =
                   interface_with_ghost_array(ii, jj, kk);
 
-              pu_neighborhood.addMember(&centroid, &neighbor_interface, weight);
+              pu_neighborhood.addMember(&centroid, &neighbor_interface,
+                                        weight * normal_weight);
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);

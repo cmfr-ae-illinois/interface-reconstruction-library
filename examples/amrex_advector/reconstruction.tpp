@@ -21,9 +21,12 @@
 #include "examples/amrex_advector/reconstruction_mof1.h"
 #include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
-#include "examples/amrex_advector/reconstruction_pu.h"
+#include "examples/amrex_advector/reconstruction_pu2_vf.h"
+#include "examples/amrex_advector/reconstruction_pu2_vf2.h"
 #include "examples/amrex_advector/reconstruction_pu_cf.h"
 #include "examples/amrex_advector/reconstruction_pu_plic.h"
+#include "examples/amrex_advector/reconstruction_pu_vf.h"
+#include "examples/amrex_advector/reconstruction_pu_vf2.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
 #include "examples/amrex_advector/reconstruction_vf2.h"
 
@@ -71,9 +74,19 @@ void AmrCoreAdv::GetReconstruction(
   } else if (reconstruction_name == "ivf") {
     iVF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                            a_geom, scalar_fields, &reconstruction_loop_time);
-  } else if (reconstruction_name == "pu") {
-    PU::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
-                          a_geom, scalar_fields, &reconstruction_loop_time);
+  } else if (reconstruction_name == "pu_vf") {
+    PU_VF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                             a_geom, scalar_fields, &reconstruction_loop_time);
+  } else if (reconstruction_name == "pu_vf2") {
+    PU_VF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                              a_geom, scalar_fields, &reconstruction_loop_time);
+  } else if (reconstruction_name == "pu2_vf") {
+    PU2_VF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                              a_geom, scalar_fields, &reconstruction_loop_time);
+  } else if (reconstruction_name == "pu2_vf2") {
+    PU2_VF2::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                               a_geom, scalar_fields,
+                               &reconstruction_loop_time);
   } else if (reconstruction_name == "pu_plic") {
     PU_PLIC::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                                a_geom, scalar_fields,
