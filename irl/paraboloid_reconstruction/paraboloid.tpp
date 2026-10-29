@@ -211,13 +211,19 @@ inline void ParaboloidBase<ScalarType>::regenerateAtLocation(
       NormalBase<ScalarType>(X1, TWO * U, -X1 * gradF(0) - TWO * U * gradF(1));
   const ScalarType normT1 = magnitude(T1);
   ReferenceFrame new_local_frame;
+  ScalarType new_coef_a = HALF * k1;
+  ScalarType new_coef_b = HALF * k2;
   if (normT1 > DBL_EPSILON) {
     T1 *= ONE / normT1;
     new_local_frame[2] = new_normal;
     new_local_frame[0] = T1;
     new_local_frame[1] = crossProduct(new_local_frame[2], new_local_frame[0]);
-  } else {  /// The point is umbilical
-    new_local_frame = ReferenceFrameBase<ScalarType>::fromNormal(new_normal);
+  } else {
+    const auto local_paraboloid =
+        ParaboloidBase<ScalarType>::fromDerivatives(local_pt, gradF, hessF);
+    new_local_frame = local_paraboloid.getReferenceFrame();
+    new_coef_a = local_paraboloid.getAlignedParaboloid().a();
+    new_coef_b = local_paraboloid.getAlignedParaboloid().b();
   }
 
   // Now move frame back to canonical frame and return paraboloid
@@ -240,8 +246,8 @@ inline void ParaboloidBase<ScalarType>::regenerateAtLocation(
 
   datum_m += projection;
   frame_m = new_frame;
-  paraboloid_m.a() = HALF * k1;
-  paraboloid_m.b() = HALF * k2;
+  paraboloid_m.a() = new_coef_a;
+  paraboloid_m.b() = new_coef_b;
 }
 
 template <class ScalarType>
