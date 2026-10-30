@@ -12,6 +12,7 @@
 #include <array>
 #include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 
 #include "examples/amrex_advector/cases.h"
@@ -196,6 +197,61 @@ bool AmrCoreAdv::UsingPlotInterval() const { return plot_int > 0; }
 
 bool AmrCoreAdv::UsingPlotTimes() const {
   return plot_int <= 0 && !plot_times.empty();
+}
+
+void AmrCoreAdv::WriteComponentStatistics(
+    const amrex::MultiFab& volume_fraction,
+    const amrex::MultiFab& component_labels, const int ncomponents) const {
+  if (!write_component_statistics) return;
+
+  const auto dx = Geom(finest_level).CellSizeArray();
+  const Real cell_volume = dx[0] * dx[1] * dx[2];
+  std::vector<amrex::Long> mixed_cells(ncomponents + 1, 0);
+  std::vector<Real> liquid_volume(ncomponents + 1, 0.0);
+
+  for (MFIter mfi(volume_fraction); mfi.isValid(); ++mfi) {
+    const auto vf = volume_fraction.const_array(mfi);
+    const auto labels = component_labels.const_array(mfi);
+    const Box& bx = mfi.validbox();
+    for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+      for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+          const int component_id = static_cast<int>(labels(i, j, k));
+          if (component_id <= 0 || component_id > ncomponents) continue;
+
+          const Real value = vf(i, j, k, 0);
+          liquid_volume[component_id] += value * cell_volume;
+          if (value > IRL::global_constants::VF_LOW &&
+              value < IRL::global_constants::VF_HIGH) {
+            ++mixed_cells[component_id];
+          }
+        }
+      }
+    }
+  }
+
+  for (int component_id = 1; component_id <= ncomponents; ++component_id) {
+    ParallelDescriptor::ReduceLongSum(mixed_cells[component_id],
+                                      ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(liquid_volume[component_id],
+                                      ParallelDescriptor::IOProcessorNumber());
+  }
+
+  if (ParallelDescriptor::IOProcessor()) {
+    const std::string filename =
+        JoinPath(interface_output_path, component_statistics_file);
+    std::ofstream output(filename);
+    if (!output.is_open()) {
+      amrex::Abort("Unable to open component statistics file: " + filename);
+    }
+
+    output << "component_id,mixed_cells,liquid_volume\n";
+    output << std::setprecision(17);
+    for (int component_id = 1; component_id <= ncomponents; ++component_id) {
+      output << component_id << ',' << mixed_cells[component_id] << ','
+             << liquid_volume[component_id] << '\n';
+    }
+  }
 }
 
 Real AmrCoreAdv::PlotTimeEps() const {
@@ -465,6 +521,8 @@ void AmrCoreAdv::Evolve() {
     final_ncomponents =
         CCL::CountConnectedComponents(uniform_final_vf, Geom(finest_level),
                                       1.0e-10, 0, &uniform_component_labels);
+    WriteComponentStatistics(uniform_final_vf, uniform_component_labels,
+                             final_ncomponents);
 
     amrex::Print() << "\n-----------------------------------------\n"
                    << "Final connected component count\n"
@@ -954,6 +1012,8 @@ void AmrCoreAdv::ReadParameters() {
     pp.query("plot_file", plot_file);
     pp.query("plot_dir", plot_dir);
     pp.query("plot_int", plot_int);
+    pp.query("write_component_statistics", write_component_statistics);
+    pp.query("component_statistics_file", component_statistics_file);
     pp.queryarr("plot_times", plot_time_fractions);
     pp.query("chk_file", chk_file);
     pp.query("chk_dir", chk_dir);

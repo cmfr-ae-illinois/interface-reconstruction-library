@@ -184,6 +184,9 @@ class AmrCoreAdv : public amrex::AmrCore {
 
   bool UsingPlotInterval() const;
   bool UsingPlotTimes() const;
+  void WriteComponentStatistics(const amrex::MultiFab& volume_fraction,
+                                const amrex::MultiFab& component_labels,
+                                int ncomponents) const;
   amrex::Real PlotTimeEps() const;
   void PreparePlotTimes();
   bool ShouldWriteInitialPlotTime();
@@ -330,6 +333,8 @@ class AmrCoreAdv : public amrex::AmrCore {
   std::string plot_file{"plt"};
   std::string plot_dir{""};
   int plot_int = -1;
+  bool write_component_statistics = false;
+  std::string component_statistics_file{"component_statistics.csv"};
   amrex::Vector<amrex::Real> plot_time_fractions;
   amrex::Vector<amrex::Real> plot_times;
   int next_plot_time = 0;
