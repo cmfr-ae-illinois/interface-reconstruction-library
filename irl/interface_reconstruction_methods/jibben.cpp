@@ -62,7 +62,7 @@ Paraboloid Jibben_3D::solve(void) {
     const double r = distance / delta_m;
     const double distance_weight =
         (1.0 + 4.0 * r) * (1.0 - r) * (1.0 - r) * (1.0 - r) * (1.0 - r);
-    const double weight = input_weight * distance_weight;
+    const double weight = std::sqrt(input_weight * distance_weight);
     // Compute momonial integrals and feed to LS system
     integrals = Eigen::VectorXd::Zero(6);
     double b_dot_sum = 0.0;
