@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
   }
 
   constexpr std::size_t VM_ORDER = 2;
-  constexpr std::size_t SM_ORDER = 2;
+  constexpr std::size_t SM_ORDER = 1;
 
   if (Nx <= 0 || shape.empty() || outdir.empty()) print_usage_and_exit(rank);
 
