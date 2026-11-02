@@ -436,8 +436,7 @@ struct PU2_VF {
               const IRL::SeparatorVariant neighbor_interface =
                   pu_neigh_array(ii, jj, kk);
 
-              pu_neighborhood.addMember(&centroid, &neighbor_interface,
-                                        weight * normal_weight);
+              pu_neighborhood.addMember(&centroid, &neighbor_interface, weight);
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
