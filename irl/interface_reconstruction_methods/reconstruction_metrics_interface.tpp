@@ -31,6 +31,13 @@ double volumeErrorSquaredWithJibben3D(
   return jibben_solver.getVolumeErrorSquared(a_dx);
 }
 
+double volumeErrorWithJibben3D(
+    const JibbenNeighborhood& a_neighborhood_geometry, const double& a_dx) {
+  Jibben_3D jibben_solver(&a_neighborhood_geometry);
+  jibben_solver.solve(&a_neighborhood_geometry, -1.0);
+  return jibben_solver.getVolumeError(a_dx);
+}
+
 Normal globalAveragedNormalWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry) {
   Jibben_3D jibben_solver(&a_neighborhood_geometry);

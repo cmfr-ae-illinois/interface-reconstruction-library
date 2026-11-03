@@ -28,6 +28,10 @@ module f_ReconstructionMetricsInterface
     module procedure volumeErrorSquaredWithJibben3D_JibbenNeigh
   end interface volumeErrorSquaredWithJibben3D
 
+  interface volumeErrorWithJibben3D
+    module procedure volumeErrorWithJibben3D_JibbenNeigh
+  end interface volumeErrorWithJibben3D
+
   interface globalAveragedNormalWithJibben3D
     module procedure globalAveragedNormalWithJibben3D_JibbenNeigh
   end interface globalAveragedNormalWithJibben3D
@@ -66,6 +70,18 @@ module f_ReconstructionMetricsInterface
       real(C_DOUBLE), intent(in) :: a_dx
       real(C_DOUBLE) :: F_volumeErrorSquaredWithJibben3D
     end function F_volumeErrorSquaredWithJibben3D
+  end interface
+
+  interface
+  function F_volumeErrorWithJibben3D(a_jibben_neighborhood, a_dx) &
+    bind(C, name="c_volumeErrorWithJibben3D")
+      use, intrinsic :: iso_c_binding
+      import
+      implicit none
+      type(c_JibbenNeigh), intent(in) :: a_jibben_neighborhood
+      real(C_DOUBLE), intent(in) :: a_dx
+      real(C_DOUBLE) :: F_volumeErrorWithJibben3D
+    end function F_volumeErrorWithJibben3D
   end interface
 
   interface
@@ -110,6 +126,16 @@ module f_ReconstructionMetricsInterface
 
     metric = F_volumeErrorSquaredWithJibben3D(a_jibben_neighborhood%c_object, a_dx)
   end function volumeErrorSquaredWithJibben3D_JibbenNeigh
+
+  function volumeErrorWithJibben3D_JibbenNeigh(a_jibben_neighborhood, a_dx) result(metric)
+    use, intrinsic :: iso_c_binding
+    implicit none
+    type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
+    real(IRL_double), intent(in) :: a_dx
+    real(IRL_double) :: metric
+
+    metric = F_volumeErrorWithJibben3D(a_jibben_neighborhood%c_object, a_dx)
+  end function volumeErrorWithJibben3D_JibbenNeigh
 
   function globalAveragedNormalWithJibben3D_JibbenNeigh(a_jibben_neighborhood) result(a_normal)
     use, intrinsic :: iso_c_binding
