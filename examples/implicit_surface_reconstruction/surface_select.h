@@ -52,8 +52,8 @@ inline SurfaceVariant makeSurface(const std::string& name, BasicMesh& mesh) {
     mesh.setCellBoundaries(IRL::Pt(-1.9, -1.9, -1.9), IRL::Pt(1.9, 1.9, 1.9));
     return OrthocircleVariant{};
   } else if (name == "perturbed_sphere") {
-    mesh.setCellBoundaries(IRL::Pt(-1.1, -1.1, -1.1), IRL::Pt(1.1, 1.1, 1.1));
-    return PerturbedSphereVariant{};
+    mesh.setCellBoundaries(IRL::Pt(-1.2, -1.2, -1.2), IRL::Pt(1.2, 1.2, 1.2));
+    return PerturbedSphereVariant(0., 0., 0., 0.8, 9, 7.8125e-4, 0);
   }
   throw std::runtime_error("Unknown surface: " + name +
                            " (expected: sphere|ellipsoid|genus|orthocircle|"
