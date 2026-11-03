@@ -34,6 +34,8 @@ struct VF {
       scalar_fields->clear();
       scalar_fields->emplace_back("volume_error_squared", moments.boxArray(),
                                   moments.DistributionMap(), 0);
+      scalar_fields->emplace_back("volume_error", moments.boxArray(),
+                                  moments.DistributionMap(), 0);
     }
 
     // Now compute Jibben's reconstruction
@@ -51,9 +53,12 @@ struct VF {
       const Box& bx = mfi.tilebox();
 
       Array4<Real> volume_error_squared_parab;
+      Array4<Real> volume_error_parab;
       if (scalar_fields) {
         volume_error_squared_parab =
             (*scalar_fields)[0].paraboloid_scalar_data.array(mfi);
+        volume_error_parab =
+            (*scalar_fields)[1].paraboloid_scalar_data.array(mfi);
       }
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
@@ -126,6 +131,7 @@ struct VF {
         if (scalar_fields) {
           volume_error_squared_parab(i, j, k) =
               jibben.getVolumeErrorSquared(dx_avg);
+          volume_error_parab(i, j, k) = jibben.getVolumeError(dx_avg);
         }
 
         // Construct local cell
