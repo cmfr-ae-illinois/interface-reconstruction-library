@@ -271,6 +271,12 @@ struct PU2_VF {
           }
         }
 
+        const double volume_error = jibben.getVolumeError(dx_avg);
+        if (volume_error > volume_error_threshold) {
+          well_resolved = false;
+          underresolved_array(i, j, k) = 1;
+        }
+
         // // Normal scatter check
         // const double normal_scatter = jibben.getNormalScatterMetric();
 
@@ -301,9 +307,10 @@ struct PU2_VF {
           }
 
           // Squared volume error check
-          const double volume_error = jibben.getVolumeErrorSquared(dx_avg);
+          const double volume_error_squared =
+              jibben.getVolumeErrorSquared(dx_avg);
 
-          if (volume_error > volume_error_threshold) {
+          if (volume_error_squared > volume_error_threshold) {
             underresolved_array(i, j, k) = 1;
           }
 
@@ -520,7 +527,13 @@ struct PU2_VF {
         for (int kk = k - 1; kk <= k + 1; ++kk) {
           for (int jj = j - 1; jj <= j + 1; ++jj) {
             for (int ii = i - 1; ii <= i + 1; ++ii) {
-              vf_supercell += moments_array(ii, jj, kk, comp_vf);
+              const double liq_vf_neighbor = moments_array(ii, jj, kk, comp_vf);
+
+              if (liq_vf_neighbor < IRL::global_constants::VF_LOW ||
+                  liq_vf_neighbor > IRL::global_constants::VF_HIGH) {
+                continue;
+              }
+              vf_supercell += liq_vf_neighbor;
             }
           }
         }
