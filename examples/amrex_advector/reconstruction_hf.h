@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF2_H_
-#define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF2_H_
+#ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_HF_H_
+#define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_HF_H_
 
 #include "irl/amrex/sepunion_multifab.h"
 
@@ -17,7 +17,7 @@
 
 using namespace amrex;
 
-struct VF2 {
+struct HF {
   static void GetReconstruction(
       SepUnionMultiFab& interface, SepUnionMultiFab& interface_with_ghost,
       const MultiFab& moments, const Geometry& geom,
@@ -169,4 +169,4 @@ struct VF2 {
   }
 };
 
-#endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF2_H_
+#endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_HF_H_

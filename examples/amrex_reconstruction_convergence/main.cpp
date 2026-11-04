@@ -66,20 +66,20 @@ struct InterfaceScalarField {
 
 #include "examples/amrex_advector/reconstruction_cf.h"
 #include "examples/amrex_advector/reconstruction_elvira.h"
+#include "examples/amrex_advector/reconstruction_hf.h"
 #include "examples/amrex_advector/reconstruction_hybrid.h"
 #include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
 #include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
+#include "examples/amrex_advector/reconstruction_pu2_hf.h"
 #include "examples/amrex_advector/reconstruction_pu2_vf.h"
-#include "examples/amrex_advector/reconstruction_pu2_vf2.h"
 #include "examples/amrex_advector/reconstruction_pu_cf.h"
+#include "examples/amrex_advector/reconstruction_pu_hf.h"
 #include "examples/amrex_advector/reconstruction_pu_plic.h"
 #include "examples/amrex_advector/reconstruction_pu_vf.h"
-#include "examples/amrex_advector/reconstruction_pu_vf2.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
-#include "examples/amrex_advector/reconstruction_vf2.h"
 #include "examples/implicit_surface_reconstruction/binary.h"
 #include "examples/implicit_surface_reconstruction/surface_select.h"
 
@@ -384,24 +384,24 @@ int reconstructInterface(const std::string& method,
   } else if (method == "vf") {
     VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                           nullptr, reconstruction_loop_time);
-  } else if (method == "vf2") {
-    VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                           nullptr, reconstruction_loop_time);
+  } else if (method == "hf") {
+    HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                          nullptr, reconstruction_loop_time);
   } else if (method == "ivf") {
     iVF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                            nullptr, reconstruction_loop_time);
   } else if (method == "pu_vf") {
     PU_VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                              nullptr, reconstruction_loop_time);
-  } else if (method == "pu_vf2") {
-    PU_VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr, reconstruction_loop_time);
+  } else if (method == "pu_hf") {
+    PU_HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                             nullptr, reconstruction_loop_time);
   } else if (method == "pu2_vf") {
     PU2_VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                               nullptr, reconstruction_loop_time);
-  } else if (method == "pu2_vf2") {
-    PU2_VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                               nullptr, reconstruction_loop_time);
+  } else if (method == "pu2_hf") {
+    PU2_HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr, reconstruction_loop_time);
   } else if (method == "pu_plic") {
     PU_PLIC::GetReconstruction(interface, interface_with_ghost, moments, geom,
                                nullptr, reconstruction_loop_time);
@@ -723,13 +723,11 @@ std::string joinPath(const std::string& directory, const std::string& name) {
   return directory + "/" + name;
 }
 
-void outputReconstructedInterface(const amrex::SepUnionMultiFab& interface,
-                                  const amrex::MultiFab& moments,
-                                  const amrex::Geometry& geom,
-                                  const std::string& output_dir,
-                                  const std::string& output_name,
-                                  std::vector<InterfaceScalarField>*
-                                      scalar_fields = nullptr) {
+void outputReconstructedInterface(
+    const amrex::SepUnionMultiFab& interface, const amrex::MultiFab& moments,
+    const amrex::Geometry& geom, const std::string& output_dir,
+    const std::string& output_name,
+    std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
   IRL::MixedPolygonBezierSurface surface =
       buildInterfaceSurface(interface, moments, geom, scalar_fields);
 
@@ -758,15 +756,13 @@ void outputReconstructedInterface(const amrex::SepUnionMultiFab& interface,
     scalar_data.resize(scalar_fields->size());
     for (std::size_t s = 0; s < scalar_fields->size(); ++s) {
       const auto& field = (*scalar_fields)[s];
-      scalar_data[s].insert(
-          scalar_data[s].end(),
-          field.flattened_paraboloid_scalar_data.begin(),
-          field.flattened_paraboloid_scalar_data.end());
+      scalar_data[s].insert(scalar_data[s].end(),
+                            field.flattened_paraboloid_scalar_data.begin(),
+                            field.flattened_paraboloid_scalar_data.end());
       scalar_data[s].insert(scalar_data[s].end(),
                             field.flattened_polygon_scalar_data.begin(),
                             field.flattened_polygon_scalar_data.end());
-      if (scalar_data[s].size() !=
-          static_cast<std::size_t>(number_of_cells)) {
+      if (scalar_data[s].size() != static_cast<std::size_t>(number_of_cells)) {
         amrex::Abort(
             "Interface scalar data size does not match VTK cell count.");
       }
@@ -1412,8 +1408,8 @@ void printUsage() {
       << "  shape = sphere|ellipsoid|genus|orthocircle|perturbed_sphere\n"
       << "  nx_fine = fine binary resolution\n"
       << "  reconstruction_method = vf\n"
-      << "    methods: default|elvira|lvira|plicnet|mof|mof1|vf|vf2|ivf|"
-         "pu_vf|pu_vf2|pu2_vf|pu2_vf2|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
+      << "    methods: default|elvira|lvira|plicnet|mof|mof1|vf|hf|ivf|"
+         "pu_vf|pu_hf|pu2_vf|pu2_hf|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
       << "Optional:\n"
       << "  factor = 1\n"
       << "  factors = 1 2 4 8 16\n"

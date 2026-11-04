@@ -7,7 +7,7 @@ from pathlib import Path
 # case_name = "rotation3d"
 case_name = "shear3d"
 reconstruction_names = [
-    "pu2_vf2",
+    "pu2_hf",
 ]
 max_levels = [
     1,
