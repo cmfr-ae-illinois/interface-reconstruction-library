@@ -7,13 +7,13 @@ from pathlib import Path
 # case_name = "rotation3d"
 case_name = "shear3d"
 reconstruction_names = [
-    "pu2_vf2", "pu2_vf",
+    "pu2_vf2",
 ]
 max_levels = [
-    1, 2, 3, 4, 5, 6
+    1,
 ]
 cfl = 0.05
-output_dir = Path("/home/parinht2/Repositories/interface-reconstruction-library/build/shear2/input_files")
+output_dir = Path("/home/parinht2/Repositories/interface-reconstruction-library/build/")
 checkpoint_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/shear2"
 interface_output_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/shear2"
 plot_times = [0.0, 0.25, 0.5, 0.75, 1.0]
@@ -21,7 +21,7 @@ chk_times = [0.0, 1.0]
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
-max_step = 10000
+max_step = 10000000
 advection_name = "remap"
 is_periodic = [1, 1, 1]
 amr_v = 1
@@ -34,6 +34,7 @@ regrid_int = 1
 do_reflux = 1
 plot_int = -1
 chk_int = -1
+write_component_statistics = 1
 
 # CASE-SPECIFIC SETTINGS
 def get_case_settings(case):
@@ -126,6 +127,10 @@ def generate_input_file(
     plot_filename = f"plt_{case_identifier}"
     # interface PVD name follows plot/checkpoint naming without the trailing factor-style underscore
     interface_pvd_file = f"interface_{input_case_identifier}.pvd"
+    # Component-statistics CSV name follows the interface naming convention
+    component_statistics_file = (
+        f"component_statistics_{input_case_identifier}.csv"
+    )
     # Full path
     input_path = output_dir / input_filename
 
@@ -218,6 +223,12 @@ amr.plot_int   = {plot_int}    # number of timesteps between plot files
                         # ignored when amr.plot_int > 0
 # amr.interface_output_path = {interface_output_path}
 amr.interface_pvd_file = {interface_pvd_file}
+
+# *****************************************************************
+# Connected-component statistics
+# *****************************************************************
+amr.write_component_statistics = {write_component_statistics}
+amr.component_statistics_file = {component_statistics_file}
 
 # *****************************************************************
 # Checkpoint name and frequency
