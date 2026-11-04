@@ -79,8 +79,47 @@ class PerturbedSphere
       phi += ScalarType(2.0) * pi;
     }
 
-    // argument for Legendre polynomials in spherical harmonics
     const ScalarType legendre_x = std::cos(theta);
+    const ScalarType sin_theta = std::sqrt(
+        std::max(ScalarType(0.0), ScalarType(1.0) - legendre_x * legendre_x));
+
+    // Reuse storage across calls so evaluating F does not allocate. Each
+    // thread owns its workspace, preserving thread safety.
+    struct EvaluationWorkspace {
+      std::vector<ScalarType> legendre;
+    };
+    static thread_local EvaluationWorkspace workspace;
+
+    const size_t stride = static_cast<size_t>(L + 1);
+    workspace.legendre.resize(stride * stride);
+
+    const auto legendreIndex = [stride](const int l, const int m) {
+      return static_cast<size_t>(l) * stride + static_cast<size_t>(m);
+    };
+
+    // Build all P_l^m(cos(theta)) once. The diagonal recurrence includes the
+    // Condon-Shortley phase used by the original implementation.
+    workspace.legendre[legendreIndex(0, 0)] = ScalarType(1.0);
+    for (int m = 1; m <= L; ++m) {
+      workspace.legendre[legendreIndex(m, m)] =
+          -ScalarType(2 * m - 1) * sin_theta *
+          workspace.legendre[legendreIndex(m - 1, m - 1)];
+    }
+    for (int m = 0; m < L; ++m) {
+      workspace.legendre[legendreIndex(m + 1, m)] =
+          ScalarType(2 * m + 1) * legendre_x *
+          workspace.legendre[legendreIndex(m, m)];
+    }
+    for (int m = 0; m <= L; ++m) {
+      for (int l = m + 2; l <= L; ++l) {
+        workspace.legendre[legendreIndex(l, m)] =
+            (ScalarType(2 * l - 1) * legendre_x *
+                 workspace.legendre[legendreIndex(l - 1, m)] -
+             ScalarType(l + m - 1) *
+                 workspace.legendre[legendreIndex(l - 2, m)]) /
+            ScalarType(l - m);
+      }
+    }
 
     // term with l=0 and m=0
     ScalarType R3 = R * R * R;
@@ -96,56 +135,8 @@ class PerturbedSphere
         }
 
         const int abs_m = std::abs(m);
-
-        // -----------------------------------------------------------
-        // Associated Legendre polynomial P_l^{|m|}(cos(theta))
-        // This includes Condon-Shortley phase
-        ScalarType Pmm = ScalarType(1.0);
-
-        if (abs_m > 0) {
-          const ScalarType sin_theta = std::sqrt(std::max(
-              ScalarType(0.0), ScalarType(1.0) - legendre_x * legendre_x));
-          ScalarType factor = ScalarType(1.0);
-          // P_m^m(x) = (-1)^m (2m-1)!!(1-x^2)^(m/2)
-          for (int i = 1; i <= abs_m; ++i) {
-            Pmm *= -factor * sin_theta;
-            factor += ScalarType(2.0);
-          }
-        }
-
-        ScalarType Plm = ScalarType(0.0);
-
-        if (l == abs_m) {
-          Plm = Pmm;
-        } else {
-          // P_{m+1}^m
-          ScalarType Pmmp1 = legendre_x * ScalarType(2 * abs_m + 1) * Pmm;
-          if (l == abs_m + 1) {
-            Plm = Pmmp1;
-          } else {
-            ScalarType P_prev2 = Pmm;
-            ScalarType P_prev1 = Pmmp1;
-            for (int ll = abs_m + 2; ll <= l; ++ll) {
-              const ScalarType Pll =
-                  (ScalarType(2 * ll - 1) * legendre_x * P_prev1 -
-                   ScalarType(ll + abs_m - 1) * P_prev2) /
-                  ScalarType(ll - abs_m);
-
-              P_prev2 = P_prev1;
-              P_prev1 = Pll;
-            }
-            Plm = P_prev1;
-          }
-        }
-        // -----------------------------------------------------------
-
-        // normalization factors
-        const ScalarType factorial_ratio =
-            std::tgamma(ScalarType(l - abs_m + 1)) /
-            std::tgamma(ScalarType(l + abs_m + 1));
-
-        const ScalarType normalization = std::sqrt(
-            ScalarType(2 * l + 1) / (ScalarType(4.0) * pi) * factorial_ratio);
+        const ScalarType Plm = workspace.legendre[legendreIndex(l, abs_m)];
+        const ScalarType normalization = normalizations[coeff_index];
 
         // Real tesseral spherical harmonic
         ScalarType Ylm;
@@ -235,6 +226,7 @@ class PerturbedSphere
  private:
   void generateCoefficients(const unsigned int seed) {
     coefficients.clear();
+    normalizations.clear();
 
     std::mt19937 generator(seed);  // 32-bit random number generator
 
@@ -261,6 +253,13 @@ class PerturbedSphere
         const ScalarType c_lm = std::sqrt(sigma0) * ScalarType(gaussian);
 
         coefficients.push_back(c_lm);
+
+        const int abs_m = std::abs(m);
+        const ScalarType factorial_ratio =
+            std::tgamma(ScalarType(l - abs_m + 1)) /
+            std::tgamma(ScalarType(l + abs_m + 1));
+        normalizations.push_back(std::sqrt(
+            ScalarType(2 * l + 1) / (ScalarType(4.0) * pi) * factorial_ratio));
       }
     }
   }
@@ -275,6 +274,7 @@ class PerturbedSphere
 
   // perturbation coefficients
   std::vector<ScalarType> coefficients;
+  std::vector<ScalarType> normalizations;
 
   // Finite-difference step for gradient/Hessian.
   ScalarType fd_step;
