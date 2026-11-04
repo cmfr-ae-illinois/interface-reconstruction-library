@@ -3,24 +3,21 @@ from pathlib import Path
 # ------------------------------------------------------------
 # params to change 
 # ------------------------------------------------------------
-case_name = "deformation3d"
+# case_name = "deformation3d"
 # case_name = "rotation3d"
+case_name = "shear3d"
 reconstruction_names = [
-    "pu",
+    "pu2_vf2", "pu2_vf",
 ]
 max_levels = [
-    3,
+    1, 2, 3, 4, 5, 6
 ]
-cfl = 1.00
-output_dir = Path(
-    "/home/parinht2/Repositories/"
-    "interface-reconstruction-library/"
-    "examples/amrex_advector/input_files"
-)
-checkpoint_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/temporary"
-interface_output_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/temporary"
+cfl = 0.05
+output_dir = Path("/home/parinht2/Repositories/interface-reconstruction-library/build/shear2/input_files")
+checkpoint_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/shear2"
+interface_output_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/shear2"
 plot_times = [0.0, 0.25, 0.5, 0.75, 1.0]
-chk_times = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
+chk_times = [0.0, 1.0]
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
@@ -28,7 +25,6 @@ max_step = 10000
 advection_name = "remap"
 is_periodic = [1, 1, 1]
 amr_v = 1
-n_cell = [8, 8, 8]
 ref_ratio_value = 2
 blocking_factor_x = 8
 blocking_factor_y = 8
@@ -46,19 +42,34 @@ def get_case_settings(case):
         prob_lo = [0.0, 0.0, 0.0,]
         prob_hi = [1.0, 1.0, 1.0,]
         velocity_field = 1
+        n_cell = [8, 8, 8]
     elif case == "rotation3d":
         stop_time = 1.0
         prob_lo = [-0.5, -0.5, -0.5,]
         prob_hi = [0.5, 0.5, 0.5,]
         velocity_field = 1
+        n_cell = [8, 8, 8]
+    elif case == "shear3d":
+        stop_time = 3.0
+        prob_lo = [0.0, 0.0, 0.0,]
+        prob_hi = [1.0, 1.0, 2.0,]
+        velocity_field = 1
+        n_cell = [8, 8, 16]
     else:
         raise ValueError(
             f"Unknown case_name: '{case}'\n"
             "Supported cases are:\n"
             "  deformation3d\n"
-            "  rotation3d"
+            "  rotation3d\n"
+            "  shear3d"
         )
-    return stop_time, prob_lo, prob_hi, velocity_field
+    return (
+        stop_time,
+        prob_lo,
+        prob_hi,
+        velocity_field,
+        n_cell,
+    )
 
 
 
@@ -91,6 +102,7 @@ def generate_input_file(
     prob_lo,
     prob_hi,
     velocity_field,
+    n_cell,
 ):
     ref_ratios = [ref_ratio_value] * max_level
     cfl_string = format_cfl_for_filename(cfl)
@@ -241,7 +253,13 @@ amr.chk_int  = {chk_int}       # number of timesteps between checkpoint files
     print()
 
 def main():
-    stop_time, prob_lo, prob_hi, velocity_field = get_case_settings(case_name)
+    (
+        stop_time,
+        prob_lo,
+        prob_hi,
+        velocity_field,
+        n_cell,
+    ) = get_case_settings(case_name)
     output_dir.mkdir(
         parents=True,
         exist_ok=True,
@@ -256,6 +274,7 @@ def main():
                 prob_lo=prob_lo,
                 prob_hi=prob_hi,
                 velocity_field=velocity_field,
+                n_cell=n_cell,
             )
             num_files += 1
 # RUN
