@@ -539,8 +539,9 @@ IRL::Normal CircleFit_3D::getHermiteNormal(
 
     const double vf_weight = getVfWeight(vfrac);
     const double distance_weight = getDistanceWeight(datum, centroid);
+    const double area_weight = polygon.calculateVolume() / (h * h);
 
-    const double w = vf_weight * distance_weight;
+    const double w = vf_weight * distance_weight * area_weight;
 
     if (!std::isfinite(w) || w <= 0.0) {
       continue;
