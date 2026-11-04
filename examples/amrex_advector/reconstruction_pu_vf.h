@@ -69,6 +69,13 @@ struct PU_VF {
     constexpr double normal_scatter_threshold = 0.10;
     constexpr double volume_error_threshold = 0.05;
 
+    constexpr double neighbor_angle_deg = 50.0;
+    constexpr double fitted_angle_deg = 50.0;
+    constexpr int min_aligned_neighbors = 6;
+    const double cos_neighbor_angle =
+        std::cos(neighbor_angle_deg * M_PI / 180.0);
+    const double cos_fitted_angle = std::cos(fitted_angle_deg * M_PI / 180.0);
+
     // ---------------------------------------------------------------------
     // some fields
 
@@ -163,6 +170,7 @@ struct PU_VF {
         jibben_neighborhood.emptyNeighborhood();
 
         int jibben_count = 0;
+        int aligned_count = 0;
         double vf_supercell = 0.0;
 
         const double limit_vfrac = 0.05;
@@ -191,6 +199,13 @@ struct PU_VF {
               if (polygon.getNumberOfVertices() > 2 &&
                   std::isfinite(polygon_area) &&
                   polygon_area > std::numeric_limits<double>::epsilon()) {
+                const IRL::Normal neighbor_normal =
+                    planar_separator[0].normal();
+                const double alignment = neighbor_normal * center_normal;
+                if (alignment >= cos_neighbor_angle) {
+                  ++aligned_count;
+                }
+
                 double vf_weight = 1.0;
                 if (liq_vf_neighbor < limit_vfrac) {
                   vf_weight = 0.5 - 0.5 * std::cos(M_PI * liq_vf_neighbor /
@@ -227,23 +242,82 @@ struct PU_VF {
         // Jibben reconstruction
         IRL::Paraboloid jibben_paraboloid = jibben.solve(&jibben_neighborhood);
 
-        // Normal scatter check
-        const double normal_scatter = jibben.getNormalScatterMetric();
+        // checking average normal
+        bool well_resolved = false;
+        if (aligned_count >= min_aligned_neighbors) {
+          const IRL::Normal averaged_local_normal = jibben.getAveragedNormal();
 
-        if (normal_scatter > normal_scatter_threshold) {
-          underresolved_array(i, j, k) = 1;
+          // to global coordinates
+          const IRL::ReferenceFrame& frame =
+              jibben_neighborhood.getReferenceFrame();
+          IRL::Normal averaged_global_normal(
+              averaged_local_normal[0] * frame[0][0] +
+                  averaged_local_normal[1] * frame[1][0] +
+                  averaged_local_normal[2] * frame[2][0],
+              averaged_local_normal[0] * frame[0][1] +
+                  averaged_local_normal[1] * frame[1][1] +
+                  averaged_local_normal[2] * frame[2][1],
+              averaged_local_normal[0] * frame[0][2] +
+                  averaged_local_normal[1] * frame[1][2] +
+                  averaged_local_normal[2] * frame[2][2]);
+          averaged_global_normal.normalize();
+
+          const double fitted_alignment =
+              averaged_global_normal * center_normal;
+
+          if (std::isfinite(fitted_alignment) &&
+              fitted_alignment >= cos_fitted_angle) {
+            well_resolved = true;
+          }
         }
 
-        // Squared volume error check
-        const double volume_error = jibben.getVolumeErrorSquared(dx_avg);
-
+        const double volume_error = jibben.getVolumeError(dx_avg);
         if (volume_error > volume_error_threshold) {
+          well_resolved = false;
           underresolved_array(i, j, k) = 1;
         }
 
-        // Supercell check
-        if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
-          underresolved_array(i, j, k) = 1;
+        // // Normal scatter check
+        // const double normal_scatter = jibben.getNormalScatterMetric();
+
+        // if (normal_scatter > normal_scatter_threshold) {
+        //   underresolved_array(i, j, k) = 1;
+        // }
+
+        // // Squared volume error check
+        // const double volume_error = jibben.getVolumeErrorSquared(dx_avg);
+
+        // if (volume_error > volume_error_threshold) {
+        //   underresolved_array(i, j, k) = 1;
+        // }
+
+        // // Supercell check
+        // if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
+        //   underresolved_array(i, j, k) = 1;
+        // }
+
+        if (well_resolved) {
+          underresolved_array(i, j, k) = 0;
+        } else {
+          // Normal scatter check
+          const double normal_scatter = jibben.getNormalScatterMetric();
+
+          if (normal_scatter > normal_scatter_threshold) {
+            underresolved_array(i, j, k) = 1;
+          }
+
+          // Squared volume error check
+          const double volume_error_squared =
+              jibben.getVolumeErrorSquared(dx_avg);
+
+          if (volume_error_squared > volume_error_threshold) {
+            underresolved_array(i, j, k) = 1;
+          }
+
+          // Supercell check
+          if (liq_vf < 1.0e-2 && vf_supercell < 1.0e-1) {
+            underresolved_array(i, j, k) = 1;
+          }
         }
 
         jibben_array(i, j, k) = jibben_paraboloid;
@@ -369,8 +443,7 @@ struct PU_VF {
               const IRL::SeparatorVariant neighbor_interface =
                   pu_neigh_array(ii, jj, kk);
 
-              pu_neighborhood.addMember(&centroid, &neighbor_interface,
-                                        weight * normal_weight);
+              pu_neighborhood.addMember(&centroid, &neighbor_interface, weight);
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
@@ -454,7 +527,13 @@ struct PU_VF {
         for (int kk = k - 1; kk <= k + 1; ++kk) {
           for (int jj = j - 1; jj <= j + 1; ++jj) {
             for (int ii = i - 1; ii <= i + 1; ++ii) {
-              vf_supercell += moments_array(ii, jj, kk, comp_vf);
+              const double liq_vf_neighbor = moments_array(ii, jj, kk, comp_vf);
+
+              if (liq_vf_neighbor < IRL::global_constants::VF_LOW ||
+                  liq_vf_neighbor > IRL::global_constants::VF_HIGH) {
+                continue;
+              }
+              vf_supercell += liq_vf_neighbor;
             }
           }
         }

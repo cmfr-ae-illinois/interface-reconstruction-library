@@ -73,8 +73,6 @@ struct InterfaceScalarField {
 #include "examples/amrex_advector/reconstruction_mof1.h"
 #include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
-#include "examples/amrex_advector/reconstruction_pu2_hf.h"
-#include "examples/amrex_advector/reconstruction_pu2_vf.h"
 #include "examples/amrex_advector/reconstruction_pu_cf.h"
 #include "examples/amrex_advector/reconstruction_pu_hf.h"
 #include "examples/amrex_advector/reconstruction_pu_plic.h"
@@ -396,12 +394,6 @@ int reconstructInterface(const std::string& method,
   } else if (method == "pu_hf") {
     PU_HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                              nullptr, reconstruction_loop_time);
-  } else if (method == "pu2_vf") {
-    PU2_VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr, reconstruction_loop_time);
-  } else if (method == "pu2_hf") {
-    PU2_HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                              nullptr, reconstruction_loop_time);
   } else if (method == "pu_plic") {
     PU_PLIC::GetReconstruction(interface, interface_with_ghost, moments, geom,
                                nullptr, reconstruction_loop_time);
@@ -1409,7 +1401,7 @@ void printUsage() {
       << "  nx_fine = fine binary resolution\n"
       << "  reconstruction_method = vf\n"
       << "    methods: default|elvira|lvira|plicnet|mof|mof1|vf|hf|ivf|"
-         "pu_vf|pu_hf|pu2_vf|pu2_hf|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
+         "pu_vf|pu_hf|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
       << "Optional:\n"
       << "  factor = 1\n"
       << "  factors = 1 2 4 8 16\n"
