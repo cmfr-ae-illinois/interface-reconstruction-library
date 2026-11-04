@@ -30,6 +30,7 @@
 #include "irl/amrex/sepunion_multifab.h"
 #include "irl/generic_cutting/generic_cutting_definitions.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
+#include "irl/paraboloid_reconstruction/paraboloid_parametrized_surface.h"
 
 static constexpr int comp_vf = 0;
 static constexpr int comp_m0 = 1;
@@ -71,7 +72,12 @@ struct InterfaceScalarField {
 #include "examples/amrex_advector/reconstruction_mof1.h"
 #include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
-#include "examples/amrex_advector/reconstruction_pu.h"
+#include "examples/amrex_advector/reconstruction_pu2_vf.h"
+#include "examples/amrex_advector/reconstruction_pu2_vf2.h"
+#include "examples/amrex_advector/reconstruction_pu_cf.h"
+#include "examples/amrex_advector/reconstruction_pu_plic.h"
+#include "examples/amrex_advector/reconstruction_pu_vf.h"
+#include "examples/amrex_advector/reconstruction_pu_vf2.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
 #include "examples/amrex_advector/reconstruction_vf2.h"
 #include "examples/implicit_surface_reconstruction/binary.h"
@@ -94,6 +100,12 @@ struct MomentErrorNorms {
   double m2_linf = 0.0;
   double m2_l1 = 0.0;
   double m2_l2 = 0.0;
+};
+
+struct CurvatureErrorNorms {
+  double linf = 0.0;
+  double l1 = 0.0;
+  double l2 = 0.0;
 };
 
 int numberOfMomentComponents(const int moment_order) {
@@ -200,9 +212,9 @@ void coarsenMomentTypeFromBinaryToMultiFab(const std::string& binary_file,
     amrex::Abort("Cannot open binary moment file: " + binary_file);
   }
 
-  const auto header = sparse_moment_io::readHeader<2, 2>(&stream);
+  const auto header = sparse_moment_io::readHeader<2, 1>(&stream);
   const InsideCellMask mask = sparse_moment_io::readMask(&stream, header);
-  const auto records = sparse_moment_io::readMixedCells<2, 2>(&stream, header);
+  const auto records = sparse_moment_io::readMixedCells<2, 1>(&stream, header);
 
   if (header.nx != static_cast<std::uint32_t>(factor * mesh.getNx()) ||
       header.ny != static_cast<std::uint32_t>(factor * mesh.getNy()) ||
@@ -378,12 +390,27 @@ int reconstructInterface(const std::string& method,
   } else if (method == "ivf") {
     iVF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                            nullptr, reconstruction_loop_time);
-  } else if (method == "pu") {
-    PU::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr, reconstruction_loop_time);
+  } else if (method == "pu_vf") {
+    PU_VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                             nullptr, reconstruction_loop_time);
+  } else if (method == "pu_vf2") {
+    PU_VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr, reconstruction_loop_time);
+  } else if (method == "pu2_vf") {
+    PU2_VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr, reconstruction_loop_time);
+  } else if (method == "pu2_vf2") {
+    PU2_VF2::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                               nullptr, reconstruction_loop_time);
+  } else if (method == "pu_plic") {
+    PU_PLIC::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                               nullptr, reconstruction_loop_time);
   } else if (method == "cf") {
     CF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                           nullptr, reconstruction_loop_time);
+  } else if (method == "pu_cf") {
+    PU_CF::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                             nullptr, reconstruction_loop_time);
   } else if (method == "mof2") {
     return MOF2::GetReconstruction(interface, interface_with_ghost, moments,
                                    geom, nullptr, reconstruction_loop_time);
@@ -596,10 +623,15 @@ MomentArray getReconstructedSurfaceMoments(const IRL::RectangularCuboid& cell,
 
 IRL::MixedPolygonBezierSurface buildInterfaceSurface(
     const amrex::SepUnionMultiFab& interface, const amrex::MultiFab& moments,
-    const amrex::Geometry& geom) {
+    const amrex::Geometry& geom,
+    std::vector<InterfaceScalarField>* scalar_fields = nullptr) {
   IRL::MixedPolygonBezierSurface surface;
   const auto problo = geom.ProbLoArray();
   const auto dx = geom.CellSizeArray();
+
+  if (scalar_fields != nullptr) {
+    for (auto& field : *scalar_fields) field.clearFlattenedData();
+  }
 
   for (amrex::MFIter mfi(moments, amrex::TilingIfNotGPU()); mfi.isValid();
        ++mfi) {
@@ -633,6 +665,14 @@ IRL::MixedPolygonBezierSurface buildInterfaceSurface(
                     cell, planar_sep, planar_sep[0]);
             if (polygon.getNumberOfVertices() > 2) {
               surface.addPolygon(polygon);
+              if (scalar_fields != nullptr) {
+                for (auto& field : *scalar_fields) {
+                  const auto values =
+                      field.polygon_scalar_data.const_array(mfi);
+                  field.flattened_polygon_scalar_data.push_back(
+                      values(i, j, k));
+                }
+              }
             }
           } else if (interface_fab(i, j, k).type() ==
                      IRL::SeparatorUnion::SeparatorType::Paraboloid) {
@@ -645,10 +685,23 @@ IRL::MixedPolygonBezierSurface buildInterfaceSurface(
             const double area =
                 volume_and_surface.getSurface().getSurfaceArea();
             const double cell_dx = std::cbrt(dx[0] * dx[1] * dx[2]);
+            const int triangles_before = surface.nBezierTriangles();
             if (area > 1.0e-4 * cell_dx * cell_dx &&
                 area < 10.0 * cell_dx * cell_dx) {
               surface.addSurface(volume_and_surface.getSurface()
                                      .getQuadraticBezierTriangleApprox());
+            }
+            const int triangles_added =
+                surface.nBezierTriangles() - triangles_before;
+            if (scalar_fields != nullptr) {
+              for (auto& field : *scalar_fields) {
+                const auto values =
+                    field.paraboloid_scalar_data.const_array(mfi);
+                for (int n = 0; n < triangles_added; ++n) {
+                  field.flattened_paraboloid_scalar_data.push_back(
+                      values(i, j, k));
+                }
+              }
             }
           }
         }
@@ -674,9 +727,11 @@ void outputReconstructedInterface(const amrex::SepUnionMultiFab& interface,
                                   const amrex::MultiFab& moments,
                                   const amrex::Geometry& geom,
                                   const std::string& output_dir,
-                                  const std::string& output_name) {
+                                  const std::string& output_name,
+                                  std::vector<InterfaceScalarField>*
+                                      scalar_fields = nullptr) {
   IRL::MixedPolygonBezierSurface surface =
-      buildInterfaceSurface(interface, moments, geom);
+      buildInterfaceSurface(interface, moments, geom, scalar_fields);
 
   std::string name = output_name;
   const std::string suffix = ".vtu";
@@ -696,6 +751,27 @@ void outputReconstructedInterface(const amrex::SepUnionMultiFab& interface,
   const int number_of_points = static_cast<int>(points.size());
   const int number_of_polygons = static_cast<int>(polygons.first.size());
   const int number_of_triangles = static_cast<int>(bezier_triangles.size());
+  const int number_of_cells = number_of_triangles + number_of_polygons;
+
+  std::vector<std::vector<double>> scalar_data;
+  if (scalar_fields != nullptr) {
+    scalar_data.resize(scalar_fields->size());
+    for (std::size_t s = 0; s < scalar_fields->size(); ++s) {
+      const auto& field = (*scalar_fields)[s];
+      scalar_data[s].insert(
+          scalar_data[s].end(),
+          field.flattened_paraboloid_scalar_data.begin(),
+          field.flattened_paraboloid_scalar_data.end());
+      scalar_data[s].insert(scalar_data[s].end(),
+                            field.flattened_polygon_scalar_data.begin(),
+                            field.flattened_polygon_scalar_data.end());
+      if (scalar_data[s].size() !=
+          static_cast<std::size_t>(number_of_cells)) {
+        amrex::Abort(
+            "Interface scalar data size does not match VTK cell count.");
+      }
+    }
+  }
 
   if (amrex::ParallelDescriptor::IOProcessor()) {
     amrex::UtilCreateDirectory(output_dir, 0755);
@@ -775,6 +851,21 @@ void outputReconstructedInterface(const amrex::SepUnionMultiFab& interface,
       }
       std::fprintf(file, "\n</DataArray>\n");
       std::fprintf(file, "</Cells>\n");
+      if (scalar_fields != nullptr && !scalar_fields->empty()) {
+        std::fprintf(file, "<CellData Scalars=\"%s\">\n",
+                     scalar_fields->front().name.c_str());
+        for (std::size_t s = 0; s < scalar_fields->size(); ++s) {
+          std::fprintf(file,
+                       "<DataArray type=\"Float64\" Name=\"%s\" "
+                       "NumberOfComponents=\"1\" format=\"ascii\">\n",
+                       (*scalar_fields)[s].name.c_str());
+          for (const double value : scalar_data[s]) {
+            std::fprintf(file, "%15.8E ", value);
+          }
+          std::fprintf(file, "\n</DataArray>\n");
+        }
+        std::fprintf(file, "</CellData>\n");
+      }
       std::fprintf(file, "</Piece>\n");
       std::fclose(file);
     }
@@ -1106,12 +1197,159 @@ void outputMixedCellMomentErrors(
   amrex::Print() << "  wrote mixed-cell moment errors: " << filename << "\n";
 }
 
+CurvatureErrorNorms computeAndPrintCurvatureErrorNorms(
+    const SurfaceVariant& exact_surface,
+    const amrex::SepUnionMultiFab& interface_with_ghost,
+    const amrex::MultiFab& adv_moments, const amrex::Geometry& geom,
+    InterfaceScalarField* curvature_error_field = nullptr) {
+  const auto dx = geom.CellSizeArray();
+  const auto problo = geom.ProbLoArray();
+  double max_error = 0.0;
+  double sum_error = 0.0;
+  double sum_error_squared = 0.0;
+  double sum_curvedness = 0.0;
+  double sum_curvedness_squared = 0.0;
+  amrex::Long count = 0;
+
+  for (amrex::MFIter mfi(adv_moments); mfi.isValid(); ++mfi) {
+    const auto moments = adv_moments.const_array(mfi);
+    const auto iface = interface_with_ghost.const_array(mfi);
+    const auto lo = amrex::lbound(mfi.validbox());
+    const auto hi = amrex::ubound(mfi.validbox());
+    for (int k = lo.z; k <= hi.z; ++k) {
+      for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+          const double vf = moments(i, j, k, comp_vf);
+          if (vf <= IRL::global_constants::VF_LOW ||
+              vf >= IRL::global_constants::VF_HIGH)
+            continue;
+
+          // Use the same sample for the exact and reconstructed curvatures:
+          // the cell center projected onto the exact zero level set.
+          const Eigen::Vector3d center(
+              problo[0] + (static_cast<double>(i) + 0.5) * dx[0],
+              problo[1] + (static_cast<double>(j) + 0.5) * dx[1],
+              problo[2] + (static_cast<double>(k) + 0.5) * dx[2]);
+          const Eigen::Vector3d projected = std::visit(
+              [&](const auto& s) { return s.projectPointOnSurface(center); },
+              exact_surface);
+          const double exact_mean = std::visit(
+              [&](const auto& s) {
+                return s.meanCurvature(projected[0], projected[1],
+                                       projected[2]);
+              },
+              exact_surface);
+          const double exact_curvedness = std::visit(
+              [&](const auto& s) {
+                return s.curvedness(projected[0], projected[1], projected[2]);
+              },
+              exact_surface);
+          if (!projected.allFinite() || !std::isfinite(exact_mean) ||
+              !std::isfinite(exact_curvedness) || exact_curvedness <= 0.0) {
+            std::ostringstream message;
+            message << "Curvature error requires finite exact curvature and "
+                       "positive exact curvedness at projected cell center ("
+                    << i << ',' << j << ',' << k << ").";
+            amrex::Abort(message.str());
+          }
+
+          double reconstructed_mean = 0.0;
+          const auto& reconstruction = iface(i, j, k);
+          if (reconstruction.type() ==
+              IRL::SeparatorUnion::SeparatorType::Paraboloid) {
+            IRL::ParaboloidParametrizedSurfaceOutput surface(
+                reconstruction.getParaboloid());
+            // This evaluator returns kappa_1 + kappa_2, whereas the exact
+            // implicit surface uses H = (kappa_1 + kappa_2) / 2.
+            reconstructed_mean =
+                0.5 * surface.getMeanCurvatureNonAligned(
+                          IRL::Pt(projected[0], projected[1], projected[2]));
+          } else if (reconstruction.type() !=
+                     IRL::SeparatorUnion::SeparatorType::OnePlane) {
+            amrex::Abort(
+                "Mixed cell has unsupported curvature interface type.");
+          }
+          // Planes contribute with H = 0; they are included in all three norms.
+          const double error = std::abs(reconstructed_mean - exact_mean);
+          if (!std::isfinite(error)) {
+            amrex::Abort("Nonfinite reconstructed curvature error.");
+          }
+          if (curvature_error_field != nullptr) {
+            if (reconstruction.type() ==
+                IRL::SeparatorUnion::SeparatorType::Paraboloid) {
+              auto values =
+                  curvature_error_field->paraboloid_scalar_data.array(mfi);
+              values(i, j, k) = error;
+            } else {
+              auto values =
+                  curvature_error_field->polygon_scalar_data.array(mfi);
+              values(i, j, k) = error;
+            }
+          }
+          max_error = std::max(max_error, error / exact_curvedness);
+          sum_error += error;
+          sum_error_squared += error * error;
+          sum_curvedness += exact_curvedness;
+          sum_curvedness_squared += exact_curvedness * exact_curvedness;
+          ++count;
+        }
+      }
+    }
+  }
+
+  const int root = amrex::ParallelDescriptor::IOProcessorNumber();
+  amrex::ParallelDescriptor::ReduceRealMax(max_error, root);
+  amrex::ParallelDescriptor::ReduceRealSum(sum_error, root);
+  amrex::ParallelDescriptor::ReduceRealSum(sum_error_squared, root);
+  amrex::ParallelDescriptor::ReduceRealSum(sum_curvedness, root);
+  amrex::ParallelDescriptor::ReduceRealSum(sum_curvedness_squared, root);
+  amrex::ParallelDescriptor::ReduceLongSum(count, root);
+  CurvatureErrorNorms norms;
+  if (!amrex::ParallelDescriptor::IOProcessor()) return norms;
+  if (count > 0) {
+    norms.linf = max_error;
+    norms.l1 = sum_error / sum_curvedness;
+    norms.l2 = std::sqrt(sum_error_squared / sum_curvedness_squared);
+  }
+  amrex::Print() << "\nMean curvature relative error norms (" << count
+                 << " interface cells)\n"
+                 << "  H Linf = " << std::scientific << std::setprecision(16)
+                 << norms.linf << "\n"
+                 << "  H L1 = " << norms.l1 << "\n"
+                 << "  H L2 = " << norms.l2 << "\n";
+  return norms;
+}
+
+void writeMetricsCsvHeader(std::ostream& csv, const bool output_curvature) {
+  csv << "shape,method,nx_fine,factor,nx,moment_type,moment_order,"
+      << "M0_Linf,M0_L1,M0_L2,M1_Linf,M1_L1,M1_L2," << "M2_Linf,M2_L1,M2_L2";
+  if (output_curvature) csv << ",H_Linf,H_L1,H_L2";
+  csv << '\n';
+}
+
+void appendCurvatureMetricsCsv(const std::string& csv_file,
+                               const std::string& shape,
+                               const std::string& method, const int nx_fine,
+                               const int factor, const int nx,
+                               const CurvatureErrorNorms& norms) {
+  if (!amrex::ParallelDescriptor::IOProcessor() || csv_file.empty()) return;
+  std::ofstream csv(csv_file, std::ios::app);
+  if (!csv) amrex::FileOpenFailed(csv_file);
+  csv << shape << ',' << method << ',' << nx_fine << ',' << factor << ',' << nx
+      << ",curvature,";
+  // Moment order and moment errors do not apply to the curvature row.
+  for (int n = 0; n < 9; ++n) csv << ',';
+  csv << ',' << std::scientific << std::setprecision(16) << norms.linf << ','
+      << norms.l1 << ',' << norms.l2 << '\n';
+}
+
 void appendMomentMetricsCsv(const std::string& csv_file,
                             const std::string& shape, const std::string& method,
                             const int nx_fine, const int factor, const int nx,
                             const std::string& moment_type,
                             const int moment_order,
-                            const MomentErrorNorms& norms) {
+                            const MomentErrorNorms& norms,
+                            const bool output_curvature) {
   if (!amrex::ParallelDescriptor::IOProcessor() || csv_file.empty()) return;
 
   const bool write_header = !std::ifstream(csv_file).good();
@@ -1121,9 +1359,7 @@ void appendMomentMetricsCsv(const std::string& csv_file,
   }
 
   if (write_header) {
-    csv << "shape,method,nx_fine,factor,nx,moment_type,moment_order,"
-        << "M0_Linf,M0_L1,M0_L2,M1_Linf,M1_L1,M1_L2,"
-        << "M2_Linf,M2_L1,M2_L2\n";
+    writeMetricsCsvHeader(csv, output_curvature);
   }
 
   csv << shape << ',' << method << ',' << nx_fine << ',' << factor << ',' << nx
@@ -1131,7 +1367,9 @@ void appendMomentMetricsCsv(const std::string& csv_file,
       << std::setprecision(16) << norms.m0_linf << ',' << norms.m0_l1 << ','
       << norms.m0_l2 << ',' << norms.m1_linf << ',' << norms.m1_l1 << ','
       << norms.m1_l2 << ',' << norms.m2_linf << ',' << norms.m2_l1 << ','
-      << norms.m2_l2 << "\n";
+      << norms.m2_l2;
+  if (output_curvature) csv << ",,,";
+  csv << '\n';
 }
 
 void printMomentSums(const amrex::MultiFab& moments, const std::string& name) {
@@ -1174,6 +1412,8 @@ void printUsage() {
       << "  shape = sphere|ellipsoid|genus|orthocircle|perturbed_sphere\n"
       << "  nx_fine = fine binary resolution\n"
       << "  reconstruction_method = vf\n"
+      << "    methods: default|elvira|lvira|plicnet|mof|mof1|vf|vf2|ivf|"
+         "pu_vf|pu_vf2|pu2_vf|pu2_vf2|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
       << "Optional:\n"
       << "  factor = 1\n"
       << "  factors = 1 2 4 8 16\n"
@@ -1183,6 +1423,9 @@ void printUsage() {
       << "  surface_moment_order = moment_order\n"
       << "  do_volume = 1\n"
       << "  do_surface = 1\n"
+      << "  do_curvature = 0 (Linf = max(abs(H-He)/Ce); "
+         "L1 = sum(abs(H-He))/sum(Ce); "
+         "L2 = sqrt(sum((H-He)^2)/sum(Ce^2)))\n"
       << "  output_interface = 0\n"
       << "  interface_output_dir = .\n"
       << "  interface_output_name = interface_<shape>_<method>_f<factor>\n"
@@ -1211,6 +1454,7 @@ int main(int argc, char* argv[]) {
     int surface_moment_order = -1;
     int do_volume = 1;
     int do_surface = 1;
+    int do_curvature = 0;
     int output_interface = 0;
     int output_csv = 0;
     int output_cell_errors = 0;
@@ -1232,6 +1476,7 @@ int main(int argc, char* argv[]) {
     pp.query("surface_moment_order", surface_moment_order);
     pp.query("do_volume", do_volume);
     pp.query("do_surface", do_surface);
+    pp.query("do_curvature", do_curvature);
     pp.query("output_interface", output_interface);
     pp.query("output_csv", output_csv);
     pp.query("output_cell_errors", output_cell_errors);
@@ -1250,8 +1495,8 @@ int main(int argc, char* argv[]) {
     }
     if (volume_moment_order < 0) volume_moment_order = moment_order;
     if (surface_moment_order < 0) surface_moment_order = moment_order;
-    if (!do_volume && !do_surface && !output_interface && !output_cell_errors &&
-        !reportsMof2Iterations(reconstruction_method)) {
+    if (!do_volume && !do_surface && !do_curvature && !output_interface &&
+        !output_cell_errors && !reportsMof2Iterations(reconstruction_method)) {
       amrex::Abort("Enable at least one output or error calculation.");
     }
     if (output_cell_errors && !do_volume && !do_surface) {
@@ -1269,9 +1514,7 @@ int main(int argc, char* argv[]) {
       if (!csv) {
         amrex::FileOpenFailed(csv_file);
       }
-      csv << "shape,method,nx_fine,factor,nx,moment_type,moment_order,"
-          << "M0_Linf,M0_L1,M0_L2,M1_Linf,M1_L1,M1_L2,"
-          << "M2_Linf,M2_L1,M2_L2\n";
+      writeMetricsCsvHeader(csv, do_curvature != 0);
     }
 
     for (const int current_factor : factors) {
@@ -1367,17 +1610,6 @@ int main(int argc, char* argv[]) {
         }
       }
 
-      if (output_interface) {
-        std::string current_interface_name = interface_output_name;
-        if (current_interface_name.empty()) {
-          current_interface_name = shape + "_" + reconstruction_method + "_Nx" +
-                                   std::to_string(ncell) + "_interface";
-        }
-        outputReconstructedInterface(interface, adv_moments, geom,
-                                     interface_output_dir,
-                                     current_interface_name);
-      }
-
       if (do_volume) {
         const MomentErrorNorms volume_norms = computeAndPrintMomentErrorNorms(
             exact_volume_for_reconstruction, interface_with_ghost, adv_moments,
@@ -1385,7 +1617,8 @@ int main(int argc, char* argv[]) {
         if (output_csv) {
           appendMomentMetricsCsv(csv_file, shape, reconstruction_method,
                                  nx_fine, current_factor, ncell, "volume",
-                                 volume_moment_order, volume_norms);
+                                 volume_moment_order, volume_norms,
+                                 do_curvature != 0);
         }
       }
 
@@ -1402,8 +1635,43 @@ int main(int argc, char* argv[]) {
         if (output_csv) {
           appendMomentMetricsCsv(csv_file, shape, reconstruction_method,
                                  nx_fine, current_factor, ncell, "surface",
-                                 surface_moment_order, surface_norms);
+                                 surface_moment_order, surface_norms,
+                                 do_curvature != 0);
         }
+      }
+
+      std::vector<InterfaceScalarField> interface_scalar_fields;
+      InterfaceScalarField* curvature_error_field = nullptr;
+      if (do_curvature && output_interface) {
+        interface_scalar_fields.emplace_back("MeanCurvatureAbsoluteError", ba,
+                                             dm);
+        curvature_error_field = &interface_scalar_fields.back();
+      }
+
+      if (do_curvature) {
+        const SurfaceVariant exact_surface = makeSurface(shape, mesh);
+        const CurvatureErrorNorms curvature_norms =
+            computeAndPrintCurvatureErrorNorms(
+                exact_surface, interface_with_ghost, adv_moments, geom,
+                curvature_error_field);
+        if (output_csv) {
+          appendCurvatureMetricsCsv(csv_file, shape, reconstruction_method,
+                                    nx_fine, current_factor, ncell,
+                                    curvature_norms);
+        }
+      }
+
+      if (output_interface) {
+        std::string current_interface_name = interface_output_name;
+        if (current_interface_name.empty()) {
+          current_interface_name = shape + "_" + reconstruction_method + "_Nx" +
+                                   std::to_string(ncell) + "_interface";
+        }
+        outputReconstructedInterface(
+            interface, adv_moments, geom, interface_output_dir,
+            current_interface_name,
+            interface_scalar_fields.empty() ? nullptr
+                                            : &interface_scalar_fields);
       }
 
       if (output_cell_errors) {

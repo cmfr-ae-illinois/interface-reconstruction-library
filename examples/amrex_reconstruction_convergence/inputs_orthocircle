@@ -2,30 +2,33 @@
 shape = orthocircle
 
 # reconstruction method
-reconstruction_method = lvira
+# reconstruction_method = lvira
 
 # binary file containing the true moments at the finest resolution
-binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/reconstruction_binary_files/orthocircle_moments_Nx1024.bin
+binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/reconstruction_binary_files/orthocircle_no_s2/orthocircle_moments_Nx1024.bin
 
 # base grid size
 nx_fine = 1024
 # refinement factors 
-factors = 2
+factors = 4 8 16 32 64
 
-max_grid_size = 16
+max_grid_size = 32
 
 # moment orders for reconstruction
-moment_order = 2
-volume_moment_order = 1
-surface_moment_order = 0
+# moment_order = 2
+volume_moment_order = 2
+surface_moment_order = 1
 do_volume = 1
-do_surface = 0
+do_surface = 1
+
+# mean curvature error at the cell center projected onto the exact surface
+do_curvature = 1
 
 # to output reconstructed interface
 output_interface = 0
 interface_output_dir = "/home/parinht2/Repositories/interface-reconstruction-library/build"
 
-# to output csv with error norms for volumetric and surface moments
+# to output csv with enabled volumetric, surface, and curvature error norms
 output_csv = 0
 #csv_file = "/home/parinht2/Documents/Conferences/MULTIMAT_2026/data/static_reconstruction/orthocircle/orthocircle_mof2_hybrid_metrics.csv"
 

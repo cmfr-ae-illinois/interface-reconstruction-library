@@ -2,27 +2,31 @@
 shape = perturbed_sphere
 
 # reconstruction method
-reconstruction_method = lvira
+reconstruction_method = pu2_vf
 
 # binary file containing the true moments at the finest resolution
-binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/reconstruction_binary_files/perturbed_sphere_moments_Nx1024.bin
+binary_file = /home/parinht2/Repositories/interface-reconstruction-library/build/reconstruction_binary_files/perturbed_sphere_L6/perturbed_sphere_moments_Nx1024.bin
 
 # base grid size
 nx_fine = 1024
 # refinement factors 
-factors = 2 4 8 16 32 64
+factors = 4 8 16 32 64
+# factors = 2
 
-max_grid_size = 16
+max_grid_size = 64
 
 # moment orders for reconstruction
 moment_order = 2
-volume_moment_order = 1
-surface_moment_order = 0
-do_volume = 1
+volume_moment_order = 2
+surface_moment_order = 1
+do_volume = 0
 do_surface = 0
 
+# mean curvature error at the cell center projected onto the exact surface
+do_curvature = 1
+
 # to output reconstructed interface
-output_interface = 0
+output_interface = 1
 interface_output_dir = "/home/parinht2/Repositories/interface-reconstruction-library/build"
 
 # to output csv with error norms for volumetric and surface moments
