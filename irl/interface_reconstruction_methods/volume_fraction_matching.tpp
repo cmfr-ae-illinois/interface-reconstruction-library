@@ -85,12 +85,14 @@ inline void setDistanceToMatchVolumeFractionPartialFill(
         IRL::PlanarSeparator::fromOnePlane(a_reconstruction->getPlane());
     setDistanceToMatchVolumeFractionPartialFill(
         a_cell, a_volume_fraction, &separator1, a_volume_fraction_tolerance);
+    a_reconstruction->setToPlane(separator1[0]);
   } else if (a_reconstruction->type() ==
              SeparatorUnion::SeparatorType::TwoPlanes) {
     IRL::PlanarSeparator separator2 = IRL::PlanarSeparator::fromTwoPlanes(
         a_reconstruction->getPlane(0), a_reconstruction->getPlane(1), 1.0);
     setDistanceToMatchVolumeFractionPartialFill(
         a_cell, a_volume_fraction, &separator2, a_volume_fraction_tolerance);
+    a_reconstruction->setToPlanes(separator2[0], separator2[1]);
   } else if (a_reconstruction->type() ==
              SeparatorUnion::SeparatorType::Paraboloid) {
     auto paraboloid = a_reconstruction->getParaboloid();
