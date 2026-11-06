@@ -17,6 +17,10 @@ inline SeparatorVariant::SeparatorVariant(
   (*this) = a_separator_union;
 }
 
+inline SeparatorVariant::SeparatorVariant(const Plane& a_plane) {
+  (*this) = a_plane;
+}
+
 inline SeparatorVariant& SeparatorVariant::operator=(
     const SeparatorUnion& a_separator_union) {
   switch (a_separator_union.type()) {
@@ -38,6 +42,11 @@ inline SeparatorVariant& SeparatorVariant::operator=(
           "SeparatorVariant conversion");
   }
 
+  return *this;
+}
+
+inline SeparatorVariant& SeparatorVariant::operator=(const Plane& a_plane) {
+  (*this) = PlanarSeparator::fromOnePlane(a_plane);
   return *this;
 }
 
@@ -127,6 +136,32 @@ inline void SeparatorVariant::unpackSerialized(ByteBuffer* a_buffer) {
   } else {
     throw std::runtime_error("Variant type cannot be unpacked");
   }
+}
+
+inline SeparatorUnion& SeparatorUnion::operator=(
+    const SeparatorVariant& other) {
+  if (const auto separator = std::get_if<PlanarSeparator>(&other)) {
+    if (separator->getNumberOfPlanes() == 1) {
+      type_m = SeparatorType::OnePlane;
+      planes_m[0] = (*separator)[0];
+    } else if (separator->getNumberOfPlanes() == 2) {
+      type_m = SeparatorType::TwoPlanes;
+      planes_m[0] = (*separator)[0];
+      planes_m[1] = (*separator)[1];
+    } else {
+      throw std::runtime_error("Variant type unrecognized");
+    }
+  } else if (const auto separator = std::get_if<Paraboloid>(&other)) {
+    type_m = SeparatorType::Paraboloid;
+    paraboloid_m = (*separator);
+
+  } else if (const auto separator = std::get_if<Cylinder>(&other)) {
+    type_m = SeparatorType::Cylinder;
+    cylinder_m = (*separator);
+  } else {
+    throw std::runtime_error("Variant type unrecognized");
+  }
+  return *this;
 }
 
 inline std::ostream& operator<<(std::ostream& out,

@@ -12,6 +12,7 @@
 
 #include "irl/interface_reconstruction_methods/advected_plane_reconstruction.h"
 #include "irl/interface_reconstruction_methods/elvira.h"
+#include "irl/interface_reconstruction_methods/height_functions.h"
 #include "irl/interface_reconstruction_methods/jibben.h"
 #include "irl/interface_reconstruction_methods/jibben_neighborhood.h"
 #include "irl/interface_reconstruction_methods/lvira_neighborhood.h"
@@ -27,6 +28,13 @@
 #include "irl/planar_reconstruction/planar_separator.h"
 
 namespace IRL {
+
+/// \brief Perform reconstruction using height-functions for a 3D problem.
+template <int Nx, int Ny, int Nz>
+SeparatorVariant reconstructionWithHeightFunctions3D(
+    const std::array<std::array<std::array<double, Nz>, Ny>, Nx>& a_vfrac,
+    const Pt a_stencil_center, const double a_dx,
+    HeightFunctionStatus* a_status = nullptr);
 
 /// \brief Perform PU reconstruction for a 3D problem.
 template <class CellType>

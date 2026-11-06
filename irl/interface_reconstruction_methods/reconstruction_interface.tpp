@@ -12,6 +12,20 @@
 
 namespace IRL {
 
+template <int Nx, int Ny, int Nz>
+SeparatorVariant reconstructionWithHeightFunctions3D(
+    const std::array<std::array<std::array<double, Nz>, Ny>, Nx>& a_vfrac,
+    const Pt a_stencil_center, const double a_dx,
+    HeightFunctionStatus* a_status) {
+  HeightFunctions_3D<Nx, Ny, Nz, SeparatorVariant> hf_solver;
+  const SeparatorVariant reconstruction =
+      hf_solver.solve(a_vfrac, a_stencil_center, a_dx);
+  if (a_status != nullptr) {
+    *a_status = hf_solver.status();
+  }
+  return reconstruction;
+}
+
 template <class CellType>
 Paraboloid reconstructionWithPU3D(
     const PUNeighborhood<CellType>& a_neighborhood_geometry,

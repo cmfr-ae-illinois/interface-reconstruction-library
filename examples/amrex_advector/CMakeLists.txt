@@ -20,6 +20,7 @@ IRLAddExample_cpp(
   "reconstruction_ivf.h"
   "reconstruction_pu.h"
   "reconstruction_cf.h"
+  "reconstruction_hf.h"
   # "reconstruction.h"
   "advection_remap.h"
   "advection_helpers.h"

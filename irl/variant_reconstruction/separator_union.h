@@ -21,6 +21,8 @@
 
 namespace IRL {
 
+class SeparatorVariant;
+
 // This class is meant to be trivially copyable for use in AMReX
 // For application outside AMReX, use SeparatorVariant instead
 class alignas(8) SeparatorUnion {
@@ -65,6 +67,10 @@ class alignas(8) SeparatorUnion {
 
   // Overloaded Cylinder copy (sets type to cylinder)
   SeparatorUnion& operator=(const Cylinder& other);
+
+  // Overloaded SeparatorVariant copy (sets type to that of the variant)
+  // Defined in separator_variant.h
+  SeparatorUnion& operator=(const SeparatorVariant& other);
 
   // Returns type of stored separator
   const SeparatorType& type(void) const;

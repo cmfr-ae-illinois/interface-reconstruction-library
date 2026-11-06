@@ -30,7 +30,9 @@ class SeparatorVariant
   using base::operator=;
 
   SeparatorVariant(const SeparatorUnion& a_separator_union);
+  SeparatorVariant(const Plane& a_plane);
   SeparatorVariant& operator=(const SeparatorUnion& a_separator_union);
+  SeparatorVariant& operator=(const Plane& a_plane);
 
   void setToPlanarSeparator(void);
   void setToParaboloid(void);

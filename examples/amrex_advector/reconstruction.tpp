@@ -15,6 +15,7 @@
 
 #include "examples/amrex_advector/reconstruction_cf.h"
 #include "examples/amrex_advector/reconstruction_elvira.h"
+#include "examples/amrex_advector/reconstruction_hf.h"
 #include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_mof1.h"
@@ -29,7 +30,12 @@ void AmrCoreAdv::GetReconstruction(const int lev) {
   SepUnionMultiFab interface_with_ghost(grids[lev], dmap[lev],
                                         interface[lev].nComp(), num_grow);
   InitializeSepUnionMultiFab(interface_with_ghost);
-  MultiFab moments_with_ghost(grids[lev], dmap[lev], ncomp_moments, num_grow);
+  int num_grow_tmp = num_grow;
+  if (reconstruction_name == "hf") {
+    num_grow_tmp = std::max(num_grow_tmp, 3);
+  }
+  MultiFab moments_with_ghost(grids[lev], dmap[lev], ncomp_moments,
+                              num_grow_tmp);
   moments_with_ghost.setVal(0.0);
   MultiFab::Copy(moments_with_ghost, moments_new[lev], 0, 0,
                  moments_new[lev].nComp(), 0);
@@ -68,6 +74,9 @@ void AmrCoreAdv::GetReconstruction(
                           a_geom, scalar_fields);
   } else if (reconstruction_name == "cf") {
     CF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
+                          a_geom, scalar_fields);
+  } else if (reconstruction_name == "hf") {
+    HF::GetReconstruction(a_interface, a_interface_with_ghost, a_moments,
                           a_geom, scalar_fields);
   } else {
     std::ostringstream oss;

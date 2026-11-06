@@ -49,3 +49,5 @@ target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/it
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/iterative_jibben.cpp)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/cf.h)
 target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/cf.cpp)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/height_functions.h)
+target_sources(irl PRIVATE ${IRL_SOURCE_DIR}/interface_reconstruction_methods/height_functions.tpp)

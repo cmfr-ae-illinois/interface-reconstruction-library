@@ -25,9 +25,131 @@
 #include "irl/helpers/mymath.h"
 #include "irl/interface_reconstruction_methods/plane_distance.h"
 
+#include <utility>
+
+template <int... Vs, typename F>
+constexpr void for_values(F&& f) {
+  (f(std::integral_constant<int, Vs>{}), ...);
+}
+
 namespace {
 
 using namespace IRL;
+
+TEST(ReconstructionInterface, HF_3D) {
+  std::random_device
+      rd;  // Get a random seed from the OS entropy device, or whatever
+  std::mt19937_64 eng(rd());  // Use the 64-bit Mersenne Twister 19937
+                              // generator and seed it with entropy.
+  static const int ncycles = 1250;
+  std::uniform_real_distribution<double> random_dx(0.1, 1.0);
+  std::uniform_real_distribution<double> random_scalar(-1.0, 1.0);
+  std::uniform_int_distribution<int> random_dir(0, 2);
+
+  const std::array<Normal, 3> evecs(
+      {Normal(1, 0, 0), Normal(0, 1, 0), Normal(0, 0, 1)});
+
+  for (int cycle = 0; cycle < ncycles; ++cycle) {
+    const double dx = std::fabs(random_dx(eng));
+    const int dir = random_dir(eng);
+    auto frame =
+        ReferenceFrame(evecs[(dir + 1) % 3], evecs[(dir + 2) % 3], evecs[dir]);
+    const double rotation_angle = M_PI * random_scalar(eng);
+    const UnitQuaternion rotation(rotation_angle, frame[2]);
+    frame = rotation * frame;
+    Pt datum(2.0 * random_scalar(eng), 2.0 * random_scalar(eng),
+             2.0 * random_scalar(eng));
+    datum[dir] = 0.0;
+    const double max_dist = magnitude(datum);
+    const double max_curv = dx / (2.0 * dx + max_dist) / (2.0 * dx + max_dist);
+    const double a = max_curv * random_scalar(eng);
+    const double b = max_curv * random_scalar(eng);
+    const auto paraboloid = Paraboloid(datum, frame, a, b);
+
+    for_values<6, 7>([&](auto Nx) {
+      for_values<6, 7>([&](auto Ny) {
+        for_values<6, 7>([&](auto Nz) {
+          std::array<std::array<std::array<double, Nz()>, Ny()>, Nx()> vfrac;
+          for (int i = 0; i < Nx(); ++i) {
+            for (int j = 0; j < Ny(); ++j) {
+              for (int k = 0; k < Nz(); ++k) {
+                const double Lx = static_cast<double>(Nx()) * dx;
+                const double Ly = static_cast<double>(Ny()) * dx;
+                const double Lz = static_cast<double>(Nz()) * dx;
+                const auto cell = RectangularCuboid::fromBoundingPts(
+                    Pt(i * dx - 0.5 * Lx, j * dx - 0.5 * Ly, k * dx - 0.5 * Lz),
+                    Pt((i + 1) * dx - 0.5 * Lx, (j + 1) * dx - 0.5 * Ly,
+                       (k + 1) * dx - 0.5 * Lz));
+                vfrac[i][j][k] = getVolumeFraction(cell, paraboloid);
+              }
+            }
+          }
+
+          HeightFunctions_3D<Nx(), Ny(), Nz()> hf_solver(1.0e-10);
+          const auto reconstruction = hf_solver.solve(vfrac, Pt(0, 0, 0), dx);
+          EXPECT_EQ(hf_solver.nvalid(),
+                    hf_solver.Nhx() *
+                        hf_solver.Nhy());  // All heights should be valid
+          EXPECT_EQ(
+              hf_solver.status(),
+              HeightFunctionStatus::
+                  RETURNED_PARABOLOID_FROM_FULL_STENCIL);  // HF solver should
+                                                           // return a
+                                                           // paraboloid
+                                                           // reconstruction
+                                                           // from a fully valid
+                                                           // height
+
+          Normal gradF, gradF_local;
+          const Pt origin = Pt(0, 0, 0) - datum;
+          Pt origin_local;
+          for (UnsignedIndex_t n = 0; n < 3; ++n) {
+            origin_local[n] = frame[n] * origin;
+          }
+          gradF_local[0] = -2.0 * a * origin_local[0];
+          gradF_local[1] = -2.0 * b * origin_local[1];
+          gradF_local[2] = 1.0;
+          gradF = frame[0] * gradF_local[0] + frame[1] * gradF_local[1] +
+                  frame[2] * gradF_local[2];
+
+          if (const auto fitted_paraboloid =
+                  std::get_if<Paraboloid>(&reconstruction)) {
+            Normal fitted_gradF, fitted_gradF_local;
+            const auto fitted_datum = fitted_paraboloid->getDatum();
+            const auto fitted_frame = fitted_paraboloid->getReferenceFrame();
+            const auto fitted_a = fitted_paraboloid->getAlignedParaboloid().a();
+            const auto fitted_b = fitted_paraboloid->getAlignedParaboloid().b();
+            const Pt fitted_origin = Pt(0, 0, 0) - fitted_datum;
+            Pt fitted_origin_local;
+            for (UnsignedIndex_t n = 0; n < 3; ++n) {
+              fitted_origin_local[n] = fitted_frame[n] * fitted_origin;
+            }
+            fitted_gradF_local[0] = -2.0 * fitted_a * fitted_origin_local[0];
+            fitted_gradF_local[1] = -2.0 * fitted_b * fitted_origin_local[1];
+            fitted_gradF_local[2] = 1.0;
+            fitted_gradF = fitted_frame[0] * fitted_gradF_local[0] +
+                           fitted_frame[1] * fitted_gradF_local[1] +
+                           fitted_frame[2] * fitted_gradF_local[2];
+            EXPECT_NEAR(magnitude(fitted_gradF - gradF), 0.0,
+                        1.0e-12);  // Gradient at stencil center should match
+
+            // The paraboloid could be rotated by 90 degrees, so check both
+            // possibilities for a and b.
+            const double diff_aa = std::fabs(fitted_a - a);
+            const double diff_ab = std::fabs(fitted_a - b);
+            const double diff_ba = std::fabs(fitted_b - a);
+            const double diff_bb = std::fabs(fitted_b - b);
+            EXPECT_NEAR(dx * std::min({diff_aa, diff_ab}), 0.0, 1.0e-12);
+            EXPECT_NEAR(dx * std::min({diff_ba, diff_bb}), 0.0, 1.0e-12);
+          } else {
+            FAIL() << "Expected Paraboloid reconstruction, but got something "
+                      "else.";
+          }
+        });
+      });
+    });
+  }
+}
 
 TEST(ReconstructionInterface, R2P_2D1P) {
   RectangularCuboid middle_cell = RectangularCuboid::fromBoundingPts(
