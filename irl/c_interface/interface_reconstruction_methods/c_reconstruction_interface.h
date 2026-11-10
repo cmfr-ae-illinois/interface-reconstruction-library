@@ -45,6 +45,10 @@ extern "C" {
 /// the individual needs of each reconstruction method,
 /// it is best to constult its specific documentation.
 
+void c_reconstructHF3D_Variant(const double* a_vfrac, const double* a_center,
+                               const double* a_dx, int* Nx, int* Ny, int* Nz,
+                               c_SeparatorVariant* a_separator, int* a_status);
+
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
     const double* a_dx, c_SeparatorVariant* a_separator);

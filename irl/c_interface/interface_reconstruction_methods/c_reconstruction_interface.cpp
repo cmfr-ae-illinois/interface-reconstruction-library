@@ -8,10 +8,55 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "irl/c_interface/interface_reconstruction_methods/c_reconstruction_interface.h"
-
 #include <cassert>
 
 extern "C" {
+
+void c_reconstructHF3D_Variant(const double* a_vfrac, const double* a_center,
+                               const double* a_dx, int* Nx, int* Ny, int* Nz,
+                               c_SeparatorVariant* a_separator, int* a_status) {
+  assert(a_vfrac != nullptr);
+  assert(a_center != nullptr);
+  assert(a_dx != nullptr);
+  assert(Nx != nullptr);
+  assert(Ny != nullptr);
+  assert(Nz != nullptr);
+  assert(a_separator != nullptr);
+  assert(a_separator->obj_ptr != nullptr);
+  assert(a_status != nullptr);
+
+  // Lambda
+  // Populate a stencil from the 7x7x7 Fortran array
+  auto populateStencil = [&](auto& vfrac) {
+    const int nx = static_cast<int>(vfrac.size());
+    const int ny = static_cast<int>(vfrac[0].size());
+    const int nz = static_cast<int>(vfrac[0][0].size());
+
+    for (int i = 0; i < nx; ++i) {
+      for (int j = 0; j < ny; ++j) {
+        for (int k = 0; k < nz; ++k) {
+          vfrac[i][j][k] = a_vfrac[i + 7 * (j + 7 * k)];
+        }
+      }
+    }
+  };
+  // Simple Stuff
+  // Construct stencil center
+  const IRL::Pt center(a_center[0], a_center[1], a_center[2]);
+  // Reconstruction status
+  IRL::HeightFunctionStatus status = IRL::HeightFunctionStatus::NOT_SOLVED;
+
+  // Here we need to template match
+  if (*Nx == 7 && *Ny == 7 && *Nz == 7) {
+    std::array<std::array<std::array<double, 7>, 7>, 7> vfrac{};
+    populateStencil(vfrac);
+    *a_separator->obj_ptr = IRL::reconstructionWithHeightFunctions3D<7, 7, 7>(
+        vfrac, center, *a_dx, &status);
+  } else {
+    std::cout << "Unsupported grid dimensions: " << *Nx << "x" << *Ny << "x"
+              << *Nz << std::endl;
+  }
+}
 
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
