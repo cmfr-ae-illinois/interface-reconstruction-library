@@ -10,6 +10,7 @@
 #ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF_H_
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_VF_H_
 
+#include <cmath>
 #include "irl/amrex/sepunion_multifab.h"
 
 #include "examples/amrex_advector/reconstruction_lvira.h"
@@ -23,20 +24,14 @@ struct VF {
       const MultiFab& moments, const Geometry& geom,
       std::vector<InterfaceScalarField>* scalar_fields = nullptr,
       Real* reconstruction_loop_time = nullptr) {
-    // Produce initial guess with PLICNet
     // PLICNet::GetReconstruction(interface, interface_with_ghost, moments,
     // geom);
     LVIRA::GetReconstruction(interface, interface_with_ghost, moments, geom,
                              nullptr, reconstruction_loop_time);
 
-    // Scalar fields
-    if (scalar_fields) {
-      scalar_fields->clear();
-      scalar_fields->emplace_back("volume_error_squared", moments.boxArray(),
-                                  moments.DistributionMap(), 0);
-      scalar_fields->emplace_back("volume_error", moments.boxArray(),
-                                  moments.DistributionMap(), 0);
-    }
+    // geometric params for plic fallback
+    constexpr Real curvature_limit = 4.0;
+    constexpr Real datum_limit = 2.0;
 
     // Now compute Jibben's reconstruction
     const auto dx = geom.CellSizeArray();
@@ -51,15 +46,6 @@ struct VF {
           interface_with_ghost.const_array(mfi);
       Array4<Real const> moments_array = moments.const_array(mfi);
       const Box& bx = mfi.tilebox();
-
-      Array4<Real> volume_error_squared_parab;
-      Array4<Real> volume_error_parab;
-      if (scalar_fields) {
-        volume_error_squared_parab =
-            (*scalar_fields)[0].paraboloid_scalar_data.array(mfi);
-        volume_error_parab =
-            (*scalar_fields)[1].paraboloid_scalar_data.array(mfi);
-      }
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
         // Compute cell volume fraction
@@ -82,6 +68,7 @@ struct VF {
         neighborhood.setDelta(2.5 * dx_avg);
         neighborhood.emptyNeighborhood();
         int count = 0;
+        bool has_center = false;
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
             for (int ii = i - nlayers; ii <= i + nlayers; ++ii) {
@@ -111,28 +98,24 @@ struct VF {
                   vf_weight = 0.5 - 0.5 * std::cos(M_PI * (1.0 - vfrac_local) /
                                                    limit_vfrac);
                 }
-                vf_weight = 1.0;
+                // vf_weight = 1.0;
                 neighborhood.addMember(polygon, vf_weight);
                 if (i == ii && j == jj && k == kk) {
                   neighborhood.setCenterOfStencil(count);
+                  has_center = true;
                 }
                 count++;
               }
             }
           }
         }
+        // Localization requires a valid central polygon
+        if (!has_center || count < 6) return;
         neighborhood.localize();
         // Reconstruct interface with Jibben and store result in
         // interface_array
         IRL::Jibben_3D jibben(&neighborhood);
         auto paraboloid = jibben.solve(&neighborhood);
-
-        // Scalar diagnostic for the fitted paraboloid
-        if (scalar_fields) {
-          volume_error_squared_parab(i, j, k) =
-              jibben.getVolumeErrorSquared(dx_avg);
-          volume_error_parab(i, j, k) = jibben.getVolumeError(dx_avg);
-        }
 
         // Construct local cell
         const double x = problo[0] + i * dx[0];
@@ -149,13 +132,28 @@ struct VF {
             std::max(std::fabs(paraboloid.getAlignedParaboloid().a()),
                      std::fabs(paraboloid.getAlignedParaboloid().b()));
 
-        // if (distance_to_datum < 2.0 * dx_avg && max_curvature * dx_avg < 0.5)
-        // { Assign paraboloid to interface array
-        interface_array(i, j, k) = paraboloid;
-        // Match to volume fraction
-        IRL::setDistanceToMatchVolumeFraction(
-            cell, vfrac, &interface_array(i, j, k), 1.0e-14);
-        // }
+        // checks for plic fallback
+        const bool unsafe_fit = !jibben.isFullRank() ||
+                                !std::isfinite(distance_to_datum) ||
+                                !std::isfinite(max_curvature) ||
+                                distance_to_datum > datum_limit * dx_avg ||
+                                max_curvature * dx_avg > curvature_limit;
+        if (unsafe_fit) return;
+
+        // Match a temporary candidate so failure leaves the LVIRA PLIC intact.
+        IRL::SeparatorUnion candidate;
+        candidate = paraboloid;
+        constexpr double match_tolerance = 1.0e-14;
+        IRL::setDistanceToMatchVolumeFraction(cell, vfrac, &candidate,
+                                              match_tolerance);
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, candidate) /
+            cell.calculateVolume();
+        const bool match_failed =
+            !std::isfinite(matched_vf) ||
+            std::abs(matched_vf - vfrac) > match_tolerance;
+        if (match_failed) return;
+        interface_array(i, j, k) = candidate;
       });
     }  // end mfi
     loop_timer.stop();
