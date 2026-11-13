@@ -33,6 +33,12 @@ class Jibben_3D {
   Paraboloid solve(const JibbenNeighborhood* a_neighborhood_pointer,
                    const double a_delta = -1.0);
 
+  /// \brief Rank of least squares system
+  int getFitRank() const { return fit_rank_m; }
+
+  /// \brief Whether the quadratic fit determines all six coefficients.
+  bool isFullRank() const { return fit_rank_m == 6; }
+
   /// \brief Getting fitting error
   const double getFittingError(void) const;
 
@@ -78,6 +84,7 @@ class Jibben_3D {
   const JibbenNeighborhood* neighborhood_m = nullptr;
   /// \brief Error resulting from the fit
   double error_m = 0.0;
+  int fit_rank_m = 0;
   /// \brief Weighting function radius
   double delta_m = -1.0;
   /// \brief Paraboloid coefficients

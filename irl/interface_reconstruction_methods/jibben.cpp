@@ -91,8 +91,9 @@ Paraboloid Jibben_3D::solve(void) {
     bvec(n) = integrals.head(3).dot(plane);
   }
   // Unconstrained LS solution
-  const Eigen::VectorXd svec =
-      Amat.completeOrthogonalDecomposition().pseudoInverse() * bvec;
+  const auto decomposition = Amat.completeOrthogonalDecomposition();
+  fit_rank_m = decomposition.rank();
+  const Eigen::VectorXd svec = decomposition.pseudoInverse() * bvec;
 
   // storing paraboloid coefficients
   for (UnsignedIndex_t i = 0; i < 6; i++) {
@@ -1166,10 +1167,9 @@ Paraboloid Jibben_3D::solve2(const JibbenNeighborhood* a_neighborhood_pointer,
   Amat(5, 3) = Amat(3, 5);
   Amat(5, 4) = Amat(4, 5);
   // solving for paraboloid coefficients
-  const Eigen::VectorXd cvec =
-      Amat.completeOrthogonalDecomposition().pseudoInverse() * dvec;
-
-  // std::cout << cvec.transpose() << std::endl;
+  const auto decomposition = Amat.completeOrthogonalDecomposition();
+  fit_rank_m = decomposition.rank();
+  const Eigen::VectorXd cvec = decomposition.pseudoInverse() * dvec;
 
   // storing paraboloid coefficients
   for (UnsignedIndex_t i = 0; i < 6; i++) {
