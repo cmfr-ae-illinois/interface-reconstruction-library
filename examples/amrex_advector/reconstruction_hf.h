@@ -150,13 +150,16 @@ struct HF {
             std::max(std::fabs(paraboloid.getAlignedParaboloid().a()),
                      std::fabs(paraboloid.getAlignedParaboloid().b()));
 
-        // if (distance_to_datum < 2.0 * dx_avg && max_curvature * dx_avg < 0.5)
-        // { Assign paraboloid to interface array
-        interface_array(i, j, k) = paraboloid;
-        // Match to volume fraction
-        IRL::setDistanceToMatchVolumeFraction(
-            cell, vfrac, &interface_array(i, j, k), 1.0e-14);
-        // }
+        IRL::SeparatorUnion candidate;
+        candidate = paraboloid;
+        IRL::setDistanceToMatchVolumeFraction(cell, vfrac, &candidate, 1.0e-14);
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, candidate) /
+            cell.calculateVolume();
+        const bool match_failed = !std::isfinite(matched_vf) ||
+                                  std::abs(matched_vf - vfrac) > 1.0e-14;
+        if (match_failed) return;
+        interface_array(i, j, k) = candidate;
       });
     }  // end mfi
     loop_timer.stop();

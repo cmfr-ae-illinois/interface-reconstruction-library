@@ -313,13 +313,21 @@ struct PU_HF {
           }
         }
 
-        jibben_array(i, j, k) = jibben_paraboloid;
+        IRL::SeparatorUnion candidate;
+        candidate = jibben_paraboloid;
 
         // Match volume fraction
         const auto cell = makeCell(i, j, k, problo, dx);
 
-        IRL::setDistanceToMatchVolumeFraction(cell, liq_vf,
-                                              &jibben_array(i, j, k), 1.0e-14);
+        IRL::setDistanceToMatchVolumeFraction(cell, liq_vf, &candidate,
+                                              1.0e-14);
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, candidate) /
+            cell.calculateVolume();
+        const bool match_failed = !std::isfinite(matched_vf) ||
+                                  std::abs(matched_vf - liq_vf) > 1.0e-14;
+        if (match_failed) return;
+        jibben_array(i, j, k) = candidate;
 
         // Update PU-neighborhood interface with acceptable paraboloids
         const auto& aligned_paraboloid =
@@ -485,6 +493,12 @@ struct PU_HF {
 
         pu_paraboloid.setDatum(
             IRL::Pt(new_datum + solver_distance.getDistance() * new_frame[2]));
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, pu_paraboloid) /
+            cell.calculateVolume();
+        const bool match_failed = !std::isfinite(matched_vf) ||
+                                  std::abs(matched_vf - liq_vf) > 1.0e-14;
+        if (match_failed) return;
 
         pu_array(i, j, k) = pu_paraboloid;
       });

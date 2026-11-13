@@ -232,6 +232,12 @@ struct PU_PLIC {
 
         pu_paraboloid.setDatum(
             IRL::Pt(new_datum + solver_distance.getDistance() * new_frame[2]));
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, pu_paraboloid) /
+            cell.calculateVolume();
+        const bool match_failed = !std::isfinite(matched_vf) ||
+                                  std::abs(matched_vf - liq_vf) > 1.0e-14;
+        if (match_failed) return;
 
         pu_array(i, j, k) = pu_paraboloid;
       });

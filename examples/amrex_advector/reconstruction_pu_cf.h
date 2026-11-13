@@ -175,12 +175,19 @@ struct PU_CF {
           return;
         }
 
-        cf_interface_array(i, j, k) = paraboloid;
+        IRL::SeparatorUnion candidate;
+        candidate = paraboloid;
 
         const auto cell = makeCell(i, j, k, problo, dx);
 
-        IRL::setDistanceToMatchVolumeFraction(
-            cell, vf, &cf_interface_array(i, j, k), 1.0e-14);
+        IRL::setDistanceToMatchVolumeFraction(cell, vf, &candidate, 1.0e-14);
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, candidate) /
+            cell.calculateVolume();
+        const bool match_failed =
+            !std::isfinite(matched_vf) || std::abs(matched_vf - vf) > 1.0e-14;
+        if (match_failed) return;
+        cf_interface_array(i, j, k) = candidate;
       });
     }
     loop_timer.stop();
@@ -333,6 +340,12 @@ struct PU_CF {
 
         pu_paraboloid.setDatum(
             IRL::Pt(new_datum + solver_distance.getDistance() * new_frame[2]));
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, pu_paraboloid) /
+            cell.calculateVolume();
+        const bool match_failed = !std::isfinite(matched_vf) ||
+                                  std::abs(matched_vf - liq_vf) > 1.0e-14;
+        if (match_failed) return;
 
         interface_array(i, j, k) = pu_paraboloid;
       });

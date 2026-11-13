@@ -171,12 +171,19 @@ struct CF {
           return;
         }
 
-        interface_array(i, j, k) = paraboloid;
+        IRL::SeparatorUnion candidate;
+        candidate = paraboloid;
 
         const auto cell = makeCell(i, j, k, problo, dx);
 
-        IRL::setDistanceToMatchVolumeFraction(
-            cell, vf, &interface_array(i, j, k), 1.0e-14);
+        IRL::setDistanceToMatchVolumeFraction(cell, vf, &candidate, 1.0e-14);
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, candidate) /
+            cell.calculateVolume();
+        const bool match_failed =
+            !std::isfinite(matched_vf) || std::abs(matched_vf - vf) > 1.0e-14;
+        if (match_failed) return;
+        interface_array(i, j, k) = candidate;
       });
     }
     loop_timer.stop();

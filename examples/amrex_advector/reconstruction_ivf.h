@@ -555,12 +555,19 @@ struct iVF {
         IRL::iJibben_3D ijibben(&neighborhood);
         ijibben.getParaboloidCoefficients();
 
-        interface_array(i, j, k) = ijibben.makeParaboloid2(&neighborhood);
+        IRL::SeparatorUnion candidate;
+        candidate = ijibben.makeParaboloid2(&neighborhood);
 
         const auto cell = makeCell(i, j, k, problo, dx);
 
-        IRL::setDistanceToMatchVolumeFraction(
-            cell, vfrac, &interface_array(i, j, k), 1.0e-14);
+        IRL::setDistanceToMatchVolumeFraction(cell, vfrac, &candidate, 1.0e-14);
+        const double matched_vf =
+            IRL::getVolumeMoments<IRL::Volume>(cell, candidate) /
+            cell.calculateVolume();
+        const bool match_failed = !std::isfinite(matched_vf) ||
+                                  std::abs(matched_vf - vfrac) > 1.0e-14;
+        if (match_failed) return;
+        interface_array(i, j, k) = candidate;
       });
     }
     loop_timer.stop();
