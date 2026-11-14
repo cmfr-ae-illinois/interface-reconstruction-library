@@ -10,9 +10,9 @@
 #ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_MOF2_H_
 #define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_MOF2_H_
 
-#include "examples/amrex_advector/reconstruction_hf.h"
+#include "examples/amrex_advector/reconstruction_h2f.h"
 #include "examples/amrex_advector/reconstruction_hybrid.h"
-#include "examples/amrex_advector/reconstruction_pu_hf.h"
+#include "examples/amrex_advector/reconstruction_pu_h2f.h"
 #include "irl/amrex/sepunion_multifab.h"
 
 #include <Eigen/QR>

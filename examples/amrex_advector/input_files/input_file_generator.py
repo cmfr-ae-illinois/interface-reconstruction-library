@@ -3,17 +3,17 @@ from pathlib import Path
 # ------------------------------------------------------------
 # params to change 
 # ------------------------------------------------------------
-# case_name = "deformation3d"
+case_name = "deformation3d"
 # case_name = "rotation3d"
-case_name = "shear3d"
+# case_name = "shear3d"
 reconstruction_names = [
-    "pu2_hf",
+    "lvira","cf","ivf","vf","h2f","pu_vf","pu_h2f",
 ]
 max_levels = [
-    1,
+    1,2,3,4,
 ]
-cfl = 0.05
-output_dir = Path("/home/parinht2/Repositories/interface-reconstruction-library/build/")
+cfl = 1.0
+output_dir = Path("/home/parinht2/Repositories/interface-reconstruction-library/build/deformation/inputs/")
 checkpoint_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/shear2"
 interface_output_path = "/home/parinht2/Repositories/interface-reconstruction-library/build/shear2"
 plot_times = [0.0, 0.25, 0.5, 0.75, 1.0]

@@ -7,8 +7,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_HF_H_
-#define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_HF_H_
+#ifndef EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_H2F_H_
+#define EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_H2F_H_
 
 #include <cmath>
 #include <limits>
@@ -21,7 +21,7 @@
 
 using namespace amrex;
 
-struct PU_HF {
+struct PU_H2F {
   static IRL::RectangularCuboid makeCell(
       const int i, const int j, const int k,
       const GpuArray<Real, AMREX_SPACEDIM>& problo,
@@ -608,4 +608,4 @@ struct PU_HF {
   }
 };
 
-#endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_HF_H_
+#endif  // EXAMPLES_AMREX_ADVECTOR_RECONSTRUCTION_PU_H2F_H_

@@ -19,7 +19,7 @@
 
 #include "examples/amrex_advector/reconstruction_lvira.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
-#include "examples/amrex_advector/reconstruction_pu_hf.h"
+#include "examples/amrex_advector/reconstruction_pu_h2f.h"
 #include "irl/interface_reconstruction_methods/iterative_jibben.h"
 
 using namespace amrex;
