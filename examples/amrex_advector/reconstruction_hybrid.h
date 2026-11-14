@@ -81,6 +81,8 @@ struct HYBRID {
     // Some params
     // ---------------------------------------------------------------------
 
+    constexpr Real datum_limit = 2.0;
+    constexpr Real curvature_limit = 4.0;
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
 
@@ -312,8 +314,10 @@ struct HYBRID {
         const auto& aligned_paraboloid =
             jibben_paraboloid.getAlignedParaboloid();
 
-        if (std::fabs(aligned_paraboloid.a()) * dx_avg > 4.0 ||
-            std::fabs(aligned_paraboloid.b()) * dx_avg > 4.0) {
+        if (!std::isfinite(aligned_paraboloid.a()) ||
+            !std::isfinite(aligned_paraboloid.b()) ||
+            std::fabs(aligned_paraboloid.a()) * dx_avg > curvature_limit ||
+            std::fabs(aligned_paraboloid.b()) * dx_avg > curvature_limit) {
           underresolved_array(i, j, k) = 1;
           return;
         }
@@ -322,6 +326,14 @@ struct HYBRID {
         const auto new_frame = jibben_paraboloid.getReferenceFrame();
 
         const auto cell = makeCell(i, j, k, problo, dx);
+
+        const double distance_to_datum = IRL::magnitude(
+            jibben_paraboloid.getDatum() - cell.calculateCentroid());
+        if (!std::isfinite(distance_to_datum) ||
+            distance_to_datum > datum_limit * dx_avg) {
+          underresolved_array(i, j, k) = 1;
+          return;
+        }
 
         IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
             solver_distance(cell, liq_vf, 1.0e-14, jibben_paraboloid);
@@ -512,7 +524,9 @@ struct HYBRID {
 
         const auto& aligned_paraboloid = pu_paraboloid.getAlignedParaboloid();
 
-        if (std::fabs(aligned_paraboloid.a()) * dx_avg >
+        if (!std::isfinite(aligned_paraboloid.a()) ||
+            !std::isfinite(aligned_paraboloid.b()) ||
+            std::fabs(aligned_paraboloid.a()) * dx_avg >
                 pu_curvature_threshold ||
             std::fabs(aligned_paraboloid.b()) * dx_avg >
                 pu_curvature_threshold) {
@@ -523,6 +537,13 @@ struct HYBRID {
         const auto new_frame = pu_paraboloid.getReferenceFrame();
 
         const auto cell = makeCell(i, j, k, problo, dx);
+
+        const double distance_to_datum =
+            IRL::magnitude(pu_paraboloid.getDatum() - cell.calculateCentroid());
+        if (!std::isfinite(distance_to_datum) ||
+            distance_to_datum > datum_limit * dx_avg) {
+          return;
+        }
 
         IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
             solver_distance(cell, liq_vf, 1.0e-14, pu_paraboloid);

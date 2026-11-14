@@ -40,6 +40,8 @@ struct HF {
     }
 
     // Now compute Jibben's reconstruction
+    constexpr Real datum_limit = 2.0;
+    constexpr Real curvature_limit = 4.0;
     const auto dx = geom.CellSizeArray();
     const auto dx_avg = std::cbrt(dx[0] * dx[1] * dx[2]);
     const auto problo = geom.ProbLoArray();
@@ -153,6 +155,13 @@ struct HF {
         const double max_curvature =
             std::max(std::fabs(paraboloid.getAlignedParaboloid().a()),
                      std::fabs(paraboloid.getAlignedParaboloid().b()));
+
+        if (!std::isfinite(distance_to_datum) ||
+            !std::isfinite(paraboloid.getAlignedParaboloid().a()) ||
+            !std::isfinite(paraboloid.getAlignedParaboloid().b()) ||
+            distance_to_datum > datum_limit * dx_avg ||
+            max_curvature * dx_avg > curvature_limit)
+          return;
 
         IRL::SeparatorUnion candidate;
         candidate = paraboloid;

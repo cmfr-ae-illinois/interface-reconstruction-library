@@ -54,6 +54,8 @@ struct PU_CF {
                              nullptr, reconstruction_loop_time);
 
     // some params
+    constexpr Real datum_limit = 2.0;
+    constexpr Real curvature_limit = 4.0;
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
 
@@ -181,6 +183,20 @@ struct PU_CF {
         candidate = paraboloid;
 
         const auto cell = makeCell(i, j, k, problo, dx);
+
+        const double distance_to_datum =
+            IRL::magnitude(paraboloid.getDatum() - cell.calculateCentroid());
+        if (!std::isfinite(distance_to_datum) ||
+            distance_to_datum > datum_limit * dx_avg) {
+          return;
+        }
+
+        const auto& fitted_curvature = paraboloid.getAlignedParaboloid();
+        if (!std::isfinite(fitted_curvature.a()) ||
+            !std::isfinite(fitted_curvature.b()) ||
+            std::fabs(fitted_curvature.a()) * dx_avg > curvature_limit ||
+            std::fabs(fitted_curvature.b()) * dx_avg > curvature_limit)
+          return;
 
         IRL::setDistanceToMatchVolumeFraction(cell, vf, &candidate, 1.0e-14);
         const double matched_vf =
@@ -328,8 +344,10 @@ struct PU_CF {
         // Revert to PLIC if curvature is too large
         const auto& aligned_paraboloid = pu_paraboloid.getAlignedParaboloid();
 
-        if (std::fabs(aligned_paraboloid.a()) * dx_avg > 4.0 ||
-            std::fabs(aligned_paraboloid.b()) * dx_avg > 4.0) {
+        if (!std::isfinite(aligned_paraboloid.a()) ||
+            !std::isfinite(aligned_paraboloid.b()) ||
+            std::fabs(aligned_paraboloid.a()) * dx_avg > curvature_limit ||
+            std::fabs(aligned_paraboloid.b()) * dx_avg > curvature_limit) {
           return;
         }
 
@@ -338,6 +356,13 @@ struct PU_CF {
         const auto new_frame = pu_paraboloid.getReferenceFrame();
 
         const auto cell = makeCell(i, j, k, problo, dx);
+
+        const double distance_to_datum =
+            IRL::magnitude(pu_paraboloid.getDatum() - cell.calculateCentroid());
+        if (!std::isfinite(distance_to_datum) ||
+            distance_to_datum > datum_limit * dx_avg) {
+          return;
+        }
 
         IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
             solver_distance(cell, liq_vf, 1.0e-14, pu_paraboloid);

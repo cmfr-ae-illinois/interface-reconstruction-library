@@ -54,6 +54,8 @@ struct PU_PLIC {
 
     // ---------------------------------------------------------------------
     // params
+    constexpr Real datum_limit = 2.0;
+    constexpr Real curvature_limit = 4.0;
     const auto dx = geom.CellSizeArray();
     const auto problo = geom.ProbLoArray();
 
@@ -218,8 +220,10 @@ struct PU_PLIC {
         // Revert to PLIC if curvature is too large
         const auto& aligned_paraboloid = pu_paraboloid.getAlignedParaboloid();
 
-        if (std::fabs(aligned_paraboloid.a()) * dx_avg > 4.0 ||
-            std::fabs(aligned_paraboloid.b()) * dx_avg > 4.0) {
+        if (!std::isfinite(aligned_paraboloid.a()) ||
+            !std::isfinite(aligned_paraboloid.b()) ||
+            std::fabs(aligned_paraboloid.a()) * dx_avg > curvature_limit ||
+            std::fabs(aligned_paraboloid.b()) * dx_avg > curvature_limit) {
           return;
         }
 
@@ -228,6 +232,13 @@ struct PU_PLIC {
         const auto new_frame = pu_paraboloid.getReferenceFrame();
 
         const auto cell = makeCell(i, j, k, problo, dx);
+
+        const double distance_to_datum =
+            IRL::magnitude(pu_paraboloid.getDatum() - cell.calculateCentroid());
+        if (!std::isfinite(distance_to_datum) ||
+            distance_to_datum > datum_limit * dx_avg) {
+          return;
+        }
 
         IRL::ProgressiveDistanceSolverParaboloid<IRL::RectangularCuboid>
             solver_distance(cell, liq_vf, 1.0e-14, pu_paraboloid);
