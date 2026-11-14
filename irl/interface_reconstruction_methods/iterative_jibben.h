@@ -36,6 +36,12 @@ class iJibben_3D {
   /// system for squared volume error.
   void getParaboloidCoefficients2(void);
 
+  /// \brief Rank from leasr squares fit
+  int getFitRank() const { return fit_rank_m; }
+
+  /// \brief Whether the quadratic fit determines all six coefficients
+  bool isFullRank() const { return fit_rank_m == 6; }
+
   /// \brief computing mean curvature of the paraboloid
   double computeMeanCurvature(const double& xi, const double& eta) const;
 
@@ -61,6 +67,7 @@ class iJibben_3D {
   const JibbenNeighborhood* neighborhood_m;
   /// \brief Paraboloid coefficients
   std::array<double, 6> coefficients_m;
+  int fit_rank_m = 0;
 };
 
 }  // namespace IRL
