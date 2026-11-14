@@ -445,7 +445,14 @@ std::tuple<double, double, double, bool> CircleFit_3D::getPrincipalCurvatures(
     y(s) = a_k_theta[s];
   }
 
-  const Eigen::Vector3d a = X.colPivHouseholderQr().solve(y);
+  const auto qr = X.colPivHouseholderQr();
+  if (qr.rank() < 3) {
+    return {std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN(), false};
+  }
+
+  const Eigen::Vector3d a = qr.solve(y);
   const double res_norm = (X * a - y).norm();
 
   if (!std::isfinite(res_norm)) {
