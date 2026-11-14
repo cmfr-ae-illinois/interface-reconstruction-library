@@ -169,6 +169,7 @@ struct PU_HF {
         jibben_neighborhood.setDelta(2.5 * dx_avg);
         jibben_neighborhood.emptyNeighborhood();
 
+        bool found_center = false;
         int jibben_count = 0;
         int aligned_count = 0;
         double vf_supercell = 0.0;
@@ -220,6 +221,7 @@ struct PU_HF {
 
                 if (i == ii && j == jj && k == kk) {
                   jibben_neighborhood.setCenterOfStencil(jibben_count);
+                  found_center = true;
                 }
 
                 ++jibben_count;
@@ -230,7 +232,7 @@ struct PU_HF {
         }
 
         // Neighbor count check
-        if (jibben_count < 2) {
+        if (!found_center || jibben_count < 2) {
           underresolved_array(i, j, k) = 1;
           return;
         }
@@ -241,6 +243,10 @@ struct PU_HF {
 
         // Jibben reconstruction
         IRL::Paraboloid jibben_paraboloid = jibben.solve2(&jibben_neighborhood);
+        if (!jibben.isFullRank()) {
+          underresolved_array(i, j, k) = 1;
+          return;
+        }
 
         // checking average normal
         bool well_resolved = false;
@@ -392,6 +398,7 @@ struct PU_HF {
         const CellType center_cell = makeCell(i, j, k, problo, dx);
         pu_neighborhood.setCenterCell(&center_cell);
 
+        bool found_center = false;
         int pu_count = 0;
 
         // Build PU neighborhood
@@ -448,6 +455,7 @@ struct PU_HF {
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
+                found_center = true;
               }
 
               ++pu_count;
@@ -456,7 +464,7 @@ struct PU_HF {
         }
 
         // Neighbor count check
-        if (pu_count < 2) {
+        if (!found_center || pu_count < 2) {
           return;
         }
 

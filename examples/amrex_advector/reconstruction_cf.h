@@ -110,6 +110,7 @@ struct CF {
         neighborhood.setDelta(2.5 * dx_avg);
         neighborhood.emptyNeighborhood();
 
+        bool found_center = false;
         int count = 0;
 
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
@@ -143,6 +144,7 @@ struct CF {
 
               if (i == ii && j == jj && k == kk) {
                 neighborhood.setCenterOfStencil(count);
+                found_center = true;
               }
 
               ++count;
@@ -150,7 +152,7 @@ struct CF {
           }
         }
 
-        if (neighborhood.size() < 2) {
+        if (!found_center || neighborhood.size() < 2) {
           return;
         }
 

@@ -130,6 +130,7 @@ struct PU_PLIC {
         const CellType center_cell = makeCell(i, j, k, problo, dx);
         pu_neighborhood.setCenterCell(&center_cell);
 
+        bool found_center = false;
         int pu_count = 0;
 
         // Build PU neighborhood
@@ -187,6 +188,7 @@ struct PU_PLIC {
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
+                found_center = true;
               }
 
               ++pu_count;
@@ -195,7 +197,7 @@ struct PU_PLIC {
         }
 
         // Neighbor count check
-        if (pu_count < 2) {
+        if (!found_center || pu_count < 2) {
           return;
         }
 

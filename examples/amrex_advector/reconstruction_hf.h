@@ -83,6 +83,7 @@ struct HF {
         neighborhood.reserve(nstencil);
         neighborhood.setDelta(2.5 * dx_avg);
         neighborhood.emptyNeighborhood();
+        bool found_center = false;
         int count = 0;
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
           for (int jj = j - nlayers; jj <= j + nlayers; ++jj) {
@@ -116,17 +117,20 @@ struct HF {
                 neighborhood.addMember(polygon, vf_weight);
                 if (i == ii && j == jj && k == kk) {
                   neighborhood.setCenterOfStencil(count);
+                  found_center = true;
                 }
                 count++;
               }
             }
           }
         }
+        if (!found_center) return;
         neighborhood.localize();
         // Reconstruct interface with Jibben and store result in
         // interface_array
         IRL::Jibben_3D jibben(&neighborhood);
         auto paraboloid = jibben.solve2(&neighborhood);
+        if (!jibben.isFullRank()) return;
 
         // Scalar diagnostics for the fitted paraboloid
         if (scalar_fields) {

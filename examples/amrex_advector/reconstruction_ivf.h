@@ -362,6 +362,13 @@ struct iVF {
 
           IRL::iJibben_3D ijibben(&neighborhood);
           ijibben.getParaboloidCoefficients();
+          if (!ijibben.isFullRank()) {
+            fallback_array(i, j, k) = 1;
+            marked_array(i, j, k) = 0;
+            interface_array(i, j, k) =
+                makeVolumeMatchedPLIC(i, j, k, init_n, vfrac, problo, dx);
+            return;
+          }
 
           const std::pair<double, IRL::Normal> fit_result =
               ijibben.computeAveragedCurvatureAndNormal();
@@ -554,6 +561,7 @@ struct iVF {
 
         IRL::iJibben_3D ijibben(&neighborhood);
         ijibben.getParaboloidCoefficients();
+        if (!ijibben.isFullRank()) return;
 
         IRL::SeparatorUnion candidate;
         candidate = ijibben.makeParaboloid2(&neighborhood);

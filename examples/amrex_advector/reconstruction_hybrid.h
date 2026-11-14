@@ -223,6 +223,7 @@ struct HYBRID {
 
         double vf_supercell = 0.0;
         double gas_vf_supercell = 0.0;
+        bool found_center = false;
         int jibben_count = 0;
 
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
@@ -255,6 +256,7 @@ struct HYBRID {
 
                 if (i == ii && j == jj && k == kk) {
                   neighborhood.setCenterOfStencil(jibben_count);
+                  found_center = true;
                 }
 
                 ++jibben_count;
@@ -265,7 +267,7 @@ struct HYBRID {
           }
         }
 
-        if (jibben_count < 2) {
+        if (!found_center || jibben_count < 2) {
           underresolved_array(i, j, k) = 1;
           return;
         }
@@ -294,6 +296,10 @@ struct HYBRID {
 
         // solving for paraboloid
         IRL::Paraboloid jibben_paraboloid = jibben_solver.solve2(&neighborhood);
+        if (!jibben_solver.isFullRank()) {
+          underresolved_array(i, j, k) = 1;
+          return;
+        }
 
         // Squared volume error check
         const double volume_error = jibben_solver.getVolumeErrorSquared(dx_avg);
@@ -404,6 +410,7 @@ struct HYBRID {
         pu_neighborhood.reserve(nstencil);
         pu_neighborhood.emptyNeighborhood();
 
+        bool found_center = false;
         int pu_count = 0;
         double vf_supercell = 0.0;
         double gas_vf_supercell = 0.0;
@@ -468,6 +475,7 @@ struct HYBRID {
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
+                found_center = true;
               }
 
               ++pu_count;
@@ -477,7 +485,7 @@ struct HYBRID {
           }
         }
 
-        if (pu_count < 2) {
+        if (!found_center || pu_count < 2) {
           return;
         }
 

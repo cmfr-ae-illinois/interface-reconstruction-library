@@ -119,6 +119,7 @@ struct PU_CF {
         neighborhood.setDelta(2.5 * dx_avg);
         neighborhood.emptyNeighborhood();
 
+        bool found_center = false;
         int count = 0;
 
         for (int kk = k - nlayers; kk <= k + nlayers; ++kk) {
@@ -152,6 +153,7 @@ struct PU_CF {
 
               if (i == ii && j == jj && k == kk) {
                 neighborhood.setCenterOfStencil(count);
+                found_center = true;
               }
 
               ++count;
@@ -159,7 +161,7 @@ struct PU_CF {
           }
         }
 
-        if (neighborhood.size() < 2) {
+        if (!found_center || neighborhood.size() < 2) {
           return;
         }
 
@@ -238,6 +240,7 @@ struct PU_CF {
         const CellType center_cell = makeCell(i, j, k, problo, dx);
         pu_neighborhood.setCenterCell(&center_cell);
 
+        bool found_center = false;
         int pu_count = 0;
 
         // Build PU neighborhood
@@ -295,6 +298,7 @@ struct PU_CF {
 
               if (i == ii && j == jj && k == kk) {
                 pu_neighborhood.setCenterOfStencil(pu_count);
+                found_center = true;
               }
 
               ++pu_count;
@@ -303,7 +307,7 @@ struct PU_CF {
         }
 
         // Neighbor count check
-        if (pu_count < 2) {
+        if (!found_center || pu_count < 2) {
           return;
         }
 
