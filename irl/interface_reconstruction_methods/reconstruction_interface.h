@@ -38,12 +38,12 @@ inline Paraboloid reconstructionWithPU3D(
 /// \brief Perform Jibben squared volume reconstruction for a 3D problem.
 inline Paraboloid reconstructionWithJibbenSq3D(
     const JibbenNeighborhood& a_neighborhood_geometry,
-    const double a_delta = -1.0);
+    const double a_delta = -1.0, int* a_fit_rank = nullptr);
 
 /// \brief Perform Jibben reconstruction for a 3D problem.
 inline Paraboloid reconstructionWithJibben3D(
     const JibbenNeighborhood& a_neighborhood_geometry,
-    const double a_delta = -1.0);
+    const double a_delta = -1.0, int* a_fit_rank = nullptr);
 
 /// \brief Perform circle-fit reconstruction for a 3D problem.
 inline Paraboloid reconstructionWithCF3D(

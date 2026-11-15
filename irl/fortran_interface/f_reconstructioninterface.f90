@@ -210,35 +210,38 @@ module f_ReconstructionInterface
   end interface
 
   interface
-    subroutine F_reconstructJibbenSq3D_Variant(a_JibbenNeigh, a_separator) &
+    subroutine F_reconstructJibbenSq3D_Variant(a_JibbenNeigh, a_separator, a_fit_rank) &
     bind(C, name="c_reconstructJibbenSq3D_Variant")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
+      integer(C_INT), intent(out) :: a_fit_rank
     end subroutine F_reconstructJibbenSq3D_Variant
   end interface
 
   interface
-    subroutine F_reconstructJibbenSq3D_Union_raw(a_JibbenNeigh, a_separator) &
+    subroutine F_reconstructJibbenSq3D_Union_raw(a_JibbenNeigh, a_separator, a_fit_rank) &
     bind(C, name="c_reconstructJibbenSq3D_Union_raw")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(SeparatorUnion_type_raw) :: a_separator
+      integer(C_INT), intent(out) :: a_fit_rank
     end subroutine F_reconstructJibbenSq3D_Union_raw
   end interface
 
   interface
-    subroutine F_reconstructJibben3D_Variant(a_JibbenNeigh, a_separator) &
+    subroutine F_reconstructJibben3D_Variant(a_JibbenNeigh, a_separator, a_fit_rank) &
     bind(C, name="c_reconstructJibben3D_Variant")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(c_SeparatorVariant) :: a_separator ! Pointer for PlanarSep to set
+      integer(C_INT), intent(out) :: a_fit_rank
     end subroutine F_reconstructJibben3D_Variant
   end interface
 
@@ -269,13 +272,14 @@ module f_ReconstructionInterface
   end interface
 
   interface
-    subroutine F_reconstructJibben3D_Union_raw(a_JibbenNeigh, a_separator) &
+    subroutine F_reconstructJibben3D_Union_raw(a_JibbenNeigh, a_separator, a_fit_rank) &
     bind(C, name="c_reconstructJibben3D_Union_raw")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(c_JibbenNeigh) :: a_JibbenNeigh ! Pointer to a JibbenNeigh object
       type(SeparatorUnion_type_raw) :: a_separator
+      integer(C_INT), intent(out) :: a_fit_rank
     end subroutine F_reconstructJibben3D_Union_raw
   end interface
 
@@ -727,33 +731,51 @@ module f_ReconstructionInterface
 
   end subroutine reconstructELVIRA3D_Sep
 
-  subroutine reconstructJibbenSq3D_Variant(a_jibben_neighborhood, a_separator)
+  subroutine reconstructJibbenSq3D_Variant(a_jibben_neighborhood, a_separator, a_fit_rank)
     use, intrinsic :: iso_c_binding
     implicit none
       type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
       type(SeparatorVariant_type), intent(inout) :: a_separator
 
-      call F_reconstructJibbenSq3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
+      integer(IRL_SignedIndex_t), optional, intent(out) :: a_fit_rank
+      integer(C_INT) :: fit_rank
+
+      call F_reconstructJibbenSq3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object, &
+          fit_rank)
+
+      if (present(a_fit_rank)) a_fit_rank = fit_rank
 
   end subroutine reconstructJibbenSq3D_Variant
 
-  subroutine reconstructJibbenSq3D_Union_raw(a_jibben_neighborhood, a_separator)
+  subroutine reconstructJibbenSq3D_Union_raw(a_jibben_neighborhood, a_separator, a_fit_rank)
     use, intrinsic :: iso_c_binding
     implicit none
       type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
       type(SeparatorUnion_type_raw), intent(inout) :: a_separator
 
-      call F_reconstructJibbenSq3D_Union_raw(a_jibben_neighborhood%c_object, a_separator)
+      integer(IRL_SignedIndex_t), optional, intent(out) :: a_fit_rank
+      integer(C_INT) :: fit_rank
+
+      call F_reconstructJibbenSq3D_Union_raw(a_jibben_neighborhood%c_object, a_separator, &
+          fit_rank)
+
+      if (present(a_fit_rank)) a_fit_rank = fit_rank
 
   end subroutine reconstructJibbenSq3D_Union_raw
 
-  subroutine reconstructJibben3D_Variant(a_jibben_neighborhood, a_separator)
+  subroutine reconstructJibben3D_Variant(a_jibben_neighborhood, a_separator, a_fit_rank)
     use, intrinsic :: iso_c_binding
     implicit none
       type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
       type(SeparatorVariant_type), intent(inout) :: a_separator
 
-      call F_reconstructJibben3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object)
+      integer(IRL_SignedIndex_t), optional, intent(out) :: a_fit_rank
+      integer(C_INT) :: fit_rank
+
+      call F_reconstructJibben3D_Variant(a_jibben_neighborhood%c_object, a_separator%c_object, &
+          fit_rank)
+
+      if (present(a_fit_rank)) a_fit_rank = fit_rank
 
   end subroutine reconstructJibben3D_Variant
 
@@ -781,13 +803,19 @@ module f_ReconstructionInterface
 
   end subroutine reconstructPU3D_RectCub_Union_raw
 
-  subroutine reconstructJibben3D_Union_raw(a_jibben_neighborhood, a_separator)
+  subroutine reconstructJibben3D_Union_raw(a_jibben_neighborhood, a_separator, a_fit_rank)
     use, intrinsic :: iso_c_binding
     implicit none
       type(JibbenNeigh_type), intent(in) :: a_jibben_neighborhood
       type(SeparatorUnion_type_raw), intent(inout) :: a_separator
 
-      call F_reconstructJibben3D_Union_raw(a_jibben_neighborhood%c_object, a_separator)
+      integer(IRL_SignedIndex_t), optional, intent(out) :: a_fit_rank
+      integer(C_INT) :: fit_rank
+
+      call F_reconstructJibben3D_Union_raw(a_jibben_neighborhood%c_object, a_separator, &
+          fit_rank)
+
+      if (present(a_fit_rank)) a_fit_rank = fit_rank
 
   end subroutine reconstructJibben3D_Union_raw
 

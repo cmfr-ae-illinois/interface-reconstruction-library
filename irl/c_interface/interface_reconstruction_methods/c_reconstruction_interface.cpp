@@ -15,7 +15,7 @@
 extern "C" {
 
 void c_fitIterativeJibben3D(const c_JibbenNeigh* neighborhood,
-                           double* curvature, double* normal) {
+                            double* curvature, double* normal) {
   assert(neighborhood != nullptr && neighborhood->obj_ptr != nullptr);
   assert(curvature != nullptr && normal != nullptr);
   IRL::iJibben_3D fit(neighborhood->obj_ptr);
@@ -32,7 +32,7 @@ void c_fitIterativeJibben3D(const c_JibbenNeigh* neighborhood,
 }
 
 void c_reconstructIterativeJibben3D_Variant(const c_JibbenNeigh* neighborhood,
-                                           c_SeparatorVariant* separator) {
+                                            c_SeparatorVariant* separator) {
   assert(neighborhood != nullptr && neighborhood->obj_ptr != nullptr);
   assert(separator != nullptr && separator->obj_ptr != nullptr);
   IRL::iJibben_3D fit(neighborhood->obj_ptr);
@@ -41,7 +41,7 @@ void c_reconstructIterativeJibben3D_Variant(const c_JibbenNeigh* neighborhood,
 }
 
 void c_reconstructIterativeJibben3D_Union_raw(const c_JibbenNeigh* neighborhood,
-                                             IRL::SeparatorUnion& separator) {
+                                              IRL::SeparatorUnion& separator) {
   assert(neighborhood != nullptr && neighborhood->obj_ptr != nullptr);
   IRL::iJibben_3D fit(neighborhood->obj_ptr);
   fit.getParaboloidCoefficients();
@@ -69,48 +69,53 @@ void c_reconstructPU3D_RectCub_Union_raw(
 }
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
-                                     c_SeparatorVariant* a_separator) {
+                                     c_SeparatorVariant* a_separator,
+                                     int* a_fit_rank) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
-  *a_separator->obj_ptr =
-      reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
+  *a_separator->obj_ptr = reconstructionWithJibbenSq3D(
+      *a_jibben_neighborhood->obj_ptr, -1.0, a_fit_rank);
 }
 
 void c_reconstructJibbenSq3D_Union_raw(
     const c_JibbenNeigh* a_jibben_neighborhood,
-    IRL::SeparatorUnion& a_separator) {
+    IRL::SeparatorUnion& a_separator, int* a_fit_rank) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
-  a_separator = reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr);
+  a_separator = reconstructionWithJibbenSq3D(*a_jibben_neighborhood->obj_ptr,
+                                             -1.0, a_fit_rank);
 }
 
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
-                                 c_Paraboloid* a_separator) {
+                                 c_Paraboloid* a_separator, int* a_fit_rank) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
-  *a_separator->obj_ptr =
-      reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr);
+  *a_separator->obj_ptr = reconstructionWithJibben3D(
+      *a_jibben_neighborhood->obj_ptr, -1.0, a_fit_rank);
 }
 
 void c_reconstructJibben3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
-                                   c_SeparatorVariant* a_separator) {
+                                   c_SeparatorVariant* a_separator,
+                                   int* a_fit_rank) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
   assert(a_separator != nullptr);
   assert(a_separator->obj_ptr != nullptr);
-  *a_separator->obj_ptr =
-      reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr);
+  *a_separator->obj_ptr = reconstructionWithJibben3D(
+      *a_jibben_neighborhood->obj_ptr, -1.0, a_fit_rank);
 }
 
 void c_reconstructJibben3D_Union_raw(const c_JibbenNeigh* a_jibben_neighborhood,
-                                     IRL::SeparatorUnion& a_separator) {
+                                     IRL::SeparatorUnion& a_separator,
+                                     int* a_fit_rank) {
   assert(a_jibben_neighborhood != nullptr);
   assert(a_jibben_neighborhood->obj_ptr != nullptr);
-  a_separator = reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr);
+  a_separator = reconstructionWithJibben3D(*a_jibben_neighborhood->obj_ptr,
+                                           -1.0, a_fit_rank);
 }
 
 // void c_reconstructCF3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,

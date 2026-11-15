@@ -21,15 +21,21 @@ Paraboloid reconstructionWithPU3D(
 }
 
 Paraboloid reconstructionWithJibbenSq3D(
-    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
+    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta,
+    int* a_fit_rank) {
   Jibben_3D jibben_solver;
-  return jibben_solver.solve2(&a_neighborhood_geometry, a_delta);
+  auto paraboloid = jibben_solver.solve2(&a_neighborhood_geometry, a_delta);
+  if (a_fit_rank != nullptr) *a_fit_rank = jibben_solver.getFitRank();
+  return paraboloid;
 }
 
 Paraboloid reconstructionWithJibben3D(
-    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta) {
+    const JibbenNeighborhood& a_neighborhood_geometry, const double a_delta,
+    int* a_fit_rank) {
   Jibben_3D jibben_solver;
-  return jibben_solver.solve(&a_neighborhood_geometry, a_delta);
+  auto paraboloid = jibben_solver.solve(&a_neighborhood_geometry, a_delta);
+  if (a_fit_rank != nullptr) *a_fit_rank = jibben_solver.getFitRank();
+  return paraboloid;
 }
 
 Paraboloid reconstructionWithCF3D(

@@ -49,11 +49,11 @@ extern "C" {
 // The neighborhood must be localized before either iJibben operation.
 // The averaged normal is returned in global coordinates.
 void c_fitIterativeJibben3D(const c_JibbenNeigh* neighborhood,
-                           double* curvature, double* normal);
+                            double* curvature, double* normal);
 void c_reconstructIterativeJibben3D_Variant(const c_JibbenNeigh* neighborhood,
-                                           c_SeparatorVariant* separator);
+                                            c_SeparatorVariant* separator);
 void c_reconstructIterativeJibben3D_Union_raw(const c_JibbenNeigh* neighborhood,
-                                             IRL::SeparatorUnion& separator);
+                                              IRL::SeparatorUnion& separator);
 
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
@@ -64,17 +64,24 @@ void c_reconstructPU3D_RectCub_Union_raw(
     const double* a_dx, IRL::SeparatorUnion& a_separator);
 
 void c_reconstructJibbenSq3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
-                                     c_SeparatorVariant* a_separator);
+                                     c_SeparatorVariant* a_separator,
+                                     int* a_fit_rank = nullptr);
 
 void c_reconstructJibbenSq3D_Union_raw(
     const c_JibbenNeigh* a_jibben_neighborhood,
-    IRL::SeparatorUnion& a_separator);
+    IRL::SeparatorUnion& a_separator, int* a_fit_rank = nullptr);
 
 void c_reconstructJibben3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
-                                 c_Paraboloid* a_separator);
+                                 c_Paraboloid* a_separator,
+                                 int* a_fit_rank = nullptr);
 
 void c_reconstructJibben3D_Variant(const c_JibbenNeigh* a_jibben_neighborhood,
-                                   c_SeparatorVariant* a_separator);
+                                   c_SeparatorVariant* a_separator,
+                                   int* a_fit_rank = nullptr);
+
+void c_reconstructJibben3D_Union_raw(const c_JibbenNeigh* a_jibben_neighborhood,
+                                     IRL::SeparatorUnion& a_separator,
+                                     int* a_fit_rank = nullptr);
 
 // void c_reconstructCF3D_Parab(const c_JibbenNeigh* a_jibben_neighborhood,
 //                              const double* a_dx, c_Paraboloid* a_separator);
