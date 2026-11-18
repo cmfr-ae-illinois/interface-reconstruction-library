@@ -42,7 +42,9 @@ module f_ReconstructionInterface
   interface reconstructHF3D
     module procedure reconstructHF3D_Variant
   end interface reconstructHF3D
-
+  interface HF3D_LVIRA_Normal
+    module procedure HF3D_LVIRA_Normal_Variant
+  end interface HF3D_LVIRA_Normal
   interface reconstructPU3D
     module procedure reconstructPU3D_RectCub_Variant
   end interface reconstructPU3D
@@ -217,14 +219,27 @@ module f_ReconstructionInterface
       real(c_double), intent(in) :: a_stencil_center(3)
       real(c_double), intent(in) :: a_dx
 
-      integer(c_int),value, intent(in) :: Nx
-      integer(c_int),value, intent(in) :: Ny
-      integer(c_int),value, intent(in) :: Nz
+      integer(c_int), intent(in) :: Nx
+      integer(c_int), intent(in) :: Ny
+      integer(c_int), intent(in) :: Nz
 
       type(c_SeparatorVariant), intent(inout) :: a_separator
       integer(c_int), intent(out) :: a_status
     end subroutine F_reconstructHF3D_Variant
   end interface 
+  interface 
+    subroutine F_HF3D_LVIRA_Normal_Variant(a_vfrac,Nx,Ny,Nz,a_normal) &
+      bind(C,name="c_HF3D_LVIRA_Normal_Variant")
+      use, intrinsic :: iso_c_binding 
+      import 
+      implicit none 
+      real(c_double), intent(in) :: a_vfrac(7,7,7)
+      integer(c_int), intent(in) :: Nx
+      integer(c_int), intent(in) :: Ny
+      integer(c_int), intent(in) :: Nz
+      real(c_double), intent(inout) :: a_normal(3)
+    end subroutine F_HF3D_LVIRA_Normal_Variant
+  end interface
   interface
     subroutine F_reconstructJibben3D_Union_raw(a_JibbenNeigh, a_separator) &
     bind(C, name="c_reconstructJibben3D_Union_raw")
@@ -656,6 +671,20 @@ module f_ReconstructionInterface
         a_separator%c_object, a_status)
 
   end subroutine reconstructHF3D_Variant
+  
+  subroutine HF3D_LVIRA_Normal_Variant(a_vfrac,Nx,Ny,Nz,a_normal)
+    use, intrinsic :: iso_c_binding 
+    implicit none 
+    real(IRL_double), intent(in) :: a_vfrac(7,7,7)
+    integer(c_int), intent(in) :: Nx 
+    integer(c_int), intent(in) :: Ny 
+    integer(c_int), intent(in) :: Nz 
+    real(IRL_double), intent(inout) :: a_normal(3)
+
+    call F_HF3D_LVIRA_Normal_Variant( &
+        a_vfrac,Nx, Ny, Nz,a_normal)
+
+  end subroutine HF3D_LVIRA_Normal_Variant
 
   subroutine reconstructJibben3D_Union_raw(a_jibben_neighborhood, a_separator)
     use, intrinsic :: iso_c_binding

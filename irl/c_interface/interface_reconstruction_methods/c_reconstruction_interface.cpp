@@ -12,6 +12,87 @@
 
 extern "C" {
 
+void c_HF3D_LVIRA_Normal_Variant(const double* a_vfrac, int* i_in, int* j_in,
+                                 int* imNOTNEED, double* a_normal) {
+  assert(a_vfrac != nullptr);
+  assert(i_in != nullptr);
+  assert(j_in != nullptr);
+  assert(imNOTNEED != nullptr);
+  assert(a_normal != nullptr);
+  int Nx = 7;
+  int Ny = 7;
+  int Nz = 7;
+  int upper[3] = {6, 6, 6};
+  int lower[3] = {0, 0, 0};
+  if (*i_in != *j_in) {
+    // Momentum direction: remove uppermost cell
+    upper[*i_in - 1] = 5;
+
+    // Normal direction: remove lowermost cell
+    lower[*j_in - 1] = 1;
+  }
+
+  // Calculate stencil dimensions
+  Nx = upper[0] - lower[0] + 1;
+  Ny = upper[1] - lower[1] + 1;
+  Nz = upper[2] - lower[2] + 1;
+  // Lambda
+  // Populate a stencil from the 7x7x7 Fortran array
+  auto populateStencil = [&](auto& vfrac) {
+    const int nx = static_cast<int>(vfrac.size());
+    const int ny = static_cast<int>(vfrac[0].size());
+    const int nz = static_cast<int>(vfrac[0][0].size());
+
+    assert(nx == Nx);
+    assert(ny == Ny);
+    assert(nz == Nz);
+
+    for (int i = 0; i < nx; ++i) {
+      for (int j = 0; j < ny; ++j) {
+        for (int k = 0; k < nz; ++k) {
+          const int fi = i + lower[0];
+          const int fj = j + lower[1];
+          const int fk = k + lower[2];
+
+          // Fortran column-major indexing (7x7x7)
+          vfrac[i][j][k] = a_vfrac[fi + 7 * (fj + 7 * fk)];
+        }
+      }
+    }
+  };
+
+  // Cases
+  IRL::Normal normal;
+  if (Nx == 7 && Ny == 7 && Nz == 7) {
+    std::array<std::array<std::array<double, 7>, 7>, 7> vfrac{};
+    populateStencil(vfrac);
+    IRL::HeightFunctions_3D<7, 7, 7, IRL::SeparatorVariant> hf;
+    normal = hf.lvira_normal(vfrac);
+  } else if (Nx == 6 && Ny == 6 && Nz == 7) {
+    std::array<std::array<std::array<double, 7>, 6>, 6> vfrac{};
+    populateStencil(vfrac);
+    IRL::HeightFunctions_3D<6, 6, 7, IRL::SeparatorVariant> hf;
+    normal = hf.lvira_normal(vfrac);
+  } else if (Nx == 6 && Ny == 7 && Nz == 6) {
+    std::array<std::array<std::array<double, 6>, 7>, 6> vfrac{};
+    populateStencil(vfrac);
+    IRL::HeightFunctions_3D<6, 7, 6, IRL::SeparatorVariant> hf;
+    normal = hf.lvira_normal(vfrac);
+  } else if (Nx == 7 && Ny == 6 && Nz == 6) {
+    std::array<std::array<std::array<double, 6>, 6>, 7> vfrac{};
+    populateStencil(vfrac);
+    IRL::HeightFunctions_3D<7, 6, 6, IRL::SeparatorVariant> hf;
+    normal = hf.lvira_normal(vfrac);
+  } else {
+    std::cout << "Unsupported grid dimensions: " << Nx << "x" << Ny << "x" << Nz
+              << std::endl;
+    normal = IRL::Normal(0.0, 0.0, 0.0);
+  }
+  for (IRL::UnsignedIndex_t n = 0; n < 3; ++n) {
+    *(a_normal + n) = normal[n];
+  }
+}
+
 void c_reconstructHF3D_Variant(const double* a_vfrac, const double* a_center,
                                const double* a_dx, int* Nx, int* Ny, int* Nz,
                                c_SeparatorVariant* a_separator, int* a_status) {
@@ -51,6 +132,21 @@ void c_reconstructHF3D_Variant(const double* a_vfrac, const double* a_center,
     std::array<std::array<std::array<double, 7>, 7>, 7> vfrac{};
     populateStencil(vfrac);
     *a_separator->obj_ptr = IRL::reconstructionWithHeightFunctions3D<7, 7, 7>(
+        vfrac, center, *a_dx, &status);
+  } else if (*Nx == 6 && *Ny == 6 && *Nz == 7) {
+    std::array<std::array<std::array<double, 7>, 6>, 6> vfrac{};
+    populateStencil(vfrac);
+    *a_separator->obj_ptr = IRL::reconstructionWithHeightFunctions3D<6, 6, 7>(
+        vfrac, center, *a_dx, &status);
+  } else if (*Nx == 6 && *Ny == 7 && *Nz == 6) {
+    std::array<std::array<std::array<double, 6>, 7>, 6> vfrac{};
+    populateStencil(vfrac);
+    *a_separator->obj_ptr = IRL::reconstructionWithHeightFunctions3D<6, 7, 6>(
+        vfrac, center, *a_dx, &status);
+  } else if (*Nx == 7 && *Ny == 6 && *Nz == 6) {
+    std::array<std::array<std::array<double, 6>, 6>, 7> vfrac{};
+    populateStencil(vfrac);
+    *a_separator->obj_ptr = IRL::reconstructionWithHeightFunctions3D<7, 6, 6>(
         vfrac, center, *a_dx, &status);
   } else {
     std::cout << "Unsupported grid dimensions: " << *Nx << "x" << *Ny << "x"

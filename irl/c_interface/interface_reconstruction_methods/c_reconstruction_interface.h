@@ -30,6 +30,7 @@
 #include "irl/c_interface/variant_reconstruction/c_separator_variant.h"
 #include "irl/geometry/polygons/tri.h"
 #include "irl/geometry/polyhedrons/rectangular_cuboid.h"
+#include "irl/interface_reconstruction_methods/height_functions.h"
 #include "irl/interface_reconstruction_methods/reconstruction_interface.h"
 #include "irl/planar_reconstruction/planar_separator.h"
 #include "irl/variant_reconstruction/separator_variant.h"
@@ -48,7 +49,8 @@ extern "C" {
 void c_reconstructHF3D_Variant(const double* a_vfrac, const double* a_center,
                                const double* a_dx, int* Nx, int* Ny, int* Nz,
                                c_SeparatorVariant* a_separator, int* a_status);
-
+void c_HF3D_LVIRA_Normal_Variant(const double* a_vfrac, int* Nx, int* Ny,
+                                 int* Nz, double* a_normal);
 void c_reconstructPU3D_RectCub_Variant(
     const c_PUNeigh_RectCub* a_pu_neighborhood, const double* a_delta,
     const double* a_dx, c_SeparatorVariant* a_separator);

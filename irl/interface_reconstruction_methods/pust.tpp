@@ -455,7 +455,7 @@ Normal PUST<CellType>::solveFace(const double STin, const Pt& P0, const Pt& P1,
     }
   }
   total = -total;
-  if (Pressure >= 0.5 && std::abs(arcLength) > 1e-12) {
+  if (Pressure >= 0.5) {
     averageCurvature = averageCurvature / safelyTiny(arcLength);
     averageSurfaceTension = averageSurfaceTension / safelyTiny(arcLength);
     // std::cout << "Average Curvature: " << averageCurvature << "\n";
@@ -604,8 +604,11 @@ Normal PUST<CellType>::solveFaceParaboloid(
       // std::cout << "Normal: " << normal << "\n";
       // std::cout << "t dot n: " << dot << "\n";
       // std::cout << "|t x n|: " << fmag << "\n";
-      // std::cout << "--------------------------\n";
       f.normalize();
+      if (f * faceNormal < 0) {
+        std::cout << "FLIPPING FORCE COMPONENT IN PUST\n";
+        f = -f;
+      }
       f = f * ST;
       total = total + 0.5 * w * f * speed;
       if (Pressure >= 0.5) {
@@ -632,12 +635,15 @@ Normal PUST<CellType>::solveFaceParaboloid(
   }
   // std::cout << "Total force: " << total << "\n";
   // Ensure Total is facing in face Normal direction
+  // std::cout << total * faceNormal << "\n";
   if (total * faceNormal < 0) {
+    std::cout << "FLIPPING FORCE IN PUST\n";
     total = -total;
   }
+  // std::cout << "--------------------------\n";
   // Now add pressure term
   area = area_and_surf.getMoments().area();
-  if (Pressure >= 0.5 && std::abs(arcLength) > 1e-12) {
+  if (Pressure >= 0.5) {
     averageCurvature = averageCurvature / safelyTiny(arcLength);
     averageSurfaceTension = averageSurfaceTension / safelyTiny(arcLength);
     Normal inwardsNormal = -faceNormal;
@@ -646,15 +652,25 @@ Normal PUST<CellType>::solveFaceParaboloid(
     // Determine if center point inside or outside
     Pt faceCenter = (P0 + P1 + P2 + P3) * 0.25;
     double levelsetValue = SeparatorPointer->getLevelsetValue(faceCenter);
-    if (levelsetValue > 0.0) {
-      total = total +
-              averageSurfaceTension * averageCurvature * area * inwardsNormal;
-    } else {
-      area = faceArea - area;
-      total = total -
-              averageSurfaceTension * averageCurvature * area * inwardsNormal;
-    }
+    double faceFraction = area / faceArea;
+    double liquidArea = area;
+    double gasArea = faceArea - liquidArea;
 
+    double pressureJump = averageSurfaceTension * averageCurvature;
+
+    if (levelsetValue > 0.0) {
+      // Liquid reference pressure:
+      // Correct the gas portion of the face.
+      total = total + pressureJump * liquidArea * inwardsNormal;
+
+    } else {
+      // Gas reference pressure:
+      // Correct the liquid portion of the face.
+      total = total - pressureJump * gasArea * inwardsNormal;
+    }
+    // total =
+    //     total + averageSurfaceTension * averageCurvature * area *
+    //     inwardsNormal;
     if (debug) {
       std::cout << "Average Curvature: " << averageCurvature << "\n";
       std::cout << "Average Surface Tension: " << averageSurfaceTension << "\n";
