@@ -66,7 +66,7 @@ struct InterfaceScalarField {
 
 #include "examples/amrex_advector/reconstruction_cf.h"
 #include "examples/amrex_advector/reconstruction_elvira.h"
-#include "examples/amrex_advector/reconstruction_hf.h"
+#include "examples/amrex_advector/reconstruction_h2f.h"
 #include "examples/amrex_advector/reconstruction_hybrid.h"
 #include "examples/amrex_advector/reconstruction_ivf.h"
 #include "examples/amrex_advector/reconstruction_lvira.h"
@@ -74,7 +74,7 @@ struct InterfaceScalarField {
 #include "examples/amrex_advector/reconstruction_mof2.h"
 #include "examples/amrex_advector/reconstruction_plicnet.h"
 #include "examples/amrex_advector/reconstruction_pu_cf.h"
-#include "examples/amrex_advector/reconstruction_pu_hf.h"
+#include "examples/amrex_advector/reconstruction_pu_h2f.h"
 #include "examples/amrex_advector/reconstruction_pu_plic.h"
 #include "examples/amrex_advector/reconstruction_pu_vf.h"
 #include "examples/amrex_advector/reconstruction_vf.h"
@@ -382,18 +382,18 @@ int reconstructInterface(const std::string& method,
   } else if (method == "vf") {
     VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                           nullptr, reconstruction_loop_time);
-  } else if (method == "hf") {
-    HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                          nullptr, reconstruction_loop_time);
+  } else if (method == "h2f") {
+    H2F::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                           nullptr, reconstruction_loop_time);
   } else if (method == "ivf") {
     iVF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                            nullptr, reconstruction_loop_time);
   } else if (method == "pu_vf") {
     PU_VF::GetReconstruction(interface, interface_with_ghost, moments, geom,
                              nullptr, reconstruction_loop_time);
-  } else if (method == "pu_hf") {
-    PU_HF::GetReconstruction(interface, interface_with_ghost, moments, geom,
-                             nullptr, reconstruction_loop_time);
+  } else if (method == "pu_h2f") {
+    PU_H2F::GetReconstruction(interface, interface_with_ghost, moments, geom,
+                              nullptr, reconstruction_loop_time);
   } else if (method == "pu_plic") {
     PU_PLIC::GetReconstruction(interface, interface_with_ghost, moments, geom,
                                nullptr, reconstruction_loop_time);
@@ -1400,8 +1400,8 @@ void printUsage() {
       << "  shape = sphere|ellipsoid|genus|orthocircle|perturbed_sphere\n"
       << "  nx_fine = fine binary resolution\n"
       << "  reconstruction_method = vf\n"
-      << "    methods: default|elvira|lvira|plicnet|mof|mof1|vf|hf|ivf|"
-         "pu_vf|pu_hf|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
+      << "    methods: default|elvira|lvira|plicnet|mof|mof1|vf|h2f|ivf|"
+         "pu_vf|pu_h2f|pu_plic|cf|pu_cf|mof2|supermof2|hybrid\n"
       << "Optional:\n"
       << "  factor = 1\n"
       << "  factors = 1 2 4 8 16\n"
